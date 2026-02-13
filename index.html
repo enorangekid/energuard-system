@@ -40,7 +40,11 @@
   </div>
 
   <nav class="sidebar">
-    <div class="logo-area"><i class="fa-solid fa-layer-group"></i> EnerGuard</div>
+    <div class="logo-area">
+        <div class="brand-text">주식회사 에너가드컴퍼니</div>
+        <div class="user-role-badge">관리자</div>
+    </div>
+    
     <ul class="menu-list">
       <li class="menu-item active" onclick="showPage('dashboard', this)"><i class="fa-solid fa-chart-pie"></i> 대시보드</li>
       <li class="menu-item" onclick="showPage('timeline', this)"><i class="fa-solid fa-clock"></i> 업무 타임라인</li>
@@ -48,9 +52,9 @@
       <li class="menu-item" onclick="showPage('productlogs', this)"><i class="fa-solid fa-boxes-packing"></i> 상품 수정 내역</li>
       <li class="menu-item" onclick="showPage('notes', this)"><i class="fa-solid fa-note-sticky"></i> 업무 노트</li>
       <li class="menu-item" onclick="showPage('ranking', this)"><i class="fa-solid fa-trophy"></i> 검색 순위</li>
-      <li class="menu-item" onclick="showPage('sales', this)"><i class="fa-solid fa-sack-dollar"></i> 매출 분석</li>
+      <li class="menu-item" onclick="showPage('sales', this)"><i class="fa-solid fa-chart-line"></i> 매출 분석</li>
     </ul>
-    <div class="sidebar-footer">Version 4.0 Integrated</div>
+    <div class="sidebar-footer">Version 4.1 Integrated</div>
   </nav>
 
   <main class="main-content">
@@ -60,7 +64,7 @@
         <span id="clock" style="font-feature-settings: 'tnum';">2026.02.11 09:00</span>
         <div style="width:1px; height:16px; background:#e5e7eb;"></div>
         <span>관리자님</span>
-        <button class="btn-logout" onclick="handleLogout()"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+        <button class="btn-logout" onclick="handleLogout()">로그아웃 <i class="fa-solid fa-arrow-right-from-bracket"></i></button>
       </div>
     </header>
 
