@@ -303,7 +303,7 @@ function saveData() {
   
   fetch(SCRIPT_URL, { 
       method: 'POST', redirect: 'follow', 
-      body: JSON.stringify({ sheetName: "Sheet1", data: products, password: authPassword }) 
+      body: JSON.stringify({ action: "save", sheetName: "Sheet1", data: products, password: authPassword }) 
   })
   .then(res => res.json()).then(json => { 
       if(json.status === "success") { 
@@ -524,7 +524,7 @@ function saveSalesData() {
   var dataToSave = [header].concat(salesData);
   fetch(SCRIPT_URL, { 
       method: 'POST', 
-      body: JSON.stringify({ sheetName: "SalesData", data: dataToSave, password: authPassword }) 
+      body: JSON.stringify({ action: "save", sheetName: "SalesData", data: dataToSave, password: authPassword }) 
   }).then(res => res.json()).then(json => {
         if(json.status === "success") {
           alert("매출 데이터 저장 완료!");
