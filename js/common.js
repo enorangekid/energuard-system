@@ -1,15 +1,13 @@
-// JavaScript Document/* ================= [1. Config & Global State] ================= */
+/* ================= [1. Config & Global State] ================= */
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnBm3LeW0c_z7vW6z0IJ0voBA6IZnnGjqQKvdB7a-zvs_5dBlG3fMFKQKWy5B9Yj5J/exec"; 
-var authPassword = ""; // 로그인 성공 시 저장될 비밀번호
+var authPassword = ""; 
 
 /* ================= [2. Login Logic] ================= */
 window.onload = function() {
-    // 엔터키 로그인
     document.getElementById("loginPassInput").addEventListener("keypress", function(e) {
         if(e.key === "Enter") tryLogin();
     });
 
-    // 자동 로그인 체크
     var savedPass = localStorage.getItem("dashboard_pass");
     if (savedPass) {
         authPassword = savedPass;
@@ -17,13 +15,11 @@ window.onload = function() {
         showPage('dashboard', document.querySelector('.menu-item.active'));
     }
     
-    // 시계 작동
     setInterval(() => {
       const now = new Date();
       document.getElementById('clock').innerText = now.toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }, 1000);
     
-    // 타임라인 초기 날짜 설정 (tasks.js에 의존성 없게 안전 처리)
     const tDate = document.getElementById('tDate');
     if(tDate) tDate.valueAsDate = new Date();
 };
@@ -34,43 +30,29 @@ function tryLogin() {
     var isKeep = document.getElementById('keepLoginCheck').checked;
     var pass = input.value;
 
-    if (!pass) {
-        msg.innerText = "비밀번호를 입력해주세요.";
-        return;
-    }
-
-    msg.innerText = "확인 중...";
-    msg.style.color = "#666";
+    if (!pass) { msg.innerText = "비밀번호를 입력해주세요."; return; }
+    msg.innerText = "확인 중..."; msg.style.color = "#666";
 
     fetch(SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: "auth_check", password: pass })
-    })
-    .then(res => res.json())
-    .then(json => {
+        method: 'POST', body: JSON.stringify({ action: "auth_check", password: pass })
+    }).then(res => res.json()).then(json => {
         if (json.status === "success") {
             authPassword = pass; 
             if (isKeep) localStorage.setItem("dashboard_pass", pass);
             document.getElementById('loginScreen').classList.add('hidden');
             showPage('dashboard', document.querySelector('.menu-item.active'));
         } else {
-            msg.innerText = "⛔ 비밀번호가 틀렸습니다.";
-            msg.style.color = "red";
-            input.value = "";
-            input.focus();
+            msg.innerText = "⛔ 비밀번호가 틀렸습니다."; msg.style.color = "red";
+            input.value = ""; input.focus();
         }
-    })
-    .catch(err => {
-        msg.innerText = "⚠️ 서버 통신 오류";
-        msg.style.color = "red";
+    }).catch(err => {
+        msg.innerText = "⚠️ 서버 통신 오류"; msg.style.color = "red";
     });
 }
 
 function handleLogout() {
-    if (confirm("로그아웃 하시겠습니까? (자동 로그인도 해제됩니다)")) {
-        authPassword = "";
-        localStorage.removeItem("dashboard_pass"); 
-        location.reload(); 
+    if (confirm("로그아웃 하시겠습니까?")) {
+        authPassword = ""; localStorage.removeItem("dashboard_pass"); location.reload(); 
     }
 }
 
@@ -85,23 +67,34 @@ function showPage(pageId, element) {
     document.getElementById('pageTitleText').innerText = element.innerText.trim();
   }
   
-  // 각 모듈의 로드 함수 호출 (함수가 존재할 때만 실행)
   if(pageId === 'timeline' && typeof loadTimelineFromServer === 'function') loadTimelineFromServer();
   if(pageId === 'worklog' && typeof loadWorklogFromServer === 'function') loadWorklogFromServer(); 
   if(pageId === 'productlogs' && typeof renderProductLogPage === 'function') renderProductLogPage();
   if(pageId === 'ranking' && typeof loadRankingData === 'function') loadRankingData();
   if(pageId === 'sales' && typeof loadSalesData === 'function') loadSalesData();
 
+  // [수정] 노트 페이지 진입 로직 강화
   if(pageId === 'notes') {
+      document.getElementById('loader').style.display = 'flex';
+      
+      // 약간의 지연을 주어 DOM이 렌더링된 후 실행
       setTimeout(() => {
-          if(typeof initQuill === 'function' && !quill) initQuill(); 
-          const today = new Date().toISOString().split('T')[0];
+          // 1. 오늘 날짜 세팅
           const dateInput = document.getElementById('noteDate');
           if(!dateInput.value) {
-               dateInput.value = today;
-               if(typeof handleNoteDateChange === 'function') handleNoteDateChange();
+              const today = new Date().toISOString().split('T')[0];
+              dateInput.value = today;
           }
-      }, 100);
+
+          // 2. 에디터 초기화 및 데이터 로드 호출
+          if(typeof initQuill === 'function') initQuill();
+          
+          if(typeof handleNoteDateChange === 'function') {
+              handleNoteDateChange(); 
+          } else {
+              document.getElementById('loader').style.display = 'none';
+          }
+      }, 300); // 300ms 딜레이로 안정성 확보
   }
 }
 
