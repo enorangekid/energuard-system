@@ -1,5 +1,5 @@
 /* ================= [Timeline Logic] ================= */
-// (타임라인 관련 코드는 변경 없음, 그대로 유지)
+// (타임라인 로직 유지)
 let collapsedDates = {};
 let timeLogs = [];
 let editingItemIndex = -1; 
@@ -116,7 +116,7 @@ function renderTimeLog() {
   });
 }
 
-function addTimeLog() { /* 기존과 동일 */
+function addTimeLog() {
   const date = document.getElementById('tDate').value;
   const category = document.getElementById('tCategory').value;
   const task = document.getElementById('tTask').value;
@@ -157,7 +157,7 @@ function addTimeLog() { /* 기존과 동일 */
   renderTimeLog();
 }
 
-function editTimeLog(index) { /* 기존과 동일 */
+function editTimeLog(index) {
     const log = timeLogs[index];
     if(!log) return;
     editingItemIndex = index;
@@ -183,7 +183,7 @@ function editTimeLog(index) { /* 기존과 동일 */
     document.querySelector('.input-panel').scrollIntoView({ behavior: 'smooth' });
 }
 
-function cancelEditMode() { /* 기존과 동일 */
+function cancelEditMode() {
     editingItemIndex = -1;
     document.getElementById('editModeMsg').style.display = 'none';
     const btn = document.getElementById('addLogBtn');
@@ -204,7 +204,7 @@ window.addEventListener('DOMContentLoaded', () => {
    initMonthlyLog(); 
 });
 
-function handleMonthChange(input) { /* 유지 */
+function handleMonthChange(input) {
   if(!input.value) return;
   const parts = input.value.split('-');
   currentWorkYear = parseInt(parts[0]);
@@ -222,7 +222,7 @@ function updateDateDisplay() {
   }
 }
 
-function generateWeeksData(year, month) { /* 유지 */
+function generateWeeksData(year, month) {
   const weeks = [];
   const firstDayOfMonth = new Date(year, month - 1, 1);
   const lastDayOfMonth = new Date(year, month, 0); 
@@ -264,7 +264,7 @@ function generateWeeksData(year, month) { /* 유지 */
   return weeks;
 }
 
-function initMonthlyLog() { /* 유지 */
+function initMonthlyLog() {
   const container = document.getElementById('monthlyContainer');
   if(!container) return;
   container.innerHTML = ''; 
@@ -330,8 +330,7 @@ function initMonthlyLog() { /* 유지 */
   });
 }
 
-/* (나머지 Worklog 헬퍼 함수들 유지 - DragSelection 등) */
-function setupDragSelection() { /* 유지 */
+function setupDragSelection() {
   let isSelecting = false;
   let startInput = null;
   let selectedInputs = [];
@@ -520,7 +519,7 @@ function setupDragSelection() { /* 유지 */
   }
 }
 
-function collectAndSaveWorklog() { /* 유지 */
+function collectAndSaveWorklog() {
   if(!confirm(`${currentWorkYear}년 ${currentWorkMonth}월 업무일지를 저장하시겠습니까?\n(해당 월의 기존 데이터는 덮어씌워집니다)`)) return;
   const loader = document.getElementById('loader'); loader.style.display = 'flex';
   const targetYear = currentWorkYear; const targetMonth = currentWorkMonth;
@@ -563,7 +562,7 @@ function normalizeDate(dateStr) {
    return `${y}-${m}-${d}`;
 }
 
-function loadWorklogFromServer() { /* 유지 */
+function loadWorklogFromServer() {
   if(!authPassword) return;
   const loader = document.getElementById('loader'); loader.style.display = 'flex';
   fetch(SCRIPT_URL, {
@@ -601,7 +600,7 @@ function loadWorklogFromServer() { /* 유지 */
   }).finally(() => { loader.style.display = 'none'; });
 }
 
-function updateRow(input) { /* 유지 */
+function updateRow(input) {
   const row = input.closest('.task-strip');
   const cat = row.querySelector('input[name="category"]').value.trim();
   const task = row.querySelector('input[name="task"]').value.trim();
@@ -611,12 +610,12 @@ function updateRow(input) { /* 유지 */
   else { noCell.innerText = ''; if(memoBox) memoBox.style.display = 'none'; }
   calculateRate(row.closest('.week-plan-section, .day-column'));
 }
-function toggleDone(chk) { /* 유지 */
+function toggleDone(chk) {
   const row = chk.closest('.task-strip');
   if(chk.checked) row.classList.add('completed'); else row.classList.remove('completed');
   calculateRate(row.closest('.week-plan-section, .day-column'));
 }
-function calculateRate(container) { /* 유지 */
+function calculateRate(container) {
   if(!container) return;
   const allRows = Array.from(container.querySelectorAll('.task-strip'));
   const validRows = allRows.filter(row => row.querySelector('input[name="category"]').value.trim() !== "" || row.querySelector('input[name="task"]').value.trim() !== "");
@@ -684,10 +683,10 @@ function jumpToWorkLog(dateStr) {
 }
 
 
-/* ================= [New Note Logic] ================= */
+/* ================= [New Note Logic (Modified)] ================= */
 var quill;
-var currentNoteType = 'general'; // 'general', 'blog', 'youtube'
-var currentDraftId = ""; // 현재 작업 중인 드래프트 ID
+var currentNoteType = 'general';
+var currentDraftId = "";
 
 function initQuill() {
   if (quill) return;
@@ -706,7 +705,6 @@ function initQuill() {
           ['clean']
         ],
         handlers: {
-          // [핵심 수정] 이미지 삽입 즉시 Drive에 업로드하는 커스텀 핸들러
           image: imageUploadHandler
         }
       }
@@ -714,7 +712,6 @@ function initQuill() {
   });
 }
 
-// [신규] 이미지 선택 → Base64 변환 → 서버 upload_image → Drive URL로 에디터에 삽입
 function imageUploadHandler() {
   const input = document.createElement('input');
   input.type = 'file';
@@ -777,46 +774,42 @@ function imageUploadHandler() {
 
 function setNoteTab(type) {
     currentNoteType = type;
-    currentDraftId = ""; // 탭 변경시 ID 초기화
+    currentDraftId = ""; 
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     event.target.classList.add('active');
     
-    // UI 변경
     const metaArea = document.getElementById('draftMetadataArea');
     const dateSelector = document.querySelector('.date-selector');
     const listContainer = document.getElementById('draftListContainer');
     
-    // 에디터 & 메타데이터 초기화
     if(quill) quill.root.innerHTML = "";
     document.getElementById('draftTitle').value = "";
     document.getElementById('draftStatus').value = "saving";
     
-    // 일반 노트 모드
     if(type === 'general') {
         metaArea.style.display = 'none';
         listContainer.style.display = 'none';
         dateSelector.style.display = 'flex';
         document.getElementById('editor-wrapper').style.display = 'flex';
         quill.root.dataset.placeholder = "업무 내용을 자유롭게 기록하세요...";
-        handleNoteDateChange(); // 날짜 기반 로드
+        handleNoteDateChange();
     } 
-    // 블로그/유튜브 모드 (리스트 뷰)
     else {
         metaArea.style.display = 'flex';
-        listContainer.style.display = 'block'; // 목록 보이기
-        dateSelector.style.display = 'none'; // 날짜 숨기기
-        document.getElementById('editor-wrapper').style.display = 'none'; // 초기엔 에디터 숨김
-        metaArea.style.display = 'none'; // 리스트에서 선택 전까진 메타 숨김
+        listContainer.style.display = 'block'; 
+        dateSelector.style.display = 'none'; 
+        document.getElementById('editor-wrapper').style.display = 'none';
+        metaArea.style.display = 'none'; 
         
         quill.root.dataset.placeholder = type === 'blog' ? "블로그 원고 내용을 작성하세요..." : "유튜브 스크립트를 작성하세요...";
-        loadDraftList(); // 목록 불러오기
+        loadDraftList();
     }
 }
 
-// [추가] 목록 불러오기 함수
 function loadDraftList() {
     const listBody = document.getElementById('draftListBody');
-    listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;">로딩 중...</td></tr>';
+    // 로딩 스피너 디자인 적용
+    listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:50px; color:#64748b;"><i class="fa-solid fa-spinner fa-spin" style="font-size:20px; margin-bottom:10px;"></i><br>데이터를 불러오는 중입니다...</td></tr>';
     
     fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "load_draft_list", password: authPassword, type: currentNoteType }) })
     .then(res => res.json()).then(json => {
@@ -824,26 +817,28 @@ function loadDraftList() {
         if(json.status === "success" && json.list.length > 0) {
             json.list.forEach(item => {
                 const tr = document.createElement('tr');
-                tr.style.cursor = 'pointer';
                 tr.onclick = () => loadDraftContent(item.id);
                 
-                let statusBadge = item.status === 'uploaded' ? '<span class="badge badge-holiday" style="color:green; bg-color:#dcfce7;">업로드됨</span>' : '<span class="badge">작성중</span>';
+                // 상태 뱃지 디자인 개선
+                let statusBadge = item.status === 'uploaded' 
+                    ? '<span class="badge" style="background:#dcfce7; color:#166534; padding:4px 8px; border-radius:4px; font-size:11px;">업로드됨</span>' 
+                    : '<span class="badge" style="background:#f1f5f9; color:#64748b; padding:4px 8px; border-radius:4px; font-size:11px;">작성중</span>';
                 
                 tr.innerHTML = `
-                    <td>${item.date}</td>
-                    <td style="font-weight:bold;">${item.title}</td>
+                    <td class="text-sub">${item.date}</td>
+                    <td class="text-left font-bold">${item.title}</td>
                     <td>${statusBadge}</td>
-                    <td style="font-size:12px; color:#888;">${item.savedAt}</td>
+                    <td class="text-sub">${item.savedAt}</td>
                 `;
                 listBody.appendChild(tr);
             });
         } else {
-            listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:30px; color:#888;">작성된 원고가 없습니다. 새 원고를 작성해보세요!</td></tr>';
+            // 데이터 없을 때 안내 메시지
+            listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:60px; color:#94a3b8;"><i class="fa-regular fa-folder-open" style="font-size:30px; margin-bottom:10px;"></i><br>작성된 원고가 없습니다.<br>상단 "새 원고 작성" 버튼을 눌러 시작해보세요.</td></tr>';
         }
     });
 }
 
-// [추가] 리스트에서 항목 선택 시 에디터 로드
 function loadDraftContent(id) {
     currentDraftId = id;
     document.getElementById('draftListContainer').style.display = 'none';
@@ -851,7 +846,6 @@ function loadDraftContent(id) {
     document.getElementById('draftMetadataArea').style.display = 'flex';
     document.getElementById('loader').style.display = 'flex';
     
-    // 날짜 인풋은 오늘 날짜로 일단 세팅 (저장 시 사용)
     document.getElementById('noteDate').valueAsDate = new Date();
 
     fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "load_note", password: authPassword, id: id, type: currentNoteType }) })
@@ -866,9 +860,8 @@ function loadDraftContent(id) {
     }).finally(() => { document.getElementById('loader').style.display = 'none'; });
 }
 
-// [추가] 새 원고 작성 버튼 핸들러
 function createNewDraft() {
-    currentDraftId = ""; // ID 초기화 (신규 생성)
+    currentDraftId = "";
     quill.root.innerHTML = "";
     document.getElementById('draftTitle').value = "";
     document.getElementById('draftStatus').value = "saving";
@@ -879,7 +872,6 @@ function createNewDraft() {
     document.getElementById('draftMetadataArea').style.display = 'flex';
 }
 
-// [수정] 날짜 변경 시 (일반 노트만 해당)
 function handleNoteDateChange() { 
     if(currentNoteType !== 'general') return;
     
@@ -900,8 +892,75 @@ function handleNoteDateChange() {
     .finally(() => { document.getElementById('loader').style.display = 'none'; });
 }
 
-// [수정] 저장 로직 (ID 전송 및 저장 후 목록 갱신)
-function saveNoteToServer() {
+// [핵심] 붙여넣은 이미지를 찾아 서버로 업로드하고 URL로 교체하는 함수
+async function processBase64Images() {
+  const delta = quill.getContents();
+  const ops = delta.ops;
+  let hasBase64 = false;
+
+  for (let i = 0; i < ops.length; i++) {
+    if (ops[i].insert && ops[i].insert.image && String(ops[i].insert.image).startsWith('data:image')) {
+      hasBase64 = true;
+      break;
+    }
+  }
+
+  if (!hasBase64) return true; 
+
+  if (!confirm("붙여넣은 이미지가 감지되었습니다.\n서버로 업로드 변환 후 저장하시겠습니까?\n(이미지가 많으면 시간이 걸릴 수 있습니다.)")) {
+    return false;
+  }
+
+  const statusEl = document.getElementById('noteSaveStatus');
+  if (statusEl) statusEl.innerText = "이미지 변환 중...";
+  document.getElementById('loader').style.display = 'flex';
+
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i];
+    if (op.insert && op.insert.image && String(op.insert.image).startsWith('data:image')) {
+      const base64Str = op.insert.image;
+      
+      try {
+        const base64Data = base64Str.split(',')[1];
+        const mimeMatch = base64Str.match(/data:image\/([a-zA-Z]+);base64/);
+        const fileType = mimeMatch ? mimeMatch[1] : 'png';
+
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: 'upload_image',
+                password: authPassword,
+                imageBase64: base64Data,
+                fileType: fileType
+            })
+        });
+        const json = await response.json();
+
+        if (json.status === 'success') {
+           ops[i].insert.image = json.url;
+        } else {
+           alert("이미지 변환 실패: " + json.message);
+           document.getElementById('loader').style.display = 'none';
+           return false;
+        }
+      } catch (e) {
+        console.error(e);
+        alert("이미지 업로드 중 네트워크 오류 발생");
+        document.getElementById('loader').style.display = 'none';
+        return false;
+      }
+    }
+  }
+
+  quill.setContents(delta);
+  return true;
+}
+
+// [핵심] 저장 시 이미지 프로세싱을 먼저 수행
+async function saveNoteToServer() {
+  const isProcessed = await processBase64Images();
+  if (!isProcessed) return;
+
   const selectedDate = document.getElementById('noteDate').value; 
   let content = quill.root.innerHTML;
   let title = document.getElementById('draftTitle').value;
@@ -909,8 +968,6 @@ function saveNoteToServer() {
   const statusEl = document.getElementById('noteSaveStatus');
 
   if(currentNoteType !== 'general' && !title) { alert("제목을 입력해주세요."); return; }
-
-  // [수정] 이미지는 삽입 시점에 이미 Drive URL로 변환되므로 Base64 용량 체크 불필요
 
   document.getElementById('loader').style.display = 'flex'; 
   if(statusEl) statusEl.innerText = "저장 중...";
@@ -925,7 +982,7 @@ function saveNoteToServer() {
           type: currentNoteType,
           title: title,
           status: status,
-          id: currentDraftId // 수정 시 ID 전송
+          id: currentDraftId
       }) 
   })
   .then(res => res.json()).then(json => { 
@@ -934,7 +991,7 @@ function saveNoteToServer() {
           if(statusEl) statusEl.innerText = "저장 완료"; 
           
           if(currentNoteType !== 'general') {
-              currentDraftId = json.id; // 신규 생성 시 발급된 ID 저장
+              currentDraftId = json.id;
               document.getElementById('draftLastSaved').innerText = "저장됨: " + new Date().toLocaleTimeString();
           }
       } else { 
@@ -942,11 +999,10 @@ function saveNoteToServer() {
           if(statusEl) statusEl.innerText = "저장 실패"; 
       } 
   })
-  .catch(err => { alert("통신 오류 발생"); })
+  .catch(err => { alert("통신 오류 발생: " + err); })
   .finally(() => { document.getElementById('loader').style.display = 'none'; });
 }
 
-// 목록으로 돌아가기 버튼
 function backToList() {
     if(confirm("저장하지 않은 내용은 사라집니다. 목록으로 돌아가시겠습니까?")) {
         setNoteTab(currentNoteType);
@@ -955,7 +1011,7 @@ function backToList() {
 
 function resetNoteToOriginal() { if (confirm("최근 저장된 상태로 되돌리시겠습니까?")) { if(currentNoteType === 'general') handleNoteDateChange(); else loadDraftContent(currentDraftId); } }
 
-function searchNotes() { /* 기존 로직 유지 (로컬 스토리지 검색이라 서버 데이터와 별개일 수 있음) */
+function searchNotes() {
     const query = document.getElementById('noteSearchInput').value.trim().toLowerCase();
-    // (서버 검색 기능이 없으므로 로컬만 유지하거나 추후 개발 필요)
+    // 로컬 검색 구현 필요 시 여기에 작성
 }

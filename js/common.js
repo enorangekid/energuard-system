@@ -17,7 +17,7 @@ window.onload = function() {
     
     setInterval(() => {
       const now = new Date();
-      document.getElementById('clock').innerText = now.toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      document.getElementById('clock').innerText = now.toLocaleString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }, 1000);
     
     const tDate = document.getElementById('tDate');
@@ -52,7 +52,10 @@ function tryLogin() {
 
 function handleLogout() {
     if (confirm("로그아웃 하시겠습니까?")) {
-        authPassword = ""; localStorage.removeItem("dashboard_pass"); location.reload(); 
+        authPassword = ""; 
+        localStorage.removeItem("dashboard_pass"); 
+        if(typeof isDashboardLoaded !== 'undefined') isDashboardLoaded = false; // 로그아웃 시 로딩 플래그 초기화
+        location.reload(); 
     }
 }
 
@@ -64,8 +67,19 @@ function showPage(pageId, element) {
   if(element) {
     document.querySelectorAll('.menu-item').forEach(menu => { menu.classList.remove('active'); });
     element.classList.add('active');
-    document.getElementById('pageTitleText').innerText = element.innerText.trim();
+    
+    // 아이콘 요소 등 제외하고 텍스트만 가져오기
+    let menuText = element.querySelector('.menu-text');
+    document.getElementById('pageTitleText').innerText = menuText ? menuText.innerText.trim() : element.innerText.trim();
+  } else if(pageId === 'dashboard') {
+    // 로고 클릭으로 대시보드 강제 이동 시 상단 타이틀 처리
+    document.getElementById('pageTitleText').innerText = '지표 요약';
+    let dashMenu = document.querySelector('.menu-item[onclick*="dashboard"]');
+    if(dashMenu) dashMenu.classList.add('active');
   }
+  
+  // 대시보드 데이터 로드 함수 호출
+  if(pageId === 'dashboard' && typeof loadDashboardData === 'function') loadDashboardData();
   
   if(pageId === 'timeline' && typeof loadTimelineFromServer === 'function') loadTimelineFromServer();
   if(pageId === 'worklog' && typeof loadWorklogFromServer === 'function') loadWorklogFromServer(); 
@@ -73,20 +87,16 @@ function showPage(pageId, element) {
   if(pageId === 'ranking' && typeof loadRankingData === 'function') loadRankingData();
   if(pageId === 'sales' && typeof loadSalesData === 'function') loadSalesData();
 
-  // [수정] 노트 페이지 진입 로직 강화
   if(pageId === 'notes') {
       document.getElementById('loader').style.display = 'flex';
       
-      // 약간의 지연을 주어 DOM이 렌더링된 후 실행
       setTimeout(() => {
-          // 1. 오늘 날짜 세팅
           const dateInput = document.getElementById('noteDate');
           if(!dateInput.value) {
               const today = new Date().toISOString().split('T')[0];
               dateInput.value = today;
           }
 
-          // 2. 에디터 초기화 및 데이터 로드 호출
           if(typeof initQuill === 'function') initQuill();
           
           if(typeof handleNoteDateChange === 'function') {
@@ -94,7 +104,7 @@ function showPage(pageId, element) {
           } else {
               document.getElementById('loader').style.display = 'none';
           }
-      }, 300); // 300ms 딜레이로 안정성 확보
+      }, 300);
   }
 }
 
@@ -110,4 +120,9 @@ function formatDate(dateStr) {
     if(isNaN(d.getTime())) return dateStr; 
     var m = d.getMonth() + 1;
     return d.getFullYear() + '-' + (m < 10 ? '0'+m : m);
+}
+
+/* ================= [5. UI Utils] ================= */
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
 }
