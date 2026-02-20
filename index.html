@@ -28,7 +28,7 @@
     <div class="footer-login">
         <span class="company-name">주식회사 에너가드컴퍼니</span>
         ADDRESS : 경기도 포천시 가산면 오성길 146<br>
-        TEL : 031-511-0377 &nbsp;|&nbsp; FAX : 031-624-1646 &nbsp;|&nbsp; E-MAIL : <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="177a73712523635779766172653974787a">[email&#160;protected]</a><br>
+        TEL : 031-511-0377 &nbsp;|&nbsp; FAX : 031-624-1646 &nbsp;|&nbsp; E-MAIL : mdf24t@naver.com<br>
         Copyright ⓒ 주식회사 에너가드컴퍼니. All Rights Reserved.
     </div>
   </div>
@@ -38,29 +38,90 @@
     <span>데이터 동기화 중...</span>
   </div>
 
-  <nav class="sidebar">
-    <div class="logo-area">
+  <nav class="sidebar" id="sidebar">
+    <div class="logo-area" onclick="showPage('dashboard', document.querySelector('.menu-item[onclick*=\'dashboard\']'))" title="지표 요약(홈)으로 이동">
         <div class="brand-text">주식회사 에너가드컴퍼니</div>
         <div class="user-role-badge">관리자</div>
     </div>
     
-    <ul class="menu-list">
-      <li class="menu-item active" onclick="showPage('dashboard', this)"><i class="fa-solid fa-chart-pie"></i> 대시보드</li>
-      <li class="menu-item" onclick="showPage('timeline', this)"><i class="fa-solid fa-clock"></i> 업무 타임라인</li>
-      <li class="menu-item" onclick="showPage('worklog', this)"><i class="fa-solid fa-calendar-check"></i> 월간 업무일지</li>
-      <li class="menu-item" onclick="showPage('productlogs', this)"><i class="fa-solid fa-boxes-packing"></i> 상품 수정 내역</li>
-      <li class="menu-item" onclick="showPage('notes', this)"><i class="fa-solid fa-note-sticky"></i> 업무 노트</li>
-      <li class="menu-item" onclick="showPage('ranking', this)"><i class="fa-solid fa-trophy"></i> 검색 순위</li>
-      <li class="menu-item" onclick="showPage('sales', this)"><i class="fa-solid fa-chart-line"></i> 매출 분석</li>
-    </ul>
-    <div class="sidebar-footer">Version 4.2 Integrated</div>
+    <div class="sidebar-scroll-area">
+        <ul class="menu-list">
+          <li class="menu-item active" onclick="showPage('dashboard', this)" title="지표 요약">
+              <div class="icon-circle"><i class="fa-solid fa-chart-pie"></i></div>
+              <span class="menu-text">지표 요약</span>
+          </li>
+          <li class="menu-item" onclick="showPage('timeline', this)" title="업무 타임라인">
+              <div class="icon-circle"><i class="fa-solid fa-clock"></i></div>
+              <span class="menu-text">업무 타임라인</span>
+          </li>
+          <li class="menu-item" onclick="showPage('worklog', this)" title="월간 업무일지">
+              <div class="icon-circle"><i class="fa-solid fa-calendar-check"></i></div>
+              <span class="menu-text">월간 업무일지</span>
+          </li>
+          <li class="menu-item" onclick="showPage('productlogs', this)" title="상품 수정 내역">
+              <div class="icon-circle"><i class="fa-solid fa-boxes-packing"></i></div>
+              <span class="menu-text">상품 수정 내역</span>
+          </li>
+          <li class="menu-item" onclick="showPage('notes', this)" title="업무 노트">
+              <div class="icon-circle"><i class="fa-solid fa-note-sticky"></i></div>
+              <span class="menu-text">업무 노트</span>
+          </li>
+          <li class="menu-item" onclick="showPage('ranking', this)" title="검색 순위">
+              <div class="icon-circle"><i class="fa-solid fa-trophy"></i></div>
+              <span class="menu-text">검색 순위</span>
+          </li>
+          <li class="menu-item" onclick="showPage('sales', this)" title="매출 분석">
+              <div class="icon-circle"><i class="fa-solid fa-chart-line"></i></div>
+              <span class="menu-text">매출 분석</span>
+          </li>
+        </ul>
+
+        <div class="shortcuts-area">
+            <div class="shortcut-group">
+                <div class="shortcut-title">쇼핑몰 관리자 바로가기</div>
+                <a href="https://sell.smartstore.naver.com/#/home/about" target="_blank" title="스마트스토어">스마트스토어 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://admin.pay.naver.com/home" target="_blank" title="네이버페이">네이버페이 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://wing.coupang.com" target="_blank" title="쿠팡">쿠팡 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://boonimall.kr/admin/login" target="_blank" title="홈페이지">홈페이지 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://signin.esmplus.com/login" target="_blank" title="ESM">ESM <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://login.11st.co.kr" target="_blank" title="11번가">11번가 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+            </div>
+            <div class="shortcut-group">
+                <div class="shortcut-title">택배 시스템 바로가기</div>
+                <a href="https://logis.ilogen.com" target="_blank" title="로젠택배">로젠택배 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://partner.ds3211.co.kr" target="_blank" title="대신택배">대신택배 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+            </div>
+            <div class="shortcut-group">
+                <div class="shortcut-title">SNS 바로가기</div>
+                <a href="https://blog.naver.com/taekwonv123" target="_blank" title="에너가드컴퍼니 공식 블로그">에너가드컴퍼니 공식 블로그 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://www.youtube.com/@에너가드컴퍼니" target="_blank" title="에너가드컴퍼니 유튜브 채널">에너가드컴퍼니 유튜브 채널 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://www.youtube.com/@한국단열" target="_blank" title="한국단열 유튜브 채널">한국단열 유튜브 채널 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+            </div>
+            <div class="shortcut-group">
+                <div class="shortcut-title">계산기 프로그램 바로가기</div>
+                <a href="https://gi.esmplus.com/0804bear/window_insulation/new/window_estimate_new_v2.html" target="_blank" title="창문형 단열재 계산기">창문형 단열재 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-hkdy.html" target="_blank" title="판상형 단열재 계산기">판상형 단열재 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-roll-hkdy.html" target="_blank" title="열반사 단열재 계산기">열반사 단열재 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-wall.html" target="_blank" title="단열벽지 계산기">단열벽지 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-camp.html" target="_blank" title="캠핑단열재 계산기">캠핑단열재 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-t.html" target="_blank" title="단열재 두께 계산기">단열재 두께 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-bundle.html" target="_blank" title="단열재 단수 계산기">단열재 단수 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="sidebar-footer">
+      <button class="toggle-sidebar-btn" onclick="toggleSidebar()" title="사이드바 열기/닫기">
+          <i class="fa-solid fa-chevron-left"></i>
+      </button>
+    </div>
   </nav>
 
   <main class="main-content">
     <header class="header">
-      <div class="page-title" id="pageTitleText">대시보드</div>
+      <div class="page-title" id="pageTitleText">지표 요약</div>
       <div class="header-controls">
-        <span id="clock" style="font-feature-settings: 'tnum';">2026.02.11 09:00</span>
+        <span id="clock" style="font-feature-settings: 'tnum';">2026년 2월 20일 오전 09:00</span>
         <div style="width:1px; height:16px; background:#e5e7eb;"></div>
         <span>관리자님</span>
         <button class="btn-logout" onclick="handleLogout()">로그아웃 <i class="fa-solid fa-arrow-right-from-bracket"></i></button>
@@ -69,9 +130,131 @@
 
     <div class="content-body">
       <div id="page-dashboard" class="page-section active">
-        <div class="card">
-          <h2>👋 안녕하세요, 관리자님!</h2>
-          <p style="color:#6b7280;">오늘도 힘차게 업무를 시작해보세요. 좌측 메뉴에서 원하는 기능을 선택하세요.</p>
+        <div class="dash-card" style="margin-bottom: 24px;">
+            <div class="dash-card-header" style="margin-bottom: 20px;">
+                <h4 class="dash-card-title clickable" onclick="navigateFromDash('sales')" title="매출 분석 페이지로 이동">
+                    <div class="dash-card-icon" style="background: #4f46e5;"><i class="fa-solid fa-chart-line"></i></div>
+                    판매 성과 (스마트스토어 + 쿠팡)
+                    <span class="dash-card-subtitle">* 전월 동기간 대비</span>
+                </h4>
+                <div class="dash-refresh" onclick="refreshDashData('sales')" title="새로고침">
+                    <span id="time-sales">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+                </div>
+            </div>
+            <div class="dash-stats-grid">
+                <div class="dash-stat-item">
+                    <div class="dash-stat-label"><div class="stat-icon-circle" style="background:#e0e7ff; color:#4f46e5;"><i class="fa-solid fa-users"></i></div> 방문수(유입)</div>
+                    <div class="dash-stat-value" id="dash-traffic">-명</div>
+                    <div class="dash-stat-diff" id="dash-traffic-diff">-</div>
+                </div>
+                <div class="dash-stat-item">
+                    <div class="dash-stat-label"><div class="stat-icon-circle" style="background:#dcfce7; color:#10b981;"><i class="fa-solid fa-box-open"></i></div> 상품 결제수</div>
+                    <div class="dash-stat-value" id="dash-pay">-건</div>
+                    <div class="dash-stat-diff" id="dash-pay-diff">-</div>
+                </div>
+                <div class="dash-stat-item">
+                    <div class="dash-stat-label"><div class="stat-icon-circle" style="background:#fef3c7; color:#f59e0b;"><i class="fa-solid fa-percent"></i></div> 구매 전환율</div>
+                    <div class="dash-stat-value" id="dash-conv">-%</div>
+                    <div class="dash-stat-diff" id="dash-conv-diff">-</div>
+                </div>
+                <div class="dash-stat-item">
+                    <div class="dash-stat-label"><div class="stat-icon-circle" style="background:#f3e8ff; color:#8b5cf6;"><i class="fa-solid fa-won-sign"></i></div> 결제 금액</div>
+                    <div class="dash-stat-value" id="dash-rev">-원</div>
+                    <div class="dash-stat-diff" id="dash-rev-diff">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dash-card" style="margin-bottom: 24px;">
+            <div class="dash-card-header">
+                <h4 class="dash-card-title clickable" onclick="navigateFromDash('ranking')" title="검색 순위 페이지로 이동">
+                    <div class="dash-card-icon" style="background: #f59e0b;"><i class="fa-solid fa-trophy"></i></div>
+                    검색 순위 진단
+                    <span class="dash-card-subtitle">* 최근 2주 비교</span>
+                </h4>
+                <div class="dash-refresh" onclick="refreshDashData('ranking')" title="새로고침">
+                    <span id="time-ranking">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+                </div>
+            </div>
+            <div class="dash-rank-wrapper">
+                <div class="dash-rank-box">
+                    <div class="dash-rank-header">
+                        <span style="color: #ef4444;"><i class="fa-solid fa-arrow-trend-up"></i> 순위 급상승 (10단계↑)</span>
+                        <span class="dash-rank-badge" id="dash-rank-up-count" style="color:#ef4444; background:#fef2f2;">0건</span>
+                    </div>
+                    <div class="dash-rank-list-scroll" id="dash-rank-up-list">
+                    </div>
+                </div>
+                <div class="dash-rank-box">
+                    <div class="dash-rank-header">
+                        <span style="color: #3b82f6;"><i class="fa-solid fa-arrow-trend-down"></i> 순위 급하락 (10단계↓)</span>
+                        <span class="dash-rank-badge" id="dash-rank-down-count" style="color:#3b82f6; background:#eff6ff;">0건</span>
+                    </div>
+                    <div class="dash-rank-list-scroll" id="dash-rank-down-list">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dash-grid-2">
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <h4 class="dash-card-title clickable" onclick="navigateFromDash('worklog')" title="업무일지로 이동">
+                        <div class="dash-card-icon" style="background: #10b981;"><i class="fa-solid fa-calendar-check"></i></div> 
+                        금주 주간 목표 <span class="dash-card-subtitle" id="dash-week-label"></span>
+                    </h4>
+                    <div class="dash-refresh" onclick="refreshDashData('tasks')" title="새로고침">
+                        <span id="time-tasks">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+                    </div>
+                </div>
+                <ul class="dash-list" id="dash-task-list"></ul>
+            </div>
+            
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <h4 class="dash-card-title clickable" onclick="navigateFromDash('productlogs')" title="상품수정 내역으로 이동">
+                        <div class="dash-card-icon" style="background: #8b5cf6;"><i class="fa-solid fa-pen-to-square"></i></div> 
+                        최근 상품 수정
+                    </h4>
+                    <div class="dash-refresh" onclick="refreshDashData('prodlogs')" title="새로고침">
+                        <span id="time-prodlogs">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+                    </div>
+                </div>
+                <ul class="dash-list" id="dash-prodlog-list"></ul>
+            </div>
+
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <h4 class="dash-card-title clickable" onclick="navigateFromDash('notes', 'blog')" title="업무노트로 이동">
+                        <div class="dash-card-icon" style="background: #10b981;"><i class="fa-solid fa-blog"></i></div> 
+                        블로그 최신글
+                    </h4>
+                    <div class="dash-refresh" onclick="refreshDashData('blog')" title="새로고침">
+                        <span id="time-blog">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+                    </div>
+                </div>
+                <ul class="dash-list" id="dash-blog-list"></ul>
+            </div>
+
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <h4 class="dash-card-title clickable" onclick="navigateFromDash('notes', 'youtube')" title="업무노트로 이동">
+                        <div class="dash-card-icon" style="background: #ef4444;"><i class="fa-brands fa-youtube"></i></div> 
+                        유튜브 최신영상
+                    </h4>
+                    <div class="dash-refresh" onclick="refreshDashData('youtube')" title="새로고침">
+                        <span id="time-youtube">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+                    </div>
+                </div>
+                <ul class="dash-list" id="dash-yt-list"></ul>
+            </div>
+        </div>
+        
+        <div class="dash-footer">
+            <span class="company-name">주식회사 에너가드컴퍼니</span><br>
+            ADDRESS : 경기도 포천시 가산면 오성길 146<br>
+            TEL : 031-511-0377 &nbsp;|&nbsp; FAX : 031-624-1646 &nbsp;|&nbsp; E-MAIL : mdf24t@naver.com<br>
+            Copyright ⓒ 주식회사 에너가드컴퍼니. All Rights Reserved.
         </div>
       </div>
 
@@ -152,128 +335,176 @@
           <div class="note-container">
             <div class="note-header">
                 <div class="note-left">
-                    <h2>업무 노트</h2> 
+                    <h2><i class="fa-solid fa-book-open" style="color:#4f46e5;"></i> 업무 노트</h2> 
                     <div class="note-tabs">
                         <button class="tab-btn active" onclick="setNoteTab('general')">일반 노트</button>
                         <button class="tab-btn" onclick="setNoteTab('blog')">블로그 원고</button>
                         <button class="tab-btn" onclick="setNoteTab('youtube')">유튜브 원고</button>
                     </div>
                 </div>
-                <div class="note-btns">
-                    <span id="noteSaveStatus" class="status-badge" style="margin-right: 10px;">대기</span>
+                <div class="note-controls">
+                    <div class="status-indicator">
+                        <i class="fa-solid fa-circle-check" style="font-size:10px; color:#10b981;"></i> 
+                        <span id="noteSaveStatus">대기</span>
+                    </div>
                     
-                    <div class="date-selector"><input type="date" id="noteDate" onchange="handleNoteDateChange()"></div>
+                    <div class="date-selector-wrapper">
+                        <input type="date" id="noteDate" onchange="handleNoteDateChange()">
+                    </div>
                     
-                    <button class="btn-note btn-reset" onclick="resetNoteToOriginal()"><i class="fa-solid fa-rotate-left"></i> 취소</button>
-                    <button class="btn-note btn-save-note" onclick="saveNoteToServer()"><i class="fa-solid fa-cloud-arrow-up"></i> 저장</button>
+                    <button class="btn-icon-text btn-secondary" onclick="resetNoteToOriginal()">
+                        <i class="fa-solid fa-rotate-left"></i> 취소
+                    </button>
+                    <button class="btn-icon-text btn-primary" onclick="saveNoteToServer()">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> 저장
+                    </button>
                 </div>
             </div>
             
-            <div id="draftListContainer" style="display:none; padding: 20px; flex: 1; overflow-y: auto;">
-                <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
-                    <button class="btn-add" onclick="createNewDraft()">+ 새 원고 작성</button>
+            <div class="note-sub-header">
+                <div class="search-wrapper">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="noteSearchInput" class="search-input" placeholder="노트 제목 또는 내용 검색..." oninput="searchNotes()">
+                    <div id="noteSearchResults"></div>
                 </div>
-                <table class="timeline-table">
+            </div>
+
+            <div id="draftListContainer">
+                <div class="list-toolbar">
+                    <button class="btn-icon-text btn-primary" onclick="createNewDraft()">
+                        <i class="fa-solid fa-plus"></i> 새 원고 작성
+                    </button>
+                </div>
+                <table class="styled-table">
                     <thead>
                         <tr>
-                            <th width="100">작성일</th>
+                            <th width="120">작성일</th>
                             <th>제목</th>
-                            <th width="80">상태</th>
-                            <th width="150">저장일시</th>
+                            <th width="100">상태</th>
+                            <th width="150">최근 저장</th>
                         </tr>
                     </thead>
-                    <tbody id="draftListBody"></tbody>
+                    <tbody id="draftListBody">
+                        </tbody>
                 </table>
             </div>
 
-            <div id="draftMetadataArea" style="display:none; padding: 15px 24px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; align-items:center; gap:10px;">
-                <button onclick="backToList()" style="padding:5px 10px; border:1px solid #ccc; background:white; cursor:pointer;">&lt; 목록</button>
-                <input type="text" id="draftTitle" class="form-input" placeholder="원고 제목을 입력하세요" style="flex:1; font-weight:bold;">
-                <select id="draftStatus" class="form-input" style="width:120px;">
+            <div id="draftMetadataArea">
+                <button class="btn-back" onclick="backToList()">
+                    <i class="fa-solid fa-arrow-left"></i> 목록으로
+                </button>
+                <input type="text" id="draftTitle" placeholder="제목을 입력하세요...">
+                <select id="draftStatus">
                     <option value="saving">💾 작성중</option>
                     <option value="uploaded">🚀 업로드됨</option>
                 </select>
-                <span id="draftLastSaved" style="font-size:12px; color:#6b7280; min-width:140px; text-align:right;"></span>
+                <span id="draftLastSaved" style="font-size:12px; color:#94a3b8; min-width:120px; text-align:right;"></span>
             </div>
 
-            <div id="editor-wrapper"><div id="editor"></div></div>
+            <div id="editor-wrapper">
+                <div id="editor"></div>
+            </div>
         </div>
       </div>
 
       <div id="page-ranking" class="page-section">
-        <div class="card" style="position: relative;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h2>🏆 검색 순위 관리</h2>
-                <button id="editModeBtn" onclick="toggleEditMode()">✏️ 편집 모드</button>
+        <div class="card" style="position: relative; padding: 0;">
+            <div style="padding: 20px 30px 5px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h2 style="margin:0;">🏆 검색 순위 관리</h2>
+                    <button id="editModeBtn" onclick="toggleEditMode()">✏️ 편집 모드</button>
+                </div>
+                <div class="tabs" style="margin-bottom:0;">
+                    <button class="tab active" onclick="setTab('아이소핑크')">아이소핑크</button>
+                    <button class="tab" onclick="setTab('스티로폼')">스티로폼</button>
+                    <button class="tab" onclick="setTab('열반사단열재')">열반사단열재</button>
+                    <button class="tab" onclick="setTab('단열벽지')">단열벽지</button>
+                    <button class="tab" onclick="setTab('기타')">기타</button>
+                </div>
             </div>
-            <div class="tabs">
-                <button class="tab active" onclick="setTab('아이소핑크')">아이소핑크</button>
-                <button class="tab" onclick="setTab('스티로폼')">스티로폼</button>
-                <button class="tab" onclick="setTab('열반사단열재')">열반사단열재</button>
-                <button class="tab" onclick="setTab('단열벽지')">단열벽지</button>
-                <button class="tab" onclick="setTab('기타')">기타</button>
+            
+            <div class="ranking-scroll-wrapper">
+                <table class="ranking-table">
+                    <colgroup>
+                        <col width="40px">  <col width="110px"> <col width="100px"> <col width="auto">  <col width="100px"> <col width="160px"> <col width="60px">  <col width="60px">  <col width="60px">  <col width="60px">  <col width="60px">  <col width="60px">  <col width="80px">  <col class="admin-col" width="70px" style="display:none;"> </colgroup>
+                    <thead>
+                        <tr>
+                            <th></th> <th>상품번호</th> <th>이미지</th>
+                            <th><input type="checkbox" id="masterCheck" onclick="toggleAllChecks(this.checked)" style="display:none; vertical-align:middle; margin-right:5px; cursor:pointer;" title="전체 선택/해제"> 상품명</th> 
+                            <th>가격</th> <th>키워드</th> <th>변동</th>
+                            <th>1주차</th> <th>2주차</th> <th>3주차</th> <th>4주차</th> <th>5주차</th> 
+                            <th>비고</th> <th class="admin-col" style="display:none;">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="list"></tbody>
+                </table>
             </div>
-            <table class="ranking-table">
-                <colgroup>
-                    <col width="30px"> <col width="90px"> <col width="auto"> <col width="80px"> <col width="150px"> <col width="50px"> <col width="50px"> <col width="50px"> <col width="50px"> <col width="50px"> <col width="50px"> <col width="100px"> <col class="admin-col" width="60px" style="display:none;">
-                </colgroup>
-                <thead>
-                    <tr>
-                        <th></th> <th>상품번호</th> 
-                        <th><input type="checkbox" id="masterCheck" onclick="toggleAllChecks(this.checked)" style="display:none; vertical-align:middle; margin-right:5px; cursor:pointer;" title="전체 선택/해제"> 상품명</th> 
-                        <th>가격</th> <th>키워드</th> <th>변동</th>
-                        <th>1주차</th> <th>2주차</th> <th>3주차</th> <th>4주차</th> <th>5주차</th> 
-                        <th>비고</th> <th class="admin-col" style="display:none;">관리</th>
-                    </tr>
-                </thead>
-                <tbody id="list"></tbody>
-            </table>
-            <div class="btn-area" id="adminPanel" style="display:none;">
-                <button id="addProdBtn" class="big-btn" onclick="addEmptyRow()">+ 신규 상품(메인) 추가</button>
-                <button id="saveBtn" class="big-btn" onclick="saveData()">💾 저장하고 서버에 반영하기</button>
-                <button id="resetBtn" class="big-btn" onclick="resetData()">🔄 변경취소 (다시 불러오기)</button>
-                <button id="downloadBtn" class="big-btn" onclick="downloadCSV()">📥 엑셀로 백업하기</button>
+
+            <div style="padding: 15px 30px 25px;">
+                <div class="btn-area" id="adminPanel" style="display:none;">
+                    <button id="addProdBtn" class="big-btn" onclick="addEmptyRow()">+ 신규 상품(메인) 추가</button>
+                    <button id="saveBtn" class="big-btn" onclick="saveData()">💾 저장하고 서버에 반영하기</button>
+                    <button id="resetBtn" class="big-btn" onclick="resetData()">🔄 변경취소 (다시 불러오기)</button>
+                    <button id="downloadBtn" class="big-btn" onclick="downloadCSV()">📥 엑셀로 백업하기</button>
+                </div>
             </div>
         </div>
       </div>
 
       <div id="page-sales" class="page-section">
-        <div class="card">
-            <h2>💰 매출 데이터 분석</h2>
-            <div class="tabs">
-                <button class="tab active" onclick="setSalesTab('스마트스토어')">스마트스토어</button>
-                <button class="tab" onclick="setSalesTab('쿠팡')">쿠팡</button>
-            </div>
-            <div class="chart-controls">
-                <span>📈 차트 옵션: </span>
-                <label><input type="checkbox" id="chkTraffic" onchange="renderSales()"> 유입수</label>
-                <label><input type="checkbox" id="chkPayCount" onchange="renderSales()"> 결제수</label>
-                <label><input type="checkbox" id="chkConv" onchange="renderSales()"> 전환율</label>
-            </div>
-            <div class="chart-container"><canvas id="salesChart"></canvas></div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:30px; margin-bottom:10px;">
-                <h3>📅 월별 상세 내역 (최신순)</h3>
-                <div class="edit-controls" style="text-align:right;">
-                    <button id="editSalesBtn" onclick="toggleSalesEditMode()">✏️ 편집</button>
-                    <button id="addSalesRowBtn" onclick="addSalesRow()">+ 다음 달 추가</button>
-                    <button id="resetSalesBtn" onclick="resetSalesData()">🔄 초기화</button>
-                    <button id="saveSalesBtn" onclick="saveSalesData()">💾 매출 데이터 저장</button>
-                    <button id="downloadSalesBtn" onclick="downloadSalesCSV()">📥 엑셀 다운로드</button>
+        <div class="card" style="padding-bottom: 0; background: transparent; box-shadow: none; border: none;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:15px;">
+                <h2 style="margin:0;">💰 매출 데이터 분석</h2>
+                <div class="tabs" style="margin-bottom:0; gap:5px;">
+                    <button class="tab active" onclick="setSalesTab('스마트스토어')" style="border-radius:6px; min-width:120px; font-size:14px;">스마트스토어</button>
+                    <button class="tab" onclick="setSalesTab('쿠팡')" style="border-radius:6px; min-width:120px; font-size:14px;">쿠팡</button>
                 </div>
             </div>
-            <div class="table-scroll-wrapper" style="max-height: 500px;">
-                <table class="sales-table-style">
-                    <colgroup><col width="90px"><col width="100px"><col width="100px"><col width="90px"><col width="80px"><col width="70px"><col width="80px"><col width="100px"><col width="100px"><col width="60px"></colgroup>
-                    <thead>
-                        <tr>
-                            <th>년월</th> <th>결제금액(원)</th> <th>광고비(원)</th> <th>ROAS</th> 
-                            <th>전체유입수</th> <th>결제수</th> <th>전환율</th> 
-                            <th class="col-smart">모바일비율</th> <th class="col-smart">환불금액비율</th>
-                            <th class="col-coupang" style="display:none;">위너비율</th> <th>관리</th>
-                        </tr>
-                    </thead>
-                    <tbody id="salesList" class="sales-table"></tbody>
-                </table>
+            
+            <div class="sales-dashboard-top">
+                <div class="chart-box">
+                    <div class="chart-header">
+                        💰 결제금액 및 광고비 추이
+                    </div>
+                    <div class="chart-container half-height"><canvas id="salesChartFinancial"></canvas></div>
+                </div>
+                <div class="chart-box">
+                    <div class="chart-header">
+                        📈 결제수 및 전환율 추이
+                        <div class="mini-controls">
+                            <label><input type="checkbox" id="chkPayCount" onchange="renderSales()" checked> 결제수</label>
+                            <label><input type="checkbox" id="chkConv" onchange="renderSales()" checked> 전환율</label>
+                        </div>
+                    </div>
+                    <div class="chart-container half-height"><canvas id="salesChartTraffic"></canvas></div>
+                </div>
+            </div>
+            
+            <div class="card" style="padding:0; overflow:hidden;">
+                <div style="padding: 15px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--border);">
+                    <h3 style="margin:0; font-size:16px;">📅 월별 상세 내역 (최신순)</h3>
+                    <div class="edit-controls" style="text-align:right;">
+                        <button id="editSalesBtn" onclick="toggleSalesEditMode()">✏️ 편집</button>
+                        <button id="addSalesRowBtn" onclick="addSalesRow()">+ 다음 달 추가</button>
+                        <button id="resetSalesBtn" onclick="resetSalesData()">🔄 초기화</button>
+                        <button id="saveSalesBtn" onclick="saveSalesData()">💾 저장</button>
+                        <button id="downloadSalesBtn" onclick="downloadSalesCSV()" style="background:#34495e;">📥 엑셀</button>
+                    </div>
+                </div>
+                <div class="table-scroll-wrapper">
+                    <table class="sales-table-style">
+                        <colgroup><col width="90px"><col width="100px"><col width="100px"><col width="90px"><col width="80px"><col width="70px"><col width="80px"><col width="100px"><col width="100px"><col width="60px"></colgroup>
+                        <thead>
+                            <tr>
+                                <th>년월</th> <th>결제금액(원)</th> <th>광고비(원)</th> <th>ROAS</th> 
+                                <th>전체유입수</th> <th>결제수</th> <th>전환율</th> 
+                                <th class="col-smart">모바일비율</th> <th class="col-smart">환불금액비율</th>
+                                <th class="col-coupang" style="display:none;">위너비율</th> <th>관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesList" class="sales-table"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
       </div>
@@ -305,9 +536,10 @@
     </div>
   </div>
 
-<script src="js/common.js?v=3"></script>
-<script src="js/tasks.js?v=3"></script>
-<script src="js/analytics.js?v=3"></script>
+<script src="js/common.js"></script>
+<script src="js/tasks.js"></script>
+<script src="js/analytics.js"></script>
+<script src="js/dashboard.js"></script>
 
 </body>
 </html>
