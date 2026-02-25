@@ -76,7 +76,7 @@
           </li>
         </ul>
 
-        <div class="shortcuts-area">
+<div class="shortcuts-area">
             <div class="shortcut-group">
                 <div class="shortcut-title">쇼핑몰 관리자 바로가기</div>
                 <a href="https://sell.smartstore.naver.com/#/home/about" target="_blank" title="스마트스토어">스마트스토어 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
@@ -97,18 +97,7 @@
                 <a href="https://www.youtube.com/@에너가드컴퍼니" target="_blank" title="에너가드컴퍼니 유튜브 채널">에너가드컴퍼니 유튜브 채널 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                 <a href="https://www.youtube.com/@한국단열" target="_blank" title="한국단열 유튜브 채널">한국단열 유튜브 채널 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
             </div>
-            <div class="shortcut-group">
-                <div class="shortcut-title">계산기 프로그램 바로가기</div>
-                <a href="https://gi.esmplus.com/0804bear/window_insulation/new/window_estimate_new_v2.html" target="_blank" title="창문형 단열재 계산기">창문형 단열재 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-hkdy.html" target="_blank" title="판상형 단열재 계산기">판상형 단열재 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-roll-hkdy.html" target="_blank" title="열반사 단열재 계산기">열반사 단열재 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-wall.html" target="_blank" title="단열벽지 계산기">단열벽지 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-camp.html" target="_blank" title="캠핑단열재 계산기">캠핑단열재 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-t.html" target="_blank" title="단열재 두께 계산기">단열재 두께 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-                <a href="https://gi.esmplus.com/0804bear/calculate/insulation-board-bundle.html" target="_blank" title="단열재 단수 계산기">단열재 단수 계산기 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
             </div>
-        </div>
-    </div>
     
     <div class="sidebar-footer">
       <button class="toggle-sidebar-btn" onclick="toggleSidebar()" title="사이드바 열기/닫기">
@@ -118,10 +107,15 @@
   </nav>
 
   <main class="main-content">
-    <header class="header">
+<header class="header">
       <div class="page-title" id="pageTitleText">지표 요약</div>
       <div class="header-controls">
-        <span id="clock" style="font-feature-settings: 'tnum';">2026년 2월 20일 오전 09:00</span>
+        <span id="weather-info" title="포천시 가산면 실시간 날씨" style="display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-cloud-sun"></i> 날씨 로딩중...
+        </span>
+        <div style="width:1px; height:16px; background:#e5e7eb;"></div>
+        
+        <span id="clock" style="font-feature-settings: 'tnum';">로딩중...</span>
         <div style="width:1px; height:16px; background:#e5e7eb;"></div>
         <span>관리자님</span>
         <button class="btn-logout" onclick="handleLogout()">로그아웃 <i class="fa-solid fa-arrow-right-from-bracket"></i></button>
@@ -131,17 +125,21 @@
     <div class="content-body">
       <div id="page-dashboard" class="page-section active">
         <div class="dash-card" style="margin-bottom: 24px;">
-            <div class="dash-card-header" style="margin-bottom: 20px;">
-                <h4 class="dash-card-title clickable" onclick="navigateFromDash('sales')" title="매출 분석 페이지로 이동">
+            <div class="dash-card-header" style="margin-bottom: 0; cursor: pointer;" onclick="toggleDashSales()">
+                <h4 class="dash-card-title" title="클릭하여 펼치기/접기">
                     <div class="dash-card-icon" style="background: #4f46e5;"><i class="fa-solid fa-chart-line"></i></div>
                     판매 성과 (스마트스토어 + 쿠팡)
                     <span class="dash-card-subtitle">* 전월 동기간 대비</span>
                 </h4>
-                <div class="dash-refresh" onclick="refreshDashData('sales')" title="새로고침">
-                    <span id="time-sales">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div class="dash-refresh" onclick="event.stopPropagation(); refreshDashData('sales')" title="새로고침">
+                        <span id="time-sales">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+                    </div>
+                    <i class="fa-solid fa-chevron-down" id="dash-sales-toggle-icon" style="transition: transform 0.3s; color: #94a3b8;"></i>
                 </div>
             </div>
-            <div class="dash-stats-grid">
+            
+            <div class="dash-stats-grid" id="dash-sales-content" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #f1f5f9;">
                 <div class="dash-stat-item">
                     <div class="dash-stat-label"><div class="stat-icon-circle" style="background:#e0e7ff; color:#4f46e5;"><i class="fa-solid fa-users"></i></div> 방문수(유입)</div>
                     <div class="dash-stat-value" id="dash-traffic">-명</div>
@@ -322,7 +320,6 @@
         <div class="card" style="padding:0; overflow:hidden;">
           <div style="padding: 20px; border-bottom: 1px solid var(--border);">
              <h2 style="margin:0;">전체 상품 수정 내역</h2>
-             <p style="color:#6b7280; margin:5px 0 0 0; font-size:14px;">업무일지에 기록된 모든 상품 수정 내역을 날짜순으로 보여줍니다. 항목을 클릭하면 해당 일지로 이동합니다.</p>
           </div>
           <table class="timeline-table">
             <thead><tr><th width="150">날짜</th><th>수정 내역</th></tr></thead>
@@ -335,7 +332,7 @@
           <div class="note-container">
             <div class="note-header">
                 <div class="note-left">
-                    <h2><i class="fa-solid fa-book-open" style="color:#4f46e5;"></i> 업무 노트</h2> 
+                    <h2>업무 노트</h2>
                     <div class="note-tabs">
                         <button class="tab-btn active" onclick="setNoteTab('general')">일반 노트</button>
                         <button class="tab-btn" onclick="setNoteTab('blog')">블로그 원고</button>
@@ -411,7 +408,7 @@
         <div class="card" style="position: relative; padding: 0;">
             <div style="padding: 20px 30px 5px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                    <h2 style="margin:0;">🏆 검색 순위 관리</h2>
+                    <h2 style="margin:0;">검색 순위 관리</h2>
                     <button id="editModeBtn" onclick="toggleEditMode()">✏️ 편집 모드</button>
                 </div>
                 <div class="tabs" style="margin-bottom:0;">
@@ -454,7 +451,7 @@
       <div id="page-sales" class="page-section">
         <div class="card" style="padding-bottom: 0; background: transparent; box-shadow: none; border: none;">
             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:15px;">
-                <h2 style="margin:0;">💰 매출 데이터 분석</h2>
+                <h2 style="margin:0;">매출 데이터 분석</h2>
                 <div class="tabs" style="margin-bottom:0; gap:5px;">
                     <button class="tab active" onclick="setSalesTab('스마트스토어')" style="border-radius:6px; min-width:120px; font-size:14px;">스마트스토어</button>
                     <button class="tab" onclick="setSalesTab('쿠팡')" style="border-radius:6px; min-width:120px; font-size:14px;">쿠팡</button>
@@ -482,7 +479,7 @@
             
             <div class="card" style="padding:0; overflow:hidden;">
                 <div style="padding: 15px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--border);">
-                    <h3 style="margin:0; font-size:16px;">📅 월별 상세 내역 (최신순)</h3>
+                    <h3 style="margin:0; font-size:16px;">월별 상세 내역</h3>
                     <div class="edit-controls" style="text-align:right;">
                         <button id="editSalesBtn" onclick="toggleSalesEditMode()">✏️ 편집</button>
                         <button id="addSalesRowBtn" onclick="addSalesRow()">+ 다음 달 추가</button>
@@ -491,15 +488,28 @@
                         <button id="downloadSalesBtn" onclick="downloadSalesCSV()" style="background:#34495e;">📥 엑셀</button>
                     </div>
                 </div>
-                <div class="table-scroll-wrapper">
+<div class="table-scroll-wrapper" style="width: 100%; overflow-x: auto; padding-bottom: 5px;">
                     <table class="sales-table-style">
-                        <colgroup><col width="90px"><col width="100px"><col width="100px"><col width="90px"><col width="80px"><col width="70px"><col width="80px"><col width="100px"><col width="100px"><col width="60px"></colgroup>
-                        <thead>
-                            <tr>
-                                <th>년월</th> <th>결제금액(원)</th> <th>광고비(원)</th> <th>ROAS</th> 
-                                <th>전체유입수</th> <th>결제수</th> <th>전환율</th> 
-                                <th class="col-smart">모바일비율</th> <th class="col-smart">환불금액비율</th>
-                                <th class="col-coupang" style="display:none;">위너비율</th> <th>관리</th>
+<colgroup>
+                            <col width="90px">  
+                            <col width="220px"> <col width="170px"> <col width="130px"> <col width="100px"> <col width="110px"> <col width="90px">  <col width="100px"> <col class="col-smart" width="110px">   
+                            <col class="col-smart" width="110px">   
+                            <col class="col-coupang" width="110px"> 
+                            <col class="col-delete" width="60px">   
+                        </colgroup>
+                        <thead> <tr>
+                                <th>년월</th> 
+                                <th>결제금액(원)</th>
+                                <th>증감률</th> 
+                                <th>광고비(원)</th> 
+                                <th>ROAS</th> 
+                                <th>전체유입수</th> 
+                                <th>결제수</th> 
+                                <th>전환율</th> 
+                                <th class="col-smart">모바일비율</th> 
+                                <th class="col-smart">환불금액비율</th>
+                                <th class="col-coupang" style="display:none;">위너비율</th> 
+                                <th class="col-delete" style="display:none;">삭제</th>
                             </tr>
                         </thead>
                         <tbody id="salesList" class="sales-table"></tbody>
@@ -508,34 +518,149 @@
             </div>
         </div>
       </div>
-    </div>
-  </main>
+    </div> </main>
+<aside class="right-quickbar">
+    <ul class="quick-menu-list">
+        <li class="quick-item" onclick="toggleQuickMemo()">
+            <div class="quick-icon" style="background:#e0e7ff; color:#4f46e5;">
+                <i class="fa-regular fa-note-sticky"></i>
+                <span class="badge-n">N</span>
+            </div>
+            <span class="quick-text">퀵 메모</span>
+        </li>
+        <li class="quick-item" onclick="toggleAIChat()">
+            <div class="quick-icon" style="background:#dcfce7; color:#10b981;">
+                <i class="fa-solid fa-robot"></i>
+                <span class="badge-n">N</span>
+            </div>
+            <span class="quick-text">AI 챗</span>
+        </li>
+        <li class="quick-item" onclick="toggleCalcPanel()">
+            <div class="quick-icon" style="background:#fef3c7; color:#d97706;">
+                <i class="fa-solid fa-calculator"></i>
+            </div>
+            <span class="quick-text">계산기</span>
+        </li>
+        <li class="quick-item" onclick="toggleWidgetPanel()">
+            <div class="quick-icon" style="background:#fee2e2; color:#ef4444;">
+                <i class="fa-solid fa-basketball"></i>
+            </div>
+            <span class="quick-text">위젯</span>
+        </li>
+    </ul>
+  </aside>
 
+  <div id="quickMemoPanel" class="quick-panel">
+    <div class="quick-panel-header">
+        <h3><i class="fa-regular fa-note-sticky"></i> 퀵 메모</h3>
+        <button class="close-panel-btn" onclick="toggleQuickMemo()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="quick-panel-body">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div class="quick-memo-date" id="quickMemoDate"></div>
+            <span style="font-size:11px; color:#94a3b8;">업무노트 자동 연동</span>
+        </div>
+        <div id="quick-editor-wrapper" style="flex:1; display:flex; flex-direction:column; margin-bottom:15px; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+            <div id="quickEditor"></div>
+        </div>
+        <button class="quick-save-btn" onclick="saveQuickMemo()">
+            <i class="fa-solid fa-cloud-arrow-up"></i> 저장 및 동기화
+        </button>
+        <div id="quickMemoStatus" style="font-size:12px; font-weight:bold; color:#10b981; text-align:center; margin-top:10px; height:15px;"></div>
+    </div>
+  </div>
+
+  <div id="aiChatPanel" class="quick-panel">
+      <div class="quick-panel-header">
+          <h3><i class="fa-solid fa-robot"></i> AI 챗</h3>
+          <button class="close-panel-btn" onclick="toggleAIChat()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="quick-panel-body" style="padding:0; background:#f8fafc;">
+          <div class="chat-messages-container" id="chatMessages">
+              <div class="chat-message ai">
+                  <div class="chat-avatar"><i class="fa-solid fa-robot"></i></div>
+                  <div class="chat-bubble">안녕하세요! 에너가드컴퍼니 AI 업무 비서입니다. 단열재 관련 원고 작성이나 업무 관련 질문을 편하게 남겨주세요.</div>
+              </div>
+          </div>
+          <div class="chat-input-wrapper">
+              <textarea id="aiChatInput" placeholder="메시지를 입력하세요... (Shift+Enter 줄바꿈)"></textarea>
+              <button class="chat-send-btn" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+          </div>
+      </div>
+  </div>
+
+  <div id="calcPanel" class="quick-panel">
+    <div class="quick-panel-header">
+        <h3><i class="fa-solid fa-calculator"></i> 계산기</h3>
+        <button class="close-panel-btn" onclick="toggleCalcPanel()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="quick-panel-body" style="padding: 0; background: #f8fafc;">
+        <div style="padding: 15px; border-bottom: 1px solid #e5e7eb;">
+            <select id="calcSelector" onchange="changeCalculator(this.value)" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: 'Pretendard', sans-serif; font-size: 14px; outline: none; font-weight: 600; cursor: pointer;">
+                <option value="https://gi.esmplus.com/0804bear/window_insulation/new/window_estimate_new_v2.html">창문형 단열재 계산기</option>
+                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-hkdy.html">판상형 단열재 계산기</option>
+                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-roll-hkdy.html">열반사 단열재 계산기</option>
+                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-wall.html">단열벽지 계산기</option>
+                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-camp.html">캠핑단열재 계산기</option>
+                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-t.html">단열재 두께 계산기</option>
+                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-bundle.html">단열재 단수 계산기</option>
+            </select>
+        </div>
+        <div style="flex: 1; position: relative;">
+            <iframe id="calcFrame" src="" style="width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0;"></iframe>
+        </div>
+    </div>
+  </div>
+
+  <div id="widgetPanel" class="quick-panel">
+    <div class="quick-panel-header">
+        <h3><i class="fa-solid fa-trophy" style="color: #e11d48;"></i> 위젯</h3>
+        <button class="close-panel-btn" onclick="toggleWidgetPanel()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="quick-panel-body" style="padding: 0; background-color: #f8fafc;">
+        <div class="sp-tabs">
+            <button class="sp-tab-btn active" onclick="setWidgetTab('nba',this)">NBA</button>
+            <button class="sp-tab-btn" onclick="setWidgetTab('epl',this)">EPL</button>
+            <button class="sp-tab-btn" onclick="setWidgetTab('ucl',this)">UCL</button>
+            <button class="sp-tab-btn" onclick="setWidgetTab('mlb',this)">MLB</button>
+        </div>
+        <div class="sp-meta-bar">
+            <span class="sp-update-time" id="sp-updateTime">업데이트 대기</span>
+            <button class="sp-refresh-btn" onclick="reloadWidget()">
+                <i class="fa-solid fa-rotate-right" id="sp-refreshIcon"></i> 새로고침
+            </button>
+        </div>
+        <div class="sp-content" id="sp-content">
+            <div class="sp-state-box sp-loading">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <span>불러오는 중...</span>
+            </div>
+        </div>
+    </div>
+  </div>
   <div id="memoModal" class="modal-overlay">
     <div class="modal-box">
-      <h4><i class="fa-solid fa-pen"></i> 비고 입력</h4>
+      <h4>비고 내용 입력</h4>
       <input type="text" id="modalInput" placeholder="내용을 입력하세요..." onkeypress="handleEnter(event)">
       <div class="modal-btns">
         <button class="btn-cancel" onclick="closeModal()">취소</button>
-        <button class="btn-confirm" onclick="saveMemoFromModal()">확인</button>
+        <button class="btn-confirm" onclick="saveMemoFromModal()">저장</button>
       </div>
     </div>
   </div>
-
-  <div class="modal-overlay" id="rankingMemoModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <span id="modalTitle">메모 관리</span>
-            <span class="modal-close" onclick="closeRankingMemoModal()" style="cursor:pointer; font-size:20px;">×</span>
-        </div>
-        <div class="modal-body" id="memoListArea"></div>
-        <div class="modal-footer">
-            <input type="text" id="newMemoInput" placeholder="새로운 조치사항 입력...">
-            <button id="addMemoBtn" onclick="addNewMemo()">등록</button>
-        </div>
+  <div id="rankingMemoModal" class="modal-overlay">
+    <div class="modal-box" style="width: 380px;">
+      <h4>검색 순위 비고 관리</h4>
+      <div id="memoListArea" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; background: #f8fafc;"></div>
+      <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+          <input type="text" id="newMemoInput" placeholder="새로운 메모 입력..." style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;" onkeypress="if(event.key==='Enter') addNewMemo()">
+          <button onclick="addNewMemo()" style="background: #4f46e5; color: white; border: none; border-radius: 6px; padding: 0 15px; cursor: pointer; font-weight: bold;">추가</button>
+      </div>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="closeRankingMemoModal()">닫기</button>
+      </div>
     </div>
   </div>
-
 <script src="js/common.js"></script>
 <script src="js/tasks.js"></script>
 <script src="js/analytics.js"></script>
