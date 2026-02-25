@@ -231,9 +231,10 @@ function renderDashTasks(wlData) {
         let doneStyle = isDone ? 'text-decoration: line-through; color: #9ca3af;' : '';
         let badge = r[6] ? `<span class="badge" style="font-size:10px; padding:2px 6px; margin-right:6px;">${r[6]}</span>` : '';
         
+        // ✅ dash-hover-underline 클래스 추가
         listHTML += `<li onclick="navigateFromDash('worklog')" class="dash-hover-bg">
             <span class="dot ${isDone ? 'secondary' : 'primary'}"></span>
-            <span class="dash-note-title" style="${doneStyle}">${badge}${r[7]}</span>
+            <span class="dash-note-title dash-hover-underline" style="${doneStyle}">${badge}${r[7]}</span>
         </li>`;
         
         count++;
@@ -283,3 +284,16 @@ window.goNoteFromDash = function(id, type) {
     setNoteTab(type);
     setTimeout(() => loadDraftContent(id), 200);
 }
+// [접기/펼치기 로직 추가] 판매 성과 패널
+window.toggleDashSales = function() {
+    const content = document.getElementById('dash-sales-content');
+    const icon = document.getElementById('dash-sales-toggle-icon');
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'grid'; // dash-stats-grid 클래스가 grid를 사용하므로
+        icon.style.transform = 'rotate(180deg)';
+    } else {
+        content.style.display = 'none';
+        icon.style.transform = 'rotate(0deg)';
+    }
+};

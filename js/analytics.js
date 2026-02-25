@@ -192,10 +192,12 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
               </div>
           </div>`;
       priceDisplay = `<input type="number" class="admin-input" value="${p[IDX_PRICE]}" onchange="updateData(${realIndex}, ${IDX_PRICE}, this.value)" placeholder="가격">`;
+      
       var keywordInput = `<input type="text" class="admin-input-key" value="${p[IDX_KEYWORD]}" onchange="updateData(${realIndex}, ${IDX_KEYWORD}, this.value)" placeholder="키워드">`;
       
-      if (!isSub) { keywordContent = `<div>${keywordInput}<button class="add-sub-btn" onclick="addSubKeywordRow('${p[IDX_CODE]}')" title="보조 키워드 추가">+</button></div>`; } 
+      if (!isSub) { keywordContent = `<div>${keywordInput}</div>`; } 
       else { keywordContent = `<div style="padding-left:15px;">ㄴ ${keywordInput}</div>`; }
+      
       deleteCell = `<td><button class="del-btn" onclick="deleteProductRow(${realIndex})">삭제</button></td>`;
   } else {
       codeDisplay = isSub ? '' : `<a href="${linkUrl}" target="_blank" class="prod-link"><span class="prod-no">${p[IDX_CODE]}</span></a>`;
@@ -249,7 +251,6 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
 function fetchProductImage(realIndex, productId) {
     if(!productId || productId.startsWith("NEW_")) { alert("유효한 상품 번호가 아닙니다."); return; }
     var btn = event.target;
-    var originalText = btn.innerText;
     btn.innerText = "로딩중...";
 
     fetch(SCRIPT_URL, {
@@ -329,17 +330,6 @@ function addEmptyRow() {
   setTimeout(() => { document.querySelector('.ranking-scroll-wrapper').scrollTop = document.querySelector('.ranking-scroll-wrapper').scrollHeight; }, 100);
 }
 
-function addSubKeywordRow(parentCode) {
-  if(!isAdmin) return;
-  var parent = products.find(p => p[IDX_CODE] == parentCode);
-  if (!parent) return;
-  var newSubRow = [ parent[IDX_CODE], parent[IDX_NAME], parent[IDX_PRICE], parent[IDX_CATEGORY], "", "", "", "", "", "", "[]", false, parent[IDX_IMAGE] || "", parent[IDX_DETAIL_CAT] || "" ];
-  let lastIndex = -1;
-  for (let i = products.length - 1; i >= 0; i--) { if (products[i][IDX_CODE] == parentCode) { lastIndex = i; break; } }
-  if (lastIndex !== -1) products.splice(lastIndex + 1, 0, newSubRow); else products.push(newSubRow);
-  renderRanking();
-}
-
 function deleteProductRow(realIndex) {
   if(!confirm("정말 이 행을 삭제하시겠습니까? (저장 버튼을 눌러야 완전히 반영됩니다)")) return;
   products.splice(realIndex, 1); renderRanking();
@@ -396,22 +386,72 @@ function loadSalesData() {
           originalSalesData = JSON.parse(JSON.stringify(json.data));
           salesData = JSON.parse(JSON.stringify(originalSalesData));
       } else { salesData = []; originalSalesData = []; }
-      isSalesEditMode = false; updateSalesEditUI(); renderSales();
+      isSalesEditMode = false; 
+      updateSalesEditUI(); 
+      setSalesTab(currentSalesTab); // renderSales() 대신 호출하여 첫 로딩부터 여백 0px 완벽 적용
   })
   .catch(err => { console.error(err); alert("매출 데이터 로드 중 오류 발생: HTML 파일이 최신 버전인지 확인하세요."); })
   .finally(() => { document.getElementById('loader').style.display = 'none'; });
 }
 
-// 🔥 어떤 형태의 값(소수점, 퍼센트, 콤마 등)이 들어와도 안전하게 처리하는 비율 파싱 함수 🔥
 function parseRatio(val) {
     if (val === undefined || val === null || val === "") return "";
     var str = String(val).trim().replace(/,/g, '');
     if (str.includes('%')) return Number(str.replace(/%/g, '')).toFixed(1);
     var num = Number(str);
     if (isNaN(num)) return "";
-    // 값이 1 이하라면 (예: 0.15) 100을 곱해서 퍼센트로 표시 (예: 15.0)
     if (num <= 1 && num > 0) return (num * 100).toFixed(1);
     return num.toFixed(1);
+}
+
+// 1. 데이터 업데이트 함수
+function updateSales(realIdx, colIdx, val) {
+  if(colIdx === 2 || colIdx === 3 || colIdx === 5 || colIdx === 6) salesData[realIdx][colIdx] = parseCurrency(val);
+  else if(colIdx === 4 || colIdx === 7 || colIdx === 8 || colIdx === 9) salesData[realIdx][colIdx] = Number(val) / 100;
+  else salesData[realIdx][colIdx] = val;
+}
+
+// 2. 편집 모드 켜기/끄기 함수
+function toggleSalesEditMode() {
+  isSalesEditMode = !isSalesEditMode;
+  updateSalesEditUI();
+  renderSales();
+}
+
+// 3. 편집 모드 UI 업데이트 함수 (여백 제거 로직 포함)
+function updateSalesEditUI() {
+  var editBtn = document.getElementById('editSalesBtn'); 
+  var addBtn = document.getElementById('addSalesRowBtn'); 
+  var resetBtn = document.getElementById('resetSalesBtn');
+  var colDeletes = document.querySelectorAll('.col-delete');
+
+  if(!editBtn || !addBtn || !resetBtn) return;
+
+  if (isSalesEditMode) { 
+      editBtn.innerText = "❌ 편집 취소"; editBtn.classList.add('edit-active'); 
+      addBtn.style.display = 'inline-block'; resetBtn.style.display = 'inline-block'; 
+      colDeletes.forEach(el => {
+          el.style.display = el.tagName === 'COL' ? '' : 'table-cell';
+          if(el.tagName === 'COL') el.style.width = '60px'; // 편집 모드 너비 복구
+      });
+  } 
+  else { 
+      editBtn.innerText = "✏️ 편집"; editBtn.classList.remove('edit-active'); 
+      addBtn.style.display = 'none'; resetBtn.style.display = 'none'; 
+      colDeletes.forEach(el => {
+          el.style.display = 'none';
+          if(el.tagName === 'COL') el.style.width = '0px'; // 기본 모드 공간 삭제
+      });
+  }
+}
+
+// 4. 입력 데이터 초기화 함수
+function resetSalesData() {
+  if(!confirm("수정 중인 내용을 모두 취소하시겠습니까?")) return;
+  salesData = JSON.parse(JSON.stringify(originalSalesData));
+  isSalesEditMode = false;
+  updateSalesEditUI();
+  renderSales();
 }
 
 function renderSales() {
@@ -441,15 +481,12 @@ function renderSales() {
 
   filtered.forEach((row, index) => {
       var realIdx = salesData.indexOf(row); 
-      var disabledAttr = isSalesEditMode ? '' : 'disabled';
       var rev = parseCurrency(row[2]) || 0; 
       var ad = parseCurrency(row[3]) || 0;
       
-      // 🔥 ROAS 파싱 오류 방어 로직 🔥
       var roasStr = String(row[4] || "0").trim();
       var isRoasPercent = roasStr.includes('%');
       var roasNum = Number(roasStr.replace(/,/g, '').replace(/%/g, '')) || 0;
-      // 50 이하면 소수점 비율(예: 4.5 -> 450%)로 간주, 그 이상이면 퍼센트 그대로 표기
       var roas = isRoasPercent ? roasNum : (roasNum < 50 && roasNum > 0 ? Math.round(roasNum * 100) : Math.round(roasNum));
       
       var traffic = Number(String(row[5] || "0").replace(/,/g, '')) || 0; 
@@ -459,12 +496,22 @@ function renderSales() {
       var mom = getGrowthRate(rev, dateStr, 'mom'); 
       var yoy = getGrowthRate(rev, dateStr, 'yoy');
       
-      var growthHtml = '';
+var growthHtml = '';
       if(rev > 0 && (mom !== null || yoy !== null)) {
-          growthHtml += `<span class="growth-text">`;
-          if(mom !== null) { var colorClass = mom > 0 ? 'growth-up' : (mom < 0 ? 'growth-down' : 'growth-neutral'); var arrow = mom > 0 ? '▲' : (mom < 0 ? '▼' : '-'); growthHtml += `<span class="${colorClass}">${arrow} ${Math.abs(mom)}% (전월)</span> `; }
-          if(yoy !== null) { var colorClass = yoy > 0 ? 'growth-up' : (yoy < 0 ? 'growth-down' : 'growth-neutral'); var arrow = yoy > 0 ? '▲' : (yoy < 0 ? '▼' : '-'); growthHtml += `<br><span class="${colorClass}">${arrow} ${Math.abs(yoy)}% (전년)</span>`; }
-          growthHtml += `</span>`;
+          growthHtml += `<div class="growth-container">`;
+          
+          if(mom !== null) { 
+              var type = mom > 0 ? 'up' : (mom < 0 ? 'down' : 'neutral'); 
+              var arrow = mom > 0 ? '▲' : (mom < 0 ? '▼' : '-'); 
+              growthHtml += `<div class="growth-badge ${type}"><span class="growth-label">전월</span><span class="growth-val">${arrow} ${Math.abs(mom)}%</span></div>`; 
+          }
+          if(yoy !== null) { 
+              var type = yoy > 0 ? 'up' : (yoy < 0 ? 'down' : 'neutral'); 
+              var arrow = yoy > 0 ? '▲' : (yoy < 0 ? '▼' : '-'); 
+              growthHtml += `<div class="growth-badge ${type}"><span class="growth-label">전년</span><span class="growth-val">${arrow} ${Math.abs(yoy)}%</span></div>`; 
+          }
+          
+          growthHtml += `</div>`;
       }
 
       var tr = document.createElement('tr');
@@ -473,54 +520,54 @@ function renderSales() {
       var winnerRatio = parseRatio(row[9]);
       var deleteBtn = isSalesEditMode ? `<button class="del-btn" onclick="deleteSalesRow(${realIdx})">삭제</button>` : '';
 
-      var commonHtml = `<td><input type="text" value="${dateStr}" disabled></td>
-          <td><input type="text" value="${formatCurrency(rev)}" onchange="updateSales(${realIdx}, 2, this.value)" ${disabledAttr}>${growthHtml}</td>
-          <td><input type="text" value="${formatCurrency(ad)}" onchange="updateSales(${realIdx}, 3, this.value)" ${disabledAttr}></td>
-          <td><div class="input-group"><input type="number" value="${roas}" onchange="updateSales(${realIdx}, 4, this.value)" ${disabledAttr}><span class="input-group-addon">%</span></div></td>
-          <td><input type="number" value="${traffic}" onchange="updateSales(${realIdx}, 5, this.value)" ${disabledAttr}></td>
-          <td><input type="number" value="${payCount}" onchange="updateSales(${realIdx}, 6, this.value)" ${disabledAttr}></td>
-          <td><div class="input-group"><span style="font-weight:bold;">${conv}</span><span style="margin-left:2px;">%</span></div></td>`;
-
+      var commonHtml = '';
       var specificHtml = '';
-      if(currentSalesTab === '스마트스토어') {
-          specificHtml = `<td class="col-smart"><div class="input-group"><input type="number" step="0.1" value="${mobileRatio}" onchange="updateSales(${realIdx}, 7, this.value)" ${disabledAttr}><span class="input-group-addon">%</span></div></td>
-              <td class="col-smart"><div class="input-group"><input type="number" step="0.1" value="${refundRatio}" onchange="updateSales(${realIdx}, 8, this.value)" ${disabledAttr}><span class="input-group-addon">%</span></div></td>
-              <td class="col-coupang" style="display:none"></td>`;
+
+      // [핵심] 편집 모드와 일반 모드의 HTML 구조 분리 (ROAS 빨간색 강조)
+      if (isSalesEditMode) {
+          commonHtml = `<td><input type="text" value="${dateStr}" disabled style="text-align:center;"></td>
+              <td><input type="text" value="${formatCurrency(rev)}" onchange="updateSales(${realIdx}, 2, this.value)"></td>
+              <td>${growthHtml}</td> 
+              <td><input type="text" value="${formatCurrency(ad)}" onchange="updateSales(${realIdx}, 3, this.value)"></td>
+              <td><div class="input-group"><input type="number" value="${roas}" onchange="updateSales(${realIdx}, 4, this.value)" style="color:#dc2626; font-weight:700;"><span class="input-group-addon" style="color:#dc2626;">%</span></div></td>
+              <td><input type="text" value="${formatCurrency(traffic)}" onchange="updateSales(${realIdx}, 5, this.value)"></td>
+              <td><input type="text" value="${formatCurrency(payCount)}" onchange="updateSales(${realIdx}, 6, this.value)"></td>
+              <td><div class="input-group"><span style="font-weight:700; color:#d97706;">${conv}</span><span style="margin-left:2px; color:#d97706; font-weight:700;">%</span></div></td>`;
+              
+          if(currentSalesTab === '스마트스토어') {
+              specificHtml = `<td class="col-smart"><div class="input-group"><input type="number" step="0.1" value="${mobileRatio}" onchange="updateSales(${realIdx}, 7, this.value)"><span class="input-group-addon">%</span></div></td>
+                  <td class="col-smart"><div class="input-group"><input type="number" step="0.1" value="${refundRatio}" onchange="updateSales(${realIdx}, 8, this.value)"><span class="input-group-addon">%</span></div></td>
+                  <td class="col-coupang" style="display:none"></td>`;
+          } else {
+              specificHtml = `<td class="col-smart" style="display:none"></td><td class="col-smart" style="display:none"></td>
+                  <td class="col-coupang"><div class="input-group"><input type="number" step="0.1" value="${winnerRatio}" onchange="updateSales(${realIdx}, 9, this.value)"><span class="input-group-addon">%</span></div></td>`;
+          }
       } else {
-          specificHtml = `<td class="col-smart" style="display:none"></td><td class="col-smart" style="display:none"></td>
-              <td class="col-coupang"><div class="input-group"><input type="number" step="0.1" value="${winnerRatio}" onchange="updateSales(${realIdx}, 9, this.value)" ${disabledAttr}><span class="input-group-addon">%</span></div></td>`;
+          // 일반 모드일 때는 input 대신 일반 텍스트로 출력 (ROAS 빨간색)
+          commonHtml = `<td style="font-weight:600;">${dateStr}</td>
+              <td style="font-weight:800; color:#1e293b;">${formatCurrency(rev)}</td>
+              <td>${growthHtml}</td> 
+              <td style="font-weight:600;">${formatCurrency(ad)}</td>
+              <td style="font-weight:800; color:#dc2626;">${roas} %</td>
+              <td style="font-weight:600;">${formatCurrency(traffic)}</td>
+              <td style="font-weight:600;">${formatCurrency(payCount)}</td>
+              <td style="font-weight:800; color:#d97706;">${conv} %</td>`;
+              
+          if(currentSalesTab === '스마트스토어') {
+              specificHtml = `<td class="col-smart" style="font-weight:600;">${mobileRatio} %</td>
+                  <td class="col-smart" style="font-weight:600;">${refundRatio} %</td>
+                  <td class="col-coupang" style="display:none"></td>`;
+          } else {
+              specificHtml = `<td class="col-smart" style="display:none"></td><td class="col-smart" style="display:none"></td>
+                  <td class="col-coupang" style="font-weight:600;">${winnerRatio} %</td>`;
+          }
       }
-      tr.innerHTML = commonHtml + specificHtml + `<td>${deleteBtn}</td>`; tbody.appendChild(tr);
+
+      tr.innerHTML = commonHtml + specificHtml + `<td class="col-delete" style="display:${isSalesEditMode ? '' : 'none'};">${deleteBtn}</td>`; 
+      tbody.appendChild(tr);
   });
   
   drawChart(labels, revenueData, adSpendData, trafficData, payCountData, convData);
-}
-
-function updateSales(realIdx, colIdx, val) {
-  if(colIdx === 2 || colIdx === 3) salesData[realIdx][colIdx] = parseCurrency(val);
-  else if(colIdx === 4 || colIdx === 7 || colIdx === 8 || colIdx === 9) salesData[realIdx][colIdx] = Number(val) / 100;
-  else salesData[realIdx][colIdx] = val;
-}
-
-function toggleSalesEditMode() {
-  if (isSalesEditMode) { if (confirm("편집 모드를 종료하시겠습니까? 저장하지 않은 내용은 원래대로 돌아갑니다.")) { isSalesEditMode = false; salesData = JSON.parse(JSON.stringify(originalSalesData)); renderSales(); } } 
-  else { isSalesEditMode = true; renderSales(); }
-  updateSalesEditUI();
-}
-
-function resetSalesData() {
-  if(!confirm("편집 중인 내용을 모두 취소하고 처음 상태로 되돌리시겠습니까?")) return;
-  salesData = JSON.parse(JSON.stringify(originalSalesData)); renderSales();
-}
-
-function updateSalesEditUI() {
-  var editBtn = document.getElementById('editSalesBtn'); 
-  var addBtn = document.getElementById('addSalesRowBtn'); 
-  var resetBtn = document.getElementById('resetSalesBtn');
-  if(!editBtn || !addBtn || !resetBtn) return; // 방어 코드
-
-  if (isSalesEditMode) { editBtn.innerText = "❌ 편집 취소"; editBtn.classList.add('edit-active'); addBtn.style.display = 'inline-block'; resetBtn.style.display = 'inline-block'; } 
-  else { editBtn.innerText = "✏️ 편집"; editBtn.classList.remove('edit-active'); addBtn.style.display = 'none'; resetBtn.style.display = 'none'; }
 }
 
 function addSalesRow() {
@@ -574,18 +621,12 @@ function downloadSalesCSV() {
   document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-// 🔥 차트 렌더링 로직 (유입수 제거 및 Y축 분리 적용) 🔥
 function drawChart(labels, rev, ad, traffic, pay, conv) {
-  
   var canvasFin = document.getElementById('salesChartFinancial');
   var canvasTraff = document.getElementById('salesChartTraffic');
   
-  if(!canvasFin || !canvasTraff) {
-      console.warn("차트 캔버스 요소를 찾을 수 없습니다. index.html 업데이트 여부를 확인하세요.");
-      return; 
-  }
+  if(!canvasFin || !canvasTraff) { return; }
 
-  // 1. 좌측 재무 차트 (결제금액 / 광고비)
   var ctxFin = canvasFin.getContext('2d');
   if(salesChartFin) salesChartFin.destroy();
   
@@ -607,7 +648,6 @@ function drawChart(labels, rev, ad, traffic, pay, conv) {
       }
   });
 
-  // 2. 우측 트래픽 차트 (결제수 / 전환율 - 독립된 Y축으로 스케일 이슈 해결)
   var ctxTraff = canvasTraff.getContext('2d');
   if(salesChartTraff) salesChartTraff.destroy();
   
@@ -619,8 +659,8 @@ function drawChart(labels, rev, ad, traffic, pay, conv) {
       trafficDatasets.push({ 
           label: '결제수 (좌)', 
           data: pay, 
-          type: 'bar', // 막대 그래프로 변경하여 결제금액과 통일감 부여
-          backgroundColor: 'rgba(46, 204, 113, 0.6)', // 초록색 계열
+          type: 'bar', 
+          backgroundColor: 'rgba(46, 204, 113, 0.6)',
           yAxisID: 'y', 
           order: 2 
       }); 
@@ -633,7 +673,6 @@ function drawChart(labels, rev, ad, traffic, pay, conv) {
           borderColor: '#f39c12', 
           backgroundColor: '#f39c12', 
           borderWidth: 2, 
-          borderDash: [5, 5], 
           yAxisID: 'y_rate', 
           order: 1 
       }); 
@@ -655,9 +694,29 @@ function drawChart(labels, rev, ad, traffic, pay, conv) {
 function setSalesTab(t) { 
   currentSalesTab = t; 
   document.querySelectorAll('#page-sales .tab').forEach(b => b.classList.toggle('active', b.innerText == t)); 
-  var smartCols = document.querySelectorAll('.col-smart'); var coupangCols = document.querySelectorAll('.col-coupang');
-  if(t === '스마트스토어') { smartCols.forEach(e => e.style.display = 'table-cell'); coupangCols.forEach(e => e.style.display = 'none'); } 
-  else { smartCols.forEach(e => e.style.display = 'none'); coupangCols.forEach(e => e.style.display = 'table-cell'); }
+  
+  var smartCols = document.querySelectorAll('.col-smart'); 
+  var coupangCols = document.querySelectorAll('.col-coupang');
+  
+  if(t === '스마트스토어') { 
+      smartCols.forEach(e => {
+          e.style.display = e.tagName === 'COL' ? '' : 'table-cell';
+          if(e.tagName === 'COL') e.style.width = '110px'; // 너비 복구
+      }); 
+      coupangCols.forEach(e => {
+          e.style.display = 'none';
+          if(e.tagName === 'COL') e.style.width = '0px'; // 너비 완전 삭제
+      }); 
+  } else { 
+      smartCols.forEach(e => {
+          e.style.display = 'none';
+          if(e.tagName === 'COL') e.style.width = '0px'; // 너비 완전 삭제
+      }); 
+      coupangCols.forEach(e => {
+          e.style.display = e.tagName === 'COL' ? '' : 'table-cell';
+          if(e.tagName === 'COL') e.style.width = '110px'; // 너비 복구
+      }); 
+  }
   renderSales();
 }
 

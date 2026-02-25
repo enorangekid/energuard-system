@@ -1,8 +1,8 @@
-/* ================= [Timeline Logic] ================= */
-// (타임라인 로직 유지)
+/* ================= [Timeline Logic - Cached Version] ================= */
 let collapsedDates = {};
 let timeLogs = [];
 let editingItemIndex = -1; 
+let isTimelineFetched = false;
 
 function formatTimeStr(str) {
   if(!str) return "";
@@ -14,37 +14,82 @@ function getDayKor(dateStr) {
   return days[new Date(dateStr).getDay()];
 }
 
-function loadTimelineFromServer() {
+// ✅ (새로 추가) 선택된 날짜의 마지막 기록을 찾아 시작 시간을 자동 세팅하는 함수
+window.updateDefaultStartTime = function() {
+    if (editingItemIndex > -1) return; // 수정 모드일 때는 덮어쓰지 않음
+    const selectedDate = document.getElementById('tDate').value;
+    if (!selectedDate) return;
+
+    const dayLogs = timeLogs.filter(log => log.date === selectedDate && log.category !== '휴무');
+    if (dayLogs.length > 0) {
+        // 종료 시간 기준으로 정렬하여 가장 마지막 시간 가져오기
+        dayLogs.sort((a, b) => a.end.localeCompare(b.end));
+        const lastLog = dayLogs[dayLogs.length - 1];
+        if (lastLog && lastLog.end && lastLog.end !== "00:00") {
+            const parts = lastLog.end.split(':');
+            document.getElementById('tStartH').value = parts[0];
+            document.getElementById('tStartM').value = parts[1];
+        }
+    } else {
+        // 해당 날짜에 기록이 없으면 빈칸
+        document.getElementById('tStartH').value = '';
+        document.getElementById('tStartM').value = '';
+    }
+};
+
+async function loadTimelineFromServer() {
   if(!authPassword) return; 
+  
+  const now = new Date();
+  const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  document.getElementById('tDate').value = todayStr;
+
+  if(isTimelineFetched) {
+      document.getElementById('loader').style.display = 'none';
+      renderTimeLog();
+      updateDefaultStartTime();
+      return;
+  }
+
   const loader = document.getElementById('loader');
   if(loader) loader.style.display = 'flex';
-  fetch(SCRIPT_URL, {
-    method: 'POST', body: JSON.stringify({ action: "read", sheetName: "TimeTracker", password: authPassword })
-  }).then(res => res.json()).then(json => {
-    if(json.status === "success") {
-      const rows = json.data;
-      timeLogs = []; 
-      if(rows.length > 1) {
-        let lastValidDate = ""; 
-        for(let i=1; i<rows.length; i++) {
-          let r = rows[i];
-          let dateStr = r[0] === "" && lastValidDate !== "" ? lastValidDate : r[0];
-          lastValidDate = dateStr;
-          let startStr = formatTimeStr(r[3]);
-          let endStr = formatTimeStr(r[4]);
-          let durationStr = formatTimeStr(r[5]);
-          let min = 0;
-          if(durationStr) {
-            let parts = durationStr.split(':');
-            if(parts.length === 2) min = (Number(parts[0]) * 60) + Number(parts[1]);
+
+  try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST', body: JSON.stringify({ action: "read", sheetName: "TimeTracker", password: authPassword })
+      });
+      const json = await res.json();
+      
+      if(json.status === "success") {
+          const rows = json.data;
+          timeLogs = []; 
+          if(rows.length > 1) {
+            let lastValidDate = ""; 
+            for(let i=1; i<rows.length; i++) {
+              let r = rows[i];
+              let dateStr = r[0] === "" && lastValidDate !== "" ? lastValidDate : r[0];
+              lastValidDate = dateStr;
+              let startStr = formatTimeStr(r[3]);
+              let endStr = formatTimeStr(r[4]);
+              let durationStr = formatTimeStr(r[5]);
+              let min = 0;
+              if(durationStr) {
+                let parts = durationStr.split(':');
+                if(parts.length === 2) min = (Number(parts[0]) * 60) + Number(parts[1]);
+              }
+              timeLogs.push({ date: dateStr, category: r[1], task: r[2], start: startStr, end: endStr, duration: durationStr, min: min });
+            }
           }
-          timeLogs.push({ date: dateStr, category: r[1], task: r[2], start: startStr, end: endStr, duration: durationStr, min: min });
-        }
+          isTimelineFetched = true; // ✅ 통신 완료 플래그 저장
+          updateYearFilterOptions();
+          renderTimeLog();
+          updateDefaultStartTime();
       }
-      updateYearFilterOptions();
-      renderTimeLog();
-    }
-  }).finally(() => { if(loader) loader.style.display = 'none'; });
+  } catch (e) {
+      console.error("타임라인 데이터 로드 오류:", e);
+  } finally {
+      if(loader) loader.style.display = 'none';
+  }
 }
 
 function saveToServer() {
@@ -108,7 +153,7 @@ function renderTimeLog() {
               row.innerHTML = `<td><span class="${catBadge}">${log.category}</span></td><td>${log.task}</td><td>${log.start}</td><td>${log.end}</td><td>${durationHtml}</td>
                   <td>
                     <button onclick="editTimeLog(${realIdx})" title="수정" style="border:none;background:none;cursor:pointer;color:#2563eb;margin-right:8px;"><i class="fa-solid fa-pen"></i></button>
-                    <button onclick="if(confirm('삭제하시겠습니까?')) { timeLogs.splice(${realIdx}, 1); renderTimeLog(); }" title="삭제" style="border:none;background:none;cursor:pointer;color:#ef4444;"><i class="fa-solid fa-trash-can"></i></button>
+                    <button onclick="if(confirm('삭제하시겠습니까?')) { timeLogs.splice(${realIdx}, 1); updateDefaultStartTime(); renderTimeLog(); }" title="삭제" style="border:none;background:none;cursor:pointer;color:#ef4444;"><i class="fa-solid fa-trash-can"></i></button>
                   </td>`;
               tbody.appendChild(row);
           });
@@ -150,12 +195,53 @@ function addTimeLog() {
       cancelEditMode(); 
   } else {
       timeLogs.push(newItem);
+      
+      document.getElementById('tTask').value = '';
+      document.getElementById('tEndH').value = '';
+      document.getElementById('tEndM').value = '';
+      updateDefaultStartTime(); 
   }
   
-  document.getElementById('tTask').value = '';
-  ['tStartH','tStartM','tEndH','tEndM'].forEach(id => document.getElementById(id).value = '');
   renderTimeLog();
 }
+
+// ✅ 전체 접기/펼치기 토글 함수
+let isAllCollapsed = false;
+window.toggleAllDates = function() {
+    isAllCollapsed = !isAllCollapsed; // 클릭할 때마다 상태 반전
+    const icon = document.getElementById('globalCollapseIcon');
+    
+    // 아이콘 화살표 방향 전환
+    if (icon) {
+        icon.style.transform = isAllCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+    }
+
+    const selectedYear = document.getElementById('yearFilter').value;
+    const searchQuery = document.getElementById('taskSearch').value.toLowerCase();
+    let filteredLogs = timeLogs.filter(log => log.date.startsWith(selectedYear) && (log.task.toLowerCase().includes(searchQuery) || log.category.toLowerCase().includes(searchQuery)));
+
+    const grouped = {};
+    filteredLogs.forEach(log => { 
+        if(!grouped[log.date]) grouped[log.date] = []; 
+        grouped[log.date].push(log); 
+    });
+
+    const sortedDates = Object.keys(grouped).sort((a,b) => b.localeCompare(a));
+
+    if(sortedDates.length > 0) {
+        const latestDate = sortedDates[0];
+        sortedDates.forEach(date => {
+            if (isAllCollapsed) {
+                // 접기 모드: 가장 최신 날짜를 제외하고 모두 접기
+                collapsedDates[date] = (date !== latestDate); 
+            } else {
+                // 펼치기 모드: 모두 펼치기
+                collapsedDates[date] = false;
+            }
+        });
+    }
+    renderTimeLog();
+};
 
 function editTimeLog(index) {
     const log = timeLogs[index];
@@ -190,13 +276,18 @@ function cancelEditMode() {
     btn.innerHTML = '<i class="fa-solid fa-plus"></i> 등록';
     btn.classList.remove('update-mode');
     document.getElementById('tTask').value = '';
-    ['tStartH','tStartM','tEndH','tEndM'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('tEndH').value = '';
+    document.getElementById('tEndM').value = '';
+    updateDefaultStartTime(); 
 }
 
-/* ================= [Worklog Logic (유지)] ================= */
+/* ================= [Worklog Logic - Cached Version] ================= */
 let currentWorkYear = new Date().getFullYear();
 let currentWorkMonth = new Date().getMonth() + 1; 
 let activeMemoBox = null;
+
+// 업무일지 전용 월별 데이터 캐시
+let worklogCache = {};
 
 window.addEventListener('DOMContentLoaded', () => {
    updateDateDisplay();
@@ -334,7 +425,36 @@ function setupDragSelection() {
   let isSelecting = false;
   let startInput = null;
   let selectedInputs = [];
+  
+  let undoStack = []; // 실행 취소를 위한 기록 저장소
+  let cellFocusVal = null; // 단일 텍스트 수정을 기록하기 위한 임시 변수
 
+  // 1. 단일 셀 수정 기록 (포커스 될 때 기존 값 저장 -> 잃을 때 변경되었으면 스택에 저장)
+  document.addEventListener('focusin', (e) => {
+      if (e.target.classList && e.target.classList.contains('clean-input')) {
+          cellFocusVal = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      }
+  });
+  
+  document.addEventListener('focusout', (e) => {
+      if (e.target.classList && e.target.classList.contains('clean-input')) {
+          let currentVal = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+          if (cellFocusVal !== null && cellFocusVal !== currentVal) {
+              undoStack.push([{ el: e.target, oldVal: cellFocusVal }]); // 변경이 있으면 스택 추가
+          }
+          cellFocusVal = null;
+      }
+  });
+
+  document.addEventListener('change', (e) => {
+      if (e.target.type === 'checkbox' && e.target.classList && e.target.classList.contains('clean-input')) {
+          if (e.isTrusted) { // 사용자가 직접 클릭한 체크박스 변경만 추적
+              undoStack.push([{ el: e.target, oldVal: !e.target.checked }]);
+          }
+      }
+  });
+
+  // 2. 마우스 드래그 이벤트
   document.addEventListener('mousedown', (e) => {
     if (!e.target.classList.contains('clean-input')) {
       if (!e.target.closest('.wp-list')) clearSelection();
@@ -365,36 +485,76 @@ function setupDragSelection() {
     isSelecting = false;
   });
 
+  // 3. 키보드 이벤트 (Delete, Backspace, Ctrl+Z, Ctrl+C)
   document.addEventListener('keydown', (e) => {
+    
+    // 🔥 Ctrl+Z (실행 취소) 기능
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        // 만약 특정 셀 안에 커서가 깜빡거리며 텍스트를 입력 중이라면 (브라우저 기본 실행취소 사용)
+        if (document.activeElement && document.activeElement.classList.contains('clean-input')) {
+            return; 
+        }
+        
+        // 다중 삭제나 붙여넣기 후라면 우리가 만든 커스텀 실행취소 작동
+        if (undoStack.length > 0) {
+            e.preventDefault();
+            const lastChanges = undoStack.pop();
+            lastChanges.forEach(change => {
+                if (change.el.type === 'checkbox') change.el.checked = change.oldVal;
+                else change.el.value = change.oldVal;
+                
+                triggerInputEvent(change.el);
+                if (change.el.name === 'done') toggleDone(change.el);
+            });
+        }
+        return;
+    }
+
+    // 🔥 Delete / Backspace 기능 (드래그 삭제 지원 및 1글자 지움 버그 해결)
     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedInputs.length > 0) {
-      if(document.activeElement.value === "" || !isEditingText()) {
-          selectedInputs.forEach(input => {
+        
+        // 버그 해결 핵심: 오직 1칸만 선택되었고, 그 칸에 커서가 있다면 "1글자 지우기(브라우저 기본)" 허용
+        if (selectedInputs.length === 1 && document.activeElement === selectedInputs[0]) {
+            return; 
+        }
+
+        // 그 외 여러 셀을 선택한 상태라면 일괄 삭제 진행
+        e.preventDefault();
+        
+        // 포커스를 해제하여 이후에 브라우저가 아닌 커스텀 Ctrl+Z가 먹히도록 유도
+        if (document.activeElement) document.activeElement.blur(); 
+        
+        let currentChanges = []; // 실행 취소를 위해 삭제되기 전 값 저장
+        selectedInputs.forEach(input => {
+            currentChanges.push({
+                el: input,
+                oldVal: input.type === 'checkbox' ? input.checked : input.value
+            });
+
             if(input.type === 'checkbox') input.checked = false;
             else input.value = '';
             
             triggerInputEvent(input);
             if (input.name === 'done') toggleDone(input);
-          });
-          e.preventDefault();
-      }
+        });
+        
+        if (currentChanges.length > 0) undoStack.push(currentChanges);
     }
     
+    // Copy (Ctrl+C)
     if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedInputs.length > 0) {
        handleCopy(e);
     }
   });
 
+  // 4. 붙여넣기 (Paste)
   document.addEventListener('paste', (e) => {
       const active = document.activeElement;
       if (!active || !active.classList.contains('clean-input')) return;
       e.preventDefault();
-      handlePaste(e);
+      active.blur(); // 포커스를 해제해 커스텀 Ctrl+Z가 제대로 작동하게 함
+      handlePaste(e, active);
   });
-
-  function isEditingText() {
-      const active = document.activeElement;
-      return active && active.selectionStart !== active.selectionEnd;
-  }
 
   function clearSelection() {
     document.querySelectorAll('.clean-input.cell-selected').forEach(el => el.classList.remove('cell-selected'));
@@ -475,11 +635,11 @@ function setupDragSelection() {
       }
   }
 
-  function handlePaste(e) {
+  function handlePaste(e, startCellInput) {
       const clipboardData = (e.clipboardData || window.clipboardData).getData('text');
       if (!clipboardData) return;
 
-      let startCell = selectedInputs.length > 0 ? selectedInputs[0] : document.activeElement;
+      let startCell = selectedInputs.length > 0 ? selectedInputs[0] : startCellInput;
       if (!startCell || !startCell.classList.contains('clean-input')) return;
 
       const startRow = startCell.closest('.task-strip');
@@ -491,6 +651,8 @@ function setupDragSelection() {
       const startColIdx = startInputs.indexOf(startCell);
 
       const rows = clipboardData.split(/\r\n|\n|\r/);
+      
+      let currentChanges = []; // 실행 취소를 위한 상태 저장
 
       rows.forEach((rowText, rIdx) => {
           if (rowText.trim() === "" && rIdx === rows.length - 1) return;
@@ -504,6 +666,12 @@ function setupDragSelection() {
           cols.forEach((val, cIdx) => {
               const input = targetInputs[startColIdx + cIdx];
               if (input) {
+                  // 값 덮어쓰기 전 기존 값 기록
+                  currentChanges.push({
+                      el: input,
+                      oldVal: input.type === 'checkbox' ? input.checked : input.value
+                  });
+
                   if(input.type === 'checkbox') {
                       const v = val.trim().toUpperCase();
                       input.checked = (v === 'TRUE' || v === '1' || v === 'YES');
@@ -516,6 +684,8 @@ function setupDragSelection() {
               }
           });
       });
+      
+      if(currentChanges.length > 0) undoStack.push(currentChanges);
   }
 }
 
@@ -547,10 +717,17 @@ function collectAndSaveWorklog() {
       memoRows.push([targetYear, targetMonth, dateKey, "Rate", dayEl.querySelector('.progress-text').innerText]);
     });
   });
+  
   fetch(SCRIPT_URL, {
     method: 'POST', body: JSON.stringify({ action: "save_worklog", password: authPassword, year: targetYear, month: targetMonth, taskRows: taskRows, memoRows: memoRows })
   }).then(res => res.json()).then(json => {
-     if(json.status === "success") alert("✅ 저장 완료!"); else alert("오류: " + json.message);
+     if(json.status === "success") {
+         alert("✅ 저장 완료!"); 
+         delete worklogCache[`${targetYear}-${targetMonth}`];
+         cachedProductLogs = null;
+     } else {
+         alert("오류: " + json.message);
+     }
   }).finally(() => { loader.style.display = 'none'; });
 }
 
@@ -562,14 +739,10 @@ function normalizeDate(dateStr) {
    return `${y}-${m}-${d}`;
 }
 
-function loadWorklogFromServer() {
-  if(!authPassword) return;
-  const loader = document.getElementById('loader'); loader.style.display = 'flex';
-  fetch(SCRIPT_URL, {
-    method: 'POST', body: JSON.stringify({ action: "load_worklog", password: authPassword, year: currentWorkYear, month: currentWorkMonth })
-  }).then(res => res.json()).then(json => {
-    if(json.status === "success") {
-      json.tasks.forEach(row => {
+function applyWorklogData(json) {
+    if(!json || json.status !== "success") return;
+    
+    json.tasks.forEach(row => {
         const type = row[4]; const weekId = row[2]; const date = normalizeDate(row[3]); const rowIdx = row[5];
         let container = (type === 'Plan') ? document.querySelector(`.week-row[data-week-id="${weekId}"] .week-plan-section`) : document.querySelector(`.day-column[data-date="${date}"]`);
         if(container && !container.classList.contains('blank')) {
@@ -582,8 +755,8 @@ function loadWorklogFromServer() {
              updateRow(strip.querySelector('[name="task"]')); toggleDone(strip.querySelector('[name="done"]'));
            }
         }
-      });
-      json.memos.forEach(row => {
+    });
+    json.memos.forEach(row => {
         const key = row[2]; const type = row[3]; const content = row[4]; let inputs = [];
         if(type === 'NextPlan' || type === 'Retro') {
             inputs = document.querySelectorAll(`.week-row[data-week-id="${key}"] [name="${type === 'NextPlan' ? 'nextPlan' : 'retrospective'}"]`);
@@ -595,9 +768,35 @@ function loadWorklogFromServer() {
             inputs = document.querySelectorAll(`.day-column[data-date="${normalizeDate(key)}"] [name="${type === 'Memo' ? 'dayMemo' : 'productLog'}"]`);
             if(inputs.length > 0) inputs[0].value = content;
         }
+    });
+}
+
+async function loadWorklogFromServer() {
+  if(!authPassword) return;
+  const monthKey = `${currentWorkYear}-${currentWorkMonth}`;
+  
+  if(worklogCache[monthKey]) {
+      applyWorklogData(worklogCache[monthKey]);
+      return;
+  }
+
+  const loader = document.getElementById('loader'); loader.style.display = 'flex';
+  
+  try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST', body: JSON.stringify({ action: "load_worklog", password: authPassword, year: currentWorkYear, month: currentWorkMonth })
       });
-    }
-  }).finally(() => { loader.style.display = 'none'; });
+      const json = await res.json();
+      
+      if(json.status === "success") {
+          worklogCache[monthKey] = json; 
+          applyWorklogData(json);       
+      }
+  } catch(e) {
+      console.error("업무 일지 로드 오류:", e);
+  } finally {
+      loader.style.display = 'none';
+  }
 }
 
 function updateRow(input) {
@@ -629,34 +828,102 @@ function closeModal() { document.getElementById('memoModal').style.display = 'no
 function saveMemoFromModal() { if(!activeMemoBox) return; const input = document.getElementById('modalInput'); const newVal = input.value.trim(); const hiddenInput = activeMemoBox.nextElementSibling; hiddenInput.value = newVal; if(newVal !== "") { activeMemoBox.classList.add('has-content'); activeMemoBox.title = newVal; } else { activeMemoBox.classList.remove('has-content'); activeMemoBox.title = "메모 없음"; } closeModal(); }
 function handleEnter(e) { if(e.key === 'Enter') saveMemoFromModal(); }
 
-/* ================= [Product Log Logic (유지)] ================= */
-function renderProductLogPage() {
-  const tbody = document.getElementById('productLogList');
-  document.getElementById('loader').style.display = 'flex';
-  tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding:20px;">데이터를 불러오는 중...</td></tr>';
-  
-  fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "get_all_product_logs", password: authPassword }) })
-  .then(res => res.json()).then(json => {
-    tbody.innerHTML = '';
-    if(json.status === "success" && json.data.length > 0) {
-      json.data.sort((a,b) => b.date.localeCompare(a.date));
-      json.data.forEach(log => { 
-          let content = String(log.content).trim();
-          if(!isNaN(Number(content))) return; 
 
-          const tr = document.createElement('tr'); 
-          tr.style.cursor = "pointer";
-          tr.onclick = function() { jumpToWorkLog(log.date); };
-          tr.title = "클릭하면 해당 월간 업무일지로 이동합니다.";
-          tr.innerHTML = `<td style="font-weight:700; color:#4f46e5;">${log.date}</td><td>${log.content}</td>`; 
-          tbody.appendChild(tr); 
-      });
-      if(tbody.children.length === 0) {
-           tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding:30px; color:#999;">저장된 상품 수정 내역이 없습니다.</td></tr>';
-      }
-    } else { tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding:30px; color:#999;">저장된 상품 수정 내역이 없습니다.</td></tr>'; }
-  })
-  .finally(() => { document.getElementById('loader').style.display = 'none'; });
+/* ================= [Product Log Logic - Cached Version] ================= */
+let cachedProductLogs = null;
+let isFetchingProductLogs = false;
+
+async function fetchProductLogsIfNeeded() {
+    if (cachedProductLogs !== null) {
+        document.getElementById('loader').style.display = 'none';
+        return true;
+    }
+    if (isFetchingProductLogs) return false;
+
+    isFetchingProductLogs = true;
+    document.getElementById('loader').style.display = 'flex';
+
+    try {
+        const res = await fetch(SCRIPT_URL, { 
+            method: 'POST', 
+            body: JSON.stringify({ action: "get_all_product_logs", password: authPassword }) 
+        });
+        const json = await res.json();
+        
+        if (json.status === "success" && json.data) {
+            let validLogs = json.data.filter(log => isNaN(Number(String(log.content).trim())));
+            validLogs.sort((a,b) => b.date.localeCompare(a.date));
+            cachedProductLogs = validLogs; 
+            return true;
+        }
+    } catch (e) {
+        console.error("상품 로그 로드 오류:", e);
+    } finally {
+        document.getElementById('loader').style.display = 'none';
+        isFetchingProductLogs = false;
+    }
+    return false;
+}
+
+async function renderProductLogPage() {
+    if (!document.getElementById('prodlog-custom-style')) {
+        const style = document.createElement('style');
+        style.id = 'prodlog-custom-style';
+        style.innerHTML = `
+            .prodlog-month-divider { 
+                background-color: #f1f5f9 !important; 
+                font-size: 14px; 
+                font-weight: 800; 
+                color: #334155; 
+                text-align: left !important; 
+                padding: 12px 20px !important; 
+                border-top: 2px solid #e2e8f0; 
+                border-bottom: 2px solid #e2e8f0; 
+            }
+            .prodlog-row { transition: all 0.2s ease; cursor: pointer; }
+            .prodlog-row td { transition: all 0.2s ease; }
+            .prodlog-row:hover { background-color: #f0f9ff !important; }
+            .prodlog-row:hover td { 
+                color: #2563eb !important; 
+                text-decoration: underline; 
+                font-weight: 700; 
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    const tbody = document.getElementById('productLogList');
+    await fetchProductLogsIfNeeded();
+    
+    tbody.innerHTML = '';
+    
+    if(cachedProductLogs && cachedProductLogs.length > 0) {
+        let currentMonth = "";
+        
+        cachedProductLogs.forEach(log => { 
+            let logMonth = log.date.substring(0, 7); 
+            if (logMonth !== currentMonth) {
+                currentMonth = logMonth;
+                const [yyyy, mm] = logMonth.split('-');
+                const divider = document.createElement('tr');
+                divider.innerHTML = `<td colspan="2" class="prodlog-month-divider">📅 ${yyyy}년 ${mm}월 수정 내역</td>`;
+                tbody.appendChild(divider);
+            }
+
+            const tr = document.createElement('tr'); 
+            tr.className = "prodlog-row"; 
+            tr.onclick = function() { jumpToWorkLog(log.date); };
+            tr.title = "클릭하면 해당 일자의 업무일지로 이동합니다.";
+            
+            tr.innerHTML = `
+              <td style="font-weight:700; color:#4f46e5;">${log.date}</td>
+              <td>${log.content}</td>
+            `; 
+            tbody.appendChild(tr); 
+        });
+    } else { 
+        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding:40px; color:#999;">저장된 상품 수정 내역이 없습니다.</td></tr>'; 
+    }
 }
 
 function jumpToWorkLog(dateStr) {
@@ -683,10 +950,47 @@ function jumpToWorkLog(dateStr) {
 }
 
 
-/* ================= [New Note Logic (Modified)] ================= */
+/* ================= [Notes Logic - Bulletproof Cached Version] ================= */
 var quill;
 var currentNoteType = 'general';
 var currentDraftId = "";
+
+let cachedNotes = null;
+let notesFetchPromise = null; 
+
+function fetchAllNotesIfNeeded() {
+    if (cachedNotes !== null) {
+        document.getElementById('loader').style.display = 'none';
+        return Promise.resolve(true); 
+    }
+    
+    if (notesFetchPromise) return notesFetchPromise; 
+
+    document.getElementById('loader').style.display = 'flex';
+    const statusEl = document.getElementById('noteSaveStatus');
+    if(statusEl) statusEl.innerText = "데이터 동기화 중...";
+
+    notesFetchPromise = fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: "load_all_notes", password: authPassword })
+    }).then(r => r.json()).then(res => {
+        if (res.status === "success") {
+            cachedNotes = res.data;
+            if(statusEl) statusEl.innerText = "동기화 완료";
+            return true;
+        }
+        return false;
+    }).catch(e => {
+        console.error("노트 로드 실패", e);
+        if(statusEl) statusEl.innerText = "동기화 실패";
+        return false;
+    }).finally(() => {
+        document.getElementById('loader').style.display = 'none';
+        notesFetchPromise = null; 
+    });
+
+    return notesFetchPromise;
+}
 
 function initQuill() {
   if (quill) return;
@@ -704,9 +1008,7 @@ function initQuill() {
           ['link', 'image'],
           ['clean']
         ],
-        handlers: {
-          image: imageUploadHandler
-        }
+        handlers: { image: imageUploadHandler }
       }
     }
   });
@@ -741,12 +1043,7 @@ function imageUploadHandler() {
 
       fetch(SCRIPT_URL, {
         method: 'POST',
-        body: JSON.stringify({
-          action: 'upload_image',
-          password: authPassword,
-          imageBase64: base64Data,
-          fileType: fileType
-        })
+        body: JSON.stringify({ action: 'upload_image', password: authPassword, imageBase64: base64Data, fileType: fileType })
       })
       .then(res => res.json())
       .then(json => {
@@ -764,100 +1061,127 @@ function imageUploadHandler() {
         alert('이미지 업로드 중 통신 오류가 발생했습니다.');
         if (statusEl) statusEl.innerText = '업로드 오류';
       })
-      .finally(() => {
-        if (loader) loader.style.display = 'none';
-      });
+      .finally(() => { if (loader) loader.style.display = 'none'; });
     };
     reader.readAsDataURL(file);
   };
 }
 
-function setNoteTab(type) {
+async function handleNoteDateChange() {
+    try {
+        if(currentNoteType !== 'general') return; 
+        await fetchAllNotesIfNeeded();
+        loadGeneralNoteFromCache();
+    } finally {
+        document.getElementById('loader').style.display = 'none';
+    }
+}
+
+async function setNoteTab(type) {
+    initQuill(); 
     currentNoteType = type;
     currentDraftId = ""; 
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
+    
+    if(event && event.target && event.target.classList) {
+        event.target.classList.add('active');
+    } else {
+        const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.innerText.includes(type === 'blog' ? '블로그' : (type === 'youtube' ? '유튜브' : '일반')));
+        if(btn) btn.classList.add('active');
+    }
     
     const metaArea = document.getElementById('draftMetadataArea');
-    const dateSelector = document.querySelector('.date-selector');
+    const dateSelector = document.querySelector('.date-selector-wrapper'); 
     const listContainer = document.getElementById('draftListContainer');
     
     if(quill) quill.root.innerHTML = "";
     document.getElementById('draftTitle').value = "";
     document.getElementById('draftStatus').value = "saving";
     
-    if(type === 'general') {
-        metaArea.style.display = 'none';
-        listContainer.style.display = 'none';
-        dateSelector.style.display = 'flex';
-        document.getElementById('editor-wrapper').style.display = 'flex';
-        quill.root.dataset.placeholder = "업무 내용을 자유롭게 기록하세요...";
-        handleNoteDateChange();
-    } 
-    else {
-        metaArea.style.display = 'flex';
-        listContainer.style.display = 'block'; 
-        dateSelector.style.display = 'none'; 
-        document.getElementById('editor-wrapper').style.display = 'none';
-        metaArea.style.display = 'none'; 
-        
-        quill.root.dataset.placeholder = type === 'blog' ? "블로그 원고 내용을 작성하세요..." : "유튜브 스크립트를 작성하세요...";
-        loadDraftList();
+    try {
+        await fetchAllNotesIfNeeded();
+
+        if(type === 'general') {
+            metaArea.style.display = 'none';
+            listContainer.style.display = 'none';
+            if(dateSelector) dateSelector.style.display = 'flex';
+            document.getElementById('editor-wrapper').style.display = 'flex';
+            if(quill) quill.root.dataset.placeholder = "업무 내용을 자유롭게 기록하세요...";
+            
+            loadGeneralNoteFromCache(); 
+        } 
+        else {
+            metaArea.style.display = 'none';
+            listContainer.style.display = 'block'; 
+            if(dateSelector) dateSelector.style.display = 'none'; 
+            document.getElementById('editor-wrapper').style.display = 'none';
+            
+            if(quill) quill.root.dataset.placeholder = type === 'blog' ? "블로그 원고 내용을 작성하세요..." : "유튜브 스크립트를 작성하세요...";
+            
+            renderDraftListFromCache(type); 
+        }
+    } finally {
+        document.getElementById('loader').style.display = 'none';
     }
 }
 
-function loadDraftList() {
-    const listBody = document.getElementById('draftListBody');
-    // 로딩 스피너 디자인 적용
-    listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:50px; color:#64748b;"><i class="fa-solid fa-spinner fa-spin" style="font-size:20px; margin-bottom:10px;"></i><br>데이터를 불러오는 중입니다...</td></tr>';
-    
-    fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "load_draft_list", password: authPassword, type: currentNoteType }) })
-    .then(res => res.json()).then(json => {
-        listBody.innerHTML = '';
-        if(json.status === "success" && json.list.length > 0) {
-            json.list.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.onclick = () => loadDraftContent(item.id);
-                
-                // 상태 뱃지 디자인 개선
-                let statusBadge = item.status === 'uploaded' 
-                    ? '<span class="badge" style="background:#dcfce7; color:#166534; padding:4px 8px; border-radius:4px; font-size:11px;">업로드됨</span>' 
-                    : '<span class="badge" style="background:#f1f5f9; color:#64748b; padding:4px 8px; border-radius:4px; font-size:11px;">작성중</span>';
-                
-                tr.innerHTML = `
-                    <td class="text-sub">${item.date}</td>
-                    <td class="text-left font-bold">${item.title}</td>
-                    <td>${statusBadge}</td>
-                    <td class="text-sub">${item.savedAt}</td>
-                `;
-                listBody.appendChild(tr);
-            });
-        } else {
-            // 데이터 없을 때 안내 메시지
-            listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:60px; color:#94a3b8;"><i class="fa-regular fa-folder-open" style="font-size:30px; margin-bottom:10px;"></i><br>작성된 원고가 없습니다.<br>상단 "새 원고 작성" 버튼을 눌러 시작해보세요.</td></tr>';
-        }
-    });
-}
+async function loadDraftContent(id) {
+    try {
+        await fetchAllNotesIfNeeded();
+        currentDraftId = id;
+        document.getElementById('draftListContainer').style.display = 'none';
+        document.getElementById('editor-wrapper').style.display = 'flex';
+        document.getElementById('draftMetadataArea').style.display = 'flex';
+        document.getElementById('noteDate').valueAsDate = new Date();
 
-function loadDraftContent(id) {
-    currentDraftId = id;
-    document.getElementById('draftListContainer').style.display = 'none';
-    document.getElementById('editor-wrapper').style.display = 'flex';
-    document.getElementById('draftMetadataArea').style.display = 'flex';
-    document.getElementById('loader').style.display = 'flex';
-    
-    document.getElementById('noteDate').valueAsDate = new Date();
-
-    fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "load_note", password: authPassword, id: id, type: currentNoteType }) })
-    .then(res => res.json()).then(json => {
-        if(json.status === "success") {
-            const data = json.data;
-            quill.root.innerHTML = data.content || "";
-            document.getElementById('draftTitle').value = data.title || "";
-            document.getElementById('draftStatus').value = data.status || "saving";
+        const note = cachedNotes.find(n => n.id === id);
+        if(note) {
+            quill.root.innerHTML = note.content || "";
+            document.getElementById('draftTitle').value = note.title || "";
+            document.getElementById('draftStatus').value = note.status || "saving";
             document.getElementById('noteSaveStatus').innerText = "로드 완료";
         }
-    }).finally(() => { document.getElementById('loader').style.display = 'none'; });
+    } finally {
+        document.getElementById('loader').style.display = 'none';
+    }
+}
+
+function loadGeneralNoteFromCache() {
+    if (!cachedNotes) return;
+    const selectedDate = document.getElementById('noteDate').value;
+    const note = cachedNotes.find(n => n.type === 'general' && n.date === selectedDate);
+    
+    quill.root.innerHTML = note ? note.content : "";
+    document.getElementById('noteSaveStatus').innerText = "로드 완료";
+}
+
+function renderDraftListFromCache(type) {
+    const listBody = document.getElementById('draftListBody');
+    if (!cachedNotes) return;
+
+    const filtered = cachedNotes.filter(n => n.type === type);
+    listBody.innerHTML = '';
+
+    if(filtered.length > 0) {
+        filtered.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.onclick = () => loadDraftContent(item.id);
+            
+            let statusBadge = item.status === 'uploaded' 
+                ? '<span class="badge" style="background:#dcfce7; color:#166534; padding:4px 8px; border-radius:4px; font-size:11px;">업로드됨</span>' 
+                : '<span class="badge" style="background:#f1f5f9; color:#64748b; padding:4px 8px; border-radius:4px; font-size:11px;">작성중</span>';
+            
+            tr.innerHTML = `
+                <td class="text-sub">${item.date}</td>
+                <td class="text-left font-bold">${item.title}</td>
+                <td>${statusBadge}</td>
+                <td class="text-sub">${item.savedAt}</td>
+            `;
+            listBody.appendChild(tr);
+        });
+    } else {
+        listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:60px; color:#94a3b8;"><i class="fa-regular fa-folder-open" style="font-size:30px; margin-bottom:10px;"></i><br>작성된 원고가 없습니다.<br>상단 "새 원고 작성" 버튼을 눌러 시작해보세요.</td></tr>';
+    }
 }
 
 function createNewDraft() {
@@ -872,27 +1196,6 @@ function createNewDraft() {
     document.getElementById('draftMetadataArea').style.display = 'flex';
 }
 
-function handleNoteDateChange() { 
-    if(currentNoteType !== 'general') return;
-    
-    const selectedDate = document.getElementById('noteDate').value; 
-    const statusEl = document.getElementById('noteSaveStatus');
-    if(statusEl) statusEl.innerText = "로드 중..."; 
-    document.getElementById('loader').style.display = 'flex';
-    
-    if(!quill) initQuill();
-    
-    fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "load_note", password: authPassword, date: selectedDate, type: 'general' }) })
-    .then(res => res.json()).then(json => { 
-        if (json.status === "success") { 
-            quill.root.innerHTML = json.data.content || ""; 
-            if(statusEl) statusEl.innerText = "서버 로드 완료"; 
-        }
-    })
-    .finally(() => { document.getElementById('loader').style.display = 'none'; });
-}
-
-// [핵심] 붙여넣은 이미지를 찾아 서버로 업로드하고 URL로 교체하는 함수
 async function processBase64Images() {
   const delta = quill.getContents();
   const ops = delta.ops;
@@ -927,12 +1230,7 @@ async function processBase64Images() {
 
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
-            body: JSON.stringify({
-                action: 'upload_image',
-                password: authPassword,
-                imageBase64: base64Data,
-                fileType: fileType
-            })
+            body: JSON.stringify({ action: 'upload_image', password: authPassword, imageBase64: base64Data, fileType: fileType })
         });
         const json = await response.json();
 
@@ -956,7 +1254,6 @@ async function processBase64Images() {
   return true;
 }
 
-// [핵심] 저장 시 이미지 프로세싱을 먼저 수행
 async function saveNoteToServer() {
   const isProcessed = await processBase64Images();
   if (!isProcessed) return;
@@ -975,14 +1272,8 @@ async function saveNoteToServer() {
   fetch(SCRIPT_URL, { 
       method: 'POST', 
       body: JSON.stringify({ 
-          action: "save_note", 
-          password: authPassword, 
-          date: selectedDate, 
-          content: content,
-          type: currentNoteType,
-          title: title,
-          status: status,
-          id: currentDraftId
+          action: "save_note", password: authPassword, date: selectedDate, content: content,
+          type: currentNoteType, title: title, status: status, id: currentDraftId
       }) 
   })
   .then(res => res.json()).then(json => { 
@@ -993,6 +1284,22 @@ async function saveNoteToServer() {
           if(currentNoteType !== 'general') {
               currentDraftId = json.id;
               document.getElementById('draftLastSaved').innerText = "저장됨: " + new Date().toLocaleTimeString();
+          }
+
+          if(cachedNotes) {
+              let existingIndex = cachedNotes.findIndex(n => 
+                  currentNoteType === 'general' ? (n.date === selectedDate && n.type === 'general') : n.id === currentDraftId
+              );
+              
+              let updatedNote = {
+                  date: selectedDate, content: content,
+                  savedAt: json.savedAt || new Date().toLocaleString('ko-KR'), 
+                  type: currentNoteType, title: title, status: status,
+                  id: currentNoteType !== 'general' ? json.id : ""
+              };
+
+              if (existingIndex > -1) cachedNotes[existingIndex] = updatedNote;
+              else cachedNotes.unshift(updatedNote); 
           }
       } else { 
           alert("오류: " + json.message); 
@@ -1009,9 +1316,315 @@ function backToList() {
     }
 }
 
-function resetNoteToOriginal() { if (confirm("최근 저장된 상태로 되돌리시겠습니까?")) { if(currentNoteType === 'general') handleNoteDateChange(); else loadDraftContent(currentDraftId); } }
+function resetNoteToOriginal() { 
+    if (confirm("최근 저장된 상태로 되돌리시겠습니까?")) { 
+        if(currentNoteType === 'general') loadGeneralNoteFromCache(); 
+        else loadDraftContent(currentDraftId); 
+    } 
+}
 
 function searchNotes() {
     const query = document.getElementById('noteSearchInput').value.trim().toLowerCase();
-    // 로컬 검색 구현 필요 시 여기에 작성
+    
+    if (currentNoteType === 'general') return;
+
+    const listBody = document.getElementById('draftListBody');
+    if (!cachedNotes) return;
+
+    const filtered = cachedNotes.filter(n => {
+        if (n.type !== currentNoteType) return false;
+        if (!query) return true; 
+        
+        const titleMatch = (n.title || "").toLowerCase().includes(query);
+        const textContent = (n.content || "").replace(/<[^>]*>?/gm, '');
+        const contentMatch = textContent.toLowerCase().includes(query);
+        
+        return titleMatch || contentMatch;
+    });
+
+    listBody.innerHTML = '';
+
+    if (filtered.length > 0) {
+        filtered.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.onclick = () => loadDraftContent(item.id);
+            
+            let statusBadge = item.status === 'uploaded' 
+                ? '<span class="badge" style="background:#dcfce7; color:#166534; padding:4px 8px; border-radius:4px; font-size:11px;">업로드됨</span>' 
+                : '<span class="badge" style="background:#f1f5f9; color:#64748b; padding:4px 8px; border-radius:4px; font-size:11px;">작성중</span>';
+            
+            tr.innerHTML = `
+                <td class="text-sub">${item.date}</td>
+                <td class="text-left font-bold">${item.title}</td>
+                <td>${statusBadge}</td>
+                <td class="text-sub">${item.savedAt}</td>
+            `;
+            listBody.appendChild(tr);
+        });
+    } else {
+        listBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:60px; color:#94a3b8;">
+            <i class="fa-solid fa-magnifying-glass" style="font-size:30px; margin-bottom:10px;"></i><br>
+            '${query}'에 대한 검색 결과가 없습니다.
+        </td></tr>`;
+    }
+}
+
+
+/* ================= [Quick Memo Panel Logic] ================= */
+let quickQuill = null;
+
+// 퀵 메모 패널 열기/닫기
+async function toggleQuickMemo() {
+    const panel = document.getElementById('quickMemoPanel');
+    const aiPanel = document.getElementById('aiChatPanel');
+    const calcPanel = document.getElementById('calcPanel'); 
+    const widgetPanel = document.getElementById('widgetPanel'); // ✅ 위젯 패널 추가
+    
+    // 다른 패널이 열려있다면 닫기 (위젯 패널 포함)
+    if(aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
+    if(calcPanel && calcPanel.classList.contains('open')) calcPanel.classList.remove('open');
+    if(widgetPanel && widgetPanel.classList.contains('open')) widgetPanel.classList.remove('open');
+
+    const isOpen = panel.classList.contains('open');
+    const statusEl = document.getElementById('quickMemoStatus');
+    
+    if (!isOpen) {
+        panel.classList.add('open');
+        
+// 1. 오늘 날짜 세팅
+        const now = new Date();
+        const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        
+        // 요일 배열 추가
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
+        const dayName = days[now.getDay()];
+        
+        // formatDate 함수를 쓰지 않고, 일(Day)과 요일까지 명확하게 표시
+        document.getElementById('quickMemoDate').innerText = `${todayStr} (${dayName})`;
+        
+        // 2. 미니 에디터 초기화
+        if (!quickQuill) {
+            quickQuill = new Quill('#quickEditor', {
+                theme: 'snow',
+                placeholder: '오늘의 주요 업무나 기억할 내용을 자유롭게 메모하세요...',
+                modules: { toolbar: false } 
+            });
+        }
+        
+        // 3. 기존 노트 데이터 연동 (캐시 활용)
+        statusEl.style.color = '#94a3b8';
+        statusEl.innerText = "데이터 연동 중...";
+        
+        await fetchAllNotesIfNeeded(); // 데이터 확실히 로드
+        
+        const note = cachedNotes ? cachedNotes.find(n => n.type === 'general' && n.date === todayStr) : null;
+        
+        if (note) {
+            quickQuill.root.innerHTML = note.content;
+        } else {
+            quickQuill.root.innerHTML = "";
+        }
+        
+        statusEl.innerText = "동기화 완료";
+        setTimeout(() => { if(statusEl.innerText === "동기화 완료") statusEl.innerText = ""; }, 1500);
+        
+        quickQuill.focus();
+        
+    } else {
+        panel.classList.remove('open');
+    }
+}
+
+// 퀵 메모 저장 (메인 노트와 서버에 동시 반영)
+async function saveQuickMemo() {
+    if(!authPassword) return;
+    if(!quickQuill) return;
+
+    const content = quickQuill.root.innerHTML;
+    const now = new Date();
+    const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    const statusEl = document.getElementById('quickMemoStatus');
+    
+    statusEl.style.color = '#f59e0b'; // 오렌지색
+    statusEl.innerText = "저장 중...";
+    
+    try {
+        const res = await fetch(SCRIPT_URL, { 
+            method: 'POST', 
+            body: JSON.stringify({ 
+                action: "save_note", 
+                password: authPassword, 
+                date: todayStr, 
+                content: content,
+                type: 'general',
+                title: '',
+                status: 'saving',
+                id: ''
+            }) 
+        }).then(r => r.json());
+        
+        if (res.status === "success") {
+            statusEl.style.color = '#10b981'; // 녹색
+            statusEl.innerText = "✅ 저장 및 연동 완료!";
+            
+            // 1. 메모리(캐시) 즉시 업데이트
+            if(cachedNotes) {
+                let existingIndex = cachedNotes.findIndex(n => n.date === todayStr && n.type === 'general');
+                let updatedNote = {
+                    date: todayStr, content: content,
+                    savedAt: res.savedAt || new Date().toLocaleString('ko-KR'), 
+                    type: 'general', title: '', status: 'saving', id: ''
+                };
+                if (existingIndex > -1) cachedNotes[existingIndex] = updatedNote;
+                else cachedNotes.unshift(updatedNote); 
+            }
+            
+            // 2. 만약 백그라운드에 '업무 노트' 화면이 열려있다면 메인 화면 에디터도 동시에 변경
+            if(currentNoteType === 'general' && document.getElementById('noteDate').value === todayStr && typeof quill !== 'undefined' && quill) {
+                quill.root.innerHTML = content;
+            }
+            
+            setTimeout(() => { statusEl.innerText = ""; }, 2000);
+        } else {
+            statusEl.style.color = '#ef4444';
+            statusEl.innerText = "저장 실패";
+        }
+    } catch (e) {
+        console.error(e);
+        statusEl.style.color = '#ef4444';
+        statusEl.innerText = "통신 오류 발생";
+    }
+}
+
+
+/* ================= [AI Chat Panel Logic] ================= */
+// 🚨 반드시 구글 AI 스튜디오에서 '키 복사' 버튼을 눌러 그대로 붙여넣어주세요! (오타 방지)
+const GEMINI_API_KEY = "AIzaSyB1cUbczaGCosRjCttpeSOS-7qwyeFvJ7A"; 
+let chatHistory = []; // 대화 문맥 기억용 배열
+
+// 텍스트 영역 이벤트 리스너 설정 (엔터키 전송 및 높이 자동 조절)
+document.addEventListener("DOMContentLoaded", () => {
+    const chatInput = document.getElementById('aiChatInput');
+    if(chatInput) {
+        chatInput.addEventListener('keydown', function(e) {
+            if(e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); 
+                sendChatMessage();
+            }
+        });
+        chatInput.addEventListener('input', function() {
+            this.style.height = '48px';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+    }
+});
+
+// AI 채팅 패널 열기/닫기
+function toggleAIChat() {
+    const panel = document.getElementById('aiChatPanel');
+    const memoPanel = document.getElementById('quickMemoPanel');
+    const calcPanel = document.getElementById('calcPanel');
+    const widgetPanel = document.getElementById('widgetPanel'); // ✅ 위젯 패널 추가
+    
+    // 다른 패널이 열려있다면 닫기 (위젯 패널 포함)
+    if(memoPanel && memoPanel.classList.contains('open')) memoPanel.classList.remove('open');
+    if(calcPanel && calcPanel.classList.contains('open')) calcPanel.classList.remove('open');
+    if(widgetPanel && widgetPanel.classList.contains('open')) widgetPanel.classList.remove('open');
+
+    const isOpen = panel.classList.contains('open');
+    if (!isOpen) {
+        panel.classList.add('open');
+        setTimeout(() => document.getElementById('aiChatInput').focus(), 300); 
+    } else {
+        panel.classList.remove('open');
+    }
+}
+
+// Gemini API로 메시지 전송
+async function sendChatMessage() {
+    const inputEl = document.getElementById('aiChatInput');
+    const text = inputEl.value.trim();
+    if(!text) return;
+
+    inputEl.value = '';
+    inputEl.style.height = '48px';
+    
+    appendChatMessage('user', text);
+    chatHistory.push({ role: 'user', parts: [{ text: text }] });
+    showTypingIndicator();
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: chatHistory })
+        });
+        
+        const data = await response.json();
+        hideTypingIndicator();
+        
+        if (response.ok && data.candidates && data.candidates.length > 0) {
+            const aiText = data.candidates[0].content.parts[0].text;
+            appendChatMessage('model', aiText);
+            chatHistory.push({ role: 'model', parts: [{ text: aiText }] });
+        } 
+        else if (data.error) {
+            console.error("Gemini API Error:", data.error);
+            appendChatMessage('model', `🚨 API 오류: ${data.error.message}`);
+            chatHistory.pop(); 
+        } 
+        else {
+            appendChatMessage('model', '응답을 생성하지 못했습니다.');
+            chatHistory.pop();
+        }
+    } catch(error) {
+        console.error("Fetch Error:", error);
+        hideTypingIndicator();
+        appendChatMessage('model', '⚠️ 네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.');
+        chatHistory.pop();
+    }
+}
+
+// 메시지 말풍선 추가 함수
+function appendChatMessage(role, text) {
+    const container = document.getElementById('chatMessages');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `chat-message ${role === 'user' ? 'user' : 'ai'}`;
+    
+    const formattedText = text.replace(/\n/g, '<br>').replace(/\*\*/g, '');
+    const avatarIcon = role === 'user' ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-robot"></i>';
+    
+    msgDiv.innerHTML = `
+        <div class="chat-avatar">${avatarIcon}</div>
+        <div class="chat-bubble">${formattedText}</div>
+    `;
+    
+    container.appendChild(msgDiv);
+    scrollToBottom(container);
+}
+
+// 타이핑 애니메이션
+function showTypingIndicator() {
+    const container = document.getElementById('chatMessages');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-message ai typing-indicator-msg';
+    typingDiv.innerHTML = `
+        <div class="chat-avatar"><i class="fa-solid fa-robot"></i></div>
+        <div class="chat-bubble">
+            <div class="typing-indicator">
+                <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+            </div>
+        </div>
+    `;
+    container.appendChild(typingDiv);
+    scrollToBottom(container);
+}
+
+function hideTypingIndicator() {
+    const indicator = document.querySelector('.typing-indicator-msg');
+    if(indicator) indicator.remove();
+}
+
+function scrollToBottom(element) {
+    element.scrollTop = element.scrollHeight;
 }
