@@ -11,13 +11,11 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --danger: #ef4444;
 
-  /* 업무일지 전용 변수 */
   --wl-section-width: 530px;
   --wl-header-bg: #e2e8f0;
   --wl-border-dark: #333;
   --wl-border-light: #e5e7eb;
   
-  /* 컬럼 너비 */
   --w-no: 30px; --w-cat: 70px; --w-prio: 95px; --w-date: 75px; --w-chk: 40px; --w-note: 40px;
 }
 
@@ -837,7 +835,12 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 .dash-card-title { font-size: 16px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 10px; margin: 0; }
 .dash-card-title.clickable { cursor: pointer; transition: 0.2s; }
 .dash-card-title.clickable:hover { color: var(--primary); opacity: 0.8; }
-.dash-card-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; }
+.dash-card-icon {
+    width: 30px; height: 30px;
+    border-radius: 50% !important; /* 사각형에서 원형으로 변경 */
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 14px;
+}
 .dash-card-subtitle { font-size: 12px; color: var(--text-sub); font-weight: 500; margin-left: 8px; }
 
 /* 새로고침 UI 스타일 */
@@ -1336,3 +1339,171 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 .sp-placeholder-box p { font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 16px; font-weight: 600;}
 .sp-placeholder-link { display: inline-block; background: #e11d48; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: 700; transition: background 0.2s, transform 0.2s; box-shadow: 0 2px 4px rgba(225,29,72,0.2); }
 .sp-placeholder-link:hover { background: #be123c; transform: translateY(-1px); }
+
+/* ================= [견적서 패널 & 템플릿 스타일 (엑셀 양식)] ================= */
+.estimate-paper {
+    background: white; padding: 40px; border: 1px solid #cbd5e1; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05); color: #000;
+    font-family: 'Malgun Gothic', 'Dotum', sans-serif; /* 엑셀 느낌을 주는 맑은 고딕/돋움 */
+}
+
+/* 상단 영역 */
+.est-header { position: relative; text-align: center; margin-bottom: 20px; }
+.est-no { position: absolute; left: 0; top: 0; font-weight: bold; font-size: 14px; font-style: italic; }
+.est-no input { border: none; border-bottom: 1px solid #000; outline: none; font-style: normal; font-family: inherit; }
+.est-title { margin: 0; font-size: 30px; font-weight: 900; letter-spacing: 25px; text-decoration: underline; text-underline-offset: 6px; }
+
+/* ================= [견적서 상단 버튼 스타일] ================= */
+.estimate-actions { display:flex; justify-content:flex-end; gap: 10px; margin-bottom:20px; }
+.btn-est { 
+    display: flex; align-items: center; gap: 6px; 
+    padding: 10px 18px; border-radius: 8px; border: none; 
+    font-weight: 700; font-size: 13px; cursor: pointer; 
+    transition: all 0.2s ease; font-family: 'Pretendard', sans-serif;
+}
+.btn-est-print { background: #ffffff; color: #475569; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.btn-est-print:hover { background: #f8fafc; color: #1e293b; border-color: #94a3b8; transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+.btn-est-pdf { background: #ef4444; color: white; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2); }
+.btn-est-pdf:hover { background: #dc2626; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3); transform: translateY(-2px); }
+
+
+/* ================= [수신자 & 공급자 영역] ================= */
+.est-info-flex { display: flex; justify-content: space-between; gap: 24px; margin-bottom: -1px; align-items: flex-end; }
+.est-receiver { flex: 1; padding-bottom: 5px; margin-right: 10px; }
+.est-row { margin-bottom: 12px; border-bottom: 1px solid #000; padding-bottom: 4px; } 
+.est-row.receiver-name { font-size: 17px; font-weight: bold; display: flex; align-items: baseline; }
+.est-row input { border: none; outline: none; font-family: inherit; font-size: inherit; width: 80%; background: transparent; }
+.est-row.receiver-name input { width: 70%; font-size: 17px; font-weight: bold; }
+
+/* ✅ 공급자 영역의 칸 너비 비율(1.15)을 늘리고 패딩(8px 4px)을 추가해 숨통을 틔움 */
+.est-provider { flex: 1.15; border: 2px solid #000; } 
+.est-provider-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; }
+.est-provider-table th, .est-provider-table td { 
+    border: 1px solid #000; 
+    padding: 8px 4px; 
+    height: 32px; 
+}
+.est-provider-table th { font-weight: bold; white-space: nowrap; word-break: keep-all; }
+.est-provider-table input { width: 100%; border: none; outline: none; font-family: inherit; font-size: inherit; background: transparent; text-align: center; }
+/* ✅ 왼쪽 수신자 정보란 여백 넓힘 */
+.est-row { margin-bottom: 18px; border-bottom: 1px solid #000; padding-bottom: 6px; } 
+.est-row.receiver-name { font-size: 17px; font-weight: bold; display: flex; align-items: baseline; }
+.est-row input { border: none; outline: none; font-family: inherit; font-size: inherit; width: 80%; background: transparent; }
+.est-row.receiver-name input { width: 70%; font-size: 17px; font-weight: bold; }
+
+.est-provider { flex: 1; border: 2px solid #000; }
+.est-provider-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; }
+.est-provider-table th, .est-provider-table td { border: 1px solid #000; padding: 5px 3px; }
+/* ✅ 상호(법인명) 줄바꿈 방지 추가 (white-space: nowrap;) */
+.est-provider-table th { font-weight: bold; white-space: nowrap; word-break: keep-all; }
+.est-provider-table input { width: 100%; border: none; outline: none; font-family: inherit; font-size: inherit; background: transparent; text-align: center; }
+
+/* 중간 합계 */
+.est-total-top { display: flex; border: 2px solid #000; border-bottom: none; }
+.est-total-top .total-label { width: 50%; text-align: center; font-weight: bold; border-right: 1px solid #000; padding: 7px; font-size: 13px; }
+.est-total-top .total-value { width: 50%; text-align: center; font-weight: bold; padding: 7px; font-size: 15px; letter-spacing: 1px; }
+
+/* 메인 테이블 */
+.est-main-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; border: 2px solid #000; }
+/* ✅ 표 각 칸의 높이(위아래 폭)를 26px에서 33px로 넓게 확장하여 A4 비율 최적화 */
+.est-main-table th, .est-main-table td { border: 1px solid #000; padding: 5px 3px; height: 33px; } 
+.est-main-table th { font-weight: bold; font-size: 13px; }
+.est-main-table input { width: 100%; border: none; outline: none; font-family: inherit; font-size: inherit; background: transparent; text-align: center; }
+.est-main-table input.align-right { text-align: right; padding-right: 4px; }
+
+/* 푸터 */
+.est-footer-info { margin-top: 20px; font-size: 13px; line-height: 1.8; }
+.est-footer-info p { margin: 5px 0; }
+.est-footer-info input { border: none; outline: none; font-family: inherit; font-size: inherit; background: transparent; border-bottom: 1px solid #ccc; padding-bottom: 2px;}
+
+/* 견적서 패널만 A4 너비(800px)로 넓게 사용하도록 덮어쓰기 */
+#estimatePanel {
+    width: 800px;
+    right: -820px;
+}
+#estimatePanel.open {
+    right: 70px;
+}
+
+/* ================= [견적서 PDF 및 인쇄 완벽 호환 모드] ================= */
+
+/* 1. PDF 캡처 전용 가상 캔버스 (화면 밖 렌더링 방식) */
+#pdf-capture-box {
+    position: absolute !important;
+    left: -9999px !important;  /* 🌟 화면 밖으로 멀리 이동 (가려짐 방지) */
+    top: 0 !important;
+    width: 800px !important;   /* A4 비율 고정 */
+    background: white !important;
+    z-index: 1 !important;     /* 렌더링 우선순위 확보 */
+    visibility: visible !important; /* display:none 쓰면 안 됨 */
+}
+
+/* PDF 내부 스타일 */
+#pdf-capture-box .estimate-paper {
+    width: 100% !important;
+    padding: 15mm !important; /* PDF용 여백 */
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+#pdf-capture-box input { 
+    background: transparent !important; 
+    border: none !important; 
+    color: black !important; 
+}
+#pdf-capture-box input::placeholder { color: transparent !important; }
+
+/* 표 높이 및 폰트 고정 */
+#pdf-capture-box .est-provider-table th, 
+#pdf-capture-box .est-provider-table td { 
+    height: 28px !important; 
+    padding: 4px 2px !important; 
+    font-size: 11px !important; 
+}
+#pdf-capture-box .est-main-table th, 
+#pdf-capture-box .est-main-table td { 
+    height: 30px !important; 
+    padding: 4px !important; 
+    font-size: 12px !important; 
+}
+
+/* 2. 실제 종이 인쇄(Ctrl+P) 전용 */
+@media print {
+    @page { size: A4 portrait; margin: 0; }
+    
+    body.print-mode-wrap { background: white !important; }
+    body.print-mode-wrap > *:not(#estimatePanel) { display: none !important; }
+    
+    body.print-mode-wrap #estimatePanel {
+        position: static !important;
+        width: 100% !important;
+        height: auto !important;
+        display: block !important;
+        background: white !important;
+        box-shadow: none !important;
+        border: none !important;
+        transform: none !important;
+    }
+    
+    body.print-mode-wrap .estimate-paper {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 15mm !important;
+        margin: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    /* 불필요한 요소 숨김 */
+    body.print-mode-wrap .quick-panel-header,
+    body.print-mode-wrap .estimate-actions,
+    .right-quickbar { display: none !important; }
+    
+    body.print-mode-wrap input { background: transparent !important; border: none !important; }
+    
+    /* 인쇄 표 높이 */
+    body.print-mode-wrap .est-provider-table th, body.print-mode-wrap .est-provider-table td { height: 28px !important; padding: 4px 2px !important; }
+    body.print-mode-wrap .est-main-table th, body.print-mode-wrap .est-main-table td { height: 30px !important; padding: 4px !important; }
+}
