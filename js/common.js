@@ -1,18 +1,41 @@
 /* ================= [1. Config & Global State] ================= */
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnBm3LeW0c_z7vW6z0IJ0voBA6IZnnGjqQKvdB7a-zvs_5dBlG3fMFKQKWy5B9Yj5J/exec"; 
-var authPassword = ""; 
+var authPassword = ""; // 기존 GAS 로직 호환을 위해 변수 유지
+
+// Supabase 연동 설정
+const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+
+// ✅ 변수명 충돌을 피하기 위해 supabaseClient로 이름 변경
+let supabaseClient = null;
+if (typeof supabase !== 'undefined') {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} else {
+    console.error("🚨 Supabase 라이브러리를 로드하지 못했습니다.");
+}
+
+let activeSession = null;
 
 /* ================= [2. Login Logic] ================= */
-window.onload = function() {
+window.onload = async function() {
     document.getElementById("loginPassInput").addEventListener("keypress", function(e) {
         if(e.key === "Enter") tryLogin();
     });
 
-    var savedPass = localStorage.getItem("dashboard_pass");
-    if (savedPass) {
-        authPassword = savedPass;
-        document.getElementById('loginScreen').classList.add('hidden'); 
-        showPage('dashboard', document.querySelector('.menu-item.active'));
+    if (supabaseClient) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+            activeSession = session;
+            authPassword = "authenticated"; // 기존 로직 우회용
+            document.getElementById('loginScreen').classList.add('hidden'); 
+            
+            // ✅ 로그인 직후 주소창에 맞게 페이지 로드하도록 변경 (라우팅 연동)
+            let startPage = 'dashboard';
+            if (window.location.hash) {
+                startPage = window.location.hash.replace('#', '');
+            }
+            showPage(startPage, document.querySelector(`.menu-item[onclick*="${startPage}"]`), true);
+        }
     }
     
     setInterval(() => {
@@ -23,16 +46,14 @@ window.onload = function() {
     const tDate = document.getElementById('tDate');
     if(tDate) tDate.valueAsDate = new Date();
 
-    // ✅ 실시간 날씨 데이터 로드 (초기 1회 및 30분마다 갱신)
     loadWeather();
     setInterval(loadWeather, 30 * 60 * 1000);
 };
 
-// ✅ 포천시 가산면 기준 날씨 API 호출 함수
+// 포천시 가산면 기준 날씨 API 호출 함수
 async function loadWeather() {
     try {
-        const lat = 37.8289; // 포천시 가산면 위도
-        const lon = 127.1994; // 포천시 가산면 경도
+        const lat = 37.8289; const lon = 127.1994;
         const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
         const data = await res.json();
         
@@ -50,98 +71,158 @@ async function loadWeather() {
             if ([95,96,99].includes(code)) { icon = '<i class="fa-solid fa-cloud-bolt" style="color:#64748b;"></i>'; desc = '뇌우'; }
 
             const weatherEl = document.getElementById('weather-info');
-            if (weatherEl) {
-                weatherEl.innerHTML = `${icon} <span style="font-weight:700; color:#1e293b;">${temp}°C</span> <span style="font-size:12px; color:#9ca3af;">(${desc})</span>`;
-            }
+            if (weatherEl) weatherEl.innerHTML = `${icon} <span style="font-weight:700; color:#1e293b;">${temp}°C</span> <span style="font-size:12px; color:#9ca3af;">(${desc})</span>`;
         }
     } catch (e) {
-        console.error("날씨 정보 로드 실패:", e);
         const weatherEl = document.getElementById('weather-info');
         if (weatherEl) weatherEl.innerHTML = '<i class="fa-solid fa-circle-exclamation" style="color:#ef4444;"></i> 날씨 오류';
     }
 }
 
-function tryLogin() {
+// Supabase 이메일/비밀번호 로그인 로직
+async function tryLogin() {
+    var email = "admin@energuard.co.kr"; // Supabase Auth 계정
     var input = document.getElementById('loginPassInput');
     var msg = document.getElementById('loginMsg');
-    var isKeep = document.getElementById('keepLoginCheck').checked;
     var pass = input.value;
 
-    if (!pass) { msg.innerText = "비밀번호를 입력해주세요."; return; }
-    msg.innerText = "확인 중..."; msg.style.color = "#666";
+    if (!supabaseClient) {
+        msg.innerText = "🚨 시스템 초기화 실패. 새로고침을 해주세요."; 
+        msg.style.color = "red";
+        return;
+    }
 
-    fetch(SCRIPT_URL, {
-        method: 'POST', body: JSON.stringify({ action: "auth_check", password: pass })
-    }).then(res => res.json()).then(json => {
-        if (json.status === "success") {
-            authPassword = pass; 
-            if (isKeep) localStorage.setItem("dashboard_pass", pass);
-            document.getElementById('loginScreen').classList.add('hidden');
-            showPage('dashboard', document.querySelector('.menu-item.active'));
-        } else {
-            msg.innerText = "⛔ 비밀번호가 틀렸습니다."; msg.style.color = "red";
-            input.value = ""; input.focus();
-        }
-    }).catch(err => {
-        msg.innerText = "⚠️ 서버 통신 오류"; msg.style.color = "red";
+    if (!pass) { msg.innerText = "비밀번호를 입력해주세요."; return; }
+    
+    msg.innerText = "안전하게 인증 중..."; 
+    msg.style.color = "#666";
+
+    // Supabase 로그인 API 호출
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: email,
+        password: pass,
     });
+
+    if (error) {
+        if (error.message.includes("Email not confirmed")) {
+            msg.innerText = "⛔ 이메일 인증이 필요합니다. (Supabase 설정 확인 필요)";
+        } else if (error.message.includes("Invalid login credentials")) {
+            msg.innerText = "⛔ 비밀번호가 틀렸습니다.";
+        } else {
+            msg.innerText = "⛔ 통신 오류: " + error.message;
+        }
+        msg.style.color = "red";
+        input.value = ""; input.focus();
+    } else {
+        activeSession = data.session;
+        authPassword = "authenticated"; // 기존 기능 호환성 유지용
+        document.getElementById('loginScreen').classList.add('hidden');
+        
+        let startPage = 'dashboard';
+        if (window.location.hash) startPage = window.location.hash.replace('#', '');
+        showPage(startPage, document.querySelector(`.menu-item[onclick*="${startPage}"]`), true);
+    }
 }
 
-function handleLogout() {
+async function handleLogout() {
     if (confirm("로그아웃 하시겠습니까?")) {
+        if(supabaseClient) await supabaseClient.auth.signOut();
+        activeSession = null;
         authPassword = ""; 
-        localStorage.removeItem("dashboard_pass"); 
         if(typeof isDashboardLoaded !== 'undefined') isDashboardLoaded = false; 
         location.reload(); 
     }
 }
 
-/* ================= [3. Navigation Logic] ================= */
-function showPage(pageId, element) {
-  document.querySelectorAll('.page-section').forEach(section => { section.classList.remove('active'); });
-  document.getElementById('page-' + pageId).classList.add('active');
+/* ================= [3. Navigation & Routing Logic (새로 추가됨!)] ================= */
+window.showPage = function(pageId, element = null, isHistoryAction = false) {
+    // 1. 모든 페이지 숨기고 타겟 페이지만 표시
+    document.querySelectorAll('.page-section').forEach(section => { section.classList.remove('active'); });
+    const targetPage = document.getElementById('page-' + pageId);
+    if(targetPage) targetPage.classList.add('active');
   
-  if(element) {
-    document.querySelectorAll('.menu-item').forEach(menu => { menu.classList.remove('active'); });
-    element.classList.add('active');
+    // 2. 사이드바 메뉴 액티브 토글 및 상단 타이틀 변경
+    if(element) {
+        document.querySelectorAll('.menu-item').forEach(menu => { menu.classList.remove('active'); });
+        element.classList.add('active');
+        let menuText = element.querySelector('.menu-text');
+        document.getElementById('pageTitleText').innerText = menuText ? menuText.innerText.trim() : element.innerText.trim();
+    } else {
+        // element가 없을 경우 (예: 브라우저 뒤로가기 누를 때)
+        document.querySelectorAll('.menu-item').forEach(menu => { menu.classList.remove('active'); });
+        let targetMenu = document.querySelector(`.menu-item[onclick*="${pageId}"]`);
+        if (targetMenu) {
+            targetMenu.classList.add('active');
+            let menuText = targetMenu.querySelector('.menu-text');
+            document.getElementById('pageTitleText').innerText = menuText ? menuText.innerText.trim() : targetMenu.innerText.trim();
+        } else if(pageId === 'dashboard') {
+            document.getElementById('pageTitleText').innerText = '지표 요약';
+            let dashMenu = document.querySelector('.menu-item[onclick*="dashboard"]');
+            if(dashMenu) dashMenu.classList.add('active');
+        }
+    }
+  
+    // 모바일 사이드바 자동 닫기
+    const sidebar = document.getElementById('sidebar');
+    if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+    }
+
+    // 🚀 3. 브라우저 주소창 업데이트 및 방문 기록(History) 추가
+    if (!isHistoryAction) {
+        history.pushState({ pageId: pageId }, "", "#" + pageId);
+    }
+  
+    // 4. 메뉴별 데이터 로딩 함수 호출
+    if(pageId === 'dashboard' && typeof loadDashboardData === 'function') loadDashboardData();
+    if(pageId === 'timeline' && typeof loadTimelineFromServer === 'function') loadTimelineFromServer();
+    if(pageId === 'worklog' && typeof loadWorklogFromServer === 'function') {
+        if(typeof updateDateDisplay === 'function') updateDateDisplay();
+        if(typeof initMonthlyLog === 'function') initMonthlyLog();
+        loadWorklogFromServer(); 
+    }
+    if(pageId === 'productlogs' && typeof renderProductLogPage === 'function') renderProductLogPage();
+    if(pageId === 'ranking' && typeof loadRankingData === 'function') loadRankingData();
+    if(pageId === 'sales' && typeof loadSalesData === 'function' && (!salesData || salesData.length === 0)) loadSalesData();
+
+    if(pageId === 'notes') {
+        document.getElementById('loader').style.display = 'flex';
+        setTimeout(() => {
+            const dateInput = document.getElementById('noteDate');
+            const now = new Date();
+            const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+            if(dateInput && !dateInput.value) dateInput.value = todayStr;
+            if(typeof initQuill === 'function') initQuill();
+            if(typeof handleNoteDateChange === 'function') handleNoteDateChange(); 
+            else document.getElementById('loader').style.display = 'none';
+        }, 300);
+    }
+};
+
+// 🚀 브라우저 [뒤로 가기] / [앞으로 가기] 버튼 감지 이벤트
+window.addEventListener('popstate', function(event) {
+    let pageId = 'dashboard';
     
-    let menuText = element.querySelector('.menu-text');
-    document.getElementById('pageTitleText').innerText = menuText ? menuText.innerText.trim() : element.innerText.trim();
-  } else if(pageId === 'dashboard') {
-    document.getElementById('pageTitleText').innerText = '지표 요약';
-    let dashMenu = document.querySelector('.menu-item[onclick*="dashboard"]');
-    if(dashMenu) dashMenu.classList.add('active');
-  }
-  
-  if(pageId === 'dashboard' && typeof loadDashboardData === 'function') loadDashboardData();
-  
-  if(pageId === 'timeline' && typeof loadTimelineFromServer === 'function') loadTimelineFromServer();
-  if(pageId === 'worklog' && typeof loadWorklogFromServer === 'function') loadWorklogFromServer(); 
-  if(pageId === 'productlogs' && typeof renderProductLogPage === 'function') renderProductLogPage();
-  if(pageId === 'ranking' && typeof loadRankingData === 'function') loadRankingData();
-  if(pageId === 'sales' && typeof loadSalesData === 'function') loadSalesData();
+    if (event.state && event.state.pageId) {
+        pageId = event.state.pageId;
+    } else if (window.location.hash) {
+        pageId = window.location.hash.replace('#', '');
+    }
+    
+    // isHistoryAction 플래그를 true로 주어 무한 루프 방지
+    if (typeof showPage === 'function') {
+        showPage(pageId, null, true); 
+    }
+});
 
-if(pageId === 'notes') {
-      document.getElementById('loader').style.display = 'flex';
-      
-      setTimeout(() => {
-          const dateInput = document.getElementById('noteDate');
-          
-          // 무조건 한국 시간 기준 '오늘 날짜'로 세팅되도록 변경
-          const now = new Date();
-          const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-          dateInput.value = todayStr;
+// 🚀 새로고침 하거나 URL 복사해서 들어올 때 초기 주소 세팅
+window.addEventListener('DOMContentLoaded', () => {
+    // 로그인이 안된 상태일 수도 있으므로 주소값만 미리 넣어둠
+    if (!window.location.hash) {
+        history.replaceState({ pageId: 'dashboard' }, "", "#dashboard");
+    }
+});
 
-          if(typeof initQuill === 'function') initQuill();
-          
-          if(typeof handleNoteDateChange === 'function') {
-              handleNoteDateChange(); 
-          } else {
-              document.getElementById('loader').style.display = 'none';
-          }
-      }, 300);
-  }
-}
 
 /* ================= [4. Common Utils] ================= */
 function formatCurrency(num) {
@@ -157,37 +238,21 @@ function formatDate(dateStr) {
     return d.getFullYear() + '-' + (m < 10 ? '0'+m : m);
 }
 
-/* ================= [5. UI Utils] ================= */
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('collapsed');
-}
+/* ================= [5. UI Utils & Widgets (축약 생략)] ================= */
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
 
 function toggleCalcPanel() {
     const panel = document.getElementById('calcPanel');
-    const memoPanel = document.getElementById('quickMemoPanel');
-    const aiPanel = document.getElementById('aiChatPanel');
-    const widgetPanel = document.getElementById('widgetPanel');
-    
-    if(memoPanel && memoPanel.classList.contains('open')) memoPanel.classList.remove('open');
-    if(aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
-    if(widgetPanel && widgetPanel.classList.contains('open')) widgetPanel.classList.remove('open');
-
-    const isOpen = panel.classList.contains('open');
-    if (!isOpen) {
+    const panels = ['quickMemoPanel', 'aiChatPanel', 'widgetPanel', 'estimatePanel'];
+    panels.forEach(id => { const el = document.getElementById(id); if(el && el.classList.contains('open')) el.classList.remove('open'); });
+    if (!panel.classList.contains('open')) {
         panel.classList.add('open');
         const frame = document.getElementById('calcFrame');
-        const selector = document.getElementById('calcSelector');
-        if (!frame.src || frame.src === window.location.href) {
-            frame.src = selector.value;
-        }
-    } else {
-        panel.classList.remove('open');
-    }
+        if (!frame.src || frame.src === window.location.href) frame.src = document.getElementById('calcSelector').value;
+    } else { panel.classList.remove('open'); }
 }
+function changeCalculator(url) { document.getElementById('calcFrame').src = url; }
 
-function changeCalculator(url) {
-    document.getElementById('calcFrame').src = url;
-}
 
 /* ================= [14. Widget Panel Logic (Sports)] ================= */
 
@@ -287,10 +352,13 @@ function toggleWidgetPanel() {
     const memoPanel = document.getElementById('quickMemoPanel');
     const aiPanel = document.getElementById('aiChatPanel');
     const calcPanel = document.getElementById('calcPanel');
+    const estimatePanel = document.getElementById('estimatePanel'); // ✅ 견적서 추가
     
+    // 열려있는 다른 패널 닫기 (견적서 포함)
     if(memoPanel && memoPanel.classList.contains('open')) memoPanel.classList.remove('open');
     if(aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
     if(calcPanel && calcPanel.classList.contains('open')) calcPanel.classList.remove('open');
+    if(estimatePanel && estimatePanel.classList.contains('open')) estimatePanel.classList.remove('open');
 
     const isOpen = panel.classList.contains('open');
     if (!isOpen) {
@@ -572,4 +640,190 @@ function widgetStandings(data, tab) {
             </table>
         </div>`;
     }
+}
+// ================= [견적서 패널 자동 계산 & 인쇄 로직] =================
+
+// 숫자 콤마 포맷
+function formatEstNum(num) {
+    if (!num) return "";
+    return Number(num).toLocaleString();
+}
+
+// 콤마 제거하고 순수 숫자로 변환
+function unformatEstNum(str) {
+    if (!str) return 0;
+    return Number(String(str).replace(/,/g, ''));
+}
+
+// 수량/단가 입력 시 자동 계산 함수
+window.calcEst = function() {
+    let totalSupply = 0;
+    let totalTax = 0;
+
+    const rows = document.querySelectorAll('#estTbody tr');
+    rows.forEach(row => {
+        const qtyInput = row.querySelector('.est-qty');
+        const priceInput = row.querySelector('.est-price');
+        const supplyInput = row.querySelector('.est-supply');
+        const taxInput = row.querySelector('.est-tax');
+
+        const qty = unformatEstNum(qtyInput.value);
+        const price = unformatEstNum(priceInput.value);
+
+        // 둘 다 입력되었을 때만 계산
+        if (qty > 0 && price > 0) {
+            const supply = qty * price;
+            const tax = Math.floor(supply * 0.1); // 10% 부가세 (소수점 버림)
+            
+            supplyInput.value = formatEstNum(supply);
+            taxInput.value = formatEstNum(tax);
+            
+            totalSupply += supply;
+            totalTax += tax;
+            
+            // 입력 중이 아닌 칸은 콤마 유지 (사용자 편의성)
+            if(document.activeElement !== qtyInput) qtyInput.value = formatEstNum(qty);
+            if(document.activeElement !== priceInput) priceInput.value = formatEstNum(price);
+
+        } else {
+            supplyInput.value = "";
+            taxInput.value = "";
+        }
+    });
+
+    // 하단 및 상단 총계 업데이트
+    document.getElementById('estSumSupply').value = formatEstNum(totalSupply);
+    document.getElementById('estSumTax').value = formatEstNum(totalTax);
+    document.getElementById('estTotalDisplay').innerText = formatEstNum(totalSupply + totalTax);
+}
+
+// 포커스가 빠질 때 콤마 찍기
+document.addEventListener('focusout', function(e) {
+    if (e.target.classList.contains('est-qty') || e.target.classList.contains('est-price')) {
+        const val = unformatEstNum(e.target.value);
+        if(val > 0) e.target.value = formatEstNum(val);
+        else e.target.value = "";
+    }
+});
+
+// 포커스가 들어갈 때 콤마 빼기 (수정하기 쉽게)
+document.addEventListener('focusin', function(e) {
+    if (e.target.classList.contains('est-qty') || e.target.classList.contains('est-price')) {
+        const val = unformatEstNum(e.target.value);
+        e.target.value = val > 0 ? val : "";
+    }
+});
+
+
+function toggleEstimatePanel() {
+    const panel = document.getElementById('estimatePanel');
+    const memoPanel = document.getElementById('quickMemoPanel');
+    const aiPanel = document.getElementById('aiChatPanel');
+    const calcPanel = document.getElementById('calcPanel');
+    const widgetPanel = document.getElementById('widgetPanel');
+    
+    // 열려있는 다른 패널 닫기
+    if(memoPanel && memoPanel.classList.contains('open')) memoPanel.classList.remove('open');
+    if(aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
+    if(calcPanel && calcPanel.classList.contains('open')) calcPanel.classList.remove('open');
+    if(widgetPanel && widgetPanel.classList.contains('open')) widgetPanel.classList.remove('open');
+
+    if (!panel.classList.contains('open')) {
+        panel.classList.add('open');
+        
+        // 오픈될 때 오늘 날짜를 엑셀 양식에 맞춰 자동 기입
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const date = String(now.getDate()).padStart(2, '0');
+        document.getElementById('estDateStr').value = `${year} 년 ${month} 월 ${date} 일`;
+        
+    } else {
+        panel.classList.remove('open');
+    }
+}
+
+/* ================= [견적서 인쇄 및 PDF 기능 수정] ================= */
+
+// 1. 종이 인쇄 (우측 잘림 방지)
+function printEstimate() {
+    document.body.classList.add('print-mode-wrap');
+    window.print();
+    setTimeout(() => {
+        document.body.classList.remove('print-mode-wrap');
+    }, 500);
+}
+
+// 2. PDF 저장 (화면 밖 렌더링 + 값 동기화 강화)
+function saveEstimatePDF() {
+    const source = document.getElementById('estimatePrintArea');
+    const btn = document.getElementById('btnPdfSave');
+    const originalText = btn.innerHTML;
+    const dateStr = document.getElementById('estDateStr').value.replace(/ /g, '').replace(/년|월/g, '').replace(/일/g, '') || '날짜없음';
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 생성중...';
+    btn.disabled = true;
+
+    // 1. 원본 복제
+    const clone = source.cloneNode(true);
+    
+    // 2. 화면 밖 임시 컨테이너 생성 (CSS에서 left: -9999px 설정됨)
+    const wrapper = document.createElement('div');
+    wrapper.id = 'pdf-capture-box';
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
+    // 3. [중요] Input 값 강제 동기화 (복제된 노드는 사용자가 입력한 값을 잃어버림)
+    const originalInputs = source.querySelectorAll('input');
+    const cloneInputs = clone.querySelectorAll('input');
+    originalInputs.forEach((input, i) => {
+        if (input.type === 'checkbox' || input.type === 'radio') {
+            cloneInputs[i].checked = input.checked;
+            if(input.checked) cloneInputs[i].setAttribute('checked', 'checked');
+        } else {
+            cloneInputs[i].value = input.value;
+            cloneInputs[i].setAttribute('value', input.value);
+        }
+    });
+
+    // 4. [추가] Textarea 값 강제 동기화 (혹시 모를 상황 대비)
+    const originalTexts = source.querySelectorAll('textarea');
+    const cloneTexts = clone.querySelectorAll('textarea');
+    originalTexts.forEach((txt, i) => {
+        cloneTexts[i].value = txt.value;
+        cloneTexts[i].textContent = txt.value;
+    });
+
+    // PDF 옵션 설정
+    const opt = {
+        margin:       0, // CSS padding으로 여백 처리
+        filename:     `견적서_${dateStr}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { 
+            scale: 2, 
+            useCORS: true, 
+            scrollY: 0, 
+            scrollX: 0,
+            windowWidth: 800, // 가상 윈도우 폭 고정
+            x: 0, 
+            y: 0
+        },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    // 5. 렌더링 대기 후 캡처 (시간을 0.5초로 넉넉히 줌)
+    setTimeout(() => {
+        // wrapper가 아닌 clone 자체를 캡처해야 여백 계산이 정확함
+        html2pdf().set(opt).from(clone).save().then(() => {
+            if (document.body.contains(wrapper)) document.body.removeChild(wrapper);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }).catch(err => {
+            console.error('PDF 저장 실패:', err);
+            alert('PDF 저장 중 오류가 발생했습니다.');
+            if (document.body.contains(wrapper)) document.body.removeChild(wrapper);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    }, 500);
 }

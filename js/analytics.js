@@ -25,39 +25,64 @@ const IDX_DETAIL_CAT = 13;
 
 // 키워드 정렬 순서
 var CUSTOM_KEYWORD_ORDER = [
-  "아이소핑크", "압축스티로폼", "스티로폼", "스티로폼단열재", "열반사단열재",
-  "캠핑단열재", "은박매트", "길고양이겨울집", "창문방풍", "에어컨커버",
-  "단열벽지", "바닥단열재", "전기난방필름", "우레탄뿜칠", "열선커터기",
-  "우레탄폼건", "창문단열재", "창문열차단", "창문햇빛가리개", "에어컨가림막", "어싱매트"
+  // 아이소핑크 탭
+  "아이소핑크", "압축스티로폼",
+  // 스티로폼 탭
+  "스티로폼", "스티로폼단열재",
+  // 열반사단열재 탭
+  "열반사단열재", "캠핑단열재", "은박매트", "길고양이겨울집", "창문방풍", "에어컨커버",
+  // 단열벽지 탭
+  "단열벽지",
+  // 기타 탭 - 알려주신 순서대로
+  "바닥단열재", "전기난방필름", "우레탄뿜칠", "열선커터기",
+  "우레탄폼건", "창문열차단", "창문햇빛가리개", "에어컨가림막", "어싱매트",
+  // 기타 나머지
+  "창문단열재"
 ];
 var KEYWORD_PRIORITY_MAP = {};
 CUSTOM_KEYWORD_ORDER.forEach((k, i) => KEYWORD_PRIORITY_MAP[k] = i);
 
+// ✅ 탭별 대표 키워드 - 각 탭에서 메인으로 표시될 키워드
+var TAB_MAIN_KEYWORD = {
+  '아이소핑크':    '아이소핑크',
+  '스티로폼':      '스티로폼',
+  '열반사단열재':  '열반사단열재',
+  '단열벽지':      '단열벽지',
+  '기타':          null  // 기타는 대표 키워드 없음, CUSTOM_KEYWORD_ORDER 순서 따름
+};
+
 /* ================= [1. Ranking Functions] ================= */
 
-function loadRankingData() {
-  if(!authPassword) return; 
-  document.getElementById('loader').style.display = 'flex';
-  
-  fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: "read", sheetName: "Sheet1", password: authPassword })
-  })
-  .then(res => res.json())
-  .then(json => {
-    if(json.status === "error") { alert("데이터 로드 실패: " + json.message); return; }
-    if(json.data && json.data.length > 0) {
-      if(json.data[0][0] === "상품번호") json.data.shift(); // 헤더 제거
-      originalProducts = JSON.parse(JSON.stringify(json.data)); 
-      products = JSON.parse(JSON.stringify(originalProducts));
-    } else { 
-      products = []; originalProducts = []; 
+// 🚀 [Supabase 엔진 교체] 검색 순위 불러오기
+window.loadRankingData = async function() {
+    if (!supabaseClient) return;
+    document.getElementById('loader').style.display = 'flex';
+    try {
+        const { data, error } = await supabaseClient.from('product_rankings').select('*');
+        if (error) throw error;
+        
+        products = data.map(item => {
+            let row = new Array(14).fill("");
+            row[IDX_CODE] = item.code || ""; row[IDX_NAME] = item.name || "";
+            row[IDX_PRICE] = item.price || 0; row[IDX_CATEGORY] = item.category_tab || ""; 
+            row[IDX_KEYWORD] = item.keyword || "";
+            row[5] = item.rank_w1 !== null ? item.rank_w1 : ""; row[6] = item.rank_w2 !== null ? item.rank_w2 : "";
+            row[7] = item.rank_w3 !== null ? item.rank_w3 : ""; row[8] = item.rank_w4 !== null ? item.rank_w4 : "";
+            row[9] = item.rank_w5 !== null ? item.rank_w5 : "";
+            row[IDX_REMARK] = typeof item.remark === 'string' ? item.remark : JSON.stringify(item.remark || []);
+            row[IDX_CHECK] = item.is_checked === true || item.is_checked === "TRUE";
+            row[IDX_IMAGE] = item.image_url || ""; row[IDX_DETAIL_CAT] = item.detail_category || "";
+            return row;
+        });
+        originalProducts = JSON.parse(JSON.stringify(products));
+        renderRanking();
+    } catch (e) {
+        console.error("랭킹 데이터 로드 오류:", e);
+        alert("순위 데이터 로드 중 오류 발생");
+    } finally {
+        document.getElementById('loader').style.display = 'none';
     }
-    renderRanking();
-  })
-  .catch(err => { console.error(err); alert("순위 데이터 로드 중 오류 발생"); })
-  .finally(() => document.getElementById('loader').style.display = 'none');
-}
+};
 
 function renderRanking() {
   var tbody = document.getElementById('list');
@@ -76,37 +101,67 @@ function renderRanking() {
       return; 
   }
 
-  var groupArray = Object.keys(groups).map(code => { return { code: code, items: groups[code] }; });
-  groupArray.sort((a, b) => {
-    var mainA = a.items[0].data; var mainB = b.items[0].data;
-    
-    var keyA = String(mainA[IDX_KEYWORD] || "").trim();
-    var keyB = String(mainB[IDX_KEYWORD] || "").trim();
+  // ✅ 각 그룹에서 메인 행 인덱스 반환
+  // 탭 대표 키워드가 있으면 그 키워드 행이 메인, 없으면 KEYWORD_PRIORITY_MAP 순서
+  function getMainIdx(items) {
+    var tabMain = TAB_MAIN_KEYWORD[currentTab];
+    if (tabMain) {
+      for (var i = 0; i < items.length; i++) {
+        if (String(items[i].data[IDX_KEYWORD] || '').trim() === tabMain) return i;
+      }
+    }
+    // 탭 대표 키워드가 없거나 매칭 안되면 KEYWORD_PRIORITY_MAP 순서
+    var bestIdx = 0, bestPriority = 9999;
+    items.forEach(function(item, i) {
+      var key = String(item.data[IDX_KEYWORD] || '').trim();
+      var p = KEYWORD_PRIORITY_MAP[key];
+      if (p === undefined) p = 9999;
+      if (p < bestPriority) { bestPriority = p; bestIdx = i; }
+    });
+    return bestIdx;
+  }
+
+  function getLatestRank(row) {
+    for (var k = 9; k >= 5; k--) if (row[k] && !isNaN(row[k])) return Number(row[k]);
+    return 999999;
+  }
+
+  var groupArray = Object.keys(groups).map(function(code) {
+    return { code: code, items: groups[code] };
+  });
+
+  // ✅ 실제 메인 행 기준으로 정렬
+  groupArray.sort(function(a, b) {
+    var mainA = a.items[getMainIdx(a.items)].data;
+    var mainB = b.items[getMainIdx(b.items)].data;
+
+    var keyA = String(mainA[IDX_KEYWORD] || '').trim();
+    var keyB = String(mainB[IDX_KEYWORD] || '').trim();
     var idxA = KEYWORD_PRIORITY_MAP[keyA]; if (idxA === undefined) idxA = 9999;
     var idxB = KEYWORD_PRIORITY_MAP[keyB]; if (idxB === undefined) idxB = 9999;
-    
-    if (idxA !== idxB) return idxA - idxB; 
-    
-    function getLatestRank(row) { 
-        for (var k = 9; k >= 5; k--) if (row[k] && !isNaN(row[k])) return Number(row[k]); 
-        return 999999; 
-    }
-    var rankA = getLatestRank(mainA); var rankB = getLatestRank(mainB);
-    if (rankA !== rankB) return rankA - rankB; 
-    return String(mainA[IDX_NAME]).localeCompare(String(mainB[IDX_NAME])); 
+    if (idxA !== idxB) return idxA - idxB;
+
+    var rankA = getLatestRank(mainA);
+    var rankB = getLatestRank(mainB);
+    if (rankA !== rankB) return rankA - rankB;
+    return String(mainA[IDX_NAME]).localeCompare(String(mainB[IDX_NAME]));
   });
 
   var htmlBuffer = [];
-  groupArray.forEach(group => {
-    var items = group.items; 
-    var main = items[0]; 
-    var hasSub = items.length > 1; 
+  groupArray.forEach(function(group) {
+    var items = group.items;
+
+    // ✅ 우선순위 높은 키워드 행을 메인으로, 나머지는 서브로
+    var mainIdx = getMainIdx(items);
+    var reordered = [items[mainIdx]].concat(items.filter(function(_, i) { return i !== mainIdx; }));
+    var main = reordered[0];
+    var hasSub = reordered.length > 1;
     var btnHtml = hasSub ? `<span class="toggle-btn" onclick="toggleSub('${group.code}')">+</span>` : '';
-    
+
     htmlBuffer.push(createRowHtml(main.data, main.orgIdx, 'main-row', btnHtml, group.code, false));
-    if(hasSub) {
-      for(var i=1; i<items.length; i++) {
-        var sub = items[i];
+    if (hasSub) {
+      for (var i = 1; i < reordered.length; i++) {
+        var sub = reordered[i];
         htmlBuffer.push(createRowHtml(sub.data, sub.orgIdx, `sub-row sub-${group.code}`, '', group.code, true));
       }
     }
@@ -248,6 +303,7 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
           </tr>`;
 }
 
+// 네이버 이미지만 예외적으로 기존 스크랩핑 봇(GAS) 유지
 function fetchProductImage(realIndex, productId) {
     if(!productId || productId.startsWith("NEW_")) { alert("유효한 상품 번호가 아닙니다."); return; }
     var btn = event.target;
@@ -335,22 +391,44 @@ function deleteProductRow(realIndex) {
   products.splice(realIndex, 1); renderRanking();
 }
 
-function saveData() {
-  var btn = document.getElementById('saveBtn'); var originalText = btn.innerText;
-  if (!products || products.length === 0) { alert("⚠️ 저장할 데이터가 없습니다!"); return; }
-  btn.disabled = true; btn.innerText = "저장 중..."; document.getElementById('loader').style.display = 'flex';
-  
-  fetch(SCRIPT_URL, { 
-      method: 'POST', redirect: 'follow', 
-      body: JSON.stringify({ action: "save", sheetName: "Sheet1", data: products, password: authPassword }) 
-  })
-  .then(res => res.json()).then(json => { 
-      if(json.status === "success") { 
-          alert("✅ 저장 완료되었습니다!"); originalProducts = JSON.parse(JSON.stringify(products));
-      } else { alert("❌ 저장 실패: " + json.message); } 
-  })
-  .catch(err => { alert("⚠️ 통신 오류가 발생했습니다."); }).finally(() => { document.getElementById('loader').style.display = 'none'; btn.disabled = false; btn.innerText = originalText; });
-}
+// 🚀 [Supabase 엔진 교체] 검색 순위 일괄 저장
+window.saveData = async function() {
+    var btn = document.getElementById('saveBtn'); var originalText = btn.innerText;
+    if (!products || products.length === 0) { alert("⚠️ 저장할 데이터가 없습니다!"); return; }
+    if (!supabaseClient) return;
+    
+    btn.disabled = true; btn.innerText = "저장 중..."; document.getElementById('loader').style.display = 'flex';
+    
+    try {
+        await supabaseClient.from('product_rankings').delete().neq('code', 'DUMMY_DATA');
+        
+        const insertData = products.map(row => ({
+            code: row[IDX_CODE] || "", name: row[IDX_NAME] || "",
+            price: Number(row[IDX_PRICE]) || 0, category_tab: row[IDX_CATEGORY] || "",
+            keyword: row[IDX_KEYWORD] || "",
+            rank_w1: row[5] !== "" ? Number(row[5]) : null, rank_w2: row[6] !== "" ? Number(row[6]) : null,
+            rank_w3: row[7] !== "" ? Number(row[7]) : null, rank_w4: row[8] !== "" ? Number(row[8]) : null,
+            rank_w5: row[9] !== "" ? Number(row[9]) : null,
+            remark: row[IDX_REMARK] ? JSON.parse(row[IDX_REMARK]) : [],
+            is_checked: String(row[IDX_CHECK]).toUpperCase() === "TRUE",
+            image_url: row[IDX_IMAGE] || "", detail_category: row[IDX_DETAIL_CAT] || ""
+        }));
+        
+        if (insertData.length > 0) {
+            const { error } = await supabaseClient.from('product_rankings').insert(insertData);
+            if (error) throw error;
+        }
+        
+        alert("✅ 순위 데이터 저장 완료! (0.1초 소요)"); 
+        originalProducts = JSON.parse(JSON.stringify(products));
+        if(isAdmin) toggleEditMode();
+    } catch(e) { 
+        console.error(e); alert("❌ 저장 실패: " + e.message); 
+    } finally { 
+        document.getElementById('loader').style.display = 'none'; 
+        btn.disabled = false; btn.innerText = originalText; 
+    }
+};
 
 function resetData() {
   if(!confirm("수정 중인 내용을 모두 취소하고, 서버에 저장된 원래 값을 다시 불러오시겠습니까?")) return;
@@ -372,27 +450,30 @@ function downloadCSV() {
 
 /* ================= [2. Sales Functions] ================= */
 
-function loadSalesData() {
-  if(!authPassword) return;
-  document.getElementById('loader').style.display = 'flex';
-  
-  fetch(SCRIPT_URL, {
-      method: 'POST', body: JSON.stringify({ action: "read", sheetName: "SalesData", password: authPassword })
-  })
-  .then(res => res.json()).then(json => {
-      if (json.status === "error") { alert("데이터 로드 실패: " + json.message); return; }
-      if(json.data && json.data.length > 0) {
-          if(json.data[0][0] === "몰구분") json.data.shift();
-          originalSalesData = JSON.parse(JSON.stringify(json.data));
-          salesData = JSON.parse(JSON.stringify(originalSalesData));
-      } else { salesData = []; originalSalesData = []; }
-      isSalesEditMode = false; 
-      updateSalesEditUI(); 
-      setSalesTab(currentSalesTab); // renderSales() 대신 호출하여 첫 로딩부터 여백 0px 완벽 적용
-  })
-  .catch(err => { console.error(err); alert("매출 데이터 로드 중 오류 발생: HTML 파일이 최신 버전인지 확인하세요."); })
-  .finally(() => { document.getElementById('loader').style.display = 'none'; });
-}
+// 🚀 [Supabase 엔진 교체] 매출 데이터 불러오기
+window.loadSalesData = async function() {
+    if (!supabaseClient) return;
+    document.getElementById('loader').style.display = 'flex';
+    try {
+        const { data, error } = await supabaseClient.from('sales_data').select('*').order('month_str', { ascending: true });
+        if (error) throw error;
+        
+        salesData = data.map(item => [
+            item.mall_type || "", item.month_str || "", item.revenue || 0, item.ad_spend || 0,
+            item.roas || 0, item.traffic || 0, item.pay_count || 0, item.mobile_ratio || 0,
+            item.refund_ratio || 0, item.winner_ratio || 0
+        ]);
+        originalSalesData = JSON.parse(JSON.stringify(salesData));
+        isSalesEditMode = false; 
+        updateSalesEditUI(); 
+        setSalesTab(currentSalesTab); 
+    } catch (e) { 
+        console.error("매출 데이터 로드 오류:", e); 
+        alert("매출 데이터 로드 중 오류 발생");
+    } finally { 
+        document.getElementById('loader').style.display = 'none'; 
+    }
+};
 
 function parseRatio(val) {
     if (val === undefined || val === null || val === "") return "";
@@ -404,21 +485,18 @@ function parseRatio(val) {
     return num.toFixed(1);
 }
 
-// 1. 데이터 업데이트 함수
 function updateSales(realIdx, colIdx, val) {
   if(colIdx === 2 || colIdx === 3 || colIdx === 5 || colIdx === 6) salesData[realIdx][colIdx] = parseCurrency(val);
   else if(colIdx === 4 || colIdx === 7 || colIdx === 8 || colIdx === 9) salesData[realIdx][colIdx] = Number(val) / 100;
   else salesData[realIdx][colIdx] = val;
 }
 
-// 2. 편집 모드 켜기/끄기 함수
 function toggleSalesEditMode() {
   isSalesEditMode = !isSalesEditMode;
   updateSalesEditUI();
   renderSales();
 }
 
-// 3. 편집 모드 UI 업데이트 함수 (여백 제거 로직 포함)
 function updateSalesEditUI() {
   var editBtn = document.getElementById('editSalesBtn'); 
   var addBtn = document.getElementById('addSalesRowBtn'); 
@@ -432,7 +510,7 @@ function updateSalesEditUI() {
       addBtn.style.display = 'inline-block'; resetBtn.style.display = 'inline-block'; 
       colDeletes.forEach(el => {
           el.style.display = el.tagName === 'COL' ? '' : 'table-cell';
-          if(el.tagName === 'COL') el.style.width = '60px'; // 편집 모드 너비 복구
+          if(el.tagName === 'COL') el.style.width = '60px'; 
       });
   } 
   else { 
@@ -440,12 +518,11 @@ function updateSalesEditUI() {
       addBtn.style.display = 'none'; resetBtn.style.display = 'none'; 
       colDeletes.forEach(el => {
           el.style.display = 'none';
-          if(el.tagName === 'COL') el.style.width = '0px'; // 기본 모드 공간 삭제
+          if(el.tagName === 'COL') el.style.width = '0px'; 
       });
   }
 }
 
-// 4. 입력 데이터 초기화 함수
 function resetSalesData() {
   if(!confirm("수정 중인 내용을 모두 취소하시겠습니까?")) return;
   salesData = JSON.parse(JSON.stringify(originalSalesData));
@@ -496,10 +573,9 @@ function renderSales() {
       var mom = getGrowthRate(rev, dateStr, 'mom'); 
       var yoy = getGrowthRate(rev, dateStr, 'yoy');
       
-var growthHtml = '';
+      var growthHtml = '';
       if(rev > 0 && (mom !== null || yoy !== null)) {
           growthHtml += `<div class="growth-container">`;
-          
           if(mom !== null) { 
               var type = mom > 0 ? 'up' : (mom < 0 ? 'down' : 'neutral'); 
               var arrow = mom > 0 ? '▲' : (mom < 0 ? '▼' : '-'); 
@@ -510,7 +586,6 @@ var growthHtml = '';
               var arrow = yoy > 0 ? '▲' : (yoy < 0 ? '▼' : '-'); 
               growthHtml += `<div class="growth-badge ${type}"><span class="growth-label">전년</span><span class="growth-val">${arrow} ${Math.abs(yoy)}%</span></div>`; 
           }
-          
           growthHtml += `</div>`;
       }
 
@@ -523,7 +598,6 @@ var growthHtml = '';
       var commonHtml = '';
       var specificHtml = '';
 
-      // [핵심] 편집 모드와 일반 모드의 HTML 구조 분리 (ROAS 빨간색 강조)
       if (isSalesEditMode) {
           commonHtml = `<td><input type="text" value="${dateStr}" disabled style="text-align:center;"></td>
               <td><input type="text" value="${formatCurrency(rev)}" onchange="updateSales(${realIdx}, 2, this.value)"></td>
@@ -543,7 +617,6 @@ var growthHtml = '';
                   <td class="col-coupang"><div class="input-group"><input type="number" step="0.1" value="${winnerRatio}" onchange="updateSales(${realIdx}, 9, this.value)"><span class="input-group-addon">%</span></div></td>`;
           }
       } else {
-          // 일반 모드일 때는 input 대신 일반 텍스트로 출력 (ROAS 빨간색)
           commonHtml = `<td style="font-weight:600;">${dateStr}</td>
               <td style="font-weight:800; color:#1e293b;">${formatCurrency(rev)}</td>
               <td>${growthHtml}</td> 
@@ -590,19 +663,34 @@ function deleteSalesRow(realIdx) {
   salesData.splice(realIdx, 1); renderSales();
 }
 
-function saveSalesData() {
-  if (!confirm("매출 데이터를 저장하시겠습니까?")) return;
-  var btn = document.getElementById('saveSalesBtn'); btn.innerText = "저장 중...";
-  var header = ["몰구분", "년월", "결제금액", "집행광고비", "광고수익률(ROAS)", "유입수", "결제수", "모바일비율", "환불금액비율", "아이템위너비율"];
-  var dataToSave = [header].concat(salesData);
-  fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "save", sheetName: "SalesData", data: dataToSave, password: authPassword }) })
-  .then(res => res.json()).then(json => {
-        if(json.status === "success") {
-          alert("매출 데이터 저장 완료!"); btn.innerText = "💾 저장";
-          originalSalesData = JSON.parse(JSON.stringify(salesData)); isSalesEditMode = false; updateSalesEditUI(); renderSales(); 
-        } else { alert("❌ 저장 실패: " + json.message); btn.innerText = "💾 저장"; }
-    });
-}
+// 🚀 [Supabase 엔진 교체] 매출 데이터 일괄 저장
+window.saveSalesData = async function() {
+    if (!supabaseClient) return;
+    if (!confirm("매출 데이터를 저장하시겠습니까?")) return;
+    var btn = document.getElementById('saveSalesBtn'); btn.innerText = "저장 중...";
+    document.getElementById('loader').style.display = 'flex';
+    
+    try {
+        await supabaseClient.from('sales_data').delete().neq('mall_type', 'DUMMY_DATA');
+        const insertData = salesData.map(row => ({
+            mall_type: row[0] || "", month_str: row[1] || "", revenue: Number(row[2]) || 0, ad_spend: Number(row[3]) || 0,
+            roas: Number(row[4]) || 0, traffic: Number(row[5]) || 0, pay_count: Number(row[6]) || 0, mobile_ratio: Number(row[7]) || 0,
+            refund_ratio: Number(row[8]) || 0, winner_ratio: Number(row[9]) || 0
+        }));
+        if (insertData.length > 0) {
+            const { error } = await supabaseClient.from('sales_data').insert(insertData);
+            if (error) throw error;
+        }
+        alert("✅ 매출 데이터 저장 완료!");
+        btn.innerText = "💾 저장";
+        originalSalesData = JSON.parse(JSON.stringify(salesData)); 
+        isSalesEditMode = false; updateSalesEditUI(); renderSales();
+    } catch(e) { 
+        console.error(e); alert("❌ 저장 실패: " + e.message); btn.innerText = "💾 저장";
+    } finally { 
+        document.getElementById('loader').style.display = 'none'; 
+    }
+};
 
 function downloadSalesCSV() {
   if(salesData.length === 0) { alert("다운로드할 데이터가 없습니다."); return; }
@@ -701,20 +789,20 @@ function setSalesTab(t) {
   if(t === '스마트스토어') { 
       smartCols.forEach(e => {
           e.style.display = e.tagName === 'COL' ? '' : 'table-cell';
-          if(e.tagName === 'COL') e.style.width = '110px'; // 너비 복구
+          if(e.tagName === 'COL') e.style.width = '110px'; 
       }); 
       coupangCols.forEach(e => {
           e.style.display = 'none';
-          if(e.tagName === 'COL') e.style.width = '0px'; // 너비 완전 삭제
+          if(e.tagName === 'COL') e.style.width = '0px'; 
       }); 
   } else { 
       smartCols.forEach(e => {
           e.style.display = 'none';
-          if(e.tagName === 'COL') e.style.width = '0px'; // 너비 완전 삭제
+          if(e.tagName === 'COL') e.style.width = '0px'; 
       }); 
       coupangCols.forEach(e => {
           e.style.display = e.tagName === 'COL' ? '' : 'table-cell';
-          if(e.tagName === 'COL') e.style.width = '110px'; // 너비 복구
+          if(e.tagName === 'COL') e.style.width = '110px'; 
       }); 
   }
   renderSales();

@@ -1,4 +1,4 @@
-/* ================= [Timeline Logic - Cached Version] ================= */
+/* ================= [Timeline Logic - Supabase Version] ================= */
 let collapsedDates = {};
 let timeLogs = [];
 let editingItemIndex = -1; 
@@ -14,15 +14,13 @@ function getDayKor(dateStr) {
   return days[new Date(dateStr).getDay()];
 }
 
-// ✅ (새로 추가) 선택된 날짜의 마지막 기록을 찾아 시작 시간을 자동 세팅하는 함수
 window.updateDefaultStartTime = function() {
-    if (editingItemIndex > -1) return; // 수정 모드일 때는 덮어쓰지 않음
+    if (editingItemIndex > -1) return; 
     const selectedDate = document.getElementById('tDate').value;
     if (!selectedDate) return;
 
     const dayLogs = timeLogs.filter(log => log.date === selectedDate && log.category !== '휴무');
     if (dayLogs.length > 0) {
-        // 종료 시간 기준으로 정렬하여 가장 마지막 시간 가져오기
         dayLogs.sort((a, b) => a.end.localeCompare(b.end));
         const lastLog = dayLogs[dayLogs.length - 1];
         if (lastLog && lastLog.end && lastLog.end !== "00:00") {
@@ -31,18 +29,25 @@ window.updateDefaultStartTime = function() {
             document.getElementById('tStartM').value = parts[1];
         }
     } else {
-        // 해당 날짜에 기록이 없으면 빈칸
         document.getElementById('tStartH').value = '';
         document.getElementById('tStartM').value = '';
     }
 };
 
 async function loadTimelineFromServer() {
-  if(!authPassword) return; 
+  if(!supabaseClient) return; 
   
   const now = new Date();
   const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
   document.getElementById('tDate').value = todayStr;
+
+  // Supabase 전환으로 인해 더 이상 '전체 저장' 버튼이 필요 없음 (UI 변경)
+  const saveBtn = document.querySelector('#page-timeline .btn-server');
+  if (saveBtn) {
+      saveBtn.innerHTML = '<i class="fa-solid fa-cloud-bolt"></i> 실시간 연동중';
+      saveBtn.style.background = '#3b82f6';
+      saveBtn.onclick = () => alert('Supabase 적용 완료: 이제 타임라인은 추가/수정/삭제 시 실시간으로 자동 저장됩니다!');
+  }
 
   if(isTimelineFetched) {
       document.getElementById('loader').style.display = 'none';
@@ -55,36 +60,30 @@ async function loadTimelineFromServer() {
   if(loader) loader.style.display = 'flex';
 
   try {
-      const res = await fetch(SCRIPT_URL, {
-        method: 'POST', body: JSON.stringify({ action: "read", sheetName: "TimeTracker", password: authPassword })
-      });
-      const json = await res.json();
+      // ✅ Supabase에서 타임라인 데이터 직접 조회
+      const { data, error } = await supabaseClient.from('time_logs')
+          .select('*')
+          .order('date', { ascending: false })
+          .order('start_time', { ascending: true });
+          
+      if(error) throw error;
       
-      if(json.status === "success") {
-          const rows = json.data;
-          timeLogs = []; 
-          if(rows.length > 1) {
-            let lastValidDate = ""; 
-            for(let i=1; i<rows.length; i++) {
-              let r = rows[i];
-              let dateStr = r[0] === "" && lastValidDate !== "" ? lastValidDate : r[0];
-              lastValidDate = dateStr;
-              let startStr = formatTimeStr(r[3]);
-              let endStr = formatTimeStr(r[4]);
-              let durationStr = formatTimeStr(r[5]);
-              let min = 0;
-              if(durationStr) {
-                let parts = durationStr.split(':');
-                if(parts.length === 2) min = (Number(parts[0]) * 60) + Number(parts[1]);
-              }
-              timeLogs.push({ date: dateStr, category: r[1], task: r[2], start: startStr, end: endStr, duration: durationStr, min: min });
-            }
-          }
-          isTimelineFetched = true; // ✅ 통신 완료 플래그 저장
-          updateYearFilterOptions();
-          renderTimeLog();
-          updateDefaultStartTime();
-      }
+      timeLogs = data.map(r => ({
+          id: r.id,
+          date: r.date,
+          category: r.category,
+          task: r.task,
+          start: r.start_time ? r.start_time.substring(0, 5) : "",
+          end: r.end_time ? r.end_time.substring(0, 5) : "",
+          duration: r.duration,
+          min: r.min
+      }));
+
+      isTimelineFetched = true; 
+      updateYearFilterOptions();
+      renderTimeLog();
+      updateDefaultStartTime();
+      
   } catch (e) {
       console.error("타임라인 데이터 로드 오류:", e);
   } finally {
@@ -92,17 +91,7 @@ async function loadTimelineFromServer() {
   }
 }
 
-function saveToServer() {
-  if(!confirm("서버에 저장하시겠습니까?")) return;
-  const loader = document.getElementById('loader');
-  loader.style.display = 'flex';
-  let dataToSave = [["날짜", "구분", "업무", "시작", "끝", "소요시간", "입력일시"]];
-  let nowStr = new Date().toLocaleString();
-  timeLogs.forEach(log => { dataToSave.push([log.date, log.category, log.task, log.start, log.end, log.duration, nowStr]); });
-  fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "save", sheetName: "TimeTracker", password: authPassword, data: dataToSave })})
-  .then(res => res.json()).then(json => { if(json.status === "success") alert("✅ 저장 완료!"); })
-  .finally(() => { loader.style.display = 'none'; });
-}
+// ❌ 기존 구글시트 기반 saveToServer 함수는 사용하지 않음 (대신 실시간 CRUD 사용)
 
 function updateYearFilterOptions() {
   const yearSet = new Set();
@@ -153,7 +142,7 @@ function renderTimeLog() {
               row.innerHTML = `<td><span class="${catBadge}">${log.category}</span></td><td>${log.task}</td><td>${log.start}</td><td>${log.end}</td><td>${durationHtml}</td>
                   <td>
                     <button onclick="editTimeLog(${realIdx})" title="수정" style="border:none;background:none;cursor:pointer;color:#2563eb;margin-right:8px;"><i class="fa-solid fa-pen"></i></button>
-                    <button onclick="if(confirm('삭제하시겠습니까?')) { timeLogs.splice(${realIdx}, 1); updateDefaultStartTime(); renderTimeLog(); }" title="삭제" style="border:none;background:none;cursor:pointer;color:#ef4444;"><i class="fa-solid fa-trash-can"></i></button>
+                    <button onclick="deleteTimeLog(${realIdx})" title="삭제" style="border:none;background:none;cursor:pointer;color:#ef4444;"><i class="fa-solid fa-trash-can"></i></button>
                   </td>`;
               tbody.appendChild(row);
           });
@@ -161,7 +150,8 @@ function renderTimeLog() {
   });
 }
 
-function addTimeLog() {
+// ✅ Supabase 연동 타임라인 추가/수정 함수
+async function addTimeLog() {
   const date = document.getElementById('tDate').value;
   const category = document.getElementById('tCategory').value;
   const task = document.getElementById('tTask').value;
@@ -187,57 +177,90 @@ function addTimeLog() {
       min = mTotal;
   }
   
-  const newItem = { date, category, task, start, end, duration, min };
+  const loader = document.getElementById('loader');
+  loader.style.display = 'flex';
 
-  if(editingItemIndex > -1) {
-      timeLogs[editingItemIndex] = newItem;
-      alert("수정되었습니다.");
-      cancelEditMode(); 
-  } else {
-      timeLogs.push(newItem);
-      
-      document.getElementById('tTask').value = '';
-      document.getElementById('tEndH').value = '';
-      document.getElementById('tEndM').value = '';
-      updateDefaultStartTime(); 
+  try {
+      if(editingItemIndex > -1) {
+          // 수정 모드 (Update)
+          const targetId = timeLogs[editingItemIndex].id;
+          const { error } = await supabaseClient.from('time_logs').update({
+              date: date, category: category, task: task,
+              start_time: start + ":00", end_time: end + ":00",
+              duration: duration, min: min
+          }).eq('id', targetId);
+
+          if(error) throw error;
+
+          timeLogs[editingItemIndex] = { id: targetId, date, category, task, start, end, duration, min };
+          alert("수정 완료!");
+          cancelEditMode(); 
+      } else {
+          // 추가 모드 (Insert)
+          const { data, error } = await supabaseClient.from('time_logs').insert([{
+              date: date, category: category, task: task,
+              start_time: start + ":00", end_time: end + ":00",
+              duration: duration, min: min
+          }]).select();
+
+          if(error) throw error;
+          
+          if(data && data.length > 0) {
+              timeLogs.push({ id: data[0].id, date, category, task, start, end, duration, min });
+              document.getElementById('tTask').value = '';
+              document.getElementById('tEndH').value = '';
+              document.getElementById('tEndM').value = '';
+              updateDefaultStartTime(); 
+          }
+      }
+      renderTimeLog();
+  } catch (err) {
+      console.error(err); alert("데이터베이스 저장 오류");
+  } finally {
+      loader.style.display = 'none';
   }
-  
-  renderTimeLog();
 }
 
-// ✅ 전체 접기/펼치기 토글 함수
+// ✅ Supabase 연동 타임라인 삭제 함수
+window.deleteTimeLog = async function(index) {
+    if(!confirm('정말 이 기록을 삭제하시겠습니까?')) return;
+    const targetId = timeLogs[index].id;
+    if(!targetId) return;
+
+    document.getElementById('loader').style.display = 'flex';
+    try {
+        const { error } = await supabaseClient.from('time_logs').delete().eq('id', targetId);
+        if(error) throw error;
+        
+        timeLogs.splice(index, 1);
+        updateDefaultStartTime(); 
+        renderTimeLog();
+    } catch(err) {
+        console.error(err); alert("삭제 중 오류가 발생했습니다.");
+    } finally {
+        document.getElementById('loader').style.display = 'none';
+    }
+}
+
 let isAllCollapsed = false;
 window.toggleAllDates = function() {
-    isAllCollapsed = !isAllCollapsed; // 클릭할 때마다 상태 반전
+    isAllCollapsed = !isAllCollapsed; 
     const icon = document.getElementById('globalCollapseIcon');
-    
-    // 아이콘 화살표 방향 전환
-    if (icon) {
-        icon.style.transform = isAllCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
-    }
+    if (icon) icon.style.transform = isAllCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
 
     const selectedYear = document.getElementById('yearFilter').value;
     const searchQuery = document.getElementById('taskSearch').value.toLowerCase();
     let filteredLogs = timeLogs.filter(log => log.date.startsWith(selectedYear) && (log.task.toLowerCase().includes(searchQuery) || log.category.toLowerCase().includes(searchQuery)));
 
     const grouped = {};
-    filteredLogs.forEach(log => { 
-        if(!grouped[log.date]) grouped[log.date] = []; 
-        grouped[log.date].push(log); 
-    });
-
+    filteredLogs.forEach(log => { if(!grouped[log.date]) grouped[log.date] = []; grouped[log.date].push(log); });
     const sortedDates = Object.keys(grouped).sort((a,b) => b.localeCompare(a));
 
     if(sortedDates.length > 0) {
         const latestDate = sortedDates[0];
         sortedDates.forEach(date => {
-            if (isAllCollapsed) {
-                // 접기 모드: 가장 최신 날짜를 제외하고 모두 접기
-                collapsedDates[date] = (date !== latestDate); 
-            } else {
-                // 펼치기 모드: 모두 펼치기
-                collapsedDates[date] = false;
-            }
+            if (isAllCollapsed) collapsedDates[date] = (date !== latestDate); 
+            else collapsedDates[date] = false;
         });
     }
     renderTimeLog();
@@ -281,12 +304,10 @@ function cancelEditMode() {
     updateDefaultStartTime(); 
 }
 
-/* ================= [Worklog Logic - Cached Version] ================= */
+/* ================= [Worklog Logic - Supabase Version] ================= */
 let currentWorkYear = new Date().getFullYear();
 let currentWorkMonth = new Date().getMonth() + 1; 
 let activeMemoBox = null;
-
-// 업무일지 전용 월별 데이터 캐시
 let worklogCache = {};
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -307,10 +328,7 @@ function handleMonthChange(input) {
 
 function updateDateDisplay() {
   const picker = document.getElementById('worklogPicker');
-  if(picker) {
-      const val = `${currentWorkYear}-${String(currentWorkMonth).padStart(2, '0')}`;
-      picker.value = val;
-  }
+  if(picker) picker.value = `${currentWorkYear}-${String(currentWorkMonth).padStart(2, '0')}`;
 }
 
 function generateWeeksData(year, month) {
@@ -326,8 +344,7 @@ function generateWeeksData(year, month) {
   let done = false;
   while (!done && weekCount <= 6) {
       let weekData = { id: `w${weekCount}`, name: `${weekCount}주차`, range: '', days: [] };
-      let weekFirstNum = null;
-      let weekLastNum = null;
+      let weekFirstNum = null; let weekLastNum = null;
       for (let i = 0; i < 5; i++) {
           const isTargetMonth = (currentPointer.getMonth() === month - 1) && (currentPointer.getFullYear() === year);
           if (isTargetMonth) {
@@ -346,8 +363,7 @@ function generateWeeksData(year, month) {
       if (weekFirstNum) {
            const mm = String(month).padStart(2, '0');
            weekData.range = `${mm}.${weekFirstNum} ~ ${mm}.${weekLastNum}`;
-           weeks.push(weekData);
-           weekCount++;
+           weeks.push(weekData); weekCount++;
       }
       if (weekLastNum == lastDate) done = true;
       if (currentPointer.getMonth() !== month - 1 || currentPointer.getFullYear() !== year) done = true;
@@ -422,313 +438,192 @@ function initMonthlyLog() {
 }
 
 function setupDragSelection() {
-  let isSelecting = false;
-  let startInput = null;
-  let selectedInputs = [];
-  
-  let undoStack = []; // 실행 취소를 위한 기록 저장소
-  let cellFocusVal = null; // 단일 텍스트 수정을 기록하기 위한 임시 변수
+  let isSelecting = false; let startInput = null; let selectedInputs = []; let undoStack = []; let cellFocusVal = null; 
+  document.addEventListener('focusin', (e) => { if (e.target.classList && e.target.classList.contains('clean-input')) cellFocusVal = e.target.type === 'checkbox' ? e.target.checked : e.target.value; });
+  document.addEventListener('focusout', (e) => { if (e.target.classList && e.target.classList.contains('clean-input')) { let currentVal = e.target.type === 'checkbox' ? e.target.checked : e.target.value; if (cellFocusVal !== null && cellFocusVal !== currentVal) { undoStack.push([{ el: e.target, oldVal: cellFocusVal }]); } cellFocusVal = null; } });
+  document.addEventListener('change', (e) => { if (e.target.type === 'checkbox' && e.target.classList && e.target.classList.contains('clean-input') && e.isTrusted) undoStack.push([{ el: e.target, oldVal: !e.target.checked }]); });
 
-  // 1. 단일 셀 수정 기록 (포커스 될 때 기존 값 저장 -> 잃을 때 변경되었으면 스택에 저장)
-  document.addEventListener('focusin', (e) => {
-      if (e.target.classList && e.target.classList.contains('clean-input')) {
-          cellFocusVal = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-      }
-  });
-  
-  document.addEventListener('focusout', (e) => {
-      if (e.target.classList && e.target.classList.contains('clean-input')) {
-          let currentVal = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-          if (cellFocusVal !== null && cellFocusVal !== currentVal) {
-              undoStack.push([{ el: e.target, oldVal: cellFocusVal }]); // 변경이 있으면 스택 추가
-          }
-          cellFocusVal = null;
-      }
-  });
-
-  document.addEventListener('change', (e) => {
-      if (e.target.type === 'checkbox' && e.target.classList && e.target.classList.contains('clean-input')) {
-          if (e.isTrusted) { // 사용자가 직접 클릭한 체크박스 변경만 추적
-              undoStack.push([{ el: e.target, oldVal: !e.target.checked }]);
-          }
-      }
-  });
-
-  // 2. 마우스 드래그 이벤트
   document.addEventListener('mousedown', (e) => {
-    if (!e.target.classList.contains('clean-input')) {
-      if (!e.target.closest('.wp-list')) clearSelection();
-      return;
-    }
-    
+    if (!e.target.classList.contains('clean-input')) { if (!e.target.closest('.wp-list')) clearSelection(); return; }
     if (e.target.classList.contains('cell-selected') && e.button !== 0) return;
-
-    isSelecting = true;
-    startInput = e.target;
-    
-    if (!e.shiftKey) {
-        clearSelection();
-        selectInput(startInput);
-    }
+    isSelecting = true; startInput = e.target;
+    if (!e.shiftKey) { clearSelection(); selectInput(startInput); }
   });
-
   document.addEventListener('mouseover', (e) => {
-    if (!isSelecting || !startInput) return;
-    if (!e.target.classList.contains('clean-input')) return;
-    if (e.target === startInput) return;
+    if (!isSelecting || !startInput) return; if (!e.target.classList.contains('clean-input')) return; if (e.target === startInput) return;
     if (startInput.closest('.wp-list') !== e.target.closest('.wp-list')) return;
-
     updateSelection(startInput, e.target);
   });
+  document.addEventListener('mouseup', () => { isSelecting = false; });
 
-  document.addEventListener('mouseup', () => {
-    isSelecting = false;
-  });
-
-  // 3. 키보드 이벤트 (Delete, Backspace, Ctrl+Z, Ctrl+C)
   document.addEventListener('keydown', (e) => {
-    
-    // 🔥 Ctrl+Z (실행 취소) 기능
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        // 만약 특정 셀 안에 커서가 깜빡거리며 텍스트를 입력 중이라면 (브라우저 기본 실행취소 사용)
-        if (document.activeElement && document.activeElement.classList.contains('clean-input')) {
-            return; 
-        }
-        
-        // 다중 삭제나 붙여넣기 후라면 우리가 만든 커스텀 실행취소 작동
-        if (undoStack.length > 0) {
-            e.preventDefault();
-            const lastChanges = undoStack.pop();
-            lastChanges.forEach(change => {
-                if (change.el.type === 'checkbox') change.el.checked = change.oldVal;
-                else change.el.value = change.oldVal;
-                
-                triggerInputEvent(change.el);
-                if (change.el.name === 'done') toggleDone(change.el);
-            });
-        }
+        if (document.activeElement && document.activeElement.classList.contains('clean-input')) return; 
+        if (undoStack.length > 0) { e.preventDefault(); const lastChanges = undoStack.pop(); lastChanges.forEach(change => { if (change.el.type === 'checkbox') change.el.checked = change.oldVal; else change.el.value = change.oldVal; triggerInputEvent(change.el); if (change.el.name === 'done') toggleDone(change.el); }); }
         return;
     }
-
-    // 🔥 Delete / Backspace 기능 (드래그 삭제 지원 및 1글자 지움 버그 해결)
     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedInputs.length > 0) {
-        
-        // 버그 해결 핵심: 오직 1칸만 선택되었고, 그 칸에 커서가 있다면 "1글자 지우기(브라우저 기본)" 허용
-        if (selectedInputs.length === 1 && document.activeElement === selectedInputs[0]) {
-            return; 
-        }
-
-        // 그 외 여러 셀을 선택한 상태라면 일괄 삭제 진행
-        e.preventDefault();
-        
-        // 포커스를 해제하여 이후에 브라우저가 아닌 커스텀 Ctrl+Z가 먹히도록 유도
-        if (document.activeElement) document.activeElement.blur(); 
-        
-        let currentChanges = []; // 실행 취소를 위해 삭제되기 전 값 저장
+        if (selectedInputs.length === 1 && document.activeElement === selectedInputs[0]) return; 
+        e.preventDefault(); if (document.activeElement) document.activeElement.blur(); 
+        let currentChanges = []; 
         selectedInputs.forEach(input => {
-            currentChanges.push({
-                el: input,
-                oldVal: input.type === 'checkbox' ? input.checked : input.value
-            });
-
-            if(input.type === 'checkbox') input.checked = false;
-            else input.value = '';
-            
-            triggerInputEvent(input);
-            if (input.name === 'done') toggleDone(input);
+            currentChanges.push({ el: input, oldVal: input.type === 'checkbox' ? input.checked : input.value });
+            if(input.type === 'checkbox') input.checked = false; else input.value = '';
+            triggerInputEvent(input); if (input.name === 'done') toggleDone(input);
         });
-        
         if (currentChanges.length > 0) undoStack.push(currentChanges);
     }
-    
-    // Copy (Ctrl+C)
-    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedInputs.length > 0) {
-       handleCopy(e);
-    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedInputs.length > 0) handleCopy(e);
   });
 
-  // 4. 붙여넣기 (Paste)
   document.addEventListener('paste', (e) => {
-      const active = document.activeElement;
-      if (!active || !active.classList.contains('clean-input')) return;
-      e.preventDefault();
-      active.blur(); // 포커스를 해제해 커스텀 Ctrl+Z가 제대로 작동하게 함
-      handlePaste(e, active);
+      const active = document.activeElement; if (!active || !active.classList.contains('clean-input')) return;
+      e.preventDefault(); active.blur(); handlePaste(e, active);
   });
 
-  function clearSelection() {
-    document.querySelectorAll('.clean-input.cell-selected').forEach(el => el.classList.remove('cell-selected'));
-    selectedInputs = [];
-  }
-
-  function selectInput(el) {
-    if(!el.classList.contains('cell-selected')) {
-        el.classList.add('cell-selected');
-        selectedInputs.push(el);
-    }
-  }
-
+  function clearSelection() { document.querySelectorAll('.clean-input.cell-selected').forEach(el => el.classList.remove('cell-selected')); selectedInputs = []; }
+  function selectInput(el) { if(!el.classList.contains('cell-selected')) { el.classList.add('cell-selected'); selectedInputs.push(el); } }
   function updateSelection(start, end) {
     clearSelection();
     const allRows = Array.from(start.closest('.wp-list').querySelectorAll('.task-strip'));
-    const startRow = start.closest('.task-strip');
-    const endRow = end.closest('.task-strip');
-    const startRowIdx = allRows.indexOf(startRow);
-    const endRowIdx = allRows.indexOf(endRow);
-
-    const startInputs = Array.from(startRow.querySelectorAll('.clean-input'));
-    const endInputs = Array.from(endRow.querySelectorAll('.clean-input'));
-    const startColIdx = startInputs.indexOf(start);
-    const endColIdx = endInputs.indexOf(end);
-
-    const minRow = Math.min(startRowIdx, endRowIdx);
-    const maxRow = Math.max(startRowIdx, endRowIdx);
-    const minCol = Math.min(startColIdx, endColIdx);
-    const maxCol = Math.max(startColIdx, endColIdx);
-
-    for (let r = minRow; r <= maxRow; r++) {
-      const inputs = allRows[r].querySelectorAll('.clean-input');
-      for (let c = minCol; c <= maxCol; c++) {
-        if (inputs[c]) selectInput(inputs[c]);
-      }
-    }
+    const startRow = start.closest('.task-strip'); const endRow = end.closest('.task-strip');
+    const startRowIdx = allRows.indexOf(startRow); const endRowIdx = allRows.indexOf(endRow);
+    const startInputs = Array.from(startRow.querySelectorAll('.clean-input')); const endInputs = Array.from(endRow.querySelectorAll('.clean-input'));
+    const startColIdx = startInputs.indexOf(start); const endColIdx = endInputs.indexOf(end);
+    const minRow = Math.min(startRowIdx, endRowIdx); const maxRow = Math.max(startRowIdx, endRowIdx);
+    const minCol = Math.min(startColIdx, endColIdx); const maxCol = Math.max(startColIdx, endColIdx);
+    for (let r = minRow; r <= maxRow; r++) { const inputs = allRows[r].querySelectorAll('.clean-input'); for (let c = minCol; c <= maxCol; c++) { if (inputs[c]) selectInput(inputs[c]); } }
   }
-
   function triggerInputEvent(input) {
-      if (input.name === 'category' || input.name === 'task') {
-          updateRow(input);
-      }
-      if(input.type === 'checkbox') {
-          const event = new Event('change', { bubbles: true });
-          input.dispatchEvent(event);
-      } else {
-          const event = new Event('input', { bubbles: true });
-          input.dispatchEvent(event);
-      }
+      if (input.name === 'category' || input.name === 'task') updateRow(input);
+      if(input.type === 'checkbox') input.dispatchEvent(new Event('change', { bubbles: true })); else input.dispatchEvent(new Event('input', { bubbles: true }));
   }
-
   function handleCopy(e) {
-      e.preventDefault();
-      let rowsMap = new Map();
-      selectedInputs.forEach(input => {
-          const row = input.closest('.task-strip');
-          if(!rowsMap.has(row)) rowsMap.set(row, []);
-          rowsMap.get(row).push(input);
-      });
-
-      let textToCopy = "";
-      let isFirstRow = true;
+      e.preventDefault(); let rowsMap = new Map();
+      selectedInputs.forEach(input => { const row = input.closest('.task-strip'); if(!rowsMap.has(row)) rowsMap.set(row, []); rowsMap.get(row).push(input); });
+      let textToCopy = ""; let isFirstRow = true;
       rowsMap.forEach((inputs) => {
           if(!isFirstRow) textToCopy += "\n";
-          let rowText = inputs.map(input => {
-              if(input.type === 'checkbox') return input.checked ? "TRUE" : "FALSE";
-              return input.value;
-          }).join("\t");
-          textToCopy += rowText;
-          isFirstRow = false;
+          textToCopy += inputs.map(input => input.type === 'checkbox' ? (input.checked ? "TRUE" : "FALSE") : input.value).join("\t"); isFirstRow = false;
       });
-
-      if (navigator.clipboard) {
-          navigator.clipboard.writeText(textToCopy).then(() => {
-              console.log('Copied to clipboard');
-          });
-      }
+      if (navigator.clipboard) navigator.clipboard.writeText(textToCopy);
   }
-
   function handlePaste(e, startCellInput) {
-      const clipboardData = (e.clipboardData || window.clipboardData).getData('text');
-      if (!clipboardData) return;
-
-      let startCell = selectedInputs.length > 0 ? selectedInputs[0] : startCellInput;
-      if (!startCell || !startCell.classList.contains('clean-input')) return;
-
-      const startRow = startCell.closest('.task-strip');
-      const container = startRow.closest('.wp-list');
+      const clipboardData = (e.clipboardData || window.clipboardData).getData('text'); if (!clipboardData) return;
+      let startCell = selectedInputs.length > 0 ? selectedInputs[0] : startCellInput; if (!startCell || !startCell.classList.contains('clean-input')) return;
+      const startRow = startCell.closest('.task-strip'); const container = startRow.closest('.wp-list');
       const allStripRows = Array.from(container.querySelectorAll('.task-strip'));
-      
-      const startRowIdx = allStripRows.indexOf(startRow);
-      const startInputs = Array.from(startRow.querySelectorAll('.clean-input'));
-      const startColIdx = startInputs.indexOf(startCell);
-
-      const rows = clipboardData.split(/\r\n|\n|\r/);
-      
-      let currentChanges = []; // 실행 취소를 위한 상태 저장
-
+      const startRowIdx = allStripRows.indexOf(startRow); const startInputs = Array.from(startRow.querySelectorAll('.clean-input')); const startColIdx = startInputs.indexOf(startCell);
+      const rows = clipboardData.split(/\r\n|\n|\r/); let currentChanges = [];
       rows.forEach((rowText, rIdx) => {
           if (rowText.trim() === "" && rIdx === rows.length - 1) return;
-          
-          const targetRow = allStripRows[startRowIdx + rIdx];
-          if (!targetRow) return;
-
-          const targetInputs = Array.from(targetRow.querySelectorAll('.clean-input'));
-          const cols = rowText.split('\t');
-
+          const targetRow = allStripRows[startRowIdx + rIdx]; if (!targetRow) return;
+          const targetInputs = Array.from(targetRow.querySelectorAll('.clean-input')); const cols = rowText.split('\t');
           cols.forEach((val, cIdx) => {
               const input = targetInputs[startColIdx + cIdx];
               if (input) {
-                  // 값 덮어쓰기 전 기존 값 기록
-                  currentChanges.push({
-                      el: input,
-                      oldVal: input.type === 'checkbox' ? input.checked : input.value
-                  });
-
-                  if(input.type === 'checkbox') {
-                      const v = val.trim().toUpperCase();
-                      input.checked = (v === 'TRUE' || v === '1' || v === 'YES');
-                  } else if (input.tagName === 'SELECT') {
-                      input.value = val.trim();
-                  } else {
-                      input.value = val.trim(); 
-                  }
+                  currentChanges.push({ el: input, oldVal: input.type === 'checkbox' ? input.checked : input.value });
+                  if(input.type === 'checkbox') input.checked = (val.trim().toUpperCase() === 'TRUE' || val.trim() === '1');
+                  else input.value = val.trim(); 
                   triggerInputEvent(input);
               }
           });
       });
-      
       if(currentChanges.length > 0) undoStack.push(currentChanges);
   }
 }
 
-function collectAndSaveWorklog() {
+// ✅ Supabase 연동 월간 업무일지 로드
+async function loadWorklogFromServer() {
+  if(!supabaseClient) return;
+  const monthKey = `${currentWorkYear}-${currentWorkMonth}`;
+  
+  if(worklogCache[monthKey]) {
+      applyWorklogData(worklogCache[monthKey]);
+      return;
+  }
+
+  const loader = document.getElementById('loader'); loader.style.display = 'flex';
+  
+  try {
+      const [taskRes, memoRes] = await Promise.all([
+          supabaseClient.from('monthly_tasks').select('*').eq('year', currentWorkYear).eq('month', currentWorkMonth),
+          supabaseClient.from('monthly_memos').select('*').eq('year', currentWorkYear).eq('month', currentWorkMonth)
+      ]);
+
+      if(taskRes.error) throw taskRes.error;
+      if(memoRes.error) throw memoRes.error;
+
+      // 구글시트 구조를 따르던 프론트엔드 렌더링 로직 호환을 위한 매핑
+      const tasks = taskRes.data.map(t => [
+          t.year, t.month, t.week_id, t.date, t.type, t.row_index, t.category, t.task, t.priority, t.note_deadline, t.is_done
+      ]);
+      const memos = memoRes.data.map(m => [
+          m.year, m.month, m.key, m.type, m.content
+      ]);
+
+      const json = { status: "success", tasks, memos };
+      worklogCache[monthKey] = json; 
+      applyWorklogData(json);       
+      
+  } catch(e) {
+      console.error("업무 일지 로드 오류:", e);
+  } finally {
+      loader.style.display = 'none';
+  }
+}
+
+// ✅ Supabase 연동 월간 업무일지 일괄 저장
+async function collectAndSaveWorklog() {
   if(!confirm(`${currentWorkYear}년 ${currentWorkMonth}월 업무일지를 저장하시겠습니까?\n(해당 월의 기존 데이터는 덮어씌워집니다)`)) return;
+  
   const loader = document.getElementById('loader'); loader.style.display = 'flex';
   const targetYear = currentWorkYear; const targetMonth = currentWorkMonth;
+  
   let taskRows = []; let memoRows = [];
+  
   document.querySelectorAll('.week-row').forEach(weekEl => {
     const weekId = weekEl.dataset.weekId;
     const planSec = weekEl.querySelector('.week-plan-section');
     planSec.querySelectorAll('.wp-list .task-strip').forEach((row, idx) => {
       const task = row.querySelector('[name="task"]').value; const cat = row.querySelector('[name="category"]').value;
-      if(task || cat) taskRows.push([targetYear, targetMonth, weekId, "", "Plan", idx, cat, task, row.querySelector('[name="priority"]').value, row.querySelector('[name="deadline"]').value, row.querySelector('[name="done"]').checked]);
+      if(task || cat) taskRows.push({ year: targetYear, month: targetMonth, week_id: weekId, date: null, type: "Plan", row_index: idx, category: cat, task: task, priority: row.querySelector('[name="priority"]').value, note_deadline: row.querySelector('[name="deadline"]').value, is_done: row.querySelector('[name="done"]').checked });
     });
-    memoRows.push([targetYear, targetMonth, weekId, "NextPlan", planSec.querySelector('[name="nextPlan"]').value]);
-    memoRows.push([targetYear, targetMonth, weekId, "Retro", planSec.querySelector('[name="retrospective"]').value]);
-    memoRows.push([targetYear, targetMonth, weekId, "Rate", planSec.querySelector('.progress-text').innerText]);
+    memoRows.push({ year: targetYear, month: targetMonth, key: weekId, type: "NextPlan", content: planSec.querySelector('[name="nextPlan"]').value });
+    memoRows.push({ year: targetYear, month: targetMonth, key: weekId, type: "Retro", content: planSec.querySelector('[name="retrospective"]').value });
+    memoRows.push({ year: targetYear, month: targetMonth, key: weekId, type: "Rate", content: planSec.querySelector('.progress-text').innerText });
+    
     weekEl.querySelectorAll('.day-column').forEach(dayEl => {
       if(dayEl.classList.contains('blank')) return;
       const dateKey = dayEl.dataset.date;
       if(!dateKey) return;
       dayEl.querySelectorAll('.wp-list .task-strip').forEach((row, idx) => {
         const task = row.querySelector('[name="task"]').value; const cat = row.querySelector('[name="category"]').value;
-        if(task || cat) taskRows.push([targetYear, targetMonth, weekId, dateKey, "Daily", idx, cat, task, row.querySelector('[name="priority"]').value, row.querySelector('[name="note"]').value, row.querySelector('[name="done"]').checked]);
+        if(task || cat) taskRows.push({ year: targetYear, month: targetMonth, week_id: weekId, date: dateKey, type: "Daily", row_index: idx, category: cat, task: task, priority: row.querySelector('[name="priority"]').value, note_deadline: row.querySelector('[name="note"]').value, is_done: row.querySelector('[name="done"]').checked });
       });
-      memoRows.push([targetYear, targetMonth, dateKey, "Memo", dayEl.querySelector('[name="dayMemo"]').value]);
-      memoRows.push([targetYear, targetMonth, dateKey, "ProductLog", dayEl.querySelector('[name="productLog"]').value]);
-      memoRows.push([targetYear, targetMonth, dateKey, "Rate", dayEl.querySelector('.progress-text').innerText]);
+      memoRows.push({ year: targetYear, month: targetMonth, key: dateKey, type: "Memo", content: dayEl.querySelector('[name="dayMemo"]').value });
+      memoRows.push({ year: targetYear, month: targetMonth, key: dateKey, type: "ProductLog", content: dayEl.querySelector('[name="productLog"]').value });
+      memoRows.push({ year: targetYear, month: targetMonth, key: dateKey, type: "Rate", content: dayEl.querySelector('.progress-text').innerText });
     });
   });
   
-  fetch(SCRIPT_URL, {
-    method: 'POST', body: JSON.stringify({ action: "save_worklog", password: authPassword, year: targetYear, month: targetMonth, taskRows: taskRows, memoRows: memoRows })
-  }).then(res => res.json()).then(json => {
-     if(json.status === "success") {
-         alert("✅ 저장 완료!"); 
-         delete worklogCache[`${targetYear}-${targetMonth}`];
-         cachedProductLogs = null;
-     } else {
-         alert("오류: " + json.message);
-     }
-  }).finally(() => { loader.style.display = 'none'; });
+  try {
+      // 1. 해당 월 데이터 일괄 삭제 (초기화)
+      await supabaseClient.from('monthly_tasks').delete().eq('year', targetYear).eq('month', targetMonth);
+      await supabaseClient.from('monthly_memos').delete().eq('year', targetYear).eq('month', targetMonth);
+
+      // 2. 새 데이터 일괄 삽입
+      if (taskRows.length > 0) await supabaseClient.from('monthly_tasks').insert(taskRows);
+      if (memoRows.length > 0) await supabaseClient.from('monthly_memos').insert(memoRows);
+
+      alert("✅ 저장 완료!"); 
+      delete worklogCache[`${targetYear}-${targetMonth}`];
+      cachedProductLogs = null;
+  } catch (err) {
+      console.error(err); alert("저장 중 오류가 발생했습니다.");
+  } finally {
+      loader.style.display = 'none';
+  }
 }
 
 function normalizeDate(dateStr) {
@@ -750,14 +645,14 @@ function applyWorklogData(json) {
            if(strip) {
              strip.querySelector('[name="category"]').value = row[6]; strip.querySelector('[name="task"]').value = row[7];
              strip.querySelector('[name="priority"]').value = row[8]; strip.querySelector('[name="done"]').checked = (row[10] === true || row[10] === "TRUE");
-             if(type === 'Plan') strip.querySelector('[name="deadline"]').value = row[9];
-             else { strip.querySelector('[name="note"]').value = row[9]; const memoBox = strip.querySelector('.memo-box'); if(row[9]) { memoBox.classList.add('has-content'); memoBox.title = row[9]; } }
+             if(type === 'Plan') strip.querySelector('[name="deadline"]').value = row[9] || '';
+             else { strip.querySelector('[name="note"]').value = row[9] || ''; const memoBox = strip.querySelector('.memo-box'); if(row[9]) { memoBox.classList.add('has-content'); memoBox.title = row[9]; } }
              updateRow(strip.querySelector('[name="task"]')); toggleDone(strip.querySelector('[name="done"]'));
            }
         }
     });
     json.memos.forEach(row => {
-        const key = row[2]; const type = row[3]; const content = row[4]; let inputs = [];
+        const key = row[2]; const type = row[3]; const content = row[4] || ''; let inputs = [];
         if(type === 'NextPlan' || type === 'Retro') {
             inputs = document.querySelectorAll(`.week-row[data-week-id="${key}"] [name="${type === 'NextPlan' ? 'nextPlan' : 'retrospective'}"]`);
             if(inputs.length > 0) inputs[0].value = content;
@@ -769,34 +664,6 @@ function applyWorklogData(json) {
             if(inputs.length > 0) inputs[0].value = content;
         }
     });
-}
-
-async function loadWorklogFromServer() {
-  if(!authPassword) return;
-  const monthKey = `${currentWorkYear}-${currentWorkMonth}`;
-  
-  if(worklogCache[monthKey]) {
-      applyWorklogData(worklogCache[monthKey]);
-      return;
-  }
-
-  const loader = document.getElementById('loader'); loader.style.display = 'flex';
-  
-  try {
-      const res = await fetch(SCRIPT_URL, {
-        method: 'POST', body: JSON.stringify({ action: "load_worklog", password: authPassword, year: currentWorkYear, month: currentWorkMonth })
-      });
-      const json = await res.json();
-      
-      if(json.status === "success") {
-          worklogCache[monthKey] = json; 
-          applyWorklogData(json);       
-      }
-  } catch(e) {
-      console.error("업무 일지 로드 오류:", e);
-  } finally {
-      loader.style.display = 'none';
-  }
 }
 
 function updateRow(input) {
@@ -828,11 +695,11 @@ function closeModal() { document.getElementById('memoModal').style.display = 'no
 function saveMemoFromModal() { if(!activeMemoBox) return; const input = document.getElementById('modalInput'); const newVal = input.value.trim(); const hiddenInput = activeMemoBox.nextElementSibling; hiddenInput.value = newVal; if(newVal !== "") { activeMemoBox.classList.add('has-content'); activeMemoBox.title = newVal; } else { activeMemoBox.classList.remove('has-content'); activeMemoBox.title = "메모 없음"; } closeModal(); }
 function handleEnter(e) { if(e.key === 'Enter') saveMemoFromModal(); }
 
-
-/* ================= [Product Log Logic - Cached Version] ================= */
+/* ================= [Product Log Logic - Supabase Version] ================= */
 let cachedProductLogs = null;
 let isFetchingProductLogs = false;
 
+// ✅ 상품 수정 내역(ProductLog) Supabase 직결 (날짜 정렬 및 필터링 강화)
 async function fetchProductLogsIfNeeded() {
     if (cachedProductLogs !== null) {
         document.getElementById('loader').style.display = 'none';
@@ -844,15 +711,28 @@ async function fetchProductLogsIfNeeded() {
     document.getElementById('loader').style.display = 'flex';
 
     try {
-        const res = await fetch(SCRIPT_URL, { 
-            method: 'POST', 
-            body: JSON.stringify({ action: "get_all_product_logs", password: authPassword }) 
-        });
-        const json = await res.json();
+        const { data, error } = await supabaseClient.from('monthly_memos')
+            .select('key, content')
+            .eq('type', 'ProductLog')
+            .neq('content', '');
+            
+        if(error) throw error;
         
-        if (json.status === "success" && json.data) {
-            let validLogs = json.data.filter(log => isNaN(Number(String(log.content).trim())));
-            validLogs.sort((a,b) => b.date.localeCompare(a.date));
+        if (data) {
+            let validLogs = data.map(d => {
+                let rawDate = String(d.key).trim();
+                let cleanDate = rawDate.replace(/\s+/g, '').replace(/\./g, '-').replace(/\//g, '-');
+                if(cleanDate.endsWith('-')) cleanDate = cleanDate.slice(0, -1);
+                
+                let parts = cleanDate.split('-');
+                if(parts.length >= 3) {
+                    cleanDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                }
+                return { date: rawDate, cleanDate: cleanDate, content: d.content };
+            }).filter(log => log.content && String(log.content).trim() !== "" && isNaN(Number(String(log.content).trim())));
+            
+            // 깔끔하게 변환된 날짜(cleanDate)를 기준으로 완벽하게 최신순 정렬
+            validLogs.sort((a,b) => b.cleanDate.localeCompare(a.cleanDate));
             cachedProductLogs = validLogs; 
             return true;
         }
@@ -870,24 +750,11 @@ async function renderProductLogPage() {
         const style = document.createElement('style');
         style.id = 'prodlog-custom-style';
         style.innerHTML = `
-            .prodlog-month-divider { 
-                background-color: #f1f5f9 !important; 
-                font-size: 14px; 
-                font-weight: 800; 
-                color: #334155; 
-                text-align: left !important; 
-                padding: 12px 20px !important; 
-                border-top: 2px solid #e2e8f0; 
-                border-bottom: 2px solid #e2e8f0; 
-            }
+            .prodlog-month-divider { background-color: #f1f5f9 !important; font-size: 14px; font-weight: 800; color: #334155; text-align: left !important; padding: 12px 20px !important; border-top: 2px solid #e2e8f0; border-bottom: 2px solid #e2e8f0; }
             .prodlog-row { transition: all 0.2s ease; cursor: pointer; }
             .prodlog-row td { transition: all 0.2s ease; }
             .prodlog-row:hover { background-color: #f0f9ff !important; }
-            .prodlog-row:hover td { 
-                color: #2563eb !important; 
-                text-decoration: underline; 
-                font-weight: 700; 
-            }
+            .prodlog-row:hover td { color: #2563eb !important; text-decoration: underline; font-weight: 700; }
         `;
         document.head.appendChild(style);
     }
@@ -901,7 +768,8 @@ async function renderProductLogPage() {
         let currentMonth = "";
         
         cachedProductLogs.forEach(log => { 
-            let logMonth = log.date.substring(0, 7); 
+            // 정렬된 cleanDate 기준으로 월별 구분선 생성
+            let logMonth = log.cleanDate.substring(0, 7); 
             if (logMonth !== currentMonth) {
                 currentMonth = logMonth;
                 const [yyyy, mm] = logMonth.split('-');
@@ -915,10 +783,7 @@ async function renderProductLogPage() {
             tr.onclick = function() { jumpToWorkLog(log.date); };
             tr.title = "클릭하면 해당 일자의 업무일지로 이동합니다.";
             
-            tr.innerHTML = `
-              <td style="font-weight:700; color:#4f46e5;">${log.date}</td>
-              <td>${log.content}</td>
-            `; 
+            tr.innerHTML = `<td style="font-weight:700; color:#4f46e5;">${log.cleanDate}</td><td>${log.content}</td>`; 
             tbody.appendChild(tr); 
         });
     } else { 
@@ -926,583 +791,9 @@ async function renderProductLogPage() {
     }
 }
 
-function jumpToWorkLog(dateStr) {
-    if(!dateStr) return;
-    const targetDate = new Date(dateStr);
-    if(isNaN(targetDate.getTime())) return;
-
-    currentWorkYear = targetDate.getFullYear();
-    currentWorkMonth = targetDate.getMonth() + 1;
-    
-    showPage('worklog', document.querySelector('.menu-item[onclick*="worklog"]'));
-    updateDateDisplay();
-    initMonthlyLog();
-    loadWorklogFromServer();
-
-    setTimeout(() => {
-        const dayCol = document.querySelector(`.day-column[data-date="${dateStr}"]`);
-        if(dayCol) {
-            dayCol.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-            dayCol.style.border = "2px solid #4f46e5"; 
-            setTimeout(() => { dayCol.style.border = ""; }, 2000);
-        }
-    }, 800);
-}
-
-
-/* ================= [Notes Logic - Bulletproof Cached Version] ================= */
-var quill;
-var currentNoteType = 'general';
-var currentDraftId = "";
-
-let cachedNotes = null;
-let notesFetchPromise = null; 
-
-function fetchAllNotesIfNeeded() {
-    if (cachedNotes !== null) {
-        document.getElementById('loader').style.display = 'none';
-        return Promise.resolve(true); 
-    }
-    
-    if (notesFetchPromise) return notesFetchPromise; 
-
-    document.getElementById('loader').style.display = 'flex';
-    const statusEl = document.getElementById('noteSaveStatus');
-    if(statusEl) statusEl.innerText = "데이터 동기화 중...";
-
-    notesFetchPromise = fetch(SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: "load_all_notes", password: authPassword })
-    }).then(r => r.json()).then(res => {
-        if (res.status === "success") {
-            cachedNotes = res.data;
-            if(statusEl) statusEl.innerText = "동기화 완료";
-            return true;
-        }
-        return false;
-    }).catch(e => {
-        console.error("노트 로드 실패", e);
-        if(statusEl) statusEl.innerText = "동기화 실패";
-        return false;
-    }).finally(() => {
-        document.getElementById('loader').style.display = 'none';
-        notesFetchPromise = null; 
-    });
-
-    return notesFetchPromise;
-}
-
-function initQuill() {
-  if (quill) return;
-  quill = new Quill('#editor', {
-    theme: 'snow',
-    placeholder: '내용을 입력하세요...',
-    modules: {
-      toolbar: {
-        container: [
-          [{ 'header': [1, 2, 3, false] }],
-          ['bold', 'italic', 'underline', 'strike'],
-          [{ 'color': [] }, { 'background': [] }],
-          [{ 'size': ['small', false, 'large', 'huge'] }],
-          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-          ['link', 'image'],
-          ['clean']
-        ],
-        handlers: { image: imageUploadHandler }
-      }
-    }
-  });
-}
-
-function imageUploadHandler() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.click();
-
-  input.onchange = () => {
-    const file = input.files[0];
-    if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      alert('이미지 크기가 10MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64Full = reader.result;
-      const base64Data = base64Full.split(',')[1];
-      const mimeMatch = base64Full.match(/data:image\/([a-zA-Z]+);base64/);
-      const fileType = mimeMatch ? mimeMatch[1] : 'png';
-
-      const loader = document.getElementById('loader');
-      if (loader) loader.style.display = 'flex';
-      const statusEl = document.getElementById('noteSaveStatus');
-      if (statusEl) statusEl.innerText = '이미지 업로드 중...';
-
-      fetch(SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'upload_image', password: authPassword, imageBase64: base64Data, fileType: fileType })
-      })
-      .then(res => res.json())
-      .then(json => {
-        if (json.status === 'success') {
-          const range = quill.getSelection(true);
-          quill.insertEmbed(range ? range.index : 0, 'image', json.url);
-          quill.setSelection((range ? range.index : 0) + 1);
-          if (statusEl) statusEl.innerText = '이미지 업로드 완료 ✅';
-        } else {
-          alert('이미지 업로드 실패: ' + json.message);
-          if (statusEl) statusEl.innerText = '이미지 업로드 실패';
-        }
-      })
-      .catch(err => {
-        alert('이미지 업로드 중 통신 오류가 발생했습니다.');
-        if (statusEl) statusEl.innerText = '업로드 오류';
-      })
-      .finally(() => { if (loader) loader.style.display = 'none'; });
-    };
-    reader.readAsDataURL(file);
-  };
-}
-
-async function handleNoteDateChange() {
-    try {
-        if(currentNoteType !== 'general') return; 
-        await fetchAllNotesIfNeeded();
-        loadGeneralNoteFromCache();
-    } finally {
-        document.getElementById('loader').style.display = 'none';
-    }
-}
-
-async function setNoteTab(type) {
-    initQuill(); 
-    currentNoteType = type;
-    currentDraftId = ""; 
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    
-    if(event && event.target && event.target.classList) {
-        event.target.classList.add('active');
-    } else {
-        const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.innerText.includes(type === 'blog' ? '블로그' : (type === 'youtube' ? '유튜브' : '일반')));
-        if(btn) btn.classList.add('active');
-    }
-    
-    const metaArea = document.getElementById('draftMetadataArea');
-    const dateSelector = document.querySelector('.date-selector-wrapper'); 
-    const listContainer = document.getElementById('draftListContainer');
-    
-    if(quill) quill.root.innerHTML = "";
-    document.getElementById('draftTitle').value = "";
-    document.getElementById('draftStatus').value = "saving";
-    
-    try {
-        await fetchAllNotesIfNeeded();
-
-        if(type === 'general') {
-            metaArea.style.display = 'none';
-            listContainer.style.display = 'none';
-            if(dateSelector) dateSelector.style.display = 'flex';
-            document.getElementById('editor-wrapper').style.display = 'flex';
-            if(quill) quill.root.dataset.placeholder = "업무 내용을 자유롭게 기록하세요...";
-            
-            loadGeneralNoteFromCache(); 
-        } 
-        else {
-            metaArea.style.display = 'none';
-            listContainer.style.display = 'block'; 
-            if(dateSelector) dateSelector.style.display = 'none'; 
-            document.getElementById('editor-wrapper').style.display = 'none';
-            
-            if(quill) quill.root.dataset.placeholder = type === 'blog' ? "블로그 원고 내용을 작성하세요..." : "유튜브 스크립트를 작성하세요...";
-            
-            renderDraftListFromCache(type); 
-        }
-    } finally {
-        document.getElementById('loader').style.display = 'none';
-    }
-}
-
-async function loadDraftContent(id) {
-    try {
-        await fetchAllNotesIfNeeded();
-        currentDraftId = id;
-        document.getElementById('draftListContainer').style.display = 'none';
-        document.getElementById('editor-wrapper').style.display = 'flex';
-        document.getElementById('draftMetadataArea').style.display = 'flex';
-        document.getElementById('noteDate').valueAsDate = new Date();
-
-        const note = cachedNotes.find(n => n.id === id);
-        if(note) {
-            quill.root.innerHTML = note.content || "";
-            document.getElementById('draftTitle').value = note.title || "";
-            document.getElementById('draftStatus').value = note.status || "saving";
-            document.getElementById('noteSaveStatus').innerText = "로드 완료";
-        }
-    } finally {
-        document.getElementById('loader').style.display = 'none';
-    }
-}
-
-function loadGeneralNoteFromCache() {
-    if (!cachedNotes) return;
-    const selectedDate = document.getElementById('noteDate').value;
-    const note = cachedNotes.find(n => n.type === 'general' && n.date === selectedDate);
-    
-    quill.root.innerHTML = note ? note.content : "";
-    document.getElementById('noteSaveStatus').innerText = "로드 완료";
-}
-
-function renderDraftListFromCache(type) {
-    const listBody = document.getElementById('draftListBody');
-    if (!cachedNotes) return;
-
-    const filtered = cachedNotes.filter(n => n.type === type);
-    listBody.innerHTML = '';
-
-    if(filtered.length > 0) {
-        filtered.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.onclick = () => loadDraftContent(item.id);
-            
-            let statusBadge = item.status === 'uploaded' 
-                ? '<span class="badge" style="background:#dcfce7; color:#166534; padding:4px 8px; border-radius:4px; font-size:11px;">업로드됨</span>' 
-                : '<span class="badge" style="background:#f1f5f9; color:#64748b; padding:4px 8px; border-radius:4px; font-size:11px;">작성중</span>';
-            
-            tr.innerHTML = `
-                <td class="text-sub">${item.date}</td>
-                <td class="text-left font-bold">${item.title}</td>
-                <td>${statusBadge}</td>
-                <td class="text-sub">${item.savedAt}</td>
-            `;
-            listBody.appendChild(tr);
-        });
-    } else {
-        listBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:60px; color:#94a3b8;"><i class="fa-regular fa-folder-open" style="font-size:30px; margin-bottom:10px;"></i><br>작성된 원고가 없습니다.<br>상단 "새 원고 작성" 버튼을 눌러 시작해보세요.</td></tr>';
-    }
-}
-
-function createNewDraft() {
-    currentDraftId = "";
-    quill.root.innerHTML = "";
-    document.getElementById('draftTitle').value = "";
-    document.getElementById('draftStatus').value = "saving";
-    document.getElementById('noteDate').valueAsDate = new Date();
-    
-    document.getElementById('draftListContainer').style.display = 'none';
-    document.getElementById('editor-wrapper').style.display = 'flex';
-    document.getElementById('draftMetadataArea').style.display = 'flex';
-}
-
-async function processBase64Images() {
-  const delta = quill.getContents();
-  const ops = delta.ops;
-  let hasBase64 = false;
-
-  for (let i = 0; i < ops.length; i++) {
-    if (ops[i].insert && ops[i].insert.image && String(ops[i].insert.image).startsWith('data:image')) {
-      hasBase64 = true;
-      break;
-    }
-  }
-
-  if (!hasBase64) return true; 
-
-  if (!confirm("붙여넣은 이미지가 감지되었습니다.\n서버로 업로드 변환 후 저장하시겠습니까?\n(이미지가 많으면 시간이 걸릴 수 있습니다.)")) {
-    return false;
-  }
-
-  const statusEl = document.getElementById('noteSaveStatus');
-  if (statusEl) statusEl.innerText = "이미지 변환 중...";
-  document.getElementById('loader').style.display = 'flex';
-
-  for (let i = 0; i < ops.length; i++) {
-    const op = ops[i];
-    if (op.insert && op.insert.image && String(op.insert.image).startsWith('data:image')) {
-      const base64Str = op.insert.image;
-      
-      try {
-        const base64Data = base64Str.split(',')[1];
-        const mimeMatch = base64Str.match(/data:image\/([a-zA-Z]+);base64/);
-        const fileType = mimeMatch ? mimeMatch[1] : 'png';
-
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'upload_image', password: authPassword, imageBase64: base64Data, fileType: fileType })
-        });
-        const json = await response.json();
-
-        if (json.status === 'success') {
-           ops[i].insert.image = json.url;
-        } else {
-           alert("이미지 변환 실패: " + json.message);
-           document.getElementById('loader').style.display = 'none';
-           return false;
-        }
-      } catch (e) {
-        console.error(e);
-        alert("이미지 업로드 중 네트워크 오류 발생");
-        document.getElementById('loader').style.display = 'none';
-        return false;
-      }
-    }
-  }
-
-  quill.setContents(delta);
-  return true;
-}
-
-async function saveNoteToServer() {
-  const isProcessed = await processBase64Images();
-  if (!isProcessed) return;
-
-  const selectedDate = document.getElementById('noteDate').value; 
-  let content = quill.root.innerHTML;
-  let title = document.getElementById('draftTitle').value;
-  let status = document.getElementById('draftStatus').value;
-  const statusEl = document.getElementById('noteSaveStatus');
-
-  if(currentNoteType !== 'general' && !title) { alert("제목을 입력해주세요."); return; }
-
-  document.getElementById('loader').style.display = 'flex'; 
-  if(statusEl) statusEl.innerText = "저장 중...";
-  
-  fetch(SCRIPT_URL, { 
-      method: 'POST', 
-      body: JSON.stringify({ 
-          action: "save_note", password: authPassword, date: selectedDate, content: content,
-          type: currentNoteType, title: title, status: status, id: currentDraftId
-      }) 
-  })
-  .then(res => res.json()).then(json => { 
-      if (json.status === "success") { 
-          alert(json.message); 
-          if(statusEl) statusEl.innerText = "저장 완료"; 
-          
-          if(currentNoteType !== 'general') {
-              currentDraftId = json.id;
-              document.getElementById('draftLastSaved').innerText = "저장됨: " + new Date().toLocaleTimeString();
-          }
-
-          if(cachedNotes) {
-              let existingIndex = cachedNotes.findIndex(n => 
-                  currentNoteType === 'general' ? (n.date === selectedDate && n.type === 'general') : n.id === currentDraftId
-              );
-              
-              let updatedNote = {
-                  date: selectedDate, content: content,
-                  savedAt: json.savedAt || new Date().toLocaleString('ko-KR'), 
-                  type: currentNoteType, title: title, status: status,
-                  id: currentNoteType !== 'general' ? json.id : ""
-              };
-
-              if (existingIndex > -1) cachedNotes[existingIndex] = updatedNote;
-              else cachedNotes.unshift(updatedNote); 
-          }
-      } else { 
-          alert("오류: " + json.message); 
-          if(statusEl) statusEl.innerText = "저장 실패"; 
-      } 
-  })
-  .catch(err => { alert("통신 오류 발생: " + err); })
-  .finally(() => { document.getElementById('loader').style.display = 'none'; });
-}
-
-function backToList() {
-    if(confirm("저장하지 않은 내용은 사라집니다. 목록으로 돌아가시겠습니까?")) {
-        setNoteTab(currentNoteType);
-    }
-}
-
-function resetNoteToOriginal() { 
-    if (confirm("최근 저장된 상태로 되돌리시겠습니까?")) { 
-        if(currentNoteType === 'general') loadGeneralNoteFromCache(); 
-        else loadDraftContent(currentDraftId); 
-    } 
-}
-
-function searchNotes() {
-    const query = document.getElementById('noteSearchInput').value.trim().toLowerCase();
-    
-    if (currentNoteType === 'general') return;
-
-    const listBody = document.getElementById('draftListBody');
-    if (!cachedNotes) return;
-
-    const filtered = cachedNotes.filter(n => {
-        if (n.type !== currentNoteType) return false;
-        if (!query) return true; 
-        
-        const titleMatch = (n.title || "").toLowerCase().includes(query);
-        const textContent = (n.content || "").replace(/<[^>]*>?/gm, '');
-        const contentMatch = textContent.toLowerCase().includes(query);
-        
-        return titleMatch || contentMatch;
-    });
-
-    listBody.innerHTML = '';
-
-    if (filtered.length > 0) {
-        filtered.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.onclick = () => loadDraftContent(item.id);
-            
-            let statusBadge = item.status === 'uploaded' 
-                ? '<span class="badge" style="background:#dcfce7; color:#166534; padding:4px 8px; border-radius:4px; font-size:11px;">업로드됨</span>' 
-                : '<span class="badge" style="background:#f1f5f9; color:#64748b; padding:4px 8px; border-radius:4px; font-size:11px;">작성중</span>';
-            
-            tr.innerHTML = `
-                <td class="text-sub">${item.date}</td>
-                <td class="text-left font-bold">${item.title}</td>
-                <td>${statusBadge}</td>
-                <td class="text-sub">${item.savedAt}</td>
-            `;
-            listBody.appendChild(tr);
-        });
-    } else {
-        listBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:60px; color:#94a3b8;">
-            <i class="fa-solid fa-magnifying-glass" style="font-size:30px; margin-bottom:10px;"></i><br>
-            '${query}'에 대한 검색 결과가 없습니다.
-        </td></tr>`;
-    }
-}
-
-
-/* ================= [Quick Memo Panel Logic] ================= */
-let quickQuill = null;
-
-// 퀵 메모 패널 열기/닫기
-async function toggleQuickMemo() {
-    const panel = document.getElementById('quickMemoPanel');
-    const aiPanel = document.getElementById('aiChatPanel');
-    const calcPanel = document.getElementById('calcPanel'); 
-    const widgetPanel = document.getElementById('widgetPanel'); // ✅ 위젯 패널 추가
-    
-    // 다른 패널이 열려있다면 닫기 (위젯 패널 포함)
-    if(aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
-    if(calcPanel && calcPanel.classList.contains('open')) calcPanel.classList.remove('open');
-    if(widgetPanel && widgetPanel.classList.contains('open')) widgetPanel.classList.remove('open');
-
-    const isOpen = panel.classList.contains('open');
-    const statusEl = document.getElementById('quickMemoStatus');
-    
-    if (!isOpen) {
-        panel.classList.add('open');
-        
-// 1. 오늘 날짜 세팅
-        const now = new Date();
-        const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-        
-        // 요일 배열 추가
-        const days = ['일', '월', '화', '수', '목', '금', '토'];
-        const dayName = days[now.getDay()];
-        
-        // formatDate 함수를 쓰지 않고, 일(Day)과 요일까지 명확하게 표시
-        document.getElementById('quickMemoDate').innerText = `${todayStr} (${dayName})`;
-        
-        // 2. 미니 에디터 초기화
-        if (!quickQuill) {
-            quickQuill = new Quill('#quickEditor', {
-                theme: 'snow',
-                placeholder: '오늘의 주요 업무나 기억할 내용을 자유롭게 메모하세요...',
-                modules: { toolbar: false } 
-            });
-        }
-        
-        // 3. 기존 노트 데이터 연동 (캐시 활용)
-        statusEl.style.color = '#94a3b8';
-        statusEl.innerText = "데이터 연동 중...";
-        
-        await fetchAllNotesIfNeeded(); // 데이터 확실히 로드
-        
-        const note = cachedNotes ? cachedNotes.find(n => n.type === 'general' && n.date === todayStr) : null;
-        
-        if (note) {
-            quickQuill.root.innerHTML = note.content;
-        } else {
-            quickQuill.root.innerHTML = "";
-        }
-        
-        statusEl.innerText = "동기화 완료";
-        setTimeout(() => { if(statusEl.innerText === "동기화 완료") statusEl.innerText = ""; }, 1500);
-        
-        quickQuill.focus();
-        
-    } else {
-        panel.classList.remove('open');
-    }
-}
-
-// 퀵 메모 저장 (메인 노트와 서버에 동시 반영)
-async function saveQuickMemo() {
-    if(!authPassword) return;
-    if(!quickQuill) return;
-
-    const content = quickQuill.root.innerHTML;
-    const now = new Date();
-    const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-    const statusEl = document.getElementById('quickMemoStatus');
-    
-    statusEl.style.color = '#f59e0b'; // 오렌지색
-    statusEl.innerText = "저장 중...";
-    
-    try {
-        const res = await fetch(SCRIPT_URL, { 
-            method: 'POST', 
-            body: JSON.stringify({ 
-                action: "save_note", 
-                password: authPassword, 
-                date: todayStr, 
-                content: content,
-                type: 'general',
-                title: '',
-                status: 'saving',
-                id: ''
-            }) 
-        }).then(r => r.json());
-        
-        if (res.status === "success") {
-            statusEl.style.color = '#10b981'; // 녹색
-            statusEl.innerText = "✅ 저장 및 연동 완료!";
-            
-            // 1. 메모리(캐시) 즉시 업데이트
-            if(cachedNotes) {
-                let existingIndex = cachedNotes.findIndex(n => n.date === todayStr && n.type === 'general');
-                let updatedNote = {
-                    date: todayStr, content: content,
-                    savedAt: res.savedAt || new Date().toLocaleString('ko-KR'), 
-                    type: 'general', title: '', status: 'saving', id: ''
-                };
-                if (existingIndex > -1) cachedNotes[existingIndex] = updatedNote;
-                else cachedNotes.unshift(updatedNote); 
-            }
-            
-            // 2. 만약 백그라운드에 '업무 노트' 화면이 열려있다면 메인 화면 에디터도 동시에 변경
-            if(currentNoteType === 'general' && document.getElementById('noteDate').value === todayStr && typeof quill !== 'undefined' && quill) {
-                quill.root.innerHTML = content;
-            }
-            
-            setTimeout(() => { statusEl.innerText = ""; }, 2000);
-        } else {
-            statusEl.style.color = '#ef4444';
-            statusEl.innerText = "저장 실패";
-        }
-    } catch (e) {
-        console.error(e);
-        statusEl.style.color = '#ef4444';
-        statusEl.innerText = "통신 오류 발생";
-    }
-}
-
-
 /* ================= [AI Chat Panel Logic] ================= */
-// 🚨 반드시 구글 AI 스튜디오에서 '키 복사' 버튼을 눌러 그대로 붙여넣어주세요! (오타 방지)
-const GEMINI_API_KEY = "AIzaSyB1cUbczaGCosRjCttpeSOS-7qwyeFvJ7A"; 
-let chatHistory = []; // 대화 문맥 기억용 배열
+let chatHistory = []; 
 
-// 텍스트 영역 이벤트 리스너 설정 (엔터키 전송 및 높이 자동 조절)
 document.addEventListener("DOMContentLoaded", () => {
     const chatInput = document.getElementById('aiChatInput');
     if(chatInput) {
@@ -1519,17 +810,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// AI 채팅 패널 열기/닫기
 function toggleAIChat() {
     const panel = document.getElementById('aiChatPanel');
     const memoPanel = document.getElementById('quickMemoPanel');
     const calcPanel = document.getElementById('calcPanel');
-    const widgetPanel = document.getElementById('widgetPanel'); // ✅ 위젯 패널 추가
+    const widgetPanel = document.getElementById('widgetPanel'); 
+    const estimatePanel = document.getElementById('estimatePanel'); 
     
-    // 다른 패널이 열려있다면 닫기 (위젯 패널 포함)
     if(memoPanel && memoPanel.classList.contains('open')) memoPanel.classList.remove('open');
     if(calcPanel && calcPanel.classList.contains('open')) calcPanel.classList.remove('open');
     if(widgetPanel && widgetPanel.classList.contains('open')) widgetPanel.classList.remove('open');
+    if(estimatePanel && estimatePanel.classList.contains('open')) estimatePanel.classList.remove('open');
 
     const isOpen = panel.classList.contains('open');
     if (!isOpen) {
@@ -1540,7 +831,6 @@ function toggleAIChat() {
     }
 }
 
-// Gemini API로 메시지 전송
 async function sendChatMessage() {
     const inputEl = document.getElementById('aiChatInput');
     const text = inputEl.value.trim();
@@ -1554,10 +844,13 @@ async function sendChatMessage() {
     showTypingIndicator();
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/gemini-chat`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: chatHistory })
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}` 
+            },
+            body: JSON.stringify({ chatHistory: chatHistory }) 
         });
         
         const data = await response.json();
@@ -1570,22 +863,21 @@ async function sendChatMessage() {
         } 
         else if (data.error) {
             console.error("Gemini API Error:", data.error);
-            appendChatMessage('model', `🚨 API 오류: ${data.error.message}`);
+            appendChatMessage('model', `🚨 API 오류: ${data.error.message || '서버 응답 오류'}`);
             chatHistory.pop(); 
         } 
         else {
-            appendChatMessage('model', '응답을 생성하지 못했습니다.');
+            appendChatMessage('model', `🛠️ 디버그 모드 (서버 응답): ${JSON.stringify(data)}`);
             chatHistory.pop();
         }
     } catch(error) {
         console.error("Fetch Error:", error);
         hideTypingIndicator();
-        appendChatMessage('model', '⚠️ 네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.');
+        appendChatMessage('model', '⚠️ 백엔드 통신 오류가 발생했습니다. 서버 상태를 확인해주세요.');
         chatHistory.pop();
     }
 }
 
-// 메시지 말풍선 추가 함수
 function appendChatMessage(role, text) {
     const container = document.getElementById('chatMessages');
     const msgDiv = document.createElement('div');
@@ -1594,28 +886,16 @@ function appendChatMessage(role, text) {
     const formattedText = text.replace(/\n/g, '<br>').replace(/\*\*/g, '');
     const avatarIcon = role === 'user' ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-robot"></i>';
     
-    msgDiv.innerHTML = `
-        <div class="chat-avatar">${avatarIcon}</div>
-        <div class="chat-bubble">${formattedText}</div>
-    `;
-    
+    msgDiv.innerHTML = `<div class="chat-avatar">${avatarIcon}</div><div class="chat-bubble">${formattedText}</div>`;
     container.appendChild(msgDiv);
     scrollToBottom(container);
 }
 
-// 타이핑 애니메이션
 function showTypingIndicator() {
     const container = document.getElementById('chatMessages');
     const typingDiv = document.createElement('div');
     typingDiv.className = 'chat-message ai typing-indicator-msg';
-    typingDiv.innerHTML = `
-        <div class="chat-avatar"><i class="fa-solid fa-robot"></i></div>
-        <div class="chat-bubble">
-            <div class="typing-indicator">
-                <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
-            </div>
-        </div>
-    `;
+    typingDiv.innerHTML = `<div class="chat-avatar"><i class="fa-solid fa-robot"></i></div><div class="chat-bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
     container.appendChild(typingDiv);
     scrollToBottom(container);
 }
