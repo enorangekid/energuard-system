@@ -12,81 +12,124 @@ var currentEditRowIndex = -1;
 var salesChartFin = null; // 재무 차트
 var salesChartTraff = null; // 트래픽 차트
 
-// 데이터 인덱스 상수 (N열에 세부 카테고리 추가)
-const IDX_CODE = 0; 
-const IDX_NAME = 1; 
-const IDX_PRICE = 2; 
-const IDX_CATEGORY = 3; 
-const IDX_KEYWORD = 4; 
-const IDX_REMARK = 10; 
-const IDX_CHECK = 11; 
-const IDX_IMAGE = 12; 
-const IDX_DETAIL_CAT = 13; 
+// [NEW] 순위 관리용 날짜 변수
+let currentRankYear = new Date().getFullYear();
+let currentRankMonth = new Date().getMonth() + 1;
 
-// 키워드 정렬 순서
-var CUSTOM_KEYWORD_ORDER = [
-  // 아이소핑크 탭
-  "아이소핑크", "압축스티로폼",
-  // 스티로폼 탭
-  "스티로폼", "스티로폼단열재",
-  // 열반사단열재 탭
-  "열반사단열재", "캠핑단열재", "은박매트", "길고양이겨울집", "창문방풍", "에어컨커버",
-  // 단열벽지 탭
-  "단열벽지",
-  // 기타 탭 - 알려주신 순서대로
-  "바닥단열재", "전기난방필름", "우레탄뿜칠", "열선커터기",
-  "우레탄폼건", "창문열차단", "창문햇빛가리개", "에어컨가림막", "어싱매트",
-  // 기타 나머지
-  "창문단열재"
-];
-var KEYWORD_PRIORITY_MAP = {};
-CUSTOM_KEYWORD_ORDER.forEach((k, i) => KEYWORD_PRIORITY_MAP[k] = i);
+// ✅ IDX_*, KEYWORD_PRIORITY_MAP, TAB_MAIN_KEYWORD 는 config.js에서 전역 선언됨
+// (중복 선언 제거 — config.js 참고)
 
-// ✅ 탭별 대표 키워드 - 각 탭에서 메인으로 표시될 키워드
-var TAB_MAIN_KEYWORD = {
-  '아이소핑크':    '아이소핑크',
-  '스티로폼':      '스티로폼',
-  '열반사단열재':  '열반사단열재',
-  '단열벽지':      '단열벽지',
-  '기타':          null  // 기타는 대표 키워드 없음, CUSTOM_KEYWORD_ORDER 순서 따름
-};
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', () => {
+    // 랭킹 월 선택기 초기화
+    const picker = document.getElementById('rankingMonthPicker');
+    if(picker) {
+        const y = new Date().getFullYear();
+        const m = String(new Date().getMonth() + 1).padStart(2, '0');
+        picker.value = `${y}-${m}`;
+    }
 
-/* ================= [1. Ranking Functions] ================= */
+    // TOP5 데이터는 확장프로그램에서 DB에 직접 저장됩니다.
+});
 
-// 🚀 [Supabase 엔진 교체] 검색 순위 불러오기
+/* ================= [1. Ranking Functions (Updated)] ================= */
+
+// [NEW] 월 변경 시 호출되는 함수
+window.changeRankingMonth = function() {
+    const picker = document.getElementById('rankingMonthPicker');
+    if(!picker || !picker.value) return;
+    
+    const parts = picker.value.split('-');
+    currentRankYear = parseInt(parts[0]);
+    currentRankMonth = parseInt(parts[1]);
+    
+    // 변경된 월의 데이터 로드
+    loadRankingData();
+}
+
+// 🚀 [Updated] 검색 순위 불러오기 (히스토리 + 비교 로직 포함)
 window.loadRankingData = async function() {
     if (!supabaseClient) return;
     document.getElementById('loader').style.display = 'flex';
+
     try {
-        const { data, error } = await supabaseClient.from('product_rankings').select('*');
-        if (error) throw error;
-        
-        products = data.map(item => {
-            let row = new Array(14).fill("");
-            row[IDX_CODE] = item.code || ""; row[IDX_NAME] = item.name || "";
-            row[IDX_PRICE] = item.price || 0; row[IDX_CATEGORY] = item.category_tab || ""; 
-            row[IDX_KEYWORD] = item.keyword || "";
-            row[5] = item.rank_w1 !== null ? item.rank_w1 : ""; row[6] = item.rank_w2 !== null ? item.rank_w2 : "";
-            row[7] = item.rank_w3 !== null ? item.rank_w3 : ""; row[8] = item.rank_w4 !== null ? item.rank_w4 : "";
-            row[9] = item.rank_w5 !== null ? item.rank_w5 : "";
-            row[IDX_REMARK] = typeof item.remark === 'string' ? item.remark : JSON.stringify(item.remark || []);
-            row[IDX_CHECK] = item.is_checked === true || item.is_checked === "TRUE";
-            row[IDX_IMAGE] = item.image_url || ""; row[IDX_DETAIL_CAT] = item.detail_category || "";
+        // 1. 현재 월 기록 조회
+        const { data: currentHistory, error: currErr } = await supabaseClient
+            .from('ranking_history')
+            .select('*')
+            .eq('year', currentRankYear)
+            .eq('month', currentRankMonth);
+
+        if (currErr) throw currErr;
+
+        // 2. 지난달 계산
+        let prevYear = currentRankYear;
+        let prevMonth = currentRankMonth - 1;
+        if (prevMonth === 0) { prevMonth = 12; prevYear--; }
+
+        // 3. ★ 중요: 지난달 데이터를 모든 주차(w1~w5)와 keyword를 포함하여 조회
+        const { data: prevHistory, error: prevErr } = await supabaseClient
+            .from('ranking_history')
+            .select('product_code, keyword, rank_w1, rank_w2, rank_w3, rank_w4, rank_w5')
+            .eq('year', prevYear)
+            .eq('month', prevMonth);
+
+        // 4. 지난달의 '가장 마지막으로 기록된 순위'를 매핑
+        const prevMap = {};
+        if (prevHistory) {
+            prevHistory.forEach(p => {
+                // 5주차부터 1주차까지 역순으로 검사하여 데이터가 있는 가장 최근 주차를 찾음
+                let lastRank = p.rank_w5 || p.rank_w4 || p.rank_w3 || p.rank_w2 || p.rank_w1 || null;
+                prevMap[String(p.product_code) + '_' + String(p.keyword || '')] = lastRank;
+            });
+        }
+
+        // 5. 상품 마스터 정보 조회
+        const { data: masterData, error: masterErr } = await supabaseClient
+            .from('product_rankings')
+            .select('*');
+        if (masterErr) throw masterErr;
+
+        // 6. 데이터 병합 (마스터 + 현재월 히스토리 + 전월 마지막 순위)
+        products = masterData.map(m => {
+            const history = currentHistory.find(h => String(h.product_code) === String(m.code) && String(h.keyword) === String(m.keyword)) || {};
+            const lastMonthRank = prevMap[String(m.code) + '_' + String(m.keyword || '')]; 
+
+            // [수정 포인트 1] 배열 크기를 15로 설정 (index 14를 지난달 순위 저장용으로 사용)
+            let row = new Array(17).fill("");
+            
+            row[IDX_CODE] = m.code; row[IDX_NAME] = m.name; row[IDX_PRICE] = m.price; 
+            row[IDX_CATEGORY] = m.category_tab; row[IDX_KEYWORD] = m.keyword;
+            row[5] = history.rank_w1 || ""; row[6] = history.rank_w2 || "";
+            row[7] = history.rank_w3 || ""; row[8] = history.rank_w4 || "";
+            row[9] = history.rank_w5 || "";
+            row[IDX_REMARK] = m.memo || "[]";
+            row[IDX_CHECK] = m.is_checked === true;
+            row[IDX_IMAGE] = m.image_url;
+            row[IDX_DETAIL_CAT] = m.detail_category;
+            row[IDX_TYPE] = m.product_type || 'mine';
+            row[IDX_COMPANY] = m.company_name || '';
+
+            // [수정 포인트 2] 지난달 마지막 순위를 14번 인덱스에 저장 (JSON 직렬화 시 보존됨)
+            row[14] = lastMonthRank; 
+            
             return row;
         });
+
         originalProducts = JSON.parse(JSON.stringify(products));
         renderRanking();
+
     } catch (e) {
         console.error("랭킹 데이터 로드 오류:", e);
-        alert("순위 데이터 로드 중 오류 발생");
     } finally {
         document.getElementById('loader').style.display = 'none';
     }
 };
 
 function renderRanking() {
-  var tbody = document.getElementById('list');
-  if(!tbody) return;
+  var tbodyMine = document.getElementById('list-mine');
+  var tbodyWatch = document.getElementById('list-watch');
+  if(!tbodyMine || !tbodyWatch) return;
 
   var groups = {};
   products.forEach((p, idx) => {
@@ -97,12 +140,11 @@ function renderRanking() {
   });
 
   if(Object.keys(groups).length === 0) { 
-      tbody.innerHTML = `<tr><td colspan="14" style="padding:40px; color:#999;">'${currentTab}' 데이터가 없습니다.</td></tr>`; 
+      tbodyMine.innerHTML = `<tr><td colspan="14" style="padding:40px; color:#999;">'${currentTab}' 데이터가 없습니다.</td></tr>`;
+      tbodyWatch.innerHTML = '';
       return; 
   }
 
-  // ✅ 각 그룹에서 메인 행 인덱스 반환
-  // 탭 대표 키워드가 있으면 그 키워드 행이 메인, 없으면 KEYWORD_PRIORITY_MAP 순서
   function getMainIdx(items) {
     var tabMain = TAB_MAIN_KEYWORD[currentTab];
     if (tabMain) {
@@ -110,7 +152,6 @@ function renderRanking() {
         if (String(items[i].data[IDX_KEYWORD] || '').trim() === tabMain) return i;
       }
     }
-    // 탭 대표 키워드가 없거나 매칭 안되면 KEYWORD_PRIORITY_MAP 순서
     var bestIdx = 0, bestPriority = 9999;
     items.forEach(function(item, i) {
       var key = String(item.data[IDX_KEYWORD] || '').trim();
@@ -130,7 +171,6 @@ function renderRanking() {
     return { code: code, items: groups[code] };
   });
 
-  // ✅ 실제 메인 행 기준으로 정렬
   groupArray.sort(function(a, b) {
     var mainA = a.items[getMainIdx(a.items)].data;
     var mainB = b.items[getMainIdx(b.items)].data;
@@ -147,46 +187,100 @@ function renderRanking() {
     return String(mainA[IDX_NAME]).localeCompare(String(mainB[IDX_NAME]));
   });
 
-  var htmlBuffer = [];
-  groupArray.forEach(function(group) {
-    var items = group.items;
+  // 내 상품 / 관찰 상품 분리
+  var mineGroups = groupArray.filter(g => (g.items[0].data[IDX_TYPE] || 'mine') === 'mine');
+  var watchGroups = groupArray.filter(g => (g.items[0].data[IDX_TYPE] || 'mine') === 'watch');
 
-    // ✅ 우선순위 높은 키워드 행을 메인으로, 나머지는 서브로
-    var mainIdx = getMainIdx(items);
-    var reordered = [items[mainIdx]].concat(items.filter(function(_, i) { return i !== mainIdx; }));
-    var main = reordered[0];
-    var hasSub = reordered.length > 1;
-    var btnHtml = hasSub ? `<span class="toggle-btn" onclick="toggleSub('${group.code}')">+</span>` : '';
-
-    htmlBuffer.push(createRowHtml(main.data, main.orgIdx, 'main-row', btnHtml, group.code, false));
-    if (hasSub) {
-      for (var i = 1; i < reordered.length; i++) {
-        var sub = reordered[i];
-        htmlBuffer.push(createRowHtml(sub.data, sub.orgIdx, `sub-row sub-${group.code}`, '', group.code, true));
+  function buildGroupRows(groups) {
+    var buf = [];
+    groups.forEach(function(group) {
+      var items = group.items;
+      var mainIdx = getMainIdx(items);
+      var reordered = [items[mainIdx]].concat(items.filter(function(_, i) { return i !== mainIdx; }));
+      var main = reordered[0];
+      var hasSub = reordered.length > 1;
+      var btnHtml = hasSub ? `<span class="toggle-btn" onclick="toggleSub('${group.code}')">+</span>` : '';
+      buf.push(createRowHtml(main.data, main.orgIdx, 'main-row', btnHtml, group.code, false));
+      if (hasSub) {
+        for (var i = 1; i < reordered.length; i++) {
+          var sub = reordered[i];
+          buf.push(createRowHtml(sub.data, sub.orgIdx, `sub-row sub-${group.code}`, '', group.code, true));
+        }
       }
-    }
-  });
-  tbody.innerHTML = htmlBuffer.join('');
+    });
+    return buf;
+  }
+
+  // ── 내 상품 tbody 채우기 ──
+  var mineRows = buildGroupRows(mineGroups);
+  var mineSectionRow = '<tr class="rk-section-row rk-mine-row"><td colspan="14">' +
+    '내 상품 <span class="rk-section-count">' + mineGroups.length + '개</span></td></tr>';
+  tbodyMine.innerHTML = mineSectionRow + (mineRows.length > 0 ? mineRows.join('')
+    : '<tr><td colspan="14" style="padding:20px; color:#999; text-align:center;">내 상품이 없습니다.</td></tr>');
+
+  // ── 관찰 상품 tbody 채우기 ──
+  var watchRows = buildGroupRows(watchGroups);
+  if (watchRows.length > 0) {
+    var watchSectionRow = '<tr class="rk-section-row rk-watch-row"><td colspan="14">' +
+      '관찰 상품 <span class="rk-section-count">' + watchGroups.length + '개</span></td></tr>';
+    tbodyWatch.innerHTML = watchSectionRow + watchRows.join('');
+    tbodyWatch.style.display = '';
+  } else {
+    tbodyWatch.innerHTML = '';
+    tbodyWatch.style.display = 'none';
+  }
+  // watchSection은 더미로만 사용
+  var watchSection = document.getElementById('watchSection');
+  if (watchSection) watchSection.style.display = 'none';
   
   if(isAdmin) { document.querySelectorAll('.admin-col').forEach(el => el.style.display = ''); } 
   else { document.querySelectorAll('.admin-col').forEach(el => el.style.display = 'none'); }
 }
 
+// [Updated] 비교 로직 개선 (1주차 vs 전월 마지막 주차)
 function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
-  var ranks = [p[5], p[6], p[7], p[8], p[9]];
+  var isWatch = (p[IDX_TYPE] || 'mine') === 'watch';
+  if (isWatch) className += ' watch-row';
+  var ranks = [p[5], p[6], p[7], p[8], p[9]]; // index 5~9 maps to rank_w1~w5
   var diffHtml = '<span class="dash">-</span>';
-  var lastIdx = -1;
-  for(let i=4; i>=0; i--) { if(ranks[i] !== "" && ranks[i] != null) { lastIdx = i; break; } }
   
-  if(lastIdx > 0 && ranks[lastIdx-1]) { 
-      var d = ranks[lastIdx-1] - ranks[lastIdx]; 
-      diffHtml = d > 0 ? `<span class="up">▲${d}</span>` : (d < 0 ? `<span class="down">▼${Math.abs(d)}</span>` : '<span class="dash">-</span>'); 
+  var currentVal = null;
+  var prevVal = null;
+
+  // 가장 최신 데이터 찾기 (뒤에서부터)
+  for(let i=4; i>=0; i--) { 
+      if(ranks[i] !== "" && ranks[i] != null) { 
+          currentVal = Number(ranks[i]);
+          
+          if (i > 0 && ranks[i-1]) {
+               // 같은 달 내 전주 비교
+              prevVal = Number(ranks[i-1]);
+          } else if (i === 0) {
+              // ★ 1주차인 경우 -> 지난달 데이터(index 14)와 비교
+              // [수정 포인트 3] 14번 인덱스에 저장된 지난달 마지막 순위를 참조
+              if (p[14] !== "" && p[14] != null) {
+                  prevVal = Number(p[14]);
+              }
+          }
+          break; 
+      } 
+  }
+
+  // 변동폭 계산 및 HTML 생성
+  if (currentVal !== null && prevVal !== null) {
+      var d = prevVal - currentVal; // (과거 - 현재)가 양수면 순위 상승
+      if (d > 0) diffHtml = `<span class="up">▲${d}</span>`;
+      else if (d < 0) diffHtml = `<span class="down">▼${Math.abs(d)}</span>`;
+      else diffHtml = `<span class="dash">-</span>`;
   }
 
   var weekCells = '';
   for(var i=5; i<=9; i++) {
       var val = p[i] ? p[i] : ''; 
-      var hl = (i === (lastIdx + 5)) ? 'latest-rank' : '';
+      var hl = '';
+      // 마지막 입력된 값이면 하이라이트
+      if (currentVal && val == currentVal) hl = 'latest-rank';
+
       if(isAdmin) { weekCells += `<td class="${hl}"><input type="text" inputmode="numeric" class="rank-input" value="${val}" onchange="updateData(${realIndex}, ${i}, this.value)"></td>`; } 
       else { weekCells += `<td class="${hl}">${val}</td>`; }
   }
@@ -198,17 +292,29 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
   else {
       if(memoList.length > 0) {
           var sortedList = [...memoList].reverse();
-          var popupHtml = `<ul class="popup-list">`;
-          sortedList.forEach(m => { 
-              var txtClass = m.text.includes("[시스템]") ? "sys-log" : ""; 
-              popupHtml += `<li class="popup-item"><span class="popup-date">${m.date}</span><span class="${txtClass}">${m.text}</span></li>`; 
+          var popupHtml = '';
+          sortedList.forEach((m, i) => { 
+              var txtClass = m.text.includes("[시스템]") ? "sys-log" : "";
+              var border = i < sortedList.length - 1 ? 'border-bottom:1px solid #555;' : '';
+              var dateStr = m.date ? `<div style="font-size:10px;color:#f59e0b;font-weight:600;margin-bottom:4px;">${m.date}</div>` : '';
+              popupHtml += `<div style="padding:7px 0;${border}">${dateStr}<div style="font-size:12px;color:#f1f5f9;line-height:1.6;word-break:break-all;">${m.text}</div></div>`; 
           });
-          popupHtml += `</ul>`;
           remarkCell = `<td><div class="memo-container"><span class="memo-badge">📝 ${memoList.length}</span><div class="memo-popup">${popupHtml}</div></div></td>`;
       } else { remarkCell = `<td></td>`; }
   }
 
-  var linkUrl = `https://smartstore.naver.com/hkdy/products/${p[IDX_CODE]}`;
+  // ✅ 관찰 상품: 업체명으로 스토어 ID를 찾아 스마트스토어 상품 URL 생성
+  //    매핑에 없는 업체는 키워드 검색 URL로 fallback
+  var linkUrl;
+  if (isWatch) {
+    const companyName = p[IDX_COMPANY] ? String(p[IDX_COMPANY]).trim() : '';
+    const storeId = COMPETITOR_STORE_MAP[companyName];
+    linkUrl = storeId
+      ? `https://smartstore.naver.com/${storeId}/products/${p[IDX_CODE]}`
+      : `https://search.shopping.naver.com/search/all?query=${encodeURIComponent(p[IDX_KEYWORD])}`;
+  } else {
+    linkUrl = `https://smartstore.naver.com/hkdy/products/${p[IDX_CODE]}`;
+  }
   var isChecked = (p[IDX_CHECK] === true || p[IDX_CHECK] === "TRUE" || p[IDX_CHECK] === "true");
   var checkInput = isAdmin ? `<input type="checkbox" class="check-input" ${isChecked ? 'checked' : ''} onchange="updateData(${realIndex}, ${IDX_CHECK}, this.checked)">` : '';
 
@@ -238,12 +344,17 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
   if (isAdmin) {
       codeDisplay = `<input type="text" class="admin-input" value="${p[IDX_CODE]}" onchange="updateProductCode(${realIndex}, this.value)" placeholder="코드">`;
       var safeName = String(p[IDX_NAME] || "").replace(/"/g, '&quot;');
+      var companyStr = p[IDX_COMPANY] ? String(p[IDX_COMPANY]) : "";
+      var companyField = isWatch
+        ? `<input type="text" class="admin-input admin-input-left" value="${companyStr}" onchange="updateData(${realIndex}, ${IDX_COMPANY}, this.value)" placeholder="업체명" style="color:#64748b;">`
+        : '';
       nameHtml = `
           <div style="display:flex; align-items:center; gap:8px; height:100%;">
               <div>${checkInput}</div>
               <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:4px; min-width:0;">
                   <input type="text" class="admin-input admin-input-left" value="${safeName}" onchange="updateData(${realIndex}, ${IDX_NAME}, this.value)" placeholder="상품명">
-                  <input type="text" class="admin-input admin-input-left" value="${detailCatStr}" onchange="updateData(${realIndex}, ${IDX_DETAIL_CAT}, this.value)" placeholder="상품 카테고리 (N열)" style="color:#64748b; font-weight:normal; border-color:#cbd5e1; background:#f8fafc;">
+                  <input type="text" class="admin-input admin-input-left" value="${detailCatStr}" onchange="updateData(${realIndex}, ${IDX_DETAIL_CAT}, this.value)" placeholder="상품 카테고리" style="color:#64748b; font-weight:normal; border-color:#cbd5e1; background:#f8fafc;">
+                  ${companyField}
               </div>
           </div>`;
       priceDisplay = `<input type="number" class="admin-input" value="${p[IDX_PRICE]}" onchange="updateData(${realIndex}, ${IDX_PRICE}, this.value)" placeholder="가격">`;
@@ -253,11 +364,17 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
       if (!isSub) { keywordContent = `<div>${keywordInput}</div>`; } 
       else { keywordContent = `<div style="padding-left:15px;">ㄴ ${keywordInput}</div>`; }
       
-      deleteCell = `<td><button class="del-btn" onclick="deleteProductRow(${realIndex})">삭제</button></td>`;
+      if (!isSub) {
+        deleteCell = `<td style="padding:4px;vertical-align:middle;text-align:center;"><div style="display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center;"><button class="del-btn" onclick="deleteProductRow(${realIndex})">삭제</button><button class="del-btn" style="background:#0ea5e9;" onclick="addSubKeyword(${realIndex})">보조+</button></div></td>`;
+      } else {
+        deleteCell = `<td><button class="del-btn" onclick="deleteProductRow(${realIndex})">삭제</button></td>`;
+      }
   } else {
       codeDisplay = isSub ? '' : `<a href="${linkUrl}" target="_blank" class="prod-link"><span class="prod-no">${p[IDX_CODE]}</span></a>`;
       var nameClass = isChecked ? 'danger-bg' : '';
       var catHtml = detailCatStr ? `<div style="font-size:12px; color:#64748b; margin-top:3px; font-weight:500;">${detailCatStr}</div>` : '';
+      var companyName = p[IDX_COMPANY] ? String(p[IDX_COMPANY]) : '';
+      var companyBadge = (isWatch && companyName) ? `<div style="font-size:11px; color:#64748b; border-radius:4px; padding:2px 6px; margin-top:3px; font-weight:500; display:inline-block;">${companyName}</div>` : '';
       var baseNameHtml = `<span class="prod-name ${nameClass}" title="${p[IDX_NAME]}">${p[IDX_NAME]}</span>`;
       
       if (!isSub) { 
@@ -267,6 +384,7 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
               <div style="flex:1; display:flex; flex-direction:column; justify-content:center; text-align:left; min-width:0;">
                   <a href="${linkUrl}" target="_blank" class="prod-link" style="display:inline-block;">${baseNameHtml}</a>
                   ${catHtml}
+                  ${companyBadge}
               </div>
           </div>`; 
       } else {
@@ -276,6 +394,7 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
               <div style="flex:1; display:flex; flex-direction:column; justify-content:center; text-align:left; min-width:0;">
                   ${baseNameHtml}
                   ${catHtml}
+                  ${companyBadge}
               </div>
           </div>`;
       }
@@ -284,7 +403,7 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
       var keywordSearchUrl = `https://search.shopping.naver.com/search/all?query=${encodeURIComponent(keywordRaw)}&vertical=search`;
       var keywordHtml = `<a href="${keywordSearchUrl}" target="_blank" class="keyword-link">${keywordRaw}</a>`;
       keywordContent = isSub ? `ㄴ ${keywordHtml}` : keywordHtml;
-      deleteCell = ``;
+      deleteCell = `<td class="admin-col" style="display:none;"></td>`;
   }
 
   var keywordClass = isSub ? 'sub-keyword' : 'keyword';
@@ -303,29 +422,58 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
           </tr>`;
 }
 
-// 네이버 이미지만 예외적으로 기존 스크랩핑 봇(GAS) 유지
 function fetchProductImage(realIndex, productId) {
-    if(!productId || productId.startsWith("NEW_")) { alert("유효한 상품 번호가 아닙니다."); return; }
+    if(!productId || productId.startsWith('NEW_')) { showToast('유효한 상품 번호가 아닙니다.', 'warning'); return; }
     var btn = event.target;
-    btn.innerText = "로딩중...";
+    var originalText = btn.innerText;
+    btn.innerText = '로딩중...';
+    btn.disabled = true;
 
-    fetch(SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: "get_naver_image", productId: productId, password: authPassword })
-    })
-    .then(res => res.json())
-    .then(json => {
-        if(json.status === "success") {
-            products[realIndex][IDX_IMAGE] = json.imageUrl;
+    var keyword = products[realIndex][IDX_KEYWORD] || '';
+    var reqId = 'img_' + Date.now();
+
+    // 결과 수신 리스너
+    function onMessage(e) {
+        if (!e.data || e.data.type !== 'FETCH_NAVER_IMAGE_RESULT') return;
+        if (e.data.reqId !== reqId) return;
+        window.removeEventListener('message', onMessage);
+
+        btn.innerText = originalText;
+        btn.disabled = false;
+
+        var response = e.data.response;
+        if (response && response.success && response.imageUrl) {
+            products[realIndex][IDX_IMAGE] = response.imageUrl;
             renderRanking();
         } else {
-            alert("이미지 가져오기 실패: " + json.message);
-            btn.innerText = "재시도";
+            showToast('이미지 가져오기 실패: ' + (response && response.message || '확장프로그램이 설치/활성화 상태인지 확인해주세요.'), 'error');
         }
-    })
-    .catch(err => { console.error(err); alert("서버 통신 오류"); btn.innerText = "오류"; });
-}
+    }
+    window.addEventListener('message', onMessage);
 
+    // 확장프로그램(app_bridge.js)으로 요청 전송
+    var productType = products[realIndex][IDX_TYPE] || 'mine';
+    window.postMessage({
+        type: 'FETCH_NAVER_IMAGE',
+        reqId: reqId,
+        productId: productId,
+        productCode: productId,
+        productType: productType,
+        keyword: keyword,
+        supabaseUrl: SUPABASE_URL,
+        supabaseKey: SUPABASE_ANON_KEY
+    }, '*');
+
+    // 30초 타임아웃
+    setTimeout(function() {
+        window.removeEventListener('message', onMessage);
+        if (btn.innerText === '로딩중...') {
+            btn.innerText = originalText;
+            btn.disabled = false;
+            showToast('시간 초과. 확장프로그램이 설치/활성화 상태인지 확인해주세요.', 'error');
+        }
+    }, 30000);
+}
 function updateProductCode(realIndex, val) {
     products[realIndex][IDX_CODE] = val;
     if(confirm("상품번호가 변경되었습니다. 이미지를 자동으로 가져올까요?")) { fetchProductImage(realIndex, val); }
@@ -355,7 +503,7 @@ function setTab(t) {
   currentTab = t; 
   var master = document.getElementById('masterCheck');
   if(master) master.checked = false;
-  document.querySelectorAll('#page-ranking .tab').forEach(b => b.classList.toggle('active', b.innerText == t)); 
+  document.querySelectorAll('#page-ranking .tab, #page-ranking .rk-tab').forEach(b => b.classList.toggle('active', b.innerText.trim() == t)); 
   renderRanking(); 
 }
 
@@ -376,14 +524,47 @@ function toggleAllChecks(checked) {
   renderRanking();
 }
 
-function addEmptyRow() {
-  if(!isAdmin) { alert("편집 모드에서만 추가할 수 있습니다."); return; }
+function addEmptyRow(type = 'mine') {
+  if(!isAdmin) { showToast('편집 모드에서만 추가할 수 있습니다.', 'warning'); return; }
   var tempCode = "NEW_" + Date.now();
-  var newRow = [ tempCode, "", "", currentTab, "", "", "", "", "", "", "[]", false, "", "" ];
+  // 16열짜리 배열로 생성 (15: 전월순위, 16: product_type)
+  var newRow = [ tempCode, "", "", currentTab, "", "", "", "", "", "", "[]", false, "", "", null, type, "" ];
   products.push(newRow);
-  alert("새 상품(메인) 행이 추가되었습니다. 맨 아래를 확인하세요.");
+  var label = type === 'watch' ? '관찰 상품' : '내 상품';
+  showToast(label + ' 행이 추가되었습니다. 저장 후 반영됩니다.', 'success');
   renderRanking();
   setTimeout(() => { document.querySelector('.ranking-scroll-wrapper').scrollTop = document.querySelector('.ranking-scroll-wrapper').scrollHeight; }, 100);
+}
+
+function addSubKeyword(mainRealIndex) {
+  if(!isAdmin) { showToast('편집 모드에서만 추가할 수 있습니다.', 'warning'); return; }
+  var mainRow = products[mainRealIndex];
+  // \uba54\uc778 \ud589 \uc815\ubcf4 \ubcf5\uc0ac (\ucf54\ub4dc, \uc774\ub984, \uac00\uaca9, \ud0ed \ub3d9\uc77c)
+  var newRow = new Array(15).fill("");
+  newRow[IDX_CODE]     = mainRow[IDX_CODE];
+  newRow[IDX_NAME]     = mainRow[IDX_NAME];
+  newRow[IDX_PRICE]    = mainRow[IDX_PRICE];
+  newRow[IDX_CATEGORY] = mainRow[IDX_CATEGORY];
+  newRow[IDX_KEYWORD]  = "";  // \ube48 \ud0a4\uc6cc\ub4dc - \uc0ac\uc6a9\uc790\uac00 \uc785\ub825
+  newRow[IDX_REMARK]   = "[]";
+  newRow[IDX_CHECK]    = false;
+  newRow[IDX_IMAGE]    = mainRow[IDX_IMAGE];
+  newRow[IDX_DETAIL_CAT] = mainRow[IDX_DETAIL_CAT];
+  newRow[IDX_TYPE]       = mainRow[IDX_TYPE] || 'mine';
+  newRow[IDX_COMPANY]    = mainRow[IDX_COMPANY] || '';
+  // 메인 행 바로 다음 위치에 삽입 (\uac19\uc740 code \uadf8\ub8f9\uc73c\ub85c \ubb36\uc774\uae30 \uc704\ud568)
+  products.splice(mainRealIndex + 1, 0, newRow);
+  renderRanking();
+  // \uc0c8\ub85c \uc0bd\uc785\ub41c \ud589\uc758 \ud0a4\uc6cc\ub4dc \uc785\ub825\uc5d0 \ud3ec\ucee4\uc2a4
+  setTimeout(() => {
+    var allInputs = document.querySelectorAll('.admin-input-key');
+    // mainRealIndex+1 \uc704\uce58\uc758 input \ucc3e\uae30
+    var rows = document.querySelectorAll('#list tr');
+    if(rows[mainRealIndex + 1]) {
+      var inp = rows[mainRealIndex + 1].querySelector('.admin-input-key');
+      if(inp) inp.focus();
+    }
+  }, 100);
 }
 
 function deleteProductRow(realIndex) {
@@ -391,53 +572,88 @@ function deleteProductRow(realIndex) {
   products.splice(realIndex, 1); renderRanking();
 }
 
-// 🚀 [Supabase 엔진 교체] 검색 순위 일괄 저장
+// 🚀 [Updated] 검색 순위 저장 (히스토리 + 마스터 데이터 동시 저장)
 window.saveData = async function() {
-    var btn = document.getElementById('saveBtn'); var originalText = btn.innerText;
-    if (!products || products.length === 0) { alert("⚠️ 저장할 데이터가 없습니다!"); return; }
+    if (!products || products.length === 0) { showToast('저장할 데이터가 없습니다.', 'warning'); return; }
     if (!supabaseClient) return;
-    
-    btn.disabled = true; btn.innerText = "저장 중..."; document.getElementById('loader').style.display = 'flex';
+
+    if (!confirm(`${currentRankYear}년 ${currentRankMonth}월 순위 데이터를 저장하시겠습니까?`)) return;
+
+    var btn = document.getElementById('saveBtn'); 
+    var originalText = btn.innerText;
+    btn.disabled = true; 
+    btn.innerText = "저장 중..."; 
+    document.getElementById('loader').style.display = 'flex';
     
     try {
-        await supabaseClient.from('product_rankings').delete().neq('code', 'DUMMY_DATA');
-        
-        const insertData = products.map(row => ({
-            code: row[IDX_CODE] || "", name: row[IDX_NAME] || "",
-            price: Number(row[IDX_PRICE]) || 0, category_tab: row[IDX_CATEGORY] || "",
-            keyword: row[IDX_KEYWORD] || "",
-            rank_w1: row[5] !== "" ? Number(row[5]) : null, rank_w2: row[6] !== "" ? Number(row[6]) : null,
-            rank_w3: row[7] !== "" ? Number(row[7]) : null, rank_w4: row[8] !== "" ? Number(row[8]) : null,
+        // 1. 순위 히스토리 데이터 준비 (ranking_history)
+        const historyRows = products.map(row => ({
+            year: currentRankYear,
+            month: currentRankMonth,
+            product_code: row[IDX_CODE],
+            keyword: row[IDX_KEYWORD],
+            product_name: row[IDX_NAME],
+            rank_w1: row[5] !== "" ? Number(row[5]) : null, 
+            rank_w2: row[6] !== "" ? Number(row[6]) : null,
+            rank_w3: row[7] !== "" ? Number(row[7]) : null, 
+            rank_w4: row[8] !== "" ? Number(row[8]) : null,
             rank_w5: row[9] !== "" ? Number(row[9]) : null,
-            remark: row[IDX_REMARK] ? JSON.parse(row[IDX_REMARK]) : [],
-            is_checked: String(row[IDX_CHECK]).toUpperCase() === "TRUE",
-            image_url: row[IDX_IMAGE] || "", detail_category: row[IDX_DETAIL_CAT] || ""
+            memo: row[IDX_REMARK] ? row[IDX_REMARK] : "[]"
         }));
+
+        // 2. 마스터 데이터 준비 (product_rankings - 상품 기본 정보 업데이트)
+        const masterRows = products.map(row => ({
+            code: row[IDX_CODE],
+            name: row[IDX_NAME],
+            price: Number(row[IDX_PRICE]),
+            category_tab: row[IDX_CATEGORY],
+            keyword: row[IDX_KEYWORD],
+            is_checked: String(row[IDX_CHECK]).toUpperCase() === "TRUE",
+            memo: row[IDX_REMARK] ? row[IDX_REMARK] : "[]",
+            image_url: row[IDX_IMAGE],
+            detail_category: row[IDX_DETAIL_CAT],
+            product_type: row[IDX_TYPE] || 'mine',
+            company_name: row[IDX_COMPANY] || ''
+        }));
+
+        // 3. Supabase Upsert 실행
         
-        if (insertData.length > 0) {
-            const { error } = await supabaseClient.from('product_rankings').insert(insertData);
-            if (error) throw error;
-        }
+        // (A) 히스토리 저장 (키: year, month, product_code)
+        const { error: histError } = await supabaseClient
+            .from('ranking_history')
+            .upsert(historyRows, { onConflict: 'year, month, product_code, keyword' });
         
-        alert("✅ 순위 데이터 저장 완료! (0.1초 소요)"); 
+        if (histError) throw histError;
+
+        // (B) 마스터 데이터 저장 (키: code) - 기존 데이터가 있으면 정보 업데이트
+        const { error: masterError } = await supabaseClient
+            .from('product_rankings')
+            .upsert(masterRows, { onConflict: 'code, keyword' });
+            
+        if (masterError) throw masterError;
+        
+        showToast('순위 및 상품 정보가 저장되었습니다.', 'success'); 
         originalProducts = JSON.parse(JSON.stringify(products));
         if(isAdmin) toggleEditMode();
+
     } catch(e) { 
-        console.error(e); alert("❌ 저장 실패: " + e.message); 
+        console.error(e); 
+        showToast('저장 실패: ' + e.message, 'error'); 
     } finally { 
         document.getElementById('loader').style.display = 'none'; 
-        btn.disabled = false; btn.innerText = originalText; 
+        btn.disabled = false; 
+        btn.innerText = originalText; 
     }
 };
 
 function resetData() {
-  if(!confirm("수정 중인 내용을 모두 취소하고, 서버에 저장된 원래 값을 다시 불러오시겠습니까?")) return;
+  if(!confirm("수정 중인 내용을 모두 취소하고, 서버에 저장된 값을 다시 불러오시겠습니까?")) return;
   loadRankingData(); 
 }
 
 function downloadCSV() {
-  if(!isAdmin) { alert("편집 모드에서만 다운로드 가능합니다."); return; }
-  if(products.length === 0) { alert("데이터가 없습니다."); return; }
+  if(!isAdmin) { showToast('편집 모드에서만 다운로드 가능합니다.', 'warning'); return; }
+  if(products.length === 0) { showToast('데이터가 없습니다.', 'warning'); return; }
   var csvContent = "\uFEFF"; csvContent += "상품번호,상품명,세부카테고리,가격,탭분류,키워드,1주차,2주차,3주차,4주차,5주차,비고,중요체크,이미지\n";
   products.forEach(p => {
     var rawMemo = p[IDX_REMARK] ? String(p[IDX_REMARK]) : ""; var memoList = getParsedMemos(rawMemo); var memoText = memoList.map(m => `[${m.date}] ${m.text}`).join(" / ");
@@ -445,12 +661,12 @@ function downloadCSV() {
     csvContent += row.join(",") + "\n";
   });
   var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); var url = URL.createObjectURL(blob); var link = document.createElement("a"); var today = new Date().toISOString().slice(0, 10);
-  link.setAttribute("href", url); link.setAttribute("download", `한국단열_순위데이터_${today}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  link.setAttribute("href", url); link.setAttribute("download", `한국단열_순위데이터_${currentRankYear}_${currentRankMonth}_${today}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
 /* ================= [2. Sales Functions] ================= */
 
-// 🚀 [Supabase 엔진 교체] 매출 데이터 불러오기
+// 매출 데이터 불러오기
 window.loadSalesData = async function() {
     if (!supabaseClient) return;
     document.getElementById('loader').style.display = 'flex';
@@ -469,7 +685,7 @@ window.loadSalesData = async function() {
         setSalesTab(currentSalesTab); 
     } catch (e) { 
         console.error("매출 데이터 로드 오류:", e); 
-        alert("매출 데이터 로드 중 오류 발생");
+        showToast('매출 데이터 로드 중 오류가 발생했습니다.', 'error');
     } finally { 
         document.getElementById('loader').style.display = 'none'; 
     }
@@ -663,7 +879,6 @@ function deleteSalesRow(realIdx) {
   salesData.splice(realIdx, 1); renderSales();
 }
 
-// 🚀 [Supabase 엔진 교체] 매출 데이터 일괄 저장
 window.saveSalesData = async function() {
     if (!supabaseClient) return;
     if (!confirm("매출 데이터를 저장하시겠습니까?")) return;
@@ -681,19 +896,19 @@ window.saveSalesData = async function() {
             const { error } = await supabaseClient.from('sales_data').insert(insertData);
             if (error) throw error;
         }
-        alert("✅ 매출 데이터 저장 완료!");
+        showToast('매출 데이터 저장 완료!', 'success');
         btn.innerText = "💾 저장";
         originalSalesData = JSON.parse(JSON.stringify(salesData)); 
         isSalesEditMode = false; updateSalesEditUI(); renderSales();
     } catch(e) { 
-        console.error(e); alert("❌ 저장 실패: " + e.message); btn.innerText = "💾 저장";
+        console.error(e); showToast('저장 실패: ' + e.message, 'error'); btn.innerText = "💾 저장";
     } finally { 
         document.getElementById('loader').style.display = 'none'; 
     }
 };
 
 function downloadSalesCSV() {
-  if(salesData.length === 0) { alert("다운로드할 데이터가 없습니다."); return; }
+  if(salesData.length === 0) { showToast('다운로드할 데이터가 없습니다.', 'warning'); return; }
   var csvContent = "\uFEFF";
   csvContent += "몰구분,년월,결제금액,광고비,ROAS(%),유입수,결제수,전환율(%),모바일비율(%),환불금액비율(%),위너비율(%)\n";
   salesData.forEach(row => {
@@ -822,7 +1037,22 @@ function getGrowthRate(currentVal, dateStr, type) {
 
 function getParsedMemos(raw) { 
     if (!raw || raw.trim() === "") return [];
-    try { var parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : [{date:"-", text:raw}]; } catch(e) { return [{date:"Old", text:raw}]; } 
+    try {
+        // 1. JSON 파싱 시도 (정상 구조)
+        var parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [{date:"", text:raw}];
+    } catch(e) {
+        // 2. "[날짜] 내용 / [날짜] 내용" 형태 레거시 문자열 분리
+        var legacyPattern = /\[([^\]]+)\]\s*([^/]+?)(?=\s*\/\s*\[|$)/g;
+        var matches = [];
+        var match;
+        while ((match = legacyPattern.exec(raw)) !== null) {
+            var text = match[2].trim();
+            if (text) matches.push({ date: match[1].trim(), text: text });
+        }
+        // 3. 패턴 매칭 실패 시 전체를 하나로
+        return matches.length > 0 ? matches : [{date:"", text:raw}];
+    }
 }
 
 function getNowStr() {
@@ -860,11 +1090,25 @@ function renderMemoListInModal() {
 function addNewMemo() { 
     if(currentEditRowIndex === -1) return; 
     var input = document.getElementById('newMemoInput'); var text = input.value.trim(); 
-    if(!text) { alert("내용을 입력해주세요."); return; } pushMemoToData(currentEditRowIndex, text); input.value = ''; renderMemoListInModal(); 
+    if(!text) { showToast('내용을 입력해주세요.', 'warning'); return; } pushMemoToData(currentEditRowIndex, text); input.value = ''; renderMemoListInModal(); 
 }
 
 function deleteMemo(index) { 
     if(!confirm("정말 이 메모를 삭제하시겠습니까?")) return; 
     var raw = products[currentEditRowIndex][IDX_REMARK]; var list = getParsedMemos(raw); 
     list.splice(index, 1); products[currentEditRowIndex][IDX_REMARK] = JSON.stringify(list); renderMemoListInModal(); 
+}
+// ── TOP5 수신 토스트 알림 ─────────────────────────────────────
+function showTop5Toast(msg) {
+    var toast = document.getElementById('top5Toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'top5Toast';
+        toast.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#10b981;color:white;padding:14px 24px;border-radius:10px;font-size:14px;font-weight:700;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:opacity 0.4s;';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 4000);
 }

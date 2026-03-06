@@ -1,6 +1,4 @@
 /* ================= [1. Config & Global State] ================= */
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnBm3LeW0c_z7vW6z0IJ0voBA6IZnnGjqQKvdB7a-zvs_5dBlG3fMFKQKWy5B9Yj5J/exec"; 
-var authPassword = ""; // 기존 GAS 로직 호환을 위해 변수 유지
 
 // Supabase 연동 설정
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
@@ -15,6 +13,8 @@ if (typeof supabase !== 'undefined') {
 }
 
 let activeSession = null;
+// 🚀 [추가] 페이지 전환 중복 방지 타이머
+let pageTransitionTimer = null; 
 
 /* ================= [2. Login Logic] ================= */
 window.onload = async function() {
@@ -26,7 +26,6 @@ window.onload = async function() {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) {
             activeSession = session;
-            authPassword = "authenticated"; // 기존 로직 우회용
             document.getElementById('loginScreen').classList.add('hidden'); 
             
             // ✅ 로그인 직후 주소창에 맞게 페이지 로드하도록 변경 (라우팅 연동)
@@ -40,7 +39,8 @@ window.onload = async function() {
     
     setInterval(() => {
       const now = new Date();
-      document.getElementById('clock').innerText = now.toLocaleString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const clockEl = document.getElementById('clock');
+      if(clockEl) clockEl.innerText = now.toLocaleString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }, 1000);
     
     const tDate = document.getElementById('tDate');
@@ -115,7 +115,6 @@ async function tryLogin() {
         input.value = ""; input.focus();
     } else {
         activeSession = data.session;
-        authPassword = "authenticated"; // 기존 기능 호환성 유지용
         document.getElementById('loginScreen').classList.add('hidden');
         
         let startPage = 'dashboard';
@@ -128,7 +127,6 @@ async function handleLogout() {
     if (confirm("로그아웃 하시겠습니까?")) {
         if(supabaseClient) await supabaseClient.auth.signOut();
         activeSession = null;
-        authPassword = ""; 
         if(typeof isDashboardLoaded !== 'undefined') isDashboardLoaded = false; 
         location.reload(); 
     }
@@ -136,6 +134,16 @@ async function handleLogout() {
 
 /* ================= [3. Navigation & Routing Logic (새로 추가됨!)] ================= */
 window.showPage = function(pageId, element = null, isHistoryAction = false) {
+    // 🚀 [핵심 수정] 페이지 이동 시 무조건 로더 끄고 시작 (이전 페이지 로더 찌꺼기 제거)
+    const loader = document.getElementById('loader');
+    if(loader) loader.style.display = 'none';
+    
+    // 🚀 [핵심 수정] 이전 페이지 로딩 예약된 것들 취소 (빠르게 이동 시 충돌 방지)
+    if(pageTransitionTimer) {
+        clearTimeout(pageTransitionTimer);
+        pageTransitionTimer = null;
+    }
+
     // 1. 모든 페이지 숨기고 타겟 페이지만 표시
     document.querySelectorAll('.page-section').forEach(section => { section.classList.remove('active'); });
     const targetPage = document.getElementById('page-' + pageId);
@@ -146,17 +154,19 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
         document.querySelectorAll('.menu-item').forEach(menu => { menu.classList.remove('active'); });
         element.classList.add('active');
         let menuText = element.querySelector('.menu-text');
-        document.getElementById('pageTitleText').innerText = menuText ? menuText.innerText.trim() : element.innerText.trim();
+        const titleEl = document.getElementById('pageTitleText');
+        if(titleEl) titleEl.innerText = menuText ? menuText.innerText.trim() : element.innerText.trim();
     } else {
-        // element가 없을 경우 (예: 브라우저 뒤로가기 누를 때)
         document.querySelectorAll('.menu-item').forEach(menu => { menu.classList.remove('active'); });
         let targetMenu = document.querySelector(`.menu-item[onclick*="${pageId}"]`);
         if (targetMenu) {
             targetMenu.classList.add('active');
             let menuText = targetMenu.querySelector('.menu-text');
-            document.getElementById('pageTitleText').innerText = menuText ? menuText.innerText.trim() : targetMenu.innerText.trim();
+            const titleEl = document.getElementById('pageTitleText');
+            if(titleEl) titleEl.innerText = menuText ? menuText.innerText.trim() : targetMenu.innerText.trim();
         } else if(pageId === 'dashboard') {
-            document.getElementById('pageTitleText').innerText = '지표 요약';
+            const titleEl = document.getElementById('pageTitleText');
+            if(titleEl) titleEl.innerText = '지표 요약';
             let dashMenu = document.querySelector('.menu-item[onclick*="dashboard"]');
             if(dashMenu) dashMenu.classList.add('active');
         }
@@ -168,7 +178,7 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
         sidebar.classList.remove('active');
     }
 
-    // 🚀 3. 브라우저 주소창 업데이트 및 방문 기록(History) 추가
+    // 🚀 3. 브라우저 주소창 업데이트
     if (!isHistoryAction) {
         history.pushState({ pageId: pageId }, "", "#" + pageId);
     }
@@ -185,16 +195,17 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
     if(pageId === 'ranking' && typeof loadRankingData === 'function') loadRankingData();
     if(pageId === 'sales' && typeof loadSalesData === 'function' && (!salesData || salesData.length === 0)) loadSalesData();
 
+    // 🚀 [노트 페이지 로직 수정] 타이머에 할당하여 페이지 이탈 시 취소 가능하게 만듦
     if(pageId === 'notes') {
-        document.getElementById('loader').style.display = 'flex';
-        setTimeout(() => {
-            const dateInput = document.getElementById('noteDate');
+        pageTransitionTimer = setTimeout(() => {
+            const monthPicker = document.getElementById('noteMonthPicker');
             const now = new Date();
-            const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-            if(dateInput && !dateInput.value) dateInput.value = todayStr;
+            const thisMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            if(monthPicker && !monthPicker.value) monthPicker.value = thisMonth;
             if(typeof initQuill === 'function') initQuill();
-            if(typeof handleNoteDateChange === 'function') handleNoteDateChange(); 
-            else document.getElementById('loader').style.display = 'none';
+            if(typeof handleNoteMonthChange === 'function') {
+                handleNoteMonthChange();
+            }
         }, 300);
     }
 };
@@ -209,7 +220,6 @@ window.addEventListener('popstate', function(event) {
         pageId = window.location.hash.replace('#', '');
     }
     
-    // isHistoryAction 플래그를 true로 주어 무한 루프 방지
     if (typeof showPage === 'function') {
         showPage(pageId, null, true); 
     }
@@ -217,7 +227,6 @@ window.addEventListener('popstate', function(event) {
 
 // 🚀 새로고침 하거나 URL 복사해서 들어올 때 초기 주소 세팅
 window.addEventListener('DOMContentLoaded', () => {
-    // 로그인이 안된 상태일 수도 있으므로 주소값만 미리 넣어둠
     if (!window.location.hash) {
         history.replaceState({ pageId: 'dashboard' }, "", "#dashboard");
     }
@@ -241,15 +250,78 @@ function formatDate(dateStr) {
 /* ================= [5. UI Utils & Widgets (축약 생략)] ================= */
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
 
+/* ── [공통] 토스트 알림 ────────────────────────────────────────────
+   사용법: showToast('메시지', 'success' | 'error' | 'warning' | 'info')
+   기존 alert() / console.error() 대신 이 함수를 사용하세요.
+──────────────────────────────────────────────────────────────── */
+const TOAST_ICONS = {
+    success: '<i class="fa-solid fa-circle-check"></i>',
+    error:   '<i class="fa-solid fa-circle-xmark"></i>',
+    warning: '<i class="fa-solid fa-triangle-exclamation"></i>',
+    info:    '<i class="fa-solid fa-circle-info"></i>',
+};
+
+function showToast(message, type = 'info', duration = 3500) {
+    const container = document.getElementById('toast-container');
+    if (!container) { console.warn('[Toast]', message); return; }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <span class="toast-icon">${TOAST_ICONS[type] || TOAST_ICONS.info}</span>
+        <span class="toast-msg">${message}</span>`;
+
+    container.appendChild(toast);
+
+    // duration 후 fade-out → 제거
+    const remove = () => {
+        toast.classList.add('hiding');
+        toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+    };
+    const timer = setTimeout(remove, duration);
+
+    // 클릭하면 즉시 닫기
+    toast.addEventListener('click', () => { clearTimeout(timer); remove(); });
+}
+
+/* ── [공통] 퀵패널 토글 헬퍼 ──────────────────────────────────────
+   모든 퀵패널(quickMemoPanel, aiChatPanel, calcPanel, estimatePanel,
+   widgetPanel)은 이 함수를 통해 열고 닫습니다.
+   - targetId  : 열거나 닫을 패널 ID
+   - onOpen    : 패널을 열 때 실행할 콜백 (선택)
+   새 패널을 추가할 때는 QUICK_PANELS 배열에 ID만 추가하면 됩니다.
+──────────────────────────────────────────────────────────────── */
+const QUICK_PANELS = [
+    'quickMemoPanel', 'aiChatPanel', 'calcPanel', 'estimatePanel', 'widgetPanel'
+];
+
+function openPanel(targetId, onOpen) {
+    const target = document.getElementById(targetId);
+    if (!target) return;
+
+    const isAlreadyOpen = target.classList.contains('open');
+
+    // 모든 패널 닫기
+    QUICK_PANELS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('open');
+    });
+
+    // 이미 열려 있던 패널이면 그냥 닫기만 하고 종료
+    if (isAlreadyOpen) return;
+
+    // 대상 패널 열기
+    target.classList.add('open');
+    if (typeof onOpen === 'function') onOpen();
+}
+
 function toggleCalcPanel() {
-    const panel = document.getElementById('calcPanel');
-    const panels = ['quickMemoPanel', 'aiChatPanel', 'widgetPanel', 'estimatePanel'];
-    panels.forEach(id => { const el = document.getElementById(id); if(el && el.classList.contains('open')) el.classList.remove('open'); });
-    if (!panel.classList.contains('open')) {
-        panel.classList.add('open');
+    openPanel('calcPanel', () => {
         const frame = document.getElementById('calcFrame');
-        if (!frame.src || frame.src === window.location.href) frame.src = document.getElementById('calcSelector').value;
-    } else { panel.classList.remove('open'); }
+        if (!frame.src || frame.src === window.location.href) {
+            frame.src = document.getElementById('calcSelector').value;
+        }
+    });
 }
 function changeCalculator(url) { document.getElementById('calcFrame').src = url; }
 
@@ -348,28 +420,12 @@ function getKoName(engName, tab) {
 }
 
 function toggleWidgetPanel() {
-    const panel = document.getElementById('widgetPanel');
-    const memoPanel = document.getElementById('quickMemoPanel');
-    const aiPanel = document.getElementById('aiChatPanel');
-    const calcPanel = document.getElementById('calcPanel');
-    const estimatePanel = document.getElementById('estimatePanel'); // ✅ 견적서 추가
-    
-    // 열려있는 다른 패널 닫기 (견적서 포함)
-    if(memoPanel && memoPanel.classList.contains('open')) memoPanel.classList.remove('open');
-    if(aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
-    if(calcPanel && calcPanel.classList.contains('open')) calcPanel.classList.remove('open');
-    if(estimatePanel && estimatePanel.classList.contains('open')) estimatePanel.classList.remove('open');
-
-    const isOpen = panel.classList.contains('open');
-    if (!isOpen) {
-        panel.classList.add('open');
+    openPanel('widgetPanel', () => {
         if (!window.widgetInitialized) {
             loadWidgetData('nba');
             window.widgetInitialized = true;
         }
-    } else {
-        panel.classList.remove('open');
-    }
+    });
 }
 
 let currentWidgetTab = 'nba';
@@ -716,31 +772,14 @@ document.addEventListener('focusin', function(e) {
 
 
 function toggleEstimatePanel() {
-    const panel = document.getElementById('estimatePanel');
-    const memoPanel = document.getElementById('quickMemoPanel');
-    const aiPanel = document.getElementById('aiChatPanel');
-    const calcPanel = document.getElementById('calcPanel');
-    const widgetPanel = document.getElementById('widgetPanel');
-    
-    // 열려있는 다른 패널 닫기
-    if(memoPanel && memoPanel.classList.contains('open')) memoPanel.classList.remove('open');
-    if(aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
-    if(calcPanel && calcPanel.classList.contains('open')) calcPanel.classList.remove('open');
-    if(widgetPanel && widgetPanel.classList.contains('open')) widgetPanel.classList.remove('open');
-
-    if (!panel.classList.contains('open')) {
-        panel.classList.add('open');
-        
-        // 오픈될 때 오늘 날짜를 엑셀 양식에 맞춰 자동 기입
+    openPanel('estimatePanel', () => {
+        // 패널을 열 때 오늘 날짜를 견적서 양식에 자동 기입
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const date = String(now.getDate()).padStart(2, '0');
         document.getElementById('estDateStr').value = `${year} 년 ${month} 월 ${date} 일`;
-        
-    } else {
-        panel.classList.remove('open');
-    }
+    });
 }
 
 /* ================= [견적서 인쇄 및 PDF 기능 수정] ================= */
@@ -820,7 +859,7 @@ function saveEstimatePDF() {
             btn.disabled = false;
         }).catch(err => {
             console.error('PDF 저장 실패:', err);
-            alert('PDF 저장 중 오류가 발생했습니다.');
+            showToast('PDF 저장 중 오류가 발생했습니다.', 'error');
             if (document.body.contains(wrapper)) document.body.removeChild(wrapper);
             btn.innerHTML = originalText;
             btn.disabled = false;

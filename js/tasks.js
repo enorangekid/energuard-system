@@ -46,7 +46,7 @@ async function loadTimelineFromServer() {
   if (saveBtn) {
       saveBtn.innerHTML = '<i class="fa-solid fa-cloud-bolt"></i> 실시간 연동중';
       saveBtn.style.background = '#3b82f6';
-      saveBtn.onclick = () => alert('Supabase 적용 완료: 이제 타임라인은 추가/수정/삭제 시 실시간으로 자동 저장됩니다!');
+      saveBtn.onclick = () => showToast('Supabase 적용 완료: 타임라인은 추가/수정/삭제 시 실시간으로 자동 저장됩니다!', 'info');
   }
 
   if(isTimelineFetched) {
@@ -86,24 +86,28 @@ async function loadTimelineFromServer() {
       
   } catch (e) {
       console.error("타임라인 데이터 로드 오류:", e);
+      showToast('타임라인 데이터를 불러오지 못했습니다.', 'error');
   } finally {
       if(loader) loader.style.display = 'none';
   }
 }
 
-// ❌ 기존 구글시트 기반 saveToServer 함수는 사용하지 않음 (대신 실시간 CRUD 사용)
-
 function updateYearFilterOptions() {
   const yearSet = new Set();
   timeLogs.forEach(log => { if(log.date) yearSet.add(log.date.substring(0, 4)); });
-  yearSet.add(new Date().getFullYear().toString());
+  const thisYear = new Date().getFullYear().toString();
+  yearSet.add(thisYear); // 데이터가 없어도 현재 연도는 항상 포함
   const select = document.getElementById('yearFilter');
-  const cur = select.value;
+  const cur = select.value; // 현재 선택값 보존 시도
   select.innerHTML = '';
   Array.from(yearSet).sort().reverse().forEach(y => {
-    let opt = document.createElement('option'); opt.value = y; opt.innerText = y + "년"; select.appendChild(opt);
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.innerText = y + "년";
+    select.appendChild(opt);
   });
-  if(Array.from(yearSet).includes(cur)) select.value = cur;
+  // 이전 선택값이 유효하면 유지, 아니면 현재 연도로 기본 설정
+  select.value = Array.from(yearSet).includes(cur) ? cur : thisYear;
 }
 
 function renderTimeLog() {
@@ -139,11 +143,34 @@ function renderTimeLog() {
               else if (log.min >= 60) durationHtml = `<span style="color: #d97706; font-weight: 700; background: #fffbeb; border-radius: 6px; padding: 4px 8px;">${log.duration}</span>`;
               let catBadge = log.category === '휴무' ? 'badge badge-holiday' : 'badge';
               
-              row.innerHTML = `<td><span class="${catBadge}">${log.category}</span></td><td>${log.task}</td><td>${log.start}</td><td>${log.end}</td><td>${durationHtml}</td>
-                  <td>
-                    <button onclick="editTimeLog(${realIdx})" title="수정" style="border:none;background:none;cursor:pointer;color:#2563eb;margin-right:8px;"><i class="fa-solid fa-pen"></i></button>
-                    <button onclick="deleteTimeLog(${realIdx})" title="삭제" style="border:none;background:none;cursor:pointer;color:#ef4444;"><i class="fa-solid fa-trash-can"></i></button>
-                  </td>`;
+              // ✅ XSS 방지: DB에서 온 사용자 데이터(category, task, start, end)는 textContent로 처리
+              const tdCat = document.createElement('td');
+              const catSpan = document.createElement('span');
+              catSpan.className = catBadge;
+              catSpan.textContent = log.category;
+              tdCat.appendChild(catSpan);
+
+              const tdTask = document.createElement('td');
+              tdTask.textContent = log.task;
+
+              const tdStart = document.createElement('td');
+              tdStart.textContent = log.start;
+
+              const tdEnd = document.createElement('td');
+              tdEnd.textContent = log.end;
+
+              const tdDuration = document.createElement('td');
+              tdDuration.innerHTML = DOMPurify.sanitize(durationHtml);
+
+              const tdBtns = document.createElement('td');
+              tdBtns.innerHTML = `<button onclick="editTimeLog(${realIdx})" title="수정" style="border:none;background:none;cursor:pointer;color:#2563eb;margin-right:8px;"><i class="fa-solid fa-pen"></i></button><button onclick="deleteTimeLog(${realIdx})" title="삭제" style="border:none;background:none;cursor:pointer;color:#ef4444;"><i class="fa-solid fa-trash-can"></i></button>`;
+
+              row.appendChild(tdCat);
+              row.appendChild(tdTask);
+              row.appendChild(tdStart);
+              row.appendChild(tdEnd);
+              row.appendChild(tdDuration);
+              row.appendChild(tdBtns);
               tbody.appendChild(row);
           });
       }
@@ -160,14 +187,14 @@ async function addTimeLog() {
   let eh = document.getElementById('tEndH').value;
   let em = document.getElementById('tEndM').value;
   
-  if (!date) { alert("날짜를 선택해주세요."); return; }
-  if (!task) { alert("업무 내용을 입력해주세요."); return; }
+  if (!date) { showToast('날짜를 선택해주세요.', 'warning'); return; }
+  if (!task) { showToast('업무 내용을 입력해주세요.', 'warning'); return; }
   
   let start = "00:00", end = "00:00", duration = "0:00", min = 0;
   function padTwo(num) { return num.toString().padStart(2, '0'); }
   
   if(category !== '휴무') {
-      if (sh === "" || eh === "") { alert("시간을 입력해주세요."); return; }
+      if (sh === "" || eh === "") { showToast('시간을 입력해주세요.', 'warning'); return; }
       start = padTwo(sh) + ":" + padTwo(sm || 0);
       end = padTwo(eh) + ":" + padTwo(em || 0);
       const s = new Date(`2000-01-01T${start}:00`), e = new Date(`2000-01-01T${end}:00`);
@@ -193,7 +220,7 @@ async function addTimeLog() {
           if(error) throw error;
 
           timeLogs[editingItemIndex] = { id: targetId, date, category, task, start, end, duration, min };
-          alert("수정 완료!");
+          showToast("수정 완료!", "success");
           cancelEditMode(); 
       } else {
           // 추가 모드 (Insert)
@@ -215,7 +242,7 @@ async function addTimeLog() {
       }
       renderTimeLog();
   } catch (err) {
-      console.error(err); alert("데이터베이스 저장 오류");
+      console.error(err); showToast('저장 오류: ' + (err.message || err.code || '알 수 없는 오류'), 'error');
   } finally {
       loader.style.display = 'none';
   }
@@ -236,7 +263,7 @@ window.deleteTimeLog = async function(index) {
         updateDefaultStartTime(); 
         renderTimeLog();
     } catch(err) {
-        console.error(err); alert("삭제 중 오류가 발생했습니다.");
+        console.error(err); showToast('삭제 중 오류가 발생했습니다.', 'error');
     } finally {
         document.getElementById('loader').style.display = 'none';
     }
@@ -568,6 +595,7 @@ async function loadWorklogFromServer() {
       
   } catch(e) {
       console.error("업무 일지 로드 오류:", e);
+      showToast('업무 일지를 불러오지 못했습니다.', 'error');
   } finally {
       loader.style.display = 'none';
   }
@@ -616,11 +644,11 @@ async function collectAndSaveWorklog() {
       if (taskRows.length > 0) await supabaseClient.from('monthly_tasks').insert(taskRows);
       if (memoRows.length > 0) await supabaseClient.from('monthly_memos').insert(memoRows);
 
-      alert("✅ 저장 완료!"); 
+      showToast('저장 완료!', 'success'); 
       delete worklogCache[`${targetYear}-${targetMonth}`];
       cachedProductLogs = null;
   } catch (err) {
-      console.error(err); alert("저장 중 오류가 발생했습니다.");
+      console.error(err); showToast('저장 중 오류가 발생했습니다.', 'error');
   } finally {
       loader.style.display = 'none';
   }
@@ -738,6 +766,7 @@ async function fetchProductLogsIfNeeded() {
         }
     } catch (e) {
         console.error("상품 로그 로드 오류:", e);
+        showToast('상품 수정 내역을 불러오지 못했습니다.', 'error');
     } finally {
         document.getElementById('loader').style.display = 'none';
         isFetchingProductLogs = false;
@@ -783,7 +812,14 @@ async function renderProductLogPage() {
             tr.onclick = function() { jumpToWorkLog(log.date); };
             tr.title = "클릭하면 해당 일자의 업무일지로 이동합니다.";
             
-            tr.innerHTML = `<td style="font-weight:700; color:#4f46e5;">${log.cleanDate}</td><td>${log.content}</td>`; 
+            // ✅ XSS 방지: DB에서 온 날짜/내용은 textContent로 처리
+            const tdDate = document.createElement('td');
+            tdDate.style.cssText = 'font-weight:700; color:#4f46e5;';
+            tdDate.textContent = log.cleanDate;
+            const tdContent = document.createElement('td');
+            tdContent.textContent = log.content;
+            tr.appendChild(tdDate);
+            tr.appendChild(tdContent);
             tbody.appendChild(tr); 
         });
     } else { 
@@ -811,24 +847,9 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function toggleAIChat() {
-    const panel = document.getElementById('aiChatPanel');
-    const memoPanel = document.getElementById('quickMemoPanel');
-    const calcPanel = document.getElementById('calcPanel');
-    const widgetPanel = document.getElementById('widgetPanel'); 
-    const estimatePanel = document.getElementById('estimatePanel'); 
-    
-    if(memoPanel && memoPanel.classList.contains('open')) memoPanel.classList.remove('open');
-    if(calcPanel && calcPanel.classList.contains('open')) calcPanel.classList.remove('open');
-    if(widgetPanel && widgetPanel.classList.contains('open')) widgetPanel.classList.remove('open');
-    if(estimatePanel && estimatePanel.classList.contains('open')) estimatePanel.classList.remove('open');
-
-    const isOpen = panel.classList.contains('open');
-    if (!isOpen) {
-        panel.classList.add('open');
-        setTimeout(() => document.getElementById('aiChatInput').focus(), 300); 
-    } else {
-        panel.classList.remove('open');
-    }
+    openPanel('aiChatPanel', () => {
+        setTimeout(() => document.getElementById('aiChatInput').focus(), 300);
+    });
 }
 
 async function sendChatMessage() {
@@ -883,7 +904,9 @@ function appendChatMessage(role, text) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `chat-message ${role === 'user' ? 'user' : 'ai'}`;
     
-    const formattedText = text.replace(/\n/g, '<br>').replace(/\*\*/g, '');
+    // ✅ XSS 방지: 사용자 입력 및 AI 응답 모두 DOMPurify로 sanitize 후 삽입
+    const rawHtml = text.replace(/\n/g, '<br>').replace(/\*\*/g, '');
+    const formattedText = DOMPurify.sanitize(rawHtml, { ALLOWED_TAGS: ['br', 'b', 'i', 'strong', 'em'] });
     const avatarIcon = role === 'user' ? '<i class="fa-solid fa-user"></i>' : '<i class="fa-solid fa-robot"></i>';
     
     msgDiv.innerHTML = `<div class="chat-avatar">${avatarIcon}</div><div class="chat-bubble">${formattedText}</div>`;
