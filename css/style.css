@@ -12,8 +12,8 @@
   --danger: #ef4444;
 
   --wl-section-width: 530px;
-  --wl-header-bg: #e2e8f0;
-  --wl-border-dark: #333;
+  --wl-header-bg: #f8fafc;
+  --wl-border-dark: #e2e8f0;
   --wl-border-light: #e5e7eb;
   
   --w-no: 30px; --w-cat: 70px; --w-prio: 95px; --w-date: 75px; --w-chk: 40px; --w-note: 40px;
@@ -230,7 +230,7 @@ body {
 .btn-logout:hover {
   background-color: #fef2f2;
 }
-.content-body { flex: 1; padding: 30px 40px; overflow-y: auto; overflow-x: visible; position: relative; }
+.content-body { flex: 1; padding: 30px 40px; overflow-y: auto; overflow-x: auto; position: relative; }
 
 .page-section { display: none; animation: fadeIn 0.4s ease; height: 100%; }
 .page-section.active { display: block; }
@@ -267,21 +267,39 @@ body {
 .badge-holiday { background: #fee2e2; color: #dc2626; }
 
 /* ================= [6. Worklog Styles] ================= */
-#page-worklog { padding-bottom: 80px; height: auto; }
-.worklog-header-simple {
-  display: flex; justify-content: space-between; align-items: center;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 15px; margin-bottom: 20px;
+#page-worklog { height: auto; }
+
+/* sticky 헤더 */
+.worklog-sticky-header {
+  position: sticky;
+  top: -30px;
+  z-index: 100;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  padding: 14px 24px;
+  margin-bottom: 20px;
+  transition: box-shadow 0.2s;
 }
+.worklog-sticky-header.is-stuck { box-shadow: 0 4px 16px rgba(0,0,0,0.10); }
+.worklog-sticky-title { font-size: 15px; font-weight: 700; color: #1e293b; }
+.worklog-save-btn { background: #1e293b !important; transition: background 0.2s, box-shadow 0.2s; }
+.worklog-save-btn:hover { background: #0f172a !important; box-shadow: 0 4px 12px rgba(30,41,59,0.25); }
+.worklog-body-card { padding: 28px !important; margin-bottom: 0 !important; }
+
 .header-left-simple { display: flex; gap: 15px; align-items: center; }
 .monthly-wrapper { display: flex; flex-direction: column; gap: 40px; }
 .week-row { display: flex; gap: 20px; align-items: flex-start; }
-.week-plan-section, .day-column { width: var(--wl-section-width); min-width: var(--wl-section-width); flex-shrink: 0; background: #fff; border: 2px solid var(--wl-border-dark); border-radius: 4px; display: flex; flex-direction: column; }
-.week-daily-section { flex: 1; background: #fff; border: 2px solid var(--wl-border-dark); border-radius: 4px; display: flex; overflow-x: auto; }
+.week-plan-section, .day-column { width: var(--wl-section-width); min-width: var(--wl-section-width); flex-shrink: 0; background: #fff; border: 1px solid var(--wl-border-dark); border-radius: 8px; display: flex; flex-direction: column; }
+.week-daily-section { flex: 1; background: #fff; border: 1px solid var(--wl-border-dark); border-radius: 8px; display: flex; overflow-x: auto; }
 .week-daily-section .day-column { border: none; border-right: 1px solid var(--wl-border-dark); border-radius: 0; }
 .week-daily-section .day-column:last-child { border-right: none; }
-.section-header, .day-header { background: #f3f4f6; padding: 12px 15px; border-bottom: 2px solid var(--wl-border-dark); display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 15px; color: #111; }
-.section-date { font-size: 12px; font-weight: 600; color: #555; }
+.section-header, .day-header { background: #1e293b; padding: 12px 15px; border-bottom: 1px solid var(--wl-border-dark); display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 14px; color: #fff; }
+.section-date { font-size: 12px; font-weight: 600; color: #94a3b8; }
 .day-column.blank { pointer-events: none; }
 .day-column.blank > * { visibility: hidden; }
 .header-row { display: flex; background: var(--wl-header-bg); border-bottom: 1px solid var(--wl-border-dark); height: 32px; }
@@ -292,8 +310,8 @@ body {
 .task-strip { display: flex; height: 35px; border-bottom: 1px solid var(--wl-border-light); background: white; transition: 0.1s; position: relative; }
 .task-strip:last-child { border-bottom: none; }
 .task-strip:hover { background-color: #f0f9ff; }
-.task-strip.completed { background-color: #ffedd5 !important; }
-.task-strip.completed .clean-input { color: #9a3412; }
+.task-strip.completed { background-color: #f0fdf4 !important; }
+.task-strip.completed .clean-input { color: #15803d; }
 .b-cell { display: flex; align-items: center; justify-content: center; border-right: 1px solid var(--wl-border-light); height: 100%; }
 .b-cell:last-child { border-right: none; }
 .c-no { width: var(--w-no); background: #f8fafc; font-size: 11px; font-weight: bold; color: #64748b; }
@@ -313,7 +331,7 @@ body {
 .btm-full-input:focus { background: #f0f9ff; }
 .progress-wrapper { padding: 0 10px; width: 100%; display: flex; align-items: center; height: 100%; }
 .progress-bar-bg { flex: 1; height: 10px; background: #e5e7eb; border-radius: 5px; overflow: hidden; }
-.progress-bar-fill { height: 100%; background: #10b981; width: 0%; transition: 0.5s; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, #4f46e5, #7c3aed); width: 0%; transition: 0.5s; }
 .progress-text { font-size: 12px; font-weight: 800; color: #111; margin-left: 10px; width: 40px; text-align: right; }
 .memo-box { width: 14px; height: 14px; background-color: #d1d5db; border-radius: 3px; display: none; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; color: white; font-size: 8px; position: relative; z-index: 10; }
 .memo-box:hover { transform: scale(1.2); }
@@ -559,52 +577,107 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 #draftListContainer::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
 
 /* ================= [8. Ranking Styles] ================= */
-/* 헤더 카드: 제목+탭+컬럼헤더 묶음, 위만 라운드 */
-/* ═══ 검색순위 레이아웃 ═══ */
 
-/* 1. 타이틀 바 */
-.rk-title-bar {
+/* 1. sticky 통합 헤더 (타이틀 + 탭) */
+.rk-sticky-header {
+  position: sticky;
+  top: -30px;
+  z-index: 100;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  padding: 16px 24px 0;
+  margin-bottom: 16px;
+  transition: box-shadow 0.2s;
+  overflow: hidden; /* 라운드 유지 */
+}
+
+/* 컬럼 헤더 래퍼 — sticky 헤더 바닥에 붙음 */
+.rk-col-header-wrap {
+  margin: 14px -24px 0;  /* 좌우 패딩 무효화해서 끝까지 */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;  /* 헤더 자체 스크롤바 숨김 */
+}
+.rk-col-header-wrap::-webkit-scrollbar { display: none; }
+.rk-header-table {
+  table-layout: auto;
+  margin-bottom: 0 !important;
+}
+.rk-header-table thead th {
+  background: #f8fafc !important;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: none;
+  white-space: nowrap;
+}
+.rk-sticky-header.is-stuck {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+
+/* 헤더 상단 행: 제목 + 컨트롤 */
+.rk-header-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fff;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  padding: 16px 24px;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
+}
+.rk-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
 }
 
-/* 2. 카테고리 탭 — 독립 라운드 버튼 */
+/* 2. 편집 모드 버튼 */
+#editModeBtn {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Pretendard', 'Inter', sans-serif;
+}
+#editModeBtn:hover { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; }
+#editModeBtn.btn-active { background: #1e293b; color: #fff; border-color: #1e293b; }
+
+/* 3. 카테고리 탭 */
 .rk-tabs-bar {
   display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 .rk-tab {
   flex: 1;
-  min-width: 100px;
-  padding: 12px 16px;
-  background: #e0e0e0;
-  border: 1px solid #ccc;
-  border-radius: 10px;
+  min-width: 90px;
+  padding: 8px 14px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
   cursor: pointer;
-  font-weight: 700;
-  font-size: 15px;
-  color: #555;
-  transition: 0.15s;
+  font-weight: 600;
+  font-size: 13px;
+  color: #64748b;
+  transition: all 0.15s;
+  font-family: 'Pretendard', 'Inter', sans-serif;
 }
-.rk-tab:hover { background: #d0d0d0; color: #222; }
-.rk-tab.active { background: #1e293b; color: #fff; border-color: #1e293b; }
+.rk-tab:hover { background: #e8edf5; color: #1e293b; border-color: #cbd5e1; }
+.rk-tab.active {
+  background: #1e293b;
+  color: #fff;
+  border-color: #1e293b;
+  box-shadow: 0 2px 8px rgba(30,41,59,0.18);
+}
 
-/* 3. 스크롤 래퍼 */
+/* 3. 스크롤 래퍼 — 세로 스크롤 제거, 외부(.content-body)가 처리 */
 .ranking-scroll-wrapper {
-  max-height: calc(100vh - 280px);
-  overflow-y: auto;
   overflow-x: auto;
-  scrollbar-gutter: stable;
-  padding: 0 0 16px 0;
+  overflow-y: visible;
+  padding: 0 0 24px 0;
   background: transparent;
 }
 
@@ -619,12 +692,7 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 }
 
 /* 5. 메인 헤더 sticky — 배경색 + 라운드 */
-.ranking-table thead.rk-sticky-head {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: #f0f2f5;  /* sticky 시 콘텐츠가 비치지 않도록 */
-}
+/* thead sticky 제거 — 컬럼헤더가 rk-sticky-header 안으로 이동됨 */
 .ranking-table th {
   background: #f0f2f5 !important;
   font-weight: 700;
@@ -826,29 +894,65 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
 #resetBtn, #resetSalesBtn { flex: 1; background: linear-gradient(135deg, #7f8c8d, #95a5a6); }
 #downloadBtn, #downloadSalesBtn { flex: 1; background: linear-gradient(135deg, #2980b9, #3498db); }
 
-#editModeBtn { background: white; border: 1px solid #ccc; padding: 8px 15px; border-radius: 20px; font-size: 13px; transition: 0.2s; font-weight: 600; color: #555; margin-left: 10px; cursor: pointer; }
-#editModeBtn:hover { background: #f0f0f0; color: #333; border-color: #999; }
-#editModeBtn.btn-active { background: #333 !important; color: white !important; border-color: #333 !important; }
 
 /* ================= [9. Sales Analytics Styles (NEW)] ================= */
+/* ── 매출 sticky 헤더 ── */
+.sales-sticky-header {
+  position: sticky;
+  top: -30px;
+  z-index: 100;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  padding: 14px 24px;
+  margin-bottom: 20px;
+  transition: box-shadow 0.2s;
+}
+.sales-sticky-header.is-stuck { box-shadow: 0 4px 16px rgba(0,0,0,0.10); }
+.sales-sticky-title { font-size: 15px; font-weight: 700; color: #1e293b; }
+.sales-body-wrap { display: flex; flex-direction: column; gap: 20px; }
+
+/* ── 채널 탭 ── */
+.sales-tab-group { display: flex; gap: 6px; }
+.sales-tab {
+  padding: 6px 18px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: #64748b;
+  transition: all 0.15s;
+  font-family: 'Pretendard', 'Inter', sans-serif;
+}
+.sales-tab:hover { background: #e8edf5; color: #1e293b; border-color: #cbd5e1; }
+.sales-tab.active { background: #1e293b; color: #fff; border-color: #1e293b; box-shadow: 0 2px 8px rgba(30,41,59,0.18); }
+
+/* ── 차트 영역 ── */
 .sales-dashboard-top {
   display: flex;
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: 16px;
 }
 .chart-box {
   flex: 1;
   background: white;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 15px;
+  border-radius: 12px;
+  padding: 20px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 .chart-header {
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--text-main);
-  margin-bottom: 10px;
+  color: #64748b;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -859,14 +963,26 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
   font-size: 12px;
   font-weight: 500;
   color: var(--text-sub);
+  text-transform: none;
+  letter-spacing: 0;
 }
-.mini-controls input { margin-right: 3px; cursor: pointer;}
+.mini-controls input { margin-right: 3px; cursor: pointer; accent-color: var(--primary); }
 
-.chart-container.half-height { 
+.chart-container.half-height {
   position: relative;
-  height: 260px; 
-  margin-bottom: 0; 
+  height: 240px;
+  margin-bottom: 0;
 }
+
+/* ── 월별 상세 헤더 ── */
+.sales-table-header {
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.sales-table-title { margin: 0; font-size: 14px; font-weight: 700; color: #1e293b; }
 
 .sales-table-style { 
   width: 100%; 
@@ -885,17 +1001,18 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
   top: 0; 
   z-index: 1000 !important; 
   background-color: #f8f9fa !important; 
-  font-weight: bold; color: #555; 
-  border-top: 2px solid #333; 
-  border-bottom: 1px solid #ddd;
+  font-weight: 700; color: #64748b;
+  font-size: 12px;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
   height: 40px; 
   box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
   background-clip: padding-box; 
 }
 .sales-table-style tbody { position: relative; z-index: 1; }
 .sales-table-style td { 
-  border-bottom: 1px solid #ddd; 
-  padding: 12px 8px; 
+  border-bottom: 1px solid #f1f5f9;
+  padding: 11px 8px; 
   text-align: center; 
   vertical-align: middle; 
   color: var(--text-main); 
@@ -1011,15 +1128,34 @@ input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-colo
     flex-shrink: 0 !important;
 }
 
-.edit-controls button { border: none; border-radius: 8px; padding: 10px 18px; font-weight: bold; font-size: 14px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-left: 5px; color: white; }
-.edit-controls button:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); filter: brightness(1.05); }
-.edit-controls button:disabled { background: #e0e0e0 !important; color: #999 !important; cursor: not-allowed; box-shadow: none; transform: none; }
-#editSalesBtn { background: linear-gradient(135deg, #f39c12, #f1c40f); color: white; }
-.edit-active { background: linear-gradient(135deg, #c0392b, #e74c3c) !important; }
+/* ── 편집 컨트롤 버튼 ── */
+.sales-edit-controls { display: flex; gap: 6px; align-items: center; }
+.sales-edit-controls button {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: #f8fafc;
+  color: #64748b;
+  font-family: 'Pretendard', 'Inter', sans-serif;
+}
+.sales-edit-controls button:hover { background: #f1f5f9; border-color: #cbd5e1; color: #1e293b; }
+.sales-edit-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+#editSalesBtn { background: #fff; border-color: #e2e8f0; color: #64748b; }
+#editSalesBtn.edit-active { background: #1e293b; color: #fff; border-color: #1e293b; }
+#saveSalesBtn { background: #1e293b; color: #fff; border-color: #1e293b; }
+#saveSalesBtn:hover { background: #0f172a; border-color: #0f172a; }
 #addSalesRowBtn, #resetSalesBtn { display: none; }
-/* 버튼 배경색 추가하여 흰 글씨가 잘 보이게 처리 */
-#addSalesRowBtn { background: linear-gradient(135deg, #3498db, #2980b9); }
-#resetSalesBtn { background: linear-gradient(135deg, #95a5a6, #7f8c8d); }
+#addSalesRowBtn { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+#addSalesRowBtn:hover { background: #4338ca; border-color: #4338ca; }
+.edit-active { background: #1e293b !important; color: #fff !important; border-color: #1e293b !important; }
+
+/* 하위호환 */
+.edit-controls button { border: none; border-radius: 8px; padding: 6px 14px; font-weight: 600; font-size: 13px; cursor: pointer; background: #f8fafc; color: #64748b; margin-left: 4px; }
+.edit-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* [중복제거] print media → 아래 통합 */
 /* ================= [10. Dashboard UI] ================= */
