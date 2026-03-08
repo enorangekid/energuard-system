@@ -349,19 +349,20 @@
       </div>
 
       <div id="page-worklog" class="page-section">
-        <div class="card" style="padding: 0; overflow:hidden;">
-            <div class="note-header">
-              <div class="note-left">
-                <h2>월간 업무 일지</h2>
-                <div class="date-selector">
-                    <input type="month" id="worklogPicker" onchange="handleMonthChange(this)" style="font-family:'Pretendard';">
-                </div>
-              </div>
-              <div class="note-btns">
-                  <button class="btn-server" onclick="collectAndSaveWorklog()" style="background:#111827;"><i class="fa-solid fa-cloud-arrow-up"></i> 저장하기</button>
-              </div>
-            </div>
-            <div class="monthly-wrapper" id="monthlyContainer" style="padding: 25px;"></div>
+        <!-- sticky 헤더 -->
+        <div class="worklog-sticky-header">
+          <div style="display:flex; align-items:center; gap:16px;">
+            <span class="worklog-sticky-title">월간 업무일지</span>
+            <input type="month" id="worklogPicker" onchange="handleMonthChange(this)"
+              style="font-family:'Pretendard'; padding:5px 11px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; outline:none; color:#1e293b; background:#fff;">
+          </div>
+          <button class="btn-server worklog-save-btn" onclick="collectAndSaveWorklog()">
+            <i class="fa-solid fa-cloud-arrow-up"></i> 저장하기
+          </button>
+        </div>
+        <!-- 본문 카드 -->
+        <div class="card worklog-body-card">
+          <div class="monthly-wrapper" id="monthlyContainer"></div>
         </div>
       </div>
 
@@ -467,27 +468,58 @@
       <div id="page-ranking" class="page-section">
         <div class="card" style="position: relative; padding: 0; border: none; box-shadow: none; background: transparent;">
 
-            <!-- ① 타이틀 바 -->
-            <div class="rk-title-bar">
-                <h2 style="margin:0; font-size:16px; font-weight:700;">검색 순위 관리</h2>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <input type="month" id="rankingMonthPicker"
-                           style="padding:6px 12px; border:1px solid #ccc; border-radius:8px; font-family:'Pretendard'; font-size:14px; font-weight:bold; cursor:pointer;"
-                           onchange="changeRankingMonth()">
-                    <button id="editModeBtn" onclick="toggleEditMode()">✏️ 편집 모드</button>
+            <!-- ① 타이틀 바 + 탭 + 컬럼헤더 통합 sticky 헤더 -->
+            <div class="rk-sticky-header">
+                <div class="rk-header-top">
+                    <h2 class="rk-title">검색 순위 관리</h2>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="month" id="rankingMonthPicker"
+                               style="font-family:'Pretendard'; padding:5px 11px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; outline:none; color:#1e293b; background:#fff;"
+                               onchange="changeRankingMonth()">
+                        <button id="editModeBtn" onclick="toggleEditMode()">편집 모드</button>
+                    </div>
+                </div>
+                <!-- ② 카테고리 탭 -->
+                <div class="rk-tabs-bar">
+                    <button class="rk-tab active" onclick="setTab('아이소핑크')">아이소핑크</button>
+                    <button class="rk-tab" onclick="setTab('스티로폼')">스티로폼</button>
+                    <button class="rk-tab" onclick="setTab('열반사단열재')">열반사단열재</button>
+                    <button class="rk-tab" onclick="setTab('단열벽지')">단열벽지</button>
+                    <button class="rk-tab" onclick="setTab('기타')">기타</button>
+                </div>
+                <!-- ③ 컬럼 헤더 — sticky 헤더에 포함시켜 항상 고정 -->
+                <div class="rk-col-header-wrap">
+                    <table class="ranking-table rk-header-table">
+                        <colgroup>
+                            <col width="40px">
+                            <col width="110px">
+                            <col width="100px">
+                            <col width="auto">
+                            <col width="100px">
+                            <col width="160px">
+                            <col width="60px">
+                            <col width="60px">
+                            <col width="60px">
+                            <col width="60px">
+                            <col width="60px">
+                            <col width="60px">
+                            <col width="80px">
+                            <col class="admin-col" width="70px" style="display:none;">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th></th><th>상품번호</th><th>이미지</th>
+                                <th><input type="checkbox" id="masterCheck" onclick="toggleAllChecks(this.checked)" style="display:none; vertical-align:middle; margin-right:5px; cursor:pointer;" title="전체 선택/해제"> 상품명</th>
+                                <th>가격</th><th>키워드</th><th>변동</th>
+                                <th>1주차</th><th>2주차</th><th>3주차</th><th>4주차</th><th>5주차</th>
+                                <th>비고</th><th class="admin-col" style="display:none;">관리</th>
+                            </tr>
+                        </thead>
+                    </table>
                 </div>
             </div>
 
-            <!-- ② 카테고리 탭 -->
-            <div class="rk-tabs-bar">
-                <button class="rk-tab active" onclick="setTab('아이소핑크')">아이소핑크</button>
-                <button class="rk-tab" onclick="setTab('스티로폼')">스티로폼</button>
-                <button class="rk-tab" onclick="setTab('열반사단열재')">열반사단열재</button>
-                <button class="rk-tab" onclick="setTab('단열벽지')">단열벽지</button>
-                <button class="rk-tab" onclick="setTab('기타')">기타</button>
-            </div>
-
-            <!-- ③ 스크롤 영역: thead sticky + tbody -->
+            <!-- ④ 본문 (thead 없이 tbody만) -->
             <div class="ranking-scroll-wrapper">
                 <table class="ranking-table">
                     <colgroup>
@@ -506,15 +538,6 @@
                         <col width="80px">
                         <col class="admin-col" width="70px" style="display:none;">
                     </colgroup>
-                    <thead class="rk-sticky-head">
-                        <tr>
-                            <th></th><th>상품번호</th><th>이미지</th>
-                            <th><input type="checkbox" id="masterCheck" onclick="toggleAllChecks(this.checked)" style="display:none; vertical-align:middle; margin-right:5px; cursor:pointer;" title="전체 선택/해제"> 상품명</th>
-                            <th>가격</th><th>키워드</th><th>변동</th>
-                            <th>1주차</th><th>2주차</th><th>3주차</th><th>4주차</th><th>5주차</th>
-                            <th>비고</th><th class="admin-col" style="display:none;">관리</th>
-                        </tr>
-                    </thead>
                     <tbody id="list-mine"></tbody>
                     <tbody id="list-watch" style="display:none;"></tbody>
                 </table>
@@ -534,25 +557,27 @@
       </div>
 
       <div id="page-sales" class="page-section">
-        <div class="card" style="padding-bottom: 0; background: transparent; box-shadow: none; border: none;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:15px;">
-                <h2 style="margin:0;">매출 데이터 분석</h2>
-                <div class="tabs" style="margin-bottom:0; gap:5px;">
-                    <button class="tab active" onclick="setSalesTab('스마트스토어')" style="border-radius:6px; min-width:120px; font-size:14px;">스마트스토어</button>
-                    <button class="tab" onclick="setSalesTab('쿠팡')" style="border-radius:6px; min-width:120px; font-size:14px;">쿠팡</button>
-                </div>
-            </div>
-            
+        <!-- sticky 헤더 -->
+        <div class="sales-sticky-header">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span class="sales-sticky-title">매출 데이터 분석</span>
+          </div>
+          <div class="sales-tab-group">
+            <button class="sales-tab active" onclick="setSalesTab('스마트스토어')">스마트스토어</button>
+            <button class="sales-tab" onclick="setSalesTab('쿠팡')">쿠팡</button>
+          </div>
+        </div>
+        <div class="sales-body-wrap">
             <div class="sales-dashboard-top">
                 <div class="chart-box">
                     <div class="chart-header">
-                        💰 결제금액 및 광고비 추이
+                        결제금액 및 광고비 추이
                     </div>
                     <div class="chart-container half-height"><canvas id="salesChartFinancial"></canvas></div>
                 </div>
                 <div class="chart-box">
                     <div class="chart-header">
-                        📈 결제수 및 전환율 추이
+                        결제수 및 전환율 추이
                         <div class="mini-controls">
                             <label><input type="checkbox" id="chkPayCount" onchange="renderSales()" checked> 결제수</label>
                             <label><input type="checkbox" id="chkConv" onchange="renderSales()" checked> 전환율</label>
@@ -563,14 +588,14 @@
             </div>
             
             <div class="card" style="padding:0; overflow:hidden;">
-                <div style="padding: 15px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--border);">
-                    <h3 style="margin:0; font-size:16px;">월별 상세 내역</h3>
-                    <div class="edit-controls" style="text-align:right;">
-                        <button id="editSalesBtn" onclick="toggleSalesEditMode()">✏️ 편집</button>
+                <div class="sales-table-header">
+                    <h3 class="sales-table-title">월별 상세 내역</h3>
+                    <div class="sales-edit-controls">
+                        <button id="editSalesBtn" onclick="toggleSalesEditMode()">편집</button>
                         <button id="addSalesRowBtn" onclick="addSalesRow()">+ 다음 달 추가</button>
-                        <button id="resetSalesBtn" onclick="resetSalesData()">🔄 초기화</button>
-                        <button id="saveSalesBtn" onclick="saveSalesData()">💾 저장</button>
-                        <button id="downloadSalesBtn" onclick="downloadSalesCSV()" style="background:#34495e;">📥 엑셀</button>
+                        <button id="resetSalesBtn" onclick="resetSalesData()">초기화</button>
+                        <button id="saveSalesBtn" onclick="saveSalesData()">저장</button>
+                        <button id="downloadSalesBtn" onclick="downloadSalesCSV()">엑셀</button>
                     </div>
                 </div>
                 <div class="table-scroll-wrapper" style="width: 100%; overflow-x: auto; padding-bottom: 5px;">
@@ -602,9 +627,10 @@
                     </table>
                 </div>
             </div>
-        </div>
-      </div>
-    </div> 
+        </div><!-- /.card -->
+        </div><!-- /.sales-body-wrap -->
+      </div><!-- /#page-sales -->
+    </div><!-- /.content-body -->
   </main>
 
   <aside class="right-quickbar">
