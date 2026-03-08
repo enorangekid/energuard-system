@@ -48,6 +48,20 @@ window.changeRankingMonth = function() {
 }
 
 // 🚀 [Updated] 검색 순위 불러오기 (히스토리 + 비교 로직 포함)
+
+// 컬럼 헤더(sticky) ↔ 본문 테이블 가로 스크롤 동기화
+function syncRankingHeaderScroll() {
+  const wrapper = document.querySelector('.ranking-scroll-wrapper');
+  const headerWrap = document.querySelector('.rk-col-header-wrap');
+  if (!wrapper || !headerWrap) return;
+  wrapper.addEventListener('scroll', function() {
+    headerWrap.scrollLeft = wrapper.scrollLeft;
+  }, { passive: true });
+  headerWrap.addEventListener('scroll', function() {
+    wrapper.scrollLeft = headerWrap.scrollLeft;
+  }, { passive: true });
+}
+
 window.loadRankingData = async function() {
     if (!supabaseClient) return;
     document.getElementById('loader').style.display = 'flex';
@@ -127,6 +141,7 @@ window.loadRankingData = async function() {
 };
 
 function renderRanking() {
+  setTimeout(syncRankingHeaderScroll, 0);
   var tbodyMine = document.getElementById('list-mine');
   var tbodyWatch = document.getElementById('list-watch');
   if(!tbodyMine || !tbodyWatch) return;
@@ -486,13 +501,13 @@ function toggleEditMode() {
   var adminCols = document.querySelectorAll('.admin-col');
 
   if (isAdmin) {
-      isAdmin = false; btn.innerText = "✏️ 편집 모드"; btn.classList.remove('btn-active');
+      isAdmin = false; btn.innerText = "편집 모드"; btn.classList.remove('btn-active');
       panel.style.display = 'none'; if(masterBtn) masterBtn.style.display = 'none'; 
       adminCols.forEach(col => col.style.display = 'none');
       products = JSON.parse(JSON.stringify(originalProducts));
       renderRanking();
   } else {
-      isAdmin = true; btn.innerText = "❌ 편집 종료"; btn.classList.add('btn-active');
+      isAdmin = true; btn.innerText = "편집 종료"; btn.classList.add('btn-active');
       panel.style.display = 'flex'; if(masterBtn) masterBtn.style.display = 'inline-block'; 
       adminCols.forEach(col => col.style.display = ''); 
       renderRanking();
@@ -722,7 +737,7 @@ function updateSalesEditUI() {
   if(!editBtn || !addBtn || !resetBtn) return;
 
   if (isSalesEditMode) { 
-      editBtn.innerText = "❌ 편집 취소"; editBtn.classList.add('edit-active'); 
+      editBtn.innerText = "편집 취소"; editBtn.classList.add('edit-active'); 
       addBtn.style.display = 'inline-block'; resetBtn.style.display = 'inline-block'; 
       colDeletes.forEach(el => {
           el.style.display = el.tagName === 'COL' ? '' : 'table-cell';
@@ -730,7 +745,7 @@ function updateSalesEditUI() {
       });
   } 
   else { 
-      editBtn.innerText = "✏️ 편집"; editBtn.classList.remove('edit-active'); 
+      editBtn.innerText = "편집"; editBtn.classList.remove('edit-active'); 
       addBtn.style.display = 'none'; resetBtn.style.display = 'none'; 
       colDeletes.forEach(el => {
           el.style.display = 'none';
@@ -897,11 +912,11 @@ window.saveSalesData = async function() {
             if (error) throw error;
         }
         showToast('매출 데이터 저장 완료!', 'success');
-        btn.innerText = "💾 저장";
+        btn.innerText = "저장";
         originalSalesData = JSON.parse(JSON.stringify(salesData)); 
         isSalesEditMode = false; updateSalesEditUI(); renderSales();
     } catch(e) { 
-        console.error(e); showToast('저장 실패: ' + e.message, 'error'); btn.innerText = "💾 저장";
+        console.error(e); showToast('저장 실패: ' + e.message, 'error'); btn.innerText = "저장";
     } finally { 
         document.getElementById('loader').style.display = 'none'; 
     }
@@ -996,7 +1011,7 @@ function drawChart(labels, rev, ad, traffic, pay, conv) {
 
 function setSalesTab(t) { 
   currentSalesTab = t; 
-  document.querySelectorAll('#page-sales .tab').forEach(b => b.classList.toggle('active', b.innerText == t)); 
+  document.querySelectorAll('#page-sales .sales-tab').forEach(b => b.classList.toggle('active', b.innerText.trim() == t)); 
   
   var smartCols = document.querySelectorAll('.col-smart'); 
   var coupangCols = document.querySelectorAll('.col-coupang');

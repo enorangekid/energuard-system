@@ -349,13 +349,14 @@ function handleMonthChange(input) {
   currentWorkYear = parseInt(parts[0]);
   currentWorkMonth = parseInt(parts[1]);
   updateDateDisplay();
-  initMonthlyLog(); 
-  loadWorklogFromServer(); 
+  initMonthlyLog();
+  loadWorklogFromServer();
 }
 
 function updateDateDisplay() {
+  const val = `${currentWorkYear}-${String(currentWorkMonth).padStart(2, '0')}`;
   const picker = document.getElementById('worklogPicker');
-  if(picker) picker.value = `${currentWorkYear}-${String(currentWorkMonth).padStart(2, '0')}`;
+  if(picker) picker.value = val;
 }
 
 function generateWeeksData(year, month) {
@@ -421,7 +422,7 @@ function initMonthlyLog() {
     }
     const planHtml = `
       <div class="week-plan-section">
-        <div class="section-header"><span class="section-title">🚀 ${week.name} 목표</span><span class="section-date">${week.range}</span></div>
+        <div class="section-header"><span class="section-title">${week.name} 목표</span><span class="section-date">${week.range}</span></div>
         <div class="header-row"><div class="h-cell c-no">NO</div><div class="h-cell c-cat">구분</div><div class="h-cell c-task">업무내용</div><div class="h-cell c-prio">우선순위</div><div class="h-cell c-date">마감</div><div class="h-cell c-chk">완료</div></div>
         <div class="wp-list">${planRows}</div>
         <div class="bottom-area">
@@ -561,6 +562,21 @@ function setupDragSelection() {
 }
 
 // ✅ Supabase 연동 월간 업무일지 로드
+// sticky 헤더 스크롤 감지 — 그림자 토글
+function initStickyHeader() {
+  const contentBody = document.querySelector('.content-body');
+  const header = document.querySelector('.worklog-sticky-header');
+  if (!contentBody || !header) return;
+  contentBody.addEventListener('scroll', function onScroll() {
+    // page-worklog가 비활성화되면 리스너 제거
+    if (!document.getElementById('page-worklog').classList.contains('active')) {
+      contentBody.removeEventListener('scroll', onScroll);
+      return;
+    }
+    header.classList.toggle('is-stuck', contentBody.scrollTop > 10);
+  }, { passive: true });
+}
+
 async function loadWorklogFromServer() {
   if(!supabaseClient) return;
   const monthKey = `${currentWorkYear}-${currentWorkMonth}`;
@@ -627,7 +643,7 @@ async function collectAndSaveWorklog() {
       if(!dateKey) return;
       dayEl.querySelectorAll('.wp-list .task-strip').forEach((row, idx) => {
         const task = row.querySelector('[name="task"]').value; const cat = row.querySelector('[name="category"]').value;
-        if(task || cat) taskRows.push({ year: targetYear, month: targetMonth, week_id: weekId, date: dateKey, type: "Daily", row_index: idx, category: cat, task: task, priority: row.querySelector('[name="priority"]').value, note_deadline: row.querySelector('[name="note"]').value, is_done: row.querySelector('[name="done"]').checked });
+        if(task || cat) taskRows.push({ year: targetYear, month: targetMonth, week_id: weekId, date: dateKey, type: "Daily", row_index: idx, category: cat, task: task, priority: row.querySelector('[name="priority"]').value, note_deadline: '', is_done: row.querySelector('[name="done"]').checked, note_content: row.querySelector('[name="note"]').value });
       });
       memoRows.push({ year: targetYear, month: targetMonth, key: dateKey, type: "Memo", content: dayEl.querySelector('[name="dayMemo"]').value });
       memoRows.push({ year: targetYear, month: targetMonth, key: dateKey, type: "ProductLog", content: dayEl.querySelector('[name="productLog"]').value });
@@ -654,6 +670,29 @@ async function collectAndSaveWorklog() {
   }
 }
 
+
+// 상품수정내역 페이지에서 해당 날짜 업무일지로 이동
+window.jumpToWorkLog = function(dateStr) {
+    if (!dateStr) return;
+    let clean = String(dateStr).trim().replace(/\./g, '-').replace(/\//g, '-');
+    const parts = clean.split('-');
+    if (parts.length >= 3) {
+        const y = parseInt(parts[0]);
+        const m = parseInt(parts[1]);
+        currentWorkYear = y;
+        currentWorkMonth = m;
+        updateDateDisplay();
+        showPage('worklog', document.querySelector('.menu-item[onclick*="worklog"]'));
+        setTimeout(() => {
+            initMonthlyLog();
+            loadWorklogFromServer().then(() => {
+                const fullDate = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+                const dayCol = document.querySelector(`.day-column[data-date="${fullDate}"]`);
+                if (dayCol) dayCol.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        }, 100);
+    }
+};
 function normalizeDate(dateStr) {
    if(!dateStr) return "";
    const date = new Date(dateStr);
@@ -686,10 +725,21 @@ function applyWorklogData(json) {
             if(inputs.length > 0) inputs[0].value = content;
         } else if (type === 'Memo' || type === 'ProductLog') {
             if(type === 'ProductLog') {
-                if(!isNaN(Number(content))) return; 
+                if(!isNaN(Number(content))) return;
             }
             inputs = document.querySelectorAll(`.day-column[data-date="${normalizeDate(key)}"] [name="${type === 'Memo' ? 'dayMemo' : 'productLog'}"]`);
             if(inputs.length > 0) inputs[0].value = content;
+        } else if (type === 'Rate') {
+            // 버그3 수정: 달성률 복원
+            const pct = parseInt(content) || 0;
+            // 주차 목표 달성률
+            const planFill = document.querySelector(`.week-row[data-week-id="${key}"] .week-plan-section .progress-bar-fill`);
+            const planText = document.querySelector(`.week-row[data-week-id="${key}"] .week-plan-section .progress-text`);
+            if (planFill && planText) { planFill.style.width = pct + '%'; planText.innerText = pct + '%'; }
+            // 일별 달성률
+            const dayFill = document.querySelector(`.day-column[data-date="${normalizeDate(key)}"] .progress-bar-fill`);
+            const dayText = document.querySelector(`.day-column[data-date="${normalizeDate(key)}"] .progress-text`);
+            if (dayFill && dayText) { dayFill.style.width = pct + '%'; dayText.innerText = pct + '%'; }
         }
     });
 }
@@ -803,7 +853,7 @@ async function renderProductLogPage() {
                 currentMonth = logMonth;
                 const [yyyy, mm] = logMonth.split('-');
                 const divider = document.createElement('tr');
-                divider.innerHTML = `<td colspan="2" class="prodlog-month-divider">📅 ${yyyy}년 ${mm}월 수정 내역</td>`;
+                divider.innerHTML = `<td colspan="2" class="prodlog-month-divider">${yyyy}년 ${mm}월 수정 내역</td>`;
                 tbody.appendChild(divider);
             }
 

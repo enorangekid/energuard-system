@@ -189,11 +189,37 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
     if(pageId === 'worklog' && typeof loadWorklogFromServer === 'function') {
         if(typeof updateDateDisplay === 'function') updateDateDisplay();
         if(typeof initMonthlyLog === 'function') initMonthlyLog();
-        loadWorklogFromServer(); 
+        if(typeof initStickyHeader === 'function') initStickyHeader();
+        loadWorklogFromServer();
     }
     if(pageId === 'productlogs' && typeof renderProductLogPage === 'function') renderProductLogPage();
-    if(pageId === 'ranking' && typeof loadRankingData === 'function') loadRankingData();
-    if(pageId === 'sales' && typeof loadSalesData === 'function' && (!salesData || salesData.length === 0)) loadSalesData();
+    if(pageId === 'ranking' && typeof loadRankingData === 'function') {
+        loadRankingData();
+        // sticky 헤더 그림자 감지
+        const _cb = document.querySelector('.content-body');
+        const _rh = document.querySelector('.rk-sticky-header');
+        if (_cb && _rh) {
+            _cb.addEventListener('scroll', function _rkScroll() {
+                if (!document.getElementById('page-ranking').classList.contains('active')) {
+                    _cb.removeEventListener('scroll', _rkScroll); return;
+                }
+                _rh.classList.toggle('is-stuck', _cb.scrollTop > 10);
+            }, { passive: true });
+        }
+    }
+    if(pageId === 'sales' && typeof loadSalesData === 'function') {
+        if(!salesData || salesData.length === 0) loadSalesData();
+        const _cb2 = document.querySelector('.content-body');
+        const _sh = document.querySelector('.sales-sticky-header');
+        if (_cb2 && _sh) {
+            _cb2.addEventListener('scroll', function _salesScroll() {
+                if (!document.getElementById('page-sales').classList.contains('active')) {
+                    _cb2.removeEventListener('scroll', _salesScroll); return;
+                }
+                _sh.classList.toggle('is-stuck', _cb2.scrollTop > 10);
+            }, { passive: true });
+        }
+    }
 
     // 🚀 [노트 페이지 로직 수정] 타이머에 할당하여 페이지 이탈 시 취소 가능하게 만듦
     if(pageId === 'notes') {
