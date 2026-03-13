@@ -1,0 +1,163 @@
+/* ================= [10. Dashboard UI] ================= */
+.dash-card {
+  background: white; border-radius: 12px; padding: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.dash-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.dash-card-title { font-size: 16px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 10px; margin: 0; }
+.dash-card-title.clickable { cursor: pointer; transition: 0.2s; }
+.dash-card-title.clickable:hover { color: var(--primary); opacity: 0.8; }
+.dash-card-icon {
+    width: 30px; height: 30px;
+    border-radius: 50% !important; /* 사각형에서 원형으로 변경 */
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 14px;
+}
+.dash-card-subtitle { font-size: 12px; color: var(--text-sub); font-weight: 500; margin-left: 8px; }
+
+/* 새로고침 UI 스타일 */
+.dash-refresh { font-size: 13px; color: #94a3b8; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.2s; padding: 4px 8px; border-radius: 6px; }
+.dash-refresh:hover { background-color: #f1f5f9; color: var(--primary); }
+.dash-refresh i { font-size: 14px; }
+
+/* 푸터 디자인 */
+.dash-footer {
+  margin-top: 40px; padding-top: 30px; padding-bottom: 20px;
+  border-top: 1px solid var(--border);
+  text-align: center; color: #94a3b8; font-size: 13px; line-height: 1.6;
+}
+.dash-footer .company-name { font-weight: 700; color: #64748b; font-size: 15px; margin-bottom: 8px; display: inline-block; }
+
+/* Sales Stats */
+.dash-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.dash-stat-item { padding: 20px; background: #fff; border-radius: 12px; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
+.dash-stat-label { font-size: 13px; color: var(--text-sub); font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.stat-icon-circle { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.dash-stat-value { font-size: 24px; font-weight: 800; color: var(--text-main); margin-bottom: 6px; }
+.dash-stat-diff { font-size: 12px; font-weight: 600; }
+.dash-stat-diff.up { color: #ef4444; }
+.dash-stat-diff.down { color: #3b82f6; }
+
+/* Ranking Lists */
+.dash-rank-wrapper { display: flex; gap: 24px; }
+.dash-rank-box { flex: 1; border: 1px solid #f1f5f9; border-radius: 12px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+.dash-rank-header { font-size: 14px; font-weight: 700; margin-bottom: 0; padding: 16px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+.dash-rank-badge { font-size: 12px; padding: 2px 10px; border-radius: 12px; font-weight: 700; }
+.dash-rank-list-scroll { padding: 0 16px 16px; max-height: 250px; overflow-y: auto; }
+.dash-rank-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f8fafc; text-decoration: none; color: var(--text-main); transition: 0.2s; }
+.dash-rank-item:last-child { border-bottom: none; }
+.dash-rank-item:hover { background: #f8fafc; border-radius: 6px; padding-left: 5px; padding-right: 5px; }
+.dash-rank-diff { width: 40px; font-size: 12px; font-weight: 800; }
+.dash-rank-diff.up { color: #ef4444; }
+.dash-rank-diff.down { color: #3b82f6; }
+.dash-rank-thumb { width: 36px; height: 36px; border-radius: 6px; background-color: #f1f5f9; background-size: cover; background-position: center; border: 1px solid #e2e8f0; flex-shrink: 0; }
+.dash-rank-name { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #475569; }
+
+/* Dashboard Grid 2x2 */
+.dash-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px; }
+
+/* Standard Lists */
+.dash-list { list-style: none; padding: 0; margin: 0; flex: 1; display: flex; flex-direction: column; gap: 0; }
+.dash-list li { padding: 12px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; font-weight: 500; display: flex; align-items: center; color: #475569; }
+.dash-list li:last-child { border-bottom: none; }
+.dash-hover-bg { transition: background-color 0.2s; padding-left: 8px !important; padding-right: 8px !important; border-radius: 6px; cursor: pointer; }
+.dash-hover-bg:hover { background-color: #f8fafc; }
+.dash-list .dot { width: 6px; height: 6px; border-radius: 50%; margin-right: 12px; flex-shrink: 0; }
+.dot.primary { background: var(--primary); }
+.dot.secondary { background: #94a3b8; }
+.dot.success { background: #10b981; }
+.dot.danger { background: #ef4444; }
+.dash-date { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.dash-note-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-hover-underline:hover { text-decoration: underline; color: var(--primary); }
+.dash-empty { color: #94a3b8; text-align: center; width: 100%; padding: 10px 0; font-weight: 400; }
+/* ================= [11. Right Quick Bar (NEW)] ================= */
+
+/* ✅ 기존 body의 display 설정을 우측바까지 포함하도록 유지 */
+/* 기존에 body { display: flex; } 로 설정되어 있으므로 자연스럽게 우측에 붙습니다. */
+
+.right-quickbar {
+  width: 70px;
+  background-color: #ffffff;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+  z-index: 100;
+  box-shadow: -2px 0 10px rgba(0,0,0,0.02);
+  flex-shrink: 0;
+}
+
+.quick-menu-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 25px; /* 아이콘 간격 */
+  width: 100%;
+}
+
+.quick-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.quick-item:hover {
+  transform: translateY(-2px);
+}
+
+.quick-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%; /* 둥근 아이콘 배경 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 18px;
+  position: relative;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  margin-bottom: 6px;
+}
+
+/* 네이버 스타일 빨간색 'N' 뱃지 */
+.badge-n {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background-color: #ef4444; /* 빨간색 */
+  color: white;
+  font-size: 9px;
+  font-weight: 900;
+  font-family: 'Arial', sans-serif;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid white;
+}
+
+.quick-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: -0.5px;
+}
+
+.quick-item:hover .quick-text {
+  color: var(--primary);
+}
+
+/* 프린트 시 우측바 숨김 추가 */
+@media print {
+  .right-quickbar { display: none !important; }
+}
+/* [중복제거] right-quickbar 중복 → 위 섹션으로 통합 */
+

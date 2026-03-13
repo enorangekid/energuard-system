@@ -1,0 +1,330 @@
+/* ══════════════════════════════════════════════
+   상품 편집 / 추가 모달 (prod-modal) — 와이드 레이아웃
+══════════════════════════════════════════════ */
+
+/* ── 모달 박스 전체 ── */
+.prod-modal-box {
+  background: #fff;
+  border-radius: 16px;
+  width: 860px;
+  max-width: 96vw;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 48px -12px rgba(0,0,0,0.22);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  /* 스크롤 없이 높이 자동 결정 */
+  height: auto;
+  max-height: 94vh;
+}
+
+/* ── 헤더 ── */
+.prod-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+  flex-shrink: 0;
+}
+.prod-modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 3px 7px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.prod-modal-close:hover { background: #f1f5f9; color: #1e293b; }
+
+/* ── 내 상품 / 관찰 상품 탭 ── */
+.prod-modal-type-tabs {
+  display: flex;
+  padding: 0 28px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+.prod-modal-type-tab {
+  padding: 10px 22px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+}
+.prod-modal-type-tab.active {
+  color: #4f46e5;
+  border-bottom-color: #4f46e5;
+}
+
+/* ── 본문: 좌/우 2컬럼 ── */
+.prod-modal-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  flex: 1;
+  min-height: 0; /* grid 내부 overflow 동작 보장 */
+  overflow: hidden;
+}
+
+/* ── 왼쪽 컬럼 ── */
+.prod-modal-left {
+  padding: 24px 24px 24px 28px;
+  border-right: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+/* ── 오른쪽 컬럼 ── */
+.prod-modal-right {
+  padding: 24px 28px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+/* ── 섹션 제목 ── */
+.prod-modal-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: -2px;
+}
+
+/* ── 이미지 영역 ── */
+.prod-modal-img-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+.prod-modal-img-preview {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  display: block;
+  flex-shrink: 0;
+}
+.prod-modal-img-empty {
+  width: 72px;
+  height: 72px;
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
+  flex-shrink: 0;
+}
+.prod-modal-img-fetch {
+  font-size: 12px;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.prod-modal-img-fetch:hover { background: #f1f5f9; border-color: #94a3b8; color: #1e293b; }
+
+/* ── 폼 행 ── */
+.prod-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.prod-modal-row label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  width: 84px;
+  flex-shrink: 0;
+}
+.prod-modal-row input,
+.prod-modal-row select {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  transition: border 0.15s, box-shadow 0.15s;
+  min-width: 0;
+  font-family: inherit;
+  background: #fff;
+}
+.prod-modal-row input:focus,
+.prod-modal-row select:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+
+/* ── 보조 키워드 추가 버튼 ── */
+.prod-modal-add-sub {
+  margin-left: 96px;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px dashed #a5b4fc;
+  background: #f5f3ff;
+  color: #4f46e5;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s;
+  width: fit-content;
+  align-self: flex-start;
+}
+.prod-modal-add-sub:hover { background: #ede9fe; border-color: #818cf8; }
+
+/* ── 주차별 순위 (가로 5칸) ── */
+.prod-modal-rank-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+}
+.prod-modal-rank-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+}
+.prod-modal-rank-cell label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  width: auto;
+}
+.prod-modal-rank-cell input {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  transition: border 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.prod-modal-rank-cell input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+
+/* ── 푸터 ── */
+.prod-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 28px 20px;
+  border-top: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+.prod-modal-btn-cancel {
+  padding: 9px 22px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.prod-modal-btn-cancel:hover { background: #f8fafc; }
+.prod-modal-btn-save {
+  padding: 9px 26px;
+  border-radius: 8px;
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.prod-modal-btn-save:hover { background: #4338ca; }
+
+/* ── 상품 추가 버튼 강조 ── */
+.rk-add-btn {
+  background: #4f46e5 !important;
+  color: #fff !important;
+  border-color: #4f46e5 !important;
+}
+.rk-add-btn:hover { background: #4338ca !important; border-color: #4338ca !important; }
+
+/* ── 행 편집 버튼 ── */
+.row-edit-btn {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.15s;
+  display: inline-block;
+}
+.row-edit-btn:hover { background: #e0e7ff; border-color: #a5b4fc; color: #4f46e5; }
+
+/* 순위 수집 버튼 */
+.rk-collect-btn {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: #1e293b;
+}
+.rk-collect-btn:hover {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+}
+/* ── 보조 키워드 편집 블록 ── */
+.prod-modal-sub-block {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: #f8fafc;
+}
+.prod-modal-rank-row--sub {
+  margin-top: 6px;
+}
+.prod-modal-rank-row--sub .prod-modal-rank-cell label {
+  font-size: 10px;
+  color: #94a3b8;
+}
+.prod-modal-rank-row--sub .prod-modal-rank-cell input {
+  font-size: 12px;
+  padding: 4px 6px;
+}

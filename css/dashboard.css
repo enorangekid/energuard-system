@@ -1,0 +1,30 @@
+/* ================= [5. Dashboard & Timeline & Common Card] ================= */
+.card { 
+  background: white; border-radius: var(--radius); padding: 30px; 
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border); margin-bottom: 24px; 
+}
+.card h2 { margin-top: 0; font-size: 18px; margin-bottom: 20px; color: var(--text-main); }
+.input-panel h3 { 
+  margin-top: 0; margin-bottom: 20px; font-size: 18px; font-weight: 700; color: var(--text-main); 
+  display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 1px solid var(--border);
+}
+.input-group-row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.input-wrap { display: flex; flex-direction: column; gap: 6px; }
+.input-wrap label { font-size: 13px; font-weight: 600; color: var(--text-sub); margin-left: 2px; text-align: center; width: 100%; }
+.form-input { height: 46px; box-sizing: border-box; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; color: var(--text-main); background: #f9fafb; transition: all 0.2s; }
+.form-input:focus { border-color: var(--primary); background: white; outline: none; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+.small { width: 150px; } .large { flex: 1; min-width: 300px; }
+.time-split-box { height: 46px; box-sizing: border-box; display: flex; align-items: center; gap: 6px; background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; transition: 0.2s; }
+.time-split-box:focus-within { border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+.time-part { width: 45px; height: 100%; text-align: center; border: none; background: transparent; font-size: 14px; font-weight: 600; outline: none; padding: 0; }
+.btn-add { background: var(--primary); color: white; border: none; padding: 0 24px; height: 46px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2); }
+.btn-add.update-mode { background: #2563eb; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3); }
+
+.btn-server { background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+.timeline-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+.timeline-table thead th { background: #f8fafc; color: var(--text-sub); padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: center; font-weight: 600; font-size: 13px; }
+.timeline-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; text-align: center; color: var(--text-main); }
+.date-header-row { background-color: #f1f5f9; cursor: pointer; }
+.badge { background: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge-holiday { background: #fee2e2; color: #dc2626; }
+

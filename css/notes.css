@@ -1,0 +1,220 @@
+/* ================= [7. New Note Styles (Refined)] ================= */
+.note-container {
+  width: 100%; height: 100%;
+  background: transparent;
+  display: flex; flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+/* ① 타이틀 바 */
+.nt-title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  padding: 14px 24px;
+  flex-shrink: 0;
+  gap: 20px;
+}
+.nt-left { display: flex; align-items: center; gap: 20px; }
+
+/* 탭 — 독립 라운드 버튼 */
+.nt-tabs {
+  display: flex;
+  gap: 6px;
+}
+.nt-tab {
+  padding: 10px 22px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  color: #64748b;
+  transition: 0.15s;
+}
+.nt-tab:hover { background: #e8edf5; color: #1e293b; border-color: #cbd5e1; }
+.nt-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 2px 8px rgba(79,70,229,0.25); }
+
+/* 우측 컨트롤 */
+.note-controls { display: flex; align-items: center; gap: 12px; }
+
+/* 하위호환 */
+.note-header { display: none; }
+.note-left { display: flex; align-items: center; gap: 24px; }
+.note-tabs { display: none; }
+.tab-btn { display: none; }
+
+.status-indicator { 
+  font-size: 12px; padding: 6px 12px; border-radius: 20px; 
+  background: #f8fafc; color: #64748b; font-weight: 600; 
+  display: flex; align-items: center; gap: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.date-selector-wrapper { 
+  display: flex; align-items: center; 
+  background: #fff; border: 1px solid #e2e8f0; 
+  padding: 6px 12px; border-radius: 8px; 
+  transition: 0.2s;
+}
+.date-selector-wrapper:hover { border-color: #cbd5e1; }
+.date-selector-wrapper input { 
+  border: none; background: transparent; font-weight: 600; 
+  font-size: 13px; color: #333; outline: none; cursor: pointer; 
+  font-family: 'Pretendard';
+}
+
+.btn-icon-text { 
+  padding: 8px 16px; border-radius: 8px; border: none; 
+  font-weight: 600; cursor: pointer; transition: 0.2s; 
+  font-size: 13px; display: flex; align-items: center; gap: 6px; 
+}
+.btn-secondary { background: #f1f5f9; color: #475569; }
+.btn-secondary:hover { background: #e2e8f0; }
+.btn-primary { background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2); }
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+
+/* 2. 검색 바 (Sub Header) */
+/* ② 검색 바 카드 */
+.nt-search-bar {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  padding: 12px 24px;
+  flex-shrink: 0;
+}
+/* 하위호환 */
+.note-sub-header { display: none; }
+.search-wrapper { position: relative; width: 100%; max-width: 500px; }
+.search-input { 
+  width: 100%; padding: 10px 12px 10px 38px; 
+  border-radius: 8px; border: 1px solid #e2e8f0; 
+  background: #f8fafc; font-size: 14px; outline: none; transition: 0.2s; 
+}
+.search-input:focus { background: #fff; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+.search-icon { position: absolute; left: 14px; top: 12px; color: #94a3b8; font-size: 14px; }
+#noteSearchResults { 
+  position: absolute; top: 45px; left: 0; width: 100%; 
+  background: white; border: 1px solid var(--border); 
+  border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); 
+  max-height: 300px; overflow-y: auto; z-index: 100; display: none; 
+}
+
+/* 3. 원고 목록 (List View) */
+#draftListContainer { 
+  flex: 1; padding: 0; overflow-y: auto; display: none; 
+  background-color: #fff;
+}
+.list-toolbar {
+  padding: 15px 24px; display: flex; justify-content: flex-end;
+  border-bottom: 1px solid #f1f5f9;
+}
+/* 테이블 스타일 (타임라인/상품로그와 통일) */
+.styled-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.styled-table thead th { 
+  position: sticky; top: 0; background: #f8fafc; z-index: 10;
+  color: #64748b; padding: 12px 16px; border-bottom: 1px solid var(--border); 
+  text-align: center; font-weight: 600; font-size: 13px; 
+}
+.styled-table tbody td { 
+  padding: 16px; border-bottom: 1px solid #f1f5f9; 
+  color: var(--text-main); text-align: center; vertical-align: middle; 
+}
+.styled-table tbody tr:hover { background-color: #f8fafc; cursor: pointer; }
+.text-left { text-align: left !important; }
+.font-bold { font-weight: 600; color: #334155; }
+.text-sub { color: #94a3b8; font-size: 13px; }
+
+/* 4. 원고 메타데이터 (Detail Header) */
+#draftMetadataArea { 
+  display: none; padding: 16px 24px; 
+  background: #fff; border-bottom: 1px solid #f1f5f9; 
+  align-items: center; gap: 16px; 
+}
+.btn-back { 
+  padding: 8px 14px; border: 1px solid #e2e8f0; background: white; 
+  border-radius: 8px; cursor: pointer; font-size: 13px; color: #64748b; font-weight: 600;
+  transition: 0.2s; display: flex; align-items: center; gap: 6px;
+}
+.btn-back:hover { background: #f8fafc; color: #334155; border-color: #cbd5e1; }
+#draftTitle { 
+  flex: 1; height: 44px; font-size: 18px; font-weight: 700; 
+  border: 1px solid transparent; background: transparent; 
+  border-radius: 6px; padding: 0 10px; color: #1e293b;
+  transition: 0.2s;
+}
+#draftTitle:hover { background: #f8fafc; }
+#draftTitle:focus { background: #fff; border-color: #e2e8f0; outline: none; }
+#draftStatus { 
+  height: 40px; border: 1px solid #e2e8f0; border-radius: 8px; 
+  padding: 0 12px; font-weight: 600; font-size: 13px; cursor: pointer; color: #475569;
+  background-color: #fff;
+}
+
+/* ③ 내용 영역 카드 */
+.nt-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* 5. 에디터 영역 */
+#editor-wrapper { 
+  flex: 1; display: flex; flex-direction: column; 
+  padding: 0; overflow: hidden; position: relative; 
+}
+.ql-toolbar.ql-snow { 
+  border: none !important; border-bottom: 1px solid #f1f5f9 !important; 
+  padding: 12px 24px !important; background: #fff; 
+}
+.ql-container.ql-snow { 
+  border: none !important; font-size: 16px; line-height: 1.8; color: #334155;
+  flex: 1; overflow-y: auto; padding: 0;
+}
+.ql-editor { padding: 40px 60px; color: #000000 !important; font-family: 'Pretendard', sans-serif; }
+.ql-editor.ql-blank::before { color: #cbd5e1; font-style: normal; font-size: 16px; }
+
+/* 구분선 툴바 버튼 */
+.ql-divider {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 28px !important;
+  height: 24px !important;
+}
+.ql-divider::before {
+  content: '';
+  display: block;
+  width: 16px;
+  height: 2px;
+  background: #444;
+  border-radius: 2px;
+  box-shadow: 0 3px 0 #444, 0 6px 0 #444;
+}
+.ql-divider:hover::before { background: #4f46e5; box-shadow: 0 3px 0 #4f46e5, 0 6px 0 #4f46e5; }
+
+/* 에디터 내 구분선(HR) 스타일 */
+.ql-editor hr {
+  border: none;
+  border-top: 2px solid #e2e8f0;
+  margin: 20px 0;
+  cursor: default;
+}
+
+/* 스크롤바 커스텀 */
+#draftListContainer::-webkit-scrollbar { width: 6px; }
+#draftListContainer::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
+
