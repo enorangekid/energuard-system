@@ -112,19 +112,28 @@ function updateYearFilterOptions() {
 
 function renderTimeLog() {
   const tbody = document.getElementById('timelineList');
+  // 렌더링을 다음 프레임으로 미뤄 메인 스레드 블로킹 방지
+  requestAnimationFrame(() => {
   tbody.innerHTML = '';
   const selectedYear = document.getElementById('yearFilter').value;
   const searchQuery = document.getElementById('taskSearch').value.toLowerCase();
   let filteredLogs = timeLogs.filter(log => log.date.startsWith(selectedYear) && (log.task.toLowerCase().includes(searchQuery) || log.category.toLowerCase().includes(searchQuery)));
   filteredLogs.sort((a,b) => b.date.localeCompare(a.date) || a.start.localeCompare(b.start));
+
+  // 인덱스 맵 미리 생성 (indexOf O(n) 반복 제거)
+  const idxMap = new Map(timeLogs.map((log, i) => [log, i]));
+
   const grouped = {};
   filteredLogs.forEach(log => { if(!grouped[log.date]) grouped[log.date] = []; grouped[log.date].push(log); });
-  
+
+  // DocumentFragment로 DOM 조작 최소화
+  const frag = document.createDocumentFragment();
+
   Object.keys(grouped).forEach(date => {
       const dayOfWeek = getDayKor(date);
       const groupLogs = grouped[date];
       const isHoliday = groupLogs.some(l => l.category === '휴무');
-      const isCollapsed = collapsedDates[date] || false; 
+      const isCollapsed = collapsedDates[date] || false;
       let headerRow = document.createElement('tr');
       headerRow.className = 'date-header-row' + (isHoliday ? ' holiday-header' : '');
       headerRow.onclick = () => { collapsedDates[date] = !collapsedDates[date]; renderTimeLog(); };
@@ -132,17 +141,17 @@ function renderTimeLog() {
           <i class="fa-solid fa-chevron-down date-arrow" style="transition: transform 0.2s; ${isCollapsed ? 'transform: rotate(-90deg);' : ''}"></i>
           <span>${date} <span style="font-weight:400; opacity:0.8;">(${dayOfWeek})</span></span>
           ${isHoliday ? '<span class="badge badge-holiday">휴무</span>' : ''}</div></td>`;
-      tbody.appendChild(headerRow);
-      
+      frag.appendChild(headerRow);
+
       if(!isCollapsed) {
           groupLogs.forEach(log => {
-              const realIdx = timeLogs.indexOf(log); 
+              const realIdx = idxMap.get(log) ?? timeLogs.indexOf(log);
               let row = document.createElement('tr');
               let durationHtml = log.duration;
               if (log.min >= 120) durationHtml = `<span style="color: #dc2626; font-weight: 700; background: #fef2f2; border-radius: 6px; padding: 4px 8px;">${log.duration}</span>`;
               else if (log.min >= 60) durationHtml = `<span style="color: #d97706; font-weight: 700; background: #fffbeb; border-radius: 6px; padding: 4px 8px;">${log.duration}</span>`;
               let catBadge = log.category === '휴무' ? 'badge badge-holiday' : 'badge';
-              
+
               // ✅ XSS 방지: DB에서 온 사용자 데이터(category, task, start, end)는 textContent로 처리
               const tdCat = document.createElement('td');
               const catSpan = document.createElement('span');
@@ -171,11 +180,14 @@ function renderTimeLog() {
               row.appendChild(tdEnd);
               row.appendChild(tdDuration);
               row.appendChild(tdBtns);
-              tbody.appendChild(row);
+              frag.appendChild(row);
           });
       }
   });
+  tbody.appendChild(frag);
+  }); // rAF 끝
 }
+
 
 // ✅ Supabase 연동 타임라인 추가/수정 함수
 async function addTimeLog() {
@@ -343,14 +355,21 @@ window.addEventListener('DOMContentLoaded', () => {
    initMonthlyLog(); 
 });
 
-function handleMonthChange(input) {
+async function handleMonthChange(input) {
   if(!input.value) return;
   const parts = input.value.split('-');
   currentWorkYear = parseInt(parts[0]);
   currentWorkMonth = parseInt(parts[1]);
   updateDateDisplay();
   initMonthlyLog();
-  loadWorklogFromServer();
+
+  // ✅ [안전장치 A] 로드 완료 전까지 저장 버튼 비활성화 (로드 중 저장으로 인한 데이터 소실 방지)
+  const saveBtn = document.querySelector('.worklog-save-btn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '0.4'; saveBtn.title = '데이터 로딩 중...'; }
+
+  await loadWorklogFromServer();
+
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; saveBtn.title = ''; }
 }
 
 function updateDateDisplay() {
@@ -434,7 +453,7 @@ function initMonthlyLog() {
     let dailyHtml = `<div class="week-daily-section">`;
     week.days.forEach(d => {
       const blankClass = d.isBlank ? ' blank' : '';
-      const dayDisplay = d.isBlank ? '' : `${d.day} <span style="font-weight:400; color:#555; margin-left:4px;">${d.num}</span>`;
+      const dayDisplay = d.isBlank ? '' : `${d.day} <span style="font-weight:700; color:#a5b4fc; margin-left:4px;">${d.num}</span>`;
       let dayRows = '';
       for(let j=0; j<20; j++) { 
         dayRows += `
@@ -582,8 +601,12 @@ async function loadWorklogFromServer() {
   const monthKey = `${currentWorkYear}-${currentWorkMonth}`;
   
   if(worklogCache[monthKey]) {
-      applyWorklogData(worklogCache[monthKey]);
-      return;
+      // ✅ [캐시 버그 수정] tasks가 0건인 캐시는 신뢰하지 않고 서버에서 강제 재조회
+      if ((worklogCache[monthKey]?.tasks?.length || 0) > 0) {
+          applyWorklogData(worklogCache[monthKey]);
+          return;
+      }
+      delete worklogCache[monthKey];
   }
 
   const loader = document.getElementById('loader'); loader.style.display = 'flex';
@@ -619,11 +642,43 @@ async function loadWorklogFromServer() {
 
 // ✅ Supabase 연동 월간 업무일지 일괄 저장
 async function collectAndSaveWorklog() {
-  if(!confirm(`${currentWorkYear}년 ${currentWorkMonth}월 업무일지를 저장하시겠습니까?\n(해당 월의 기존 데이터는 덮어씌워집니다)`)) return;
-  
+  const targetYear = currentWorkYear;
+  const targetMonth = currentWorkMonth;
+
+  // ✅ [안전장치 B] 화면에 입력된 task/category가 하나도 없으면 저장 차단
+  const allTaskInputs = document.querySelectorAll('#monthlyContainer .week-row [name="task"], #monthlyContainer .week-row [name="category"]');
+  const hasAnyContent = Array.from(allTaskInputs).some(el => el.value.trim() !== '');
+
+  if (!hasAnyContent) {
+    try {
+      const { data: chkExist } = await supabaseClient
+        .from('monthly_tasks').select('id').eq('year', targetYear).eq('month', targetMonth).limit(1);
+      if (chkExist && chkExist.length > 0) {
+        showToast(`⚠️ 화면에 내용이 없습니다. DB의 ${targetYear}년 ${targetMonth}월 데이터를 보호하기 위해 저장을 취소했습니다.`, 'warning');
+        return;
+      }
+    } catch(e) {
+      showToast('⚠️ 화면에 입력된 내용이 없습니다. 데이터 보호를 위해 저장을 취소했습니다.', 'warning');
+      return;
+    }
+  }
+
+  // ✅ [안전장치 C] 저장 전 DB 기존 건수 확인 후 화면에 노출
+  let existingTaskCount = 0;
+  try {
+    const { data: chk } = await supabaseClient
+      .from('monthly_tasks').select('id').eq('year', targetYear).eq('month', targetMonth);
+    existingTaskCount = chk ? chk.length : 0;
+  } catch(e) { /* 무시 */ }
+
+  const confirmMsg = existingTaskCount > 0
+    ? `${targetYear}년 ${targetMonth}월 업무일지를 저장하시겠습니까?\n⚠️ DB에 기존 데이터 ${existingTaskCount}건이 있습니다. 현재 화면 내용으로 덮어씨워집니다.`
+    : `${targetYear}년 ${targetMonth}월 업무일지를 저장하시겠습니까?`;
+
+  if(!confirm(confirmMsg)) return;
+
   const loader = document.getElementById('loader'); loader.style.display = 'flex';
-  const targetYear = currentWorkYear; const targetMonth = currentWorkMonth;
-  
+
   let taskRows = []; let memoRows = [];
   
   document.querySelectorAll('.week-row').forEach(weekEl => {
@@ -643,7 +698,7 @@ async function collectAndSaveWorklog() {
       if(!dateKey) return;
       dayEl.querySelectorAll('.wp-list .task-strip').forEach((row, idx) => {
         const task = row.querySelector('[name="task"]').value; const cat = row.querySelector('[name="category"]').value;
-        if(task || cat) taskRows.push({ year: targetYear, month: targetMonth, week_id: weekId, date: dateKey, type: "Daily", row_index: idx, category: cat, task: task, priority: row.querySelector('[name="priority"]').value, note_deadline: '', is_done: row.querySelector('[name="done"]').checked, note_content: row.querySelector('[name="note"]').value });
+        if(task || cat) taskRows.push({ year: targetYear, month: targetMonth, week_id: weekId, date: dateKey, type: "Daily", row_index: idx, category: cat, task: task, priority: row.querySelector('[name="priority"]').value, note_deadline: row.querySelector('[name="note"]').value, is_done: row.querySelector('[name="done"]').checked });
       });
       memoRows.push({ year: targetYear, month: targetMonth, key: dateKey, type: "Memo", content: dayEl.querySelector('[name="dayMemo"]').value });
       memoRows.push({ year: targetYear, month: targetMonth, key: dateKey, type: "ProductLog", content: dayEl.querySelector('[name="productLog"]').value });
@@ -652,19 +707,58 @@ async function collectAndSaveWorklog() {
   });
   
   try {
-      // 1. 해당 월 데이터 일괄 삭제 (초기화)
-      await supabaseClient.from('monthly_tasks').delete().eq('year', targetYear).eq('month', targetMonth);
-      await supabaseClient.from('monthly_memos').delete().eq('year', targetYear).eq('month', targetMonth);
+      // ✅ [안전장치 D] 삭제 전 기존 데이터 백업
+      let backupTasks = [], backupMemos = [];
+      try {
+        const [bt, bm] = await Promise.all([
+          supabaseClient.from('monthly_tasks').select('*').eq('year', targetYear).eq('month', targetMonth),
+          supabaseClient.from('monthly_memos').select('*').eq('year', targetYear).eq('month', targetMonth)
+        ]);
+        backupTasks = bt.data || [];
+        backupMemos = bm.data || [];
+      } catch(backupErr) { console.warn('백업 조회 실패 (저장은 계속 진행):', backupErr); }
+
+      // 1. 해당 월 데이터 일괄 삭제
+      const delTask = await supabaseClient.from('monthly_tasks').delete().eq('year', targetYear).eq('month', targetMonth);
+      const delMemo = await supabaseClient.from('monthly_memos').delete().eq('year', targetYear).eq('month', targetMonth);
+      if(delTask.error) throw delTask.error;
+      if(delMemo.error) throw delMemo.error;
 
       // 2. 새 데이터 일괄 삽입
-      if (taskRows.length > 0) await supabaseClient.from('monthly_tasks').insert(taskRows);
-      if (memoRows.length > 0) await supabaseClient.from('monthly_memos').insert(memoRows);
+      let insertError = null;
+      if (taskRows.length > 0) {
+        const res = await supabaseClient.from('monthly_tasks').insert(taskRows);
+        if(res.error) insertError = res.error;
+      }
+      if (!insertError && memoRows.length > 0) {
+        const res = await supabaseClient.from('monthly_memos').insert(memoRows);
+        if(res.error) insertError = res.error;
+      }
 
-      showToast('저장 완료!', 'success'); 
+      // ✅ [안전장치 E] 삽입 실패 시 백업 데이터 자동 복원
+      if (insertError) {
+        showToast('⚠️ 저장 중 오류! 기존 데이터 복원을 시도합니다...', 'error');
+        try {
+          if(backupTasks.length > 0) {
+            const restoreTasks = backupTasks.map(({id, created_at, ...rest}) => rest);
+            await supabaseClient.from('monthly_tasks').insert(restoreTasks);
+          }
+          if(backupMemos.length > 0) {
+            const restoreMemos = backupMemos.map(({id, created_at, ...rest}) => rest);
+            await supabaseClient.from('monthly_memos').insert(restoreMemos);
+          }
+          showToast('기존 데이터가 복원되었습니다. 다시 시도해주세요.', 'warning');
+        } catch(restoreErr) {
+          showToast('복원 실패. 관리자에게 문의하세요.', 'error');
+        }
+        return;
+      }
+
+      showToast(`저장 완료! (업무 ${taskRows.length}건 저장됨)`, 'success');
       delete worklogCache[`${targetYear}-${targetMonth}`];
       cachedProductLogs = null;
   } catch (err) {
-      console.error(err); showToast('저장 중 오류가 발생했습니다.', 'error');
+      console.error(err); showToast('저장 중 오류가 발생했습니다: ' + (err.message || ''), 'error');
   } finally {
       loader.style.display = 'none';
   }

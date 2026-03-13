@@ -754,6 +754,10 @@ window.createNewDraft = function() {
     currentNoteId = null; document.getElementById('draftTitle').value = ''; document.getElementById('draftStatus').value = 'saving'; 
     if (window.quill) window.quill.root.innerHTML = '';
     noteOriginalContent = '';
+    // 신규 작성 시 날짜를 오늘로 자동 설정
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const noteDateEl = document.getElementById('noteDate');
+    if (noteDateEl) noteDateEl.value = todayStr;
     document.getElementById('draftListContainer').style.display = 'none'; document.getElementById('draftMetadataArea').style.display = 'flex'; document.getElementById('editor-wrapper').style.display = 'flex';
 }
 
