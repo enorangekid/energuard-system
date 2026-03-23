@@ -26,52 +26,88 @@
 <link rel="stylesheet" href="css/toast.css">
 <link rel="stylesheet" href="css/prod-modal.css">
 <link rel="stylesheet" href="css/pricing.css">
+<link rel="stylesheet" href="css/blogchecker.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-    /* [추가] 업무 노트 인쇄 전용 스타일 */
+    /* [업무 노트 인쇄 전용 스타일] */
     @media print {
         /* 견적서 인쇄 모드(print-mode-wrap)일 때는 적용 안 됨 */
         body:not(.print-mode-wrap) * {
-            visibility: hidden; /* 전체 숨김 */
+            visibility: hidden;
         }
         body:not(.print-mode-wrap) #editor-wrapper,
         body:not(.print-mode-wrap) #editor-wrapper * {
-            visibility: visible; /* 에디터 내용만 표시 */
+            visibility: visible;
         }
-        body:not(.print-mode-wrap) #page-notes {
+
+        /* ── body/html 높이 제한 해제 ── */
+        body:not(.print-mode-wrap),
+        body:not(.print-mode-wrap) html {
+            height: auto !important;
+            overflow: visible !important;
+        }
+
+        /* ── 레이아웃 컨테이너 높이/overflow 모두 해제 ── */
+        body:not(.print-mode-wrap) .main-content,
+        body:not(.print-mode-wrap) .content-body,
+        body:not(.print-mode-wrap) #page-notes,
+        body:not(.print-mode-wrap) .note-container,
+        body:not(.print-mode-wrap) .nt-body {
             display: block !important;
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: auto;
-            margin: 0;
-            padding: 0;
-            background: white;
-        }
-        body:not(.print-mode-wrap) .note-container {
+            position: static !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
             border: none !important;
             box-shadow: none !important;
+            background: white !important;
         }
-        /* 헤더, 버튼, 툴바 등 숨김 */
-        body:not(.print-mode-wrap) .note-header,
-        body:not(.print-mode-wrap) .note-sub-header,
-        body:not(.print-mode-wrap) .ql-toolbar,
+
+        /* ── 사이드바, 헤더, UI 요소 숨김 ── */
         body:not(.print-mode-wrap) .sidebar,
         body:not(.print-mode-wrap) .header,
-        body:not(.print-mode-wrap) .right-quickbar {
+        body:not(.print-mode-wrap) .right-quickbar,
+        body:not(.print-mode-wrap) .nt-title-bar,
+        body:not(.print-mode-wrap) .nt-search-bar,
+        body:not(.print-mode-wrap) .note-header,
+        body:not(.print-mode-wrap) .note-sub-header,
+        body:not(.print-mode-wrap) .ql-toolbar {
             display: none !important;
         }
+
+        /* ── 에디터 wrapper ── */
         body:not(.print-mode-wrap) #editor-wrapper {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            padding: 20px; /* 인쇄 여백 */
-        }
-        body:not(.print-mode-wrap) .ql-editor {
-            padding: 0 !important;
-            overflow: visible !important;
+            position: static !important;
+            display: block !important;
             height: auto !important;
+            overflow: visible !important;
+            padding: 0 !important;
+        }
+
+        /* ── Quill 컨테이너 overflow 해제 + font-size 초기화 ── */
+        body:not(.print-mode-wrap) .ql-container {
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            border: none !important;
+            font-size: unset !important;  /* 기본값 제거 → 인라인 스타일 우선 적용 */
+        }
+
+        /* ── 인라인 font-size 인쇄 시 보존 ── */
+        body:not(.print-mode-wrap) .ql-editor span[style*="font-size"] {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* ── 에디터 본문 ── */
+        body:not(.print-mode-wrap) .ql-editor {
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            padding: 20px 40px !important;
         }
     }
 </style>
@@ -81,17 +117,54 @@
   <div id="loginScreen" class="login-wrapper">
     <div class="login-box">
         <h2>에너가드컴퍼니 통합 관리 시스템</h2>
-        <input type="password" id="loginPassInput" class="login-input" placeholder="비밀번호를 입력하세요">
-        <button class="login-btn" onclick="tryLogin()">로그인</button>
-        <div class="login-options">
-            <label><input type="checkbox" id="keepLoginCheck"> 로그인 유지하기</label>
+
+        <!-- 입력창 묶음 -->
+        <div class="login-input-group">
+            <div class="login-id-wrap">
+                <input type="text" id="loginUsernameInput" class="login-input-field login-input-top"
+                       placeholder="아이디 또는 전화번호"
+                       autocomplete="username"
+                       oninput="onIdInput()"
+                       onkeypress="if(event.key==='Enter') document.getElementById('loginPassInput').focus()">
+                <div class="login-pass-icons" id="idIcons" style="display:none;">
+                    <button type="button" class="login-pass-icon-btn login-pass-clear"
+                            onclick="clearId()" tabindex="-1" title="지우기">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="login-pass-wrap">
+                <input type="password" id="loginPassInput" class="login-input-field login-input-bot"
+                       placeholder="비밀번호"
+                       autocomplete="current-password"
+                       oninput="onPassInput()"
+                       onkeypress="if(event.key==='Enter') tryLogin()">
+                <div class="login-pass-icons" id="passIcons" style="display:none;">
+                    <button type="button" class="login-pass-icon-btn" id="passEyeBtn"
+                            onclick="togglePassVisible()" tabindex="-1" title="비밀번호 표시">
+                        <i class="fa-regular fa-eye-slash fa-fw" id="passEyeIcon"></i>
+                    </button>
+                </div>
+            </div>
         </div>
-        <div id="loginMsg" style="color:#e74c3c; margin-top:15px; font-size:13px; font-weight:bold; min-height:18px;"></div>
+
+        <button class="login-btn" onclick="tryLogin()">로그인</button>
+
+        <div class="login-options">
+            <label class="toggle-label">
+                <input type="checkbox" id="keepLoginCheck">
+                <span class="toggle-track">
+                    <span class="toggle-thumb"></span>
+                </span>
+                <span class="toggle-text">로그인 상태 유지</span>
+            </label>
+        </div>
+        <div id="loginMsg" style="color:#ef4444; margin-top:14px; font-size:13px; font-weight:600; min-height:18px; text-align:center;"></div>
     </div>
     <div class="footer-login">
         <span class="company-name">주식회사 에너가드컴퍼니</span>
         ADDRESS : 경기도 포천시 가산면 오성길 146<br>
-        TEL : 031-511-0377 &nbsp;|&nbsp; FAX : 031-624-1646 &nbsp;|&nbsp; E-MAIL : <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="177a73712523635779766172653974787a">[email&#160;protected]</a><br>
+        TEL : 031-511-0377 &nbsp;|&nbsp; FAX : 031-624-1646 &nbsp;|&nbsp; E-MAIL : mdf24t&#64;naver&#46;com<br>
         Copyright ⓒ 주식회사 에너가드컴퍼니. All Rights Reserved.
     </div>
   </div>
@@ -104,7 +177,7 @@
   <nav class="sidebar" id="sidebar">
     <div class="logo-area" onclick="showPage('dashboard', document.querySelector('.menu-item[onclick*=\'dashboard\']'))" title="지표 요약(홈)으로 이동">
         <div class="brand-text">주식회사 에너가드컴퍼니</div>
-        <div class="user-role-badge">관리자</div>
+        <div class="user-role-badge" id="userRoleBadge">관리자</div>
     </div>
     
     <div class="sidebar-scroll-area">
@@ -129,9 +202,13 @@
               <div class="icon-circle"><i class="fa-solid fa-note-sticky"></i></div>
               <span class="menu-text">업무 노트</span>
           </li>
-          <li class="menu-item" onclick="showPage('ranking', this)" title="검색 순위">
+          <li class="menu-item" onclick="showPage('ranking', this)" title="상품 검색 순위">
               <div class="icon-circle"><i class="fa-solid fa-trophy"></i></div>
-              <span class="menu-text">검색 순위</span>
+              <span class="menu-text">상품 검색 순위</span>
+          </li>
+          <li class="menu-item" onclick="showPage('blogranking', this)" title="블로그 순위">
+              <div class="icon-circle"><i class="fa-brands fa-neos"></i></div>
+              <span class="menu-text">블로그 순위</span>
           </li>
           <li class="menu-item" onclick="showPage('sales', this)" title="매출 분석">
               <div class="icon-circle"><i class="fa-solid fa-chart-line"></i></div>
@@ -184,7 +261,7 @@
         <div style="width:1px; height:16px; background:#e5e7eb;"></div>
         <span id="clock" style="font-feature-settings: 'tnum';">로딩중...</span>
         <div style="width:1px; height:16px; background:#e5e7eb;"></div>
-        <span>관리자님</span>
+        <span id="loggedUserName">관리자님</span>
         <button class="btn-logout" onclick="handleLogout()">로그아웃 <i class="fa-solid fa-arrow-right-from-bracket"></i></button>
       </div>
     </div>
@@ -261,6 +338,34 @@
         </div>
         </div>
 
+        <!-- ── 블로그 키워드 순위 카드 ── -->
+        <div class="dash-card" style="margin-bottom: 24px;">
+            <div class="dash-card-header">
+                <h4 class="dash-card-title clickable" onclick="showPage('blogranking', document.querySelector('.menu-item[onclick*=\'blogranking\']'))" title="블로그 순위 페이지로 이동">
+                    <div class="dash-card-icon" style="background: #10b981;"><i class="fa-brands fa-neos"></i></div>
+                    블로그 키워드 순위
+                    <span class="dash-card-subtitle" id="dash-blogrank-checked-at"></span>
+                </h4>
+                <div class="dash-refresh" onclick="refreshDashData('blogrank')" title="새로고침">
+                    <span id="time-blogrank">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+                </div>
+            </div>
+            <div class="dash-rank-wrapper">
+                <div class="dash-rank-box">
+                    <div class="dash-rank-header">
+                        <span style="color:#10b981;"><i class="fa-solid fa-eye"></i> 노출 키워드 (순위 낮은 순)</span>
+                    </div>
+                    <ul class="dash-list dash-rank-list-scroll" id="dash-blogrank-exposed"></ul>
+                </div>
+                <div class="dash-rank-box">
+                    <div class="dash-rank-header">
+                        <span style="color:#ef4444;"><i class="fa-solid fa-eye-slash"></i> 미노출 키워드</span>
+                    </div>
+                    <ul class="dash-list dash-rank-list-scroll" id="dash-blogrank-hidden"></ul>
+                </div>
+            </div>
+        </div>
+
         <div class="dash-grid-2">
             <div class="dash-card">
                 <div class="dash-card-header">
@@ -315,7 +420,7 @@
         <div class="dash-footer">
             <span class="company-name">주식회사 에너가드컴퍼니</span><br>
             ADDRESS : 경기도 포천시 가산면 오성길 146<br>
-            TEL : 031-511-0377 &nbsp;|&nbsp; FAX : 031-624-1646 &nbsp;|&nbsp; E-MAIL : <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="49242d2f7b7d3d0927283f2c3b672a2624">[email&#160;protected]</a><br>
+            TEL : 031-511-0377 &nbsp;|&nbsp; FAX : 031-624-1646 &nbsp;|&nbsp; E-MAIL : mdf24t&#64;naver&#46;com<br>
             Copyright ⓒ 주식회사 에너가드컴퍼니. All Rights Reserved.
         </div>
       </div>
@@ -329,8 +434,10 @@
                 <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 11px; color: #9ca3af;"></i>
                 <input type="text" id="taskSearch" placeholder="기록 검색..." oninput="renderTimeLog()" style="padding: 10px 16px 10px 40px; border: 1px solid var(--border); border-radius: 20px; font-size: 14px; width: 220px; background: #f9fafb;">
               </div>
-              <select id="yearFilter" onchange="renderTimeLog()" style="padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; margin-right: 12px; cursor: pointer; background: white;">
+              <button onclick="shiftMonth(-1)" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:white;cursor:pointer;font-size:14px;font-weight:700;color:#475569;">‹</button>
+              <select id="monthFilter" onchange="renderTimeLog()" style="padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; margin: 0 4px; cursor: pointer; background: white; min-width:110px;">
               </select>
+              <button onclick="shiftMonth(1)" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:white;cursor:pointer;font-size:14px;font-weight:700;color:#475569;">›</button>
               <button class="btn-server" onclick="saveToServer()"><i class="fa-solid fa-cloud-arrow-up"></i> 전체 저장</button>
             </div>
           </h3>
@@ -649,6 +756,9 @@
             <button class="btn-server" onclick="savePricingCosts()">
               <i class="fa-solid fa-cloud-arrow-up"></i> 원가 저장
             </button>
+            <button class="btn-server" onclick="exportPricingExcel()" style="background:#10b981;">
+              <i class="fa-solid fa-file-excel"></i> 엑셀 저장
+            </button>
           </div>
         </div>
 
@@ -663,6 +773,152 @@
 
         </div><!-- /.pricing-body-wrap -->
       </div><!-- /#page-pricing -->
+
+      <!-- ══ 블로그 순위 페이지 ══ -->
+      <div id="page-blogranking" class="page-section">
+
+        <!-- sticky 헤더 -->
+        <div class="bc-sticky-header">
+          <div class="bc-sticky-row">
+            <span class="bc-sticky-title">블로그 순위 체커</span>
+            <div class="bc-sticky-right">
+              <span id="bc-server-status"><i class="fa-solid fa-circle"></i>서버 확인 중...</span>
+              <select id="bc-history-select" class="bc-history-select"
+                onchange="bcLoadHistoryById(this.value)">
+                <option value="">-- 이력 조회 --</option>
+              </select>
+              <button id="bc-run-btn" class="bc-run-btn" onclick="bcStartCheck()">
+                <i class="fa-solid fa-play"></i>지금 체크하기
+              </button>
+            </div>
+          </div>
+          <p class="bc-sticky-sub">네이버 블로그 탭 기준 · 키워드별 노출 순위 실시간 확인 · 클릭으로 체크할 키워드 선택</p>
+        </div>
+
+        <!-- 키워드 선택 패널 -->
+        <div class="card bc-kw-panel">
+          <div class="bc-kw-panel-header">
+            <div class="bc-kw-panel-left">
+              <span class="bc-panel-title">모니터링 키워드</span>
+              <span id="bc-kw-count" class="bc-kw-count-badge">0개</span>
+              <span id="bc-kw-selected-count" class="bc-kw-sel-badge">전체 선택</span>
+            </div>
+            <div class="bc-kw-panel-right">
+              <button class="bc-kw-ctrl-btn" onclick="bcSelectAll()">전체 선택</button>
+              <button class="bc-kw-ctrl-btn" onclick="bcDeselectAll()">전체 해제</button>
+              <button class="bc-kw-ctrl-btn bc-kw-ctrl-add" onclick="bcToggleAddMode()">
+                <i class="fa-solid fa-plus"></i>키워드 추가
+              </button>
+            </div>
+          </div>
+
+          <!-- 메인 키워드 -->
+          <div class="bc-kw-section">
+            <div class="bc-kw-section-label">메인</div>
+            <div id="bc-kw-main-list" class="bc-kw-btn-group"></div>
+          </div>
+
+          <!-- 서브 키워드 -->
+          <div class="bc-kw-section">
+            <div class="bc-kw-section-label">서브</div>
+            <div id="bc-kw-sub-list" class="bc-kw-btn-group"></div>
+          </div>
+
+          <!-- 추가 입력 (토글) -->
+          <div id="bc-add-area" class="bc-add-area" style="display:none;">
+            <div class="bc-add-inner">
+              <select id="bc-add-type" class="bc-add-select">
+                <option value="main">메인</option>
+                <option value="sub" selected>서브</option>
+              </select>
+              <textarea id="bc-kw-input" rows="2"
+                placeholder="키워드 입력 (줄바꿈 또는 쉼표로 구분)"
+                onkeydown="if(event.ctrlKey&&event.key==='Enter')bcAddKeyword()"></textarea>
+              <button class="bc-kw-add-btn" onclick="bcAddKeyword()">
+                <i class="fa-solid fa-plus"></i>추가
+              </button>
+            </div>
+            <p class="bc-kw-hint">Ctrl+Enter로 빠르게 추가 · 키워드 우클릭으로 삭제 · 자동 저장</p>
+          </div>
+        </div>
+
+        <!-- 진행 + 요약 2열 -->
+        <div class="bc-body-grid">
+
+          <!-- 진행 로그 -->
+          <div id="bc-log-wrap">
+            <div class="bc-log-header">
+              <span class="bc-log-label">진행 현황</span>
+              <span id="bc-log-pct" class="bc-log-pct">0%</span>
+            </div>
+            <div class="bc-progress-track"><div id="bc-progress-bar"></div></div>
+            <div id="bc-log-body"></div>
+          </div>
+
+          <!-- 결과 요약 -->
+          <div id="bc-result-wrap">
+            <div class="bc-summary-grid">
+              <div class="bc-stat-card">
+                <div class="bc-stat-icon bc-stat-icon--total"><i class="fa-solid fa-hashtag"></i></div>
+                <div class="bc-stat-body">
+                  <div class="bc-stat-label">체크 키워드</div>
+                  <div id="bc-s-total" class="bc-stat-value">-</div>
+                </div>
+              </div>
+              <div class="bc-stat-card">
+                <div class="bc-stat-icon bc-stat-icon--ok"><i class="fa-solid fa-circle-check"></i></div>
+                <div class="bc-stat-body">
+                  <div class="bc-stat-label">노출 중</div>
+                  <div id="bc-s-ok" class="bc-stat-value bc-stat-value--ok">-</div>
+                </div>
+              </div>
+              <div class="bc-stat-card">
+                <div class="bc-stat-icon bc-stat-icon--fail"><i class="fa-solid fa-circle-xmark"></i></div>
+                <div class="bc-stat-body">
+                  <div class="bc-stat-label">미노출</div>
+                  <div id="bc-s-fail" class="bc-stat-value bc-stat-value--fail">-</div>
+                </div>
+              </div>
+              <div class="bc-stat-card">
+                <div class="bc-stat-icon bc-stat-icon--rate"><i class="fa-solid fa-chart-simple"></i></div>
+                <div class="bc-stat-body">
+                  <div class="bc-stat-label">노출률</div>
+                  <div id="bc-s-rate" class="bc-stat-value bc-stat-value--rate">-</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /bc-body-grid -->
+
+        <!-- 결과 테이블 -->
+        <div id="bc-result-table-wrap" class="card bc-result-card">
+          <div class="bc-result-card-header">
+            <span class="bc-result-card-title">키워드별 결과</span>
+            <span id="bc-checked-at"></span>
+          </div>
+          <div class="bc-table-scroll">
+            <table class="timeline-table">
+              <thead>
+                <tr>
+                  <th class="bc-th-left">키워드</th>
+                  <th>현재 순위</th>
+                  <th>이전 순위</th>
+                  <th>변동</th>
+                  <th>포스팅 제목</th>
+                  <th>작성일</th>
+                  <th>결과</th>
+                </tr>
+              </thead>
+              <tbody id="bc-result-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 오류 메시지 -->
+        <div id="bc-error-msg"></div>
+
+      </div><!-- /#page-blogranking -->
 
     </div><!-- /.content-body -->
   </div>
@@ -701,6 +957,12 @@
             </div>
             <span class="quick-text">위젯</span>
         </li>
+        <li class="quick-item" onclick="toggleArchivePanel()">
+            <div class="quick-icon" style="background:#ccfbf1; color:#16a34a;">
+                <i class="fa-solid fa-folder-open"></i>
+            </div>
+            <span class="quick-text">자료실</span>
+        </li>
     </ul>
   </aside>
 
@@ -714,6 +976,7 @@
             <div style="display:flex;gap:10px;">
 
               <button class="btn-est btn-est-print" onclick="printEstimate()"><i class="fa-solid fa-print"></i> 인쇄하기</button>
+              <button class="btn-est btn-est-save" onclick="saveEstimateToArchive()" style="background:#16a34a; color:#fff; border:none; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.2s;" onmouseover="this.style.background='#15803d'" onmouseout="this.style.background='#16a34a'"><i class="fa-solid fa-folder-arrow-down"></i> 자료실 저장</button>
             </div>
         </div>
         
@@ -726,7 +989,7 @@
             <div class="est-info-flex">
 <div class="est-receiver">
                     <div class="est-row" style="text-align: center;"><input type="text" id="estDateStr" value="" style="text-align: center; width: 100%;"></div>
-                    <div class="est-row receiver-name"><input type="text" placeholder=""> 귀하</div>
+                    <div class="est-row receiver-name"><input type="text" id="estReceiverName" placeholder="거래처명"> 귀하</div>
                     <div class="est-row"><input type="text" placeholder=""></div>
                     <div class="est-row"><input type="text" placeholder=""></div>
                 </div>
@@ -944,23 +1207,193 @@
         <h3><i class="fa-solid fa-calculator"></i> 계산기</h3>
         <button class="close-panel-btn" onclick="toggleCalcPanel()"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="quick-panel-body" style="padding: 0; background: #f8fafc;">
-        <div style="padding: 15px; border-bottom: 1px solid #e5e7eb;">
-            <select id="calcSelector" onchange="changeCalculator(this.value)" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: 'Pretendard', sans-serif; font-size: 14px; outline: none; font-weight: 600; cursor: pointer;">
-                <option value="https://gi.esmplus.com/0804bear/window_insulation/new/window_estimate_new_v2.html">창문형 단열재 계산기</option>
-                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-hkdy.html">판상형 단열재 계산기</option>
-                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-roll-hkdy.html">열반사 단열재 계산기</option>
-                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-wall.html">단열벽지 계산기</option>
-                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-camp.html">캠핑단열재 계산기</option>
-                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-t.html">단열재 두께 계산기</option>
-                <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-bundle.html">단열재 단수 계산기</option>
-            </select>
+    <div class="quick-panel-body" style="padding: 0; background: #f8fafc; display:flex; flex-direction:column;">
+
+        <!-- 탭 전환 -->
+        <div style="display:flex; border-bottom:1px solid #e5e7eb; flex-shrink:0;">
+            <button id="calcTabBasic" onclick="switchCalcTab('basic')"
+                style="flex:1; padding:11px 0; font-size:13px; font-weight:700; border:none; background:#4f46e5; color:white; cursor:pointer; font-family:'Pretendard',sans-serif; transition:all 0.2s;">
+                기본 계산기
+            </button>
+            <button id="calcTabCustom" onclick="switchCalcTab('custom')"
+                style="flex:1; padding:11px 0; font-size:13px; font-weight:700; border:none; background:#f1f5f9; color:#64748b; cursor:pointer; font-family:'Pretendard',sans-serif; transition:all 0.2s;">
+                단열재 계산기
+            </button>
         </div>
-        <div style="flex: 1; position: relative;">
-            <iframe id="calcFrame" src="" style="width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0;"></iframe>
+
+        <!-- 기본 계산기 -->
+        <div id="calcBasicView" style="flex:1; display:flex; flex-direction:column; padding:16px; gap:12px;">
+
+            <!-- 디스플레이 -->
+            <div style="background:#1e293b; border-radius:12px; padding:16px 18px; text-align:right;">
+                <div id="calcExpr" style="font-size:12px; color:#64748b; min-height:18px; font-family:'Pretendard',sans-serif; letter-spacing:0.3px; word-break:break-all;"></div>
+                <div id="calcDisplay" style="font-size:32px; font-weight:700; color:#f8fafc; font-family:'Pretendard',sans-serif; letter-spacing:-1px; margin-top:4px; word-break:break-all;">0</div>
+            </div>
+
+            <!-- 버튼 그리드 -->
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; flex:1;">
+
+                <!-- 행 1 -->
+                <button class="calc-btn calc-fn" onclick="calcInput('AC')">AC</button>
+                <button class="calc-btn calc-fn" onclick="calcInput('+/-')">+/-</button>
+                <button class="calc-btn calc-fn" onclick="calcInput('%')">%</button>
+                <button class="calc-btn calc-op" onclick="calcInput('÷')">÷</button>
+
+                <!-- 행 2 -->
+                <button class="calc-btn calc-num" onclick="calcInput('7')">7</button>
+                <button class="calc-btn calc-num" onclick="calcInput('8')">8</button>
+                <button class="calc-btn calc-num" onclick="calcInput('9')">9</button>
+                <button class="calc-btn calc-op" onclick="calcInput('×')">×</button>
+
+                <!-- 행 3 -->
+                <button class="calc-btn calc-num" onclick="calcInput('4')">4</button>
+                <button class="calc-btn calc-num" onclick="calcInput('5')">5</button>
+                <button class="calc-btn calc-num" onclick="calcInput('6')">6</button>
+                <button class="calc-btn calc-op" onclick="calcInput('-')">−</button>
+
+                <!-- 행 4 -->
+                <button class="calc-btn calc-num" onclick="calcInput('1')">1</button>
+                <button class="calc-btn calc-num" onclick="calcInput('2')">2</button>
+                <button class="calc-btn calc-num" onclick="calcInput('3')">3</button>
+                <button class="calc-btn calc-op" onclick="calcInput('+')">+</button>
+
+                <!-- 행 5 -->
+                <button class="calc-btn calc-num" onclick="calcInput('⌫')" style="font-size:18px;">⌫</button>
+                <button class="calc-btn calc-num" onclick="calcInput('0')">0</button>
+                <button class="calc-btn calc-num" onclick="calcInput('.')">.</button>
+                <button class="calc-btn calc-eq" onclick="calcInput('=')">=</button>
+            </div>
         </div>
+
+        <!-- 단열재 계산기 (iframe) -->
+        <div id="calcCustomView" style="flex:1; display:none; flex-direction:column;">
+            <div style="padding:12px 15px; border-bottom:1px solid #e5e7eb; flex-shrink:0;">
+                <select id="calcSelector" onchange="changeCalculator(this.value)"
+                    style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-family:'Pretendard',sans-serif; font-size:13px; outline:none; font-weight:600; cursor:pointer; background:#fff;">
+                    <option value="">계산기를 선택하세요</option>
+                    <option value="https://gi.esmplus.com/0804bear/window_insulation/new/window_estimate_new_v2.html">창문형 단열재 계산기</option>
+                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-hkdy.html">판상형 단열재 계산기</option>
+                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-roll-hkdy.html">열반사 단열재 계산기</option>
+                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-wall.html">단열벽지 계산기</option>
+                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-camp.html">캠핑단열재 계산기</option>
+                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-t.html">단열재 두께 계산기</option>
+                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-bundle.html">단열재 단수 계산기</option>
+                </select>
+            </div>
+            <div style="flex:1; position:relative;">
+                <iframe id="calcFrame" src="" style="width:100%; height:100%; border:none; position:absolute; top:0; left:0;"></iframe>
+            </div>
+        </div>
+
     </div>
   </div>
+
+  <style>
+  .calc-btn {
+      border: none; border-radius: 10px; font-size: 17px; font-weight: 600;
+      cursor: pointer; font-family: 'Pretendard', sans-serif;
+      transition: all 0.1s; display: flex; align-items: center; justify-content: center;
+      min-height: 52px; user-select: none;
+  }
+  .calc-btn:active { transform: scale(0.93); }
+  .calc-num  { background: #ffffff; color: #1e293b; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .calc-num:hover  { background: #f1f5f9; }
+  .calc-fn   { background: #e2e8f0; color: #334155; }
+  .calc-fn:hover   { background: #cbd5e1; }
+  .calc-op   { background: #ede9fe; color: #4f46e5; font-size: 20px; }
+  .calc-op:hover   { background: #ddd6fe; }
+  .calc-eq   { background: #4f46e5; color: white; font-size: 20px; }
+  .calc-eq:hover   { background: #4338ca; }
+  </style>
+
+  <script>
+  /* ── 기본 계산기 로직 ── */
+  let _calcExpr = '';
+  let _calcResult = '0';
+  let _calcJustEvaled = false;
+  let _calcLastOp = null;
+
+  function switchCalcTab(tab) {
+      const isBasic = tab === 'basic';
+      document.getElementById('calcBasicView').style.display  = isBasic ? 'flex' : 'none';
+      document.getElementById('calcCustomView').style.display = isBasic ? 'none' : 'flex';
+      document.getElementById('calcTabBasic').style.background  = isBasic ? '#4f46e5' : '#f1f5f9';
+      document.getElementById('calcTabBasic').style.color       = isBasic ? 'white'   : '#64748b';
+      document.getElementById('calcTabCustom').style.background = isBasic ? '#f1f5f9' : '#4f46e5';
+      document.getElementById('calcTabCustom').style.color      = isBasic ? '#64748b' : 'white';
+  }
+
+  function _calcRender() {
+      document.getElementById('calcDisplay').textContent = _calcResult;
+      document.getElementById('calcExpr').textContent    = _calcExpr;
+  }
+
+  function calcInput(v) {
+      const ops = ['÷','×','+','-'];
+      if (v === 'AC') {
+          _calcExpr = ''; _calcResult = '0'; _calcJustEvaled = false; _calcLastOp = null;
+      } else if (v === '⌫') {
+          if (_calcResult.length > 1) _calcResult = _calcResult.slice(0,-1);
+          else _calcResult = '0';
+      } else if (v === '+/-') {
+          _calcResult = _calcResult.startsWith('-') ? _calcResult.slice(1) : (_calcResult === '0' ? '0' : '-' + _calcResult);
+      } else if (v === '%') {
+          _calcResult = String(parseFloat(_calcResult) / 100);
+      } else if (v === '.') {
+          if (_calcJustEvaled) { _calcResult = '0.'; _calcJustEvaled = false; }
+          else if (!_calcResult.includes('.')) _calcResult += '.';
+      } else if (ops.includes(v)) {
+          if (_calcExpr && !ops.includes(_calcExpr.trim().slice(-1))) {
+              try {
+                  const r = _evalExpr(_calcExpr + _calcResult);
+                  _calcResult = _fmtNum(r);
+                  _calcExpr   = _calcResult + ' ' + v + ' ';
+              } catch { _calcExpr += _calcResult + ' ' + v + ' '; }
+          } else {
+              _calcExpr = _calcResult + ' ' + v + ' ';
+          }
+          _calcLastOp = v; _calcJustEvaled = false; _calcResult = '0';
+          _calcRender(); return;
+      } else if (v === '=') {
+          if (!_calcExpr) { _calcRender(); return; }
+          const fullExpr = _calcExpr + _calcResult;
+          try {
+              const r = _evalExpr(fullExpr);
+              _calcExpr   = fullExpr + ' =';
+              _calcResult = _fmtNum(r);
+              _calcJustEvaled = true;
+          } catch { _calcResult = '오류'; _calcExpr = ''; }
+      } else {
+          // 숫자 입력
+          if (_calcJustEvaled) { _calcResult = v; _calcExpr = ''; _calcJustEvaled = false; }
+          else _calcResult = (_calcResult === '0') ? v : _calcResult + v;
+      }
+      _calcRender();
+  }
+
+  function _evalExpr(expr) {
+      const e = expr.replace(/÷/g,'/').replace(/×/g,'*').replace(/−/g,'-');
+      return Function('"use strict"; return (' + e + ')')();
+  }
+
+  function _fmtNum(n) {
+      if (!isFinite(n)) return '오류';
+      // 소수점 10자리까지, 불필요한 0 제거
+      return parseFloat(n.toFixed(10)).toString();
+  }
+
+  // 키보드 지원
+  document.addEventListener('keydown', function(e) {
+      if (!document.getElementById('calcPanel')?.classList.contains('open')) return;
+      if (!document.getElementById('calcBasicView') || document.getElementById('calcBasicView').style.display === 'none') return;
+      const map = {
+          '0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9',
+          '.':'.','Enter':'=','=':'=','Backspace':'⌫','Escape':'AC',
+          '+':'+','-':'-','*':'×','/':'÷','%':'%'
+      };
+      if (map[e.key]) { e.preventDefault(); calcInput(map[e.key]); }
+  });
+  </script>
 
   <div id="widgetPanel" class="quick-panel">
     <div class="quick-panel-header">
@@ -988,6 +1421,52 @@
         </div>
     </div>
   </div>
+
+  <!-- ══ 자료실 패널 ══ -->
+  <div id="archivePanel" class="quick-panel">
+    <div class="quick-panel-header">
+        <h3><i class="fa-solid fa-folder-open" style="color:#16a34a;"></i> 자료실</h3>
+        <button class="close-panel-btn" onclick="toggleArchivePanel()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="quick-panel-body" style="padding:0; display:flex; flex-direction:column; gap:0;">
+
+      <!-- 카테고리 탭 -->
+      <div id="archiveCategoryBar" style="display:flex; gap:6px; padding:14px 16px 10px; flex-shrink:0; overflow-x:auto; border-bottom:1px solid #f1f5f9;">
+        <button class="arc-cat-btn active" onclick="arcSelectCategory('all', this)">전체</button>
+        <button class="arc-cat-btn" onclick="arcSelectCategory('company', this)">회사자료</button>
+        <button class="arc-cat-btn" onclick="arcSelectCategory('cert', this)">인증서</button>
+        <button class="arc-cat-btn" onclick="arcSelectCategory('quote', this)">견적서</button>
+        <button class="arc-cat-btn" onclick="arcSelectCategory('image', this)">이미지</button>
+        <button class="arc-cat-btn" onclick="arcSelectCategory('etc', this)">기타</button>
+      </div>
+
+      <!-- 업로드 영역 -->
+      <div style="padding:12px 16px; border-bottom:1px solid #f1f5f9; flex-shrink:0;">
+        <div id="arcDropZone"
+          style="border:2px dashed #d1fae5; border-radius:10px; padding:16px; text-align:center; cursor:pointer; transition:all 0.2s; background:#f0fdf4;"
+          onclick="document.getElementById('arcFileInput').click()"
+          ondragover="event.preventDefault(); this.style.borderColor='#16a34a'; this.style.background='#dcfce7';"
+          ondragleave="this.style.borderColor='#d1fae5'; this.style.background='#f0fdf4';"
+          ondrop="arcHandleDrop(event)">
+          <i class="fa-solid fa-cloud-arrow-up" style="font-size:20px; color:#16a34a; display:block; margin-bottom:6px;"></i>
+          <span style="font-size:12px; font-weight:600; color:#16a34a;">클릭 또는 드래그로 업로드</span><br>
+          <span style="font-size:11px; color:#94a3b8; margin-top:2px; display:block;">업로드할 카테고리 탭을 먼저 선택하세요</span>
+        </div>
+        <input type="file" id="arcFileInput" multiple style="display:none;" onchange="arcUploadFiles(this.files)">
+        <div id="arcUploadStatus" style="margin-top:8px; font-size:12px; color:#64748b; min-height:16px;"></div>
+      </div>
+
+      <!-- 파일 목록 -->
+      <div id="arcFileList" style="flex:1; overflow-y:auto; padding:10px 16px;">
+        <div style="text-align:center; padding:30px 0; color:#94a3b8; font-size:13px;">
+          <i class="fa-solid fa-spinner fa-spin" style="margin-bottom:8px; display:block;"></i>
+          불러오는 중...
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <div id="memoModal" class="modal-overlay">
     <div class="modal-box">
       <h4>비고 내용 입력</h4>
@@ -1220,12 +1699,71 @@
     </div>
   </div>
 
+  <!-- 토스트 알림 컨테이너 -->
+  <div id="toast-container"></div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/common.js"></script>
 <script src="js/widget-sports.js"></script>
 <script src="js/estimate.js"></script>
+<script src="js/notes.js"></script>
 <script src="js/tasks.js"></script>
 <script src="js/analytics.js"></script>
-<script src="js/dashboard.js"></script>
+<script src="js/blogchecker.js"></script>
 <script src="js/pricing.js"></script>
+<script src="js/dashboard.js"></script>
+<script>
+/* ── 아이디 입력창 X 아이콘 제어 ── */
+function onIdInput() {
+    const input = document.getElementById('loginUsernameInput');
+    const icons = document.getElementById('idIcons');
+    if (!input || !icons) return;
+    icons.style.display = input.value.length > 0 ? 'flex' : 'none';
+}
+function clearId() {
+    const input = document.getElementById('loginUsernameInput');
+    const icons = document.getElementById('idIcons');
+    if (!input) return;
+    input.value = '';
+    if (icons) icons.style.display = 'none';
+    input.focus();
+}
+/* ── 비밀번호 입력창 아이콘 제어 ── */
+function onPassInput() {
+    const input = document.getElementById('loginPassInput');
+    const icons = document.getElementById('passIcons');
+    if (!input || !icons) return;
+    icons.style.display = input.value.length > 0 ? 'flex' : 'none';
+    if (input.value.length === 0) {
+        input.type = 'password';
+        const icon = document.getElementById('passEyeIcon');
+        if (icon) icon.className = 'fa-regular fa-eye-slash fa-fw';
+    }
+}
+function togglePassVisible() {
+    const input = document.getElementById('loginPassInput');
+    const icon  = document.getElementById('passEyeIcon');
+    if (!input) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        if (icon) icon.className = 'fa-regular fa-eye fa-fw';
+    } else {
+        input.type = 'password';
+        if (icon) icon.className = 'fa-regular fa-eye-slash fa-fw';
+    }
+}
+function clearPass() {
+    const input = document.getElementById('loginPassInput');
+    const icons = document.getElementById('passIcons');
+    if (!input) return;
+    input.value = '';
+    input.type = 'password';
+    const icon = document.getElementById('passEyeIcon');
+    if (icon) icon.className = 'fa-regular fa-eye-slash';
+    if (icons) icons.style.display = 'none';
+    input.focus();
+}
+</script>
+</body>
 </html>
