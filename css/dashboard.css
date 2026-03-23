@@ -28,3 +28,29 @@
 .badge { background: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 .badge-holiday { background: #fee2e2; color: #dc2626; }
 
+
+/* 블로그 순위 카드 — 한 줄 레이아웃 */
+.dash-blogrank-kw {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+.dash-blogrank-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: #94a3b8;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.dash-blogrank-title:hover {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

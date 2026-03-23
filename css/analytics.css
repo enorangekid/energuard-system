@@ -623,3 +623,15 @@
 .edit-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* [중복제거] print media → 아래 통합 */
+/* ── 이탈 뱃지 ── */
+.rank-out-badge {
+  display: inline-block;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}

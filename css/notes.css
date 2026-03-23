@@ -181,7 +181,7 @@
   padding: 12px 24px !important; background: #fff; 
 }
 .ql-container.ql-snow { 
-  border: none !important; font-size: 16px; line-height: 1.8; color: #334155;
+  border: none !important; font-size: 14px; line-height: 1.8; color: #334155;
   flex: 1; overflow-y: auto; padding: 0;
 }
 .ql-editor { padding: 40px 60px; color: #000000 !important; font-family: 'Pretendard', sans-serif; }
@@ -218,3 +218,24 @@
 #draftListContainer::-webkit-scrollbar { width: 6px; }
 #draftListContainer::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
 
+
+/* ── Quill 폰트 크기 드롭다운 ── */
+/* 드롭다운 버튼 너비 확보 */
+.ql-snow .ql-picker.ql-size { width: 64px; }
+
+/* 기본(미선택) 상태 라벨 */
+.ql-snow .ql-picker.ql-size .ql-picker-label::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item::before { content: '기본'; }
+
+/* 각 크기 라벨 */
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before { content: '14px'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="16px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"]::before { content: '16px'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="18px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before { content: '18px'; }
+
+/* 드롭다운 아이템 크기 미리보기 */
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"] { font-size: 14px; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"] { font-size: 16px; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"] { font-size: 18px; }
