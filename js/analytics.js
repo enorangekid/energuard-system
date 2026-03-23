@@ -191,6 +191,18 @@ function renderRanking() {
   var mineGroups = groupArray.filter(g => (g.items[0].data[IDX_TYPE] || 'mine') === 'mine');
   var watchGroups = groupArray.filter(g => (g.items[0].data[IDX_TYPE] || 'mine') === 'watch');
 
+  // 전체 상품 기준으로 가장 최근에 수집된 주차 인덱스 계산
+  // (이 주차보다 뒤의 빈 칸은 "아직 수집 안 됨"으로 처리 → 이탈 표시 안 함)
+  var globalLastWIdx = -1;
+  products.forEach(function(p) {
+    for (var i = 9; i >= 5; i--) {
+      if (p[i] !== '' && p[i] != null) {
+        if (i > globalLastWIdx) globalLastWIdx = i;
+        break;
+      }
+    }
+  });
+
   function buildGroupRows(groups) {
     var buf = [];
     groups.forEach(function(group) {
@@ -213,11 +225,11 @@ function renderRanking() {
       var main = reordered[0];
       var hasSub = reordered.length > 1;
       var btnHtml = hasSub ? `<span class="toggle-btn" onclick="toggleSub('${group.code}')">+</span>` : '';
-      buf.push(createRowHtml(main.data, main.orgIdx, 'main-row', btnHtml, group.code, false));
+      buf.push(createRowHtml(main.data, main.orgIdx, 'main-row', btnHtml, group.code, false, globalLastWIdx));
       if (hasSub) {
         for (var i = 1; i < reordered.length; i++) {
           var sub = reordered[i];
-          buf.push(createRowHtml(sub.data, sub.orgIdx, `sub-row sub-${group.code}`, '', group.code, true));
+          buf.push(createRowHtml(sub.data, sub.orgIdx, `sub-row sub-${group.code}`, '', group.code, true, globalLastWIdx));
         }
       }
       // 행 간 여백
@@ -252,7 +264,7 @@ function renderRanking() {
 }
 
 // [Updated] 비교 로직 개선 (1주차 vs 전월 마지막 주차)
-function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
+function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false, globalLastWIdx = -1) {
   var isWatch = (p[IDX_TYPE] || 'mine') === 'watch';
   if (isWatch) className += ' watch-row';
   var ranks = [p[5], p[6], p[7], p[8], p[9]]; // index 5~9 maps to rank_w1~w5
@@ -289,13 +301,24 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false) {
   }
 
   var weekCells = '';
+
   for(var i=5; i<=9; i++) {
-      var val = p[i] ? p[i] : ''; 
+      var val = p[i] ? p[i] : '';
       var hl = '';
+      var cellContent = val;
+
       // 마지막 입력된 값이면 하이라이트
       if (currentVal && val == currentVal) hl = 'latest-rank';
 
-      weekCells += `<td class="${hl}">${val}</td>`;
+      // 이탈 판단: 수집된 주차 범위 내에서 순위가 없으면 이탈
+      var isBlank = (val === '' || val == null);
+      var isWithinCollectedRange = (globalLastWIdx !== -1 && i <= globalLastWIdx);
+
+      if (isBlank && isWithinCollectedRange) {
+        cellContent = '<span class="rank-out-badge">이탈</span>';
+      }
+
+      weekCells += `<td class="${hl}">${cellContent}</td>`;
   }
 
   var rawMemo = p[IDX_REMARK] ? String(p[IDX_REMARK]) : ""; 

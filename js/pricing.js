@@ -1366,3 +1366,195 @@ function initPricingTabs() {
   buildFrTab();
 }
 document.addEventListener('DOMContentLoaded', initPricingTabs);
+/* ═══════════════════════════════════════
+   엑셀 저장 — 모든 탭 전체 데이터
+   SheetJS(XLSX) CDN 사용
+═══════════════════════════════════════ */
+window.exportPricingExcel = function() {
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => _doExport();
+    document.head.appendChild(s);
+  } else {
+    _doExport();
+  }
+};
+
+function _doExport() {
+  const wb = XLSX.utils.book_new();
+  const baseMonth = document.getElementById('cost_base_month')?.value || '';
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}`;
+
+  // ── 헤더 스타일 공통 ──
+  const H = (v) => ({ v, t:'s' });
+
+  // ── 숫자 셀 ──
+  const N = (v) => v != null && v !== '' && !isNaN(v) ? { v: Number(v), t:'n' } : { v: '-', t:'s' };
+
+  // ── 시트 공통 헤더 ──
+  const COMMON_HEADER = ['품명', '두께(mm)', '규격(m²당원가)', '장당마진', 'm²당판매가',
+    '장당원가(VAT미포함)', '장당판매가(VAT미포함)', '최종판매가(VAT포함)', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)'];
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 1. 아이소핑크
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  (function buildIsopink() {
+    const rows = [
+      ['아이소핑크 단가표', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [`기준월: ${baseMonth || dateStr}`, '', '', '', '', '', '', '', '', '', '', '', ''],
+      [],
+      COMMON_HEADER,
+    ];
+    ISOPINK_ROWS.forEach(t => {
+      const r = _isoCalcRow(t);
+      const grade = (t===10||t===20) ? 'II-A 압출법단열재 1호' : 'II-B-2 압출법단열재 특호';
+      if (!r) { rows.push([grade, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']); return; }
+      rows.push([grade, t, r.cost, r.margin, r.mmSellPrice,
+        r.costPerSheet, r.sellPerSheet, r.realPrice,
+        r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    _styleSheet(ws, rows.length);
+    XLSX.utils.book_append_sheet(wb, ws, '아이소핑크');
+  })();
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 2. 비드법
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  (function buildBead() {
+    const rows = [
+      ['비드법단열재 단가표', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [`기준월: ${baseMonth || dateStr}`, '', '', '', '', '', '', '', '', '', '', '', ''],
+      [],
+      COMMON_HEADER,
+    ];
+    BEAD_GRADES.forEach(grade => {
+      BEAD_ROWS.forEach(t => {
+        const costId = _getCostId('bead', grade, t);
+        const costPerM2 = costId ? fieldVal(costId) : 0;
+        const marginPerM2 = _getMargin('bead', grade, t);
+        const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
+        const gradeName = `${grade.label} 비드법단열재 ${grade.sub}`;
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']); return; }
+        rows.push([gradeName, t, r.costPerM2, r.marginPerM2, r.sellPerM2,
+          r.costPerSheet, r.sellPerSheet, r.realPrice,
+          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate]);
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    _styleSheet(ws, rows.length);
+    XLSX.utils.book_append_sheet(wb, ws, '비드법단열재');
+  })();
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 3. 경질우레탄
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  (function buildPu() {
+    const rows = [
+      ['경질우레탄 단가표', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [`기준월: ${baseMonth || dateStr}`, '', '', '', '', '', '', '', '', '', '', '', ''],
+      [],
+      COMMON_HEADER,
+    ];
+    PU_GRADES.forEach(grade => {
+      grade.rows.forEach(t => {
+        const costId = _getCostId('pu', grade, t);
+        const costPerM2 = costId ? fieldVal(costId) : 0;
+        const marginPerM2 = _getMargin('pu', grade, t);
+        const tEff = grade.tFactor ?? t;
+        const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, tEff, grade.area) : null;
+        const gradeName = `${grade.label} 경질우레탄 ${grade.sub2||grade.sub1}`;
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']); return; }
+        rows.push([gradeName, t, r.costPerM2, r.marginPerM2, r.sellPerM2,
+          r.costPerSheet, r.sellPerSheet, r.realPrice,
+          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate]);
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    _styleSheet(ws, rows.length);
+    XLSX.utils.book_append_sheet(wb, ws, '경질우레탄');
+  })();
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 4. PF보드
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  (function buildPf() {
+    const rows = [
+      ['PF보드 단가표', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [`기준월: ${baseMonth || dateStr}`, '', '', '', '', '', '', '', '', '', '', '', ''],
+      [],
+      COMMON_HEADER,
+    ];
+    PF_GRADES.forEach(grade => {
+      PF_ROWS.forEach(t => {
+        const costPerM2 = fieldVal(grade.costId);
+        const marginPerM2 = _getMargin('pf', grade, t);
+        const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
+        const gradeName = `${grade.pfCat} ${grade.pfGrade} ${grade.areaLabel}`;
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']); return; }
+        rows.push([gradeName, t, r.costPerM2, r.marginPerM2, r.sellPerM2,
+          r.costPerSheet, r.sellPerSheet, r.realPrice,
+          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate]);
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    _styleSheet(ws, rows.length);
+    XLSX.utils.book_append_sheet(wb, ws, 'PF보드');
+  })();
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 5. 불연단열재 (컬럼 구성이 다름)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  (function buildFr() {
+    const rows = [
+      ['불연단열재 단가표', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [`기준월: ${baseMonth || dateStr}`, '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [],
+      ['품명', '두께(mm)', 'm²당원가', '장당마진', '장당원가(VAT미포함)', '장당판매가(VAT미포함)',
+       'VAT포함판매가', '최종판매가', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)'],
+    ];
+    FR_GRADES.forEach(grade => {
+      grade.rows.forEach(t => {
+        const costId = _getCostId('fr', grade, t);
+        const costPerM2 = costId ? fieldVal(costId) : 0;
+        const marginSheet = _getMargin('fr', grade, t);
+        const r = calcFrSheetRow(costPerM2, marginSheet, grade.area);
+        const gradeName = `${grade.sub1} ${grade.sub2}`;
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']); return; }
+        rows.push([gradeName, t, r.costPerM2, r.marginPerSheet,
+          r.costPerSheet, r.sellPerSheet, r.vatSell, r.realPrice,
+          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate]);
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    _styleSheet(ws, rows.length);
+    XLSX.utils.book_append_sheet(wb, ws, '불연단열재');
+  })();
+
+  // 파일 저장
+  const fileName = `단가표_${baseMonth || dateStr}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  if (typeof showToast === 'function') showToast(`${fileName} 저장 완료`, 'success');
+}
+
+/* 공통 시트 스타일 적용 */
+function _styleSheet(ws, totalRows) {
+  // 열 너비 설정
+  ws['!cols'] = [
+    { wch: 28 }, // 품명
+    { wch: 10 }, // 두께
+    { wch: 14 }, // m²당원가
+    { wch: 10 }, // 장당마진
+    { wch: 14 }, // m²당판매가
+    { wch: 18 }, // 장당원가
+    { wch: 18 }, // 장당판매가
+    { wch: 16 }, // 최종판매가
+    { wch: 12 }, // 마진금액
+    { wch: 10 }, // 부가세
+    { wch: 12 }, // 수수료
+    { wch: 12 }, // 순수마진
+    { wch: 10 }, // 마진율
+  ];
+}

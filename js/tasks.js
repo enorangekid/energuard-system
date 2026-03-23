@@ -51,7 +51,11 @@ async function loadTimelineFromServer() {
 
   if(isTimelineFetched) {
       document.getElementById('loader').style.display = 'none';
-      renderTimeLog();
+      // 이미 렌더된 상태면 재렌더 생략 (데이터 변경 시엔 _timelineDirty로 표시)
+      if (window._timelineDirty !== false) {
+          renderTimeLog();
+          window._timelineDirty = false;
+      }
       updateDefaultStartTime();
       return;
   }
@@ -79,8 +83,9 @@ async function loadTimelineFromServer() {
           min: r.min
       }));
 
-      isTimelineFetched = true; 
-      updateYearFilterOptions();
+      isTimelineFetched = true;
+      window._timelineDirty = false;
+      updateMonthFilterOptions();
       renderTimeLog();
       updateDefaultStartTime();
       
@@ -92,100 +97,121 @@ async function loadTimelineFromServer() {
   }
 }
 
-function updateYearFilterOptions() {
-  const yearSet = new Set();
-  timeLogs.forEach(log => { if(log.date) yearSet.add(log.date.substring(0, 4)); });
-  const thisYear = new Date().getFullYear().toString();
-  yearSet.add(thisYear); // 데이터가 없어도 현재 연도는 항상 포함
-  const select = document.getElementById('yearFilter');
-  const cur = select.value; // 현재 선택값 보존 시도
+function updateMonthFilterOptions() {
+  const monthSet = new Set();
+  timeLogs.forEach(log => { if(log.date) monthSet.add(log.date.substring(0, 7)); }); // "YYYY-MM"
+  const now = new Date();
+  const thisMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  monthSet.add(thisMonth);
+  const select = document.getElementById('monthFilter');
+  const cur = select.value;
   select.innerHTML = '';
-  Array.from(yearSet).sort().reverse().forEach(y => {
+  Array.from(monthSet).sort().reverse().forEach(ym => {
     const opt = document.createElement('option');
-    opt.value = y;
-    opt.innerText = y + "년";
+    opt.value = ym;
+    const [y, m] = ym.split('-');
+    opt.innerText = `${y}년 ${parseInt(m)}월`;
     select.appendChild(opt);
   });
-  // 이전 선택값이 유효하면 유지, 아니면 현재 연도로 기본 설정
-  select.value = Array.from(yearSet).includes(cur) ? cur : thisYear;
+  // 이전 선택값 유지, 없으면 현재 월
+  select.value = Array.from(monthSet).includes(cur) ? cur : thisMonth;
 }
+
+// 이전/다음 달 이동 버튼
+window.shiftMonth = function(dir) {
+  const select = document.getElementById('monthFilter');
+  const opts = Array.from(select.options).map(o => o.value);
+  const curIdx = opts.indexOf(select.value);
+  const newIdx = curIdx + dir;
+  if (newIdx >= 0 && newIdx < opts.length) {
+    select.value = opts[newIdx];
+    renderTimeLog();
+  }
+};
 
 function renderTimeLog() {
   const tbody = document.getElementById('timelineList');
-  // 렌더링을 다음 프레임으로 미뤄 메인 스레드 블로킹 방지
-  requestAnimationFrame(() => {
-  tbody.innerHTML = '';
-  const selectedYear = document.getElementById('yearFilter').value;
+  const selectedMonth = document.getElementById('monthFilter').value; // "YYYY-MM"
   const searchQuery = document.getElementById('taskSearch').value.toLowerCase();
-  let filteredLogs = timeLogs.filter(log => log.date.startsWith(selectedYear) && (log.task.toLowerCase().includes(searchQuery) || log.category.toLowerCase().includes(searchQuery)));
-  filteredLogs.sort((a,b) => b.date.localeCompare(a.date) || a.start.localeCompare(b.start));
 
-  // 인덱스 맵 미리 생성 (indexOf O(n) 반복 제거)
+  // 선택된 월만 필터링 — 데이터 양이 1/12로 줄어 렉 해소
+  let filteredLogs = timeLogs.filter(log =>
+    log.date.startsWith(selectedMonth) &&
+    (searchQuery === '' || log.task.toLowerCase().includes(searchQuery) || log.category.toLowerCase().includes(searchQuery))
+  );
+  filteredLogs.sort((a, b) => b.date.localeCompare(a.date) || a.start.localeCompare(b.start));
+
   const idxMap = new Map(timeLogs.map((log, i) => [log, i]));
 
+  // 날짜 그룹 배열 생성
   const grouped = {};
-  filteredLogs.forEach(log => { if(!grouped[log.date]) grouped[log.date] = []; grouped[log.date].push(log); });
+  filteredLogs.forEach(log => { if (!grouped[log.date]) grouped[log.date] = []; grouped[log.date].push(log); });
+  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
-  // DocumentFragment로 DOM 조작 최소화
-  const frag = document.createDocumentFragment();
+  // 날짜 그룹 → TR 묶음 생성 함수
+  function buildDateFrag(date) {
+    const frag = document.createDocumentFragment();
+    const groupLogs = grouped[date];
+    const isHoliday = groupLogs.some(l => l.category === '휴무');
+    const isCollapsed = collapsedDates[date] || false;
 
-  Object.keys(grouped).forEach(date => {
-      const dayOfWeek = getDayKor(date);
-      const groupLogs = grouped[date];
-      const isHoliday = groupLogs.some(l => l.category === '휴무');
-      const isCollapsed = collapsedDates[date] || false;
-      let headerRow = document.createElement('tr');
-      headerRow.className = 'date-header-row' + (isHoliday ? ' holiday-header' : '');
-      headerRow.onclick = () => { collapsedDates[date] = !collapsedDates[date]; renderTimeLog(); };
-      headerRow.innerHTML = `<td colspan="6"><div class="date-header-text" style="font-weight: 700; color: #334155; font-size: 15px; display: flex; align-items: center; gap: 10px; padding: 4px 8px;">
-          <i class="fa-solid fa-chevron-down date-arrow" style="transition: transform 0.2s; ${isCollapsed ? 'transform: rotate(-90deg);' : ''}"></i>
-          <span>${date} <span style="font-weight:400; opacity:0.8;">(${dayOfWeek})</span></span>
-          ${isHoliday ? '<span class="badge badge-holiday">휴무</span>' : ''}</div></td>`;
-      frag.appendChild(headerRow);
+    const headerRow = document.createElement('tr');
+    headerRow.className = 'date-header-row' + (isHoliday ? ' holiday-header' : '');
+    headerRow.onclick = () => { collapsedDates[date] = !collapsedDates[date]; renderTimeLog(); };
+    headerRow.innerHTML = `<td colspan="6"><div class="date-header-text" style="font-weight:700;color:#334155;font-size:15px;display:flex;align-items:center;gap:10px;padding:4px 8px;">
+      <i class="fa-solid fa-chevron-down date-arrow" style="transition:transform 0.2s;${isCollapsed ? 'transform:rotate(-90deg);' : ''}"></i>
+      <span>${date} <span style="font-weight:400;opacity:0.8;">(${getDayKor(date)})</span></span>
+      ${isHoliday ? '<span class="badge badge-holiday">휴무</span>' : ''}</div></td>`;
+    frag.appendChild(headerRow);
 
-      if(!isCollapsed) {
-          groupLogs.forEach(log => {
-              const realIdx = idxMap.get(log) ?? timeLogs.indexOf(log);
-              let row = document.createElement('tr');
-              let durationHtml = log.duration;
-              if (log.min >= 120) durationHtml = `<span style="color: #dc2626; font-weight: 700; background: #fef2f2; border-radius: 6px; padding: 4px 8px;">${log.duration}</span>`;
-              else if (log.min >= 60) durationHtml = `<span style="color: #d97706; font-weight: 700; background: #fffbeb; border-radius: 6px; padding: 4px 8px;">${log.duration}</span>`;
-              let catBadge = log.category === '휴무' ? 'badge badge-holiday' : 'badge';
+    if (!isCollapsed) {
+      groupLogs.forEach(log => {
+        const realIdx = idxMap.get(log) ?? timeLogs.indexOf(log);
+        const row = document.createElement('tr');
+        let durationHtml = log.duration;
+        if (log.min >= 120) durationHtml = `<span style="color:#dc2626;font-weight:700;background:#fef2f2;border-radius:6px;padding:4px 8px;">${log.duration}</span>`;
+        else if (log.min >= 60) durationHtml = `<span style="color:#d97706;font-weight:700;background:#fffbeb;border-radius:6px;padding:4px 8px;">${log.duration}</span>`;
 
-              // ✅ XSS 방지: DB에서 온 사용자 데이터(category, task, start, end)는 textContent로 처리
-              const tdCat = document.createElement('td');
-              const catSpan = document.createElement('span');
-              catSpan.className = catBadge;
-              catSpan.textContent = log.category;
-              tdCat.appendChild(catSpan);
+        const tdCat = document.createElement('td');
+        const catSpan = document.createElement('span');
+        catSpan.className = log.category === '휴무' ? 'badge badge-holiday' : 'badge';
+        catSpan.textContent = log.category;
+        tdCat.appendChild(catSpan);
 
-              const tdTask = document.createElement('td');
-              tdTask.textContent = log.task;
+        const tdTask = document.createElement('td'); tdTask.textContent = log.task;
+        const tdStart = document.createElement('td'); tdStart.textContent = log.start;
+        const tdEnd = document.createElement('td'); tdEnd.textContent = log.end;
+        const tdDuration = document.createElement('td');
+        tdDuration.innerHTML = DOMPurify.sanitize(durationHtml);
+        const tdBtns = document.createElement('td');
+        tdBtns.innerHTML = `<button onclick="editTimeLog(${realIdx})" title="수정" style="border:none;background:none;cursor:pointer;color:#2563eb;margin-right:8px;"><i class="fa-solid fa-pen"></i></button><button onclick="deleteTimeLog(${realIdx})" title="삭제" style="border:none;background:none;cursor:pointer;color:#ef4444;"><i class="fa-solid fa-trash-can"></i></button>`;
 
-              const tdStart = document.createElement('td');
-              tdStart.textContent = log.start;
+        row.appendChild(tdCat); row.appendChild(tdTask); row.appendChild(tdStart);
+        row.appendChild(tdEnd); row.appendChild(tdDuration); row.appendChild(tdBtns);
+        frag.appendChild(row);
+      });
+    }
+    return frag;
+  }
 
-              const tdEnd = document.createElement('td');
-              tdEnd.textContent = log.end;
+  // 1프레임에 CHUNK_SIZE개 날짜 그룹씩 렌더 — 메인 스레드 블로킹 분산
+  const CHUNK_SIZE = 5;
+  let idx = 0;
+  tbody.innerHTML = ''; // 먼저 비우기
 
-              const tdDuration = document.createElement('td');
-              tdDuration.innerHTML = DOMPurify.sanitize(durationHtml);
+  function renderChunk() {
+    const frag = document.createDocumentFragment();
+    const end = Math.min(idx + CHUNK_SIZE, sortedDates.length);
+    for (; idx < end; idx++) {
+      frag.appendChild(buildDateFrag(sortedDates[idx]));
+    }
+    tbody.appendChild(frag);
+    if (idx < sortedDates.length) {
+      requestAnimationFrame(renderChunk); // 다음 프레임에 이어서
+    }
+  }
 
-              const tdBtns = document.createElement('td');
-              tdBtns.innerHTML = `<button onclick="editTimeLog(${realIdx})" title="수정" style="border:none;background:none;cursor:pointer;color:#2563eb;margin-right:8px;"><i class="fa-solid fa-pen"></i></button><button onclick="deleteTimeLog(${realIdx})" title="삭제" style="border:none;background:none;cursor:pointer;color:#ef4444;"><i class="fa-solid fa-trash-can"></i></button>`;
-
-              row.appendChild(tdCat);
-              row.appendChild(tdTask);
-              row.appendChild(tdStart);
-              row.appendChild(tdEnd);
-              row.appendChild(tdDuration);
-              row.appendChild(tdBtns);
-              frag.appendChild(row);
-          });
-      }
-  });
-  tbody.appendChild(frag);
-  }); // rAF 끝
+  requestAnimationFrame(renderChunk);
 }
 
 
@@ -233,7 +259,7 @@ async function addTimeLog() {
 
           timeLogs[editingItemIndex] = { id: targetId, date, category, task, start, end, duration, min };
           showToast("수정 완료!", "success");
-          cancelEditMode(); 
+          cancelEditMode();
       } else {
           // 추가 모드 (Insert)
           const { data, error } = await supabaseClient.from('time_logs').insert([{
@@ -243,16 +269,17 @@ async function addTimeLog() {
           }]).select();
 
           if(error) throw error;
-          
+
           if(data && data.length > 0) {
               timeLogs.push({ id: data[0].id, date, category, task, start, end, duration, min });
               document.getElementById('tTask').value = '';
               document.getElementById('tEndH').value = '';
               document.getElementById('tEndM').value = '';
-              updateDefaultStartTime(); 
+              updateDefaultStartTime();
           }
       }
-      renderTimeLog();
+      // loader 닫힘과 렌더를 분리 — 화면이 먼저 풀린 뒤 렌더
+      setTimeout(() => renderTimeLog(), 50);
   } catch (err) {
       console.error(err); showToast('저장 오류: ' + (err.message || err.code || '알 수 없는 오류'), 'error');
   } finally {
@@ -272,8 +299,8 @@ window.deleteTimeLog = async function(index) {
         if(error) throw error;
         
         timeLogs.splice(index, 1);
-        updateDefaultStartTime(); 
-        renderTimeLog();
+        updateDefaultStartTime();
+        setTimeout(() => renderTimeLog(), 50);
     } catch(err) {
         console.error(err); showToast('삭제 중 오류가 발생했습니다.', 'error');
     } finally {

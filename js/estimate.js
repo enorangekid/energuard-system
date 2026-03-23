@@ -441,3 +441,86 @@ function printEstimate() {
         document.body.classList.remove('print-mode-wrap');
     }, 500);
 }
+/* ── 자료실 저장 (Supabase Storage quote 폴더) ── */
+async function saveEstimateToArchive() {
+    if (!supabaseClient) { showToast('Supabase 연결 없음', 'error'); return; }
+    if (typeof html2pdf === 'undefined') { showToast('PDF 라이브러리 로드 실패', 'error'); return; }
+
+    const btn = document.querySelector('.btn-est-save');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 저장 중...';
+    btn.disabled = true;
+
+    try {
+        // 파일명 생성: YYMMDD_거래처명
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const receiverEl = document.getElementById('estReceiverName');
+        const receiver = (receiverEl?.value?.trim() || '').replace(/[^a-zA-Z0-9가-힣_-]/g, '') || '거래처';
+        const originalName = `${yy}${mm}${dd}_${receiver}.pdf`;
+
+        // 스토리지용 safe 파일명 (한글 인코딩)
+        const encodedOriginal = encodeURIComponent(originalName).replace(/%/g, '-');
+        const safeName = `${Date.now()}___${encodedOriginal}`;
+
+        const source = document.getElementById('estimatePrintArea');
+
+        // 캡처 전: UI 전용 요소 직접 숨김
+        const screenEls = source.querySelectorAll('.est-screen-ui, .est-screen-only, .est-add-row-wrap, .est-footer-info, .est-shipping-calc-wrap, .est-vat-toggle');
+        screenEls.forEach(el => {
+            el.dataset.origVisibility = el.style.visibility;
+            el.dataset.origPosition = el.style.position;
+            el.style.visibility = 'hidden';
+            el.style.position = 'absolute';
+        });
+
+        // input border 제거 (깔끔한 PDF용)
+        const inputs = source.querySelectorAll('input, textarea');
+        inputs.forEach(el => {
+            el.dataset.origBorder = el.style.border;
+            el.dataset.origBg = el.style.background;
+            el.style.border = 'none';
+            el.style.background = 'transparent';
+        });
+
+        const pdfBlob = await html2pdf()
+            .set({
+                margin: [8, 8, 8, 8],
+                filename: originalName,
+                image: { type: 'jpeg', quality: 0.97 },
+                html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            })
+            .from(source)
+            .outputPdf('blob');
+
+        // 캡처 후: 원상복구
+        screenEls.forEach(el => {
+            el.style.visibility = el.dataset.origVisibility || '';
+            el.style.position = el.dataset.origPosition || '';
+        });
+        inputs.forEach(el => { el.style.border = el.dataset.origBorder || ''; el.style.background = el.dataset.origBg || ''; });
+
+        // Supabase Storage 업로드
+        const { error } = await supabaseClient.storage
+            .from('archives')
+            .upload(`quote/${safeName}`, pdfBlob, {
+                contentType: 'application/pdf',
+                cacheControl: '3600',
+                upsert: false
+            });
+
+        if (error) throw error;
+
+        showToast(`자료실에 저장됐습니다 — ${originalName}`, 'success');
+
+    } catch(e) {
+        console.error('견적서 저장 실패:', e);
+        showToast(`저장 실패: ${e.message}`, 'error');
+    } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+    }
+}

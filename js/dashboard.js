@@ -44,7 +44,7 @@ window.loadDashboardData = async function() {
         let py = y, pm = m - 1;
         if(pm === 0) { pm = 12; py--; }
 
-        const [salesRes, masterRes, currRankRes, prevRankRes, taskRes, memoRes, blogRes, ytRes] = await Promise.all([
+        const [salesRes, masterRes, currRankRes, prevRankRes, taskRes, memoRes, blogRes, ytRes, blogRankRes] = await Promise.all([
             supabaseClient.from('sales_data').select('*').order('month_str', { ascending: false }),
             supabaseClient.from('product_rankings').select('*'), // 상품 마스터
             supabaseClient.from('ranking_history').select('*').eq('year', y).eq('month', m), // 이번달 순위
@@ -52,7 +52,8 @@ window.loadDashboardData = async function() {
             supabaseClient.from('monthly_tasks').select('*').eq('year', y).eq('month', m),
             supabaseClient.from('monthly_memos').select('key, content').eq('type', 'ProductLog').neq('content', ''),
             supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', 'blog').order('saved_at', { ascending: false }).limit(10),
-            supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', 'youtube').order('saved_at', { ascending: false }).limit(10)
+            supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', 'youtube').order('saved_at', { ascending: false }).limit(10),
+            supabaseClient.from('blog_rank_results').select('results, checked_at').order('checked_at', { ascending: false }).limit(1).single()
         ]);
 
         // 지난달 마지막 순위 맵핑
@@ -87,7 +88,7 @@ window.loadDashboardData = async function() {
                 const history = (currRankRes.data || []).find(h => h.product_code === item.code && h.keyword === item.keyword) || {};
                 const lastMonthRank = prevMap[item.code + '_' + (item.keyword || '')];
 
-                let row = new Array(15).fill("");
+                let row = new Array(16).fill("");
                 row[0] = item.code; row[1] = item.name; row[3] = item.category_tab; 
                 row[5] = history.rank_w1 || ""; 
                 row[6] = history.rank_w2 || ""; 
@@ -97,6 +98,7 @@ window.loadDashboardData = async function() {
                 row[11] = item.is_checked ? "TRUE" : "FALSE"; 
                 row[12] = item.image_url;
                 row[14] = lastMonthRank;
+                row[15] = item.product_type || 'mine';
                 return row;
             }));
         }
@@ -113,7 +115,11 @@ window.loadDashboardData = async function() {
             renderDashNotes(ytRes.data || [], 'dash-yt-list', 'youtube');
         }
 
-        ['sales', 'ranking', 'tasks', 'prodlogs', 'blog', 'youtube'].forEach(setRefreshTime);
+        if (typeof renderDashBlogRank === 'function') {
+            renderDashBlogRank(blogRankRes.data || null);
+        }
+
+        ['sales', 'ranking', 'tasks', 'prodlogs', 'blog', 'youtube', 'blogrank'].forEach(setRefreshTime);
         isDashboardLoaded = true; 
     } catch (e) {
         console.error("대시보드 데이터 로드 오류:", e);
@@ -168,13 +174,14 @@ window.refreshDashData = async function(type) {
                 renderDashRanking([["Header"]].concat(representativeItems.map(item => {
                     const history = (currRankRes.data || []).find(h => h.product_code === item.code && h.keyword === item.keyword) || {};
                     const lastMonthRank = prevMap[item.code + '_' + (item.keyword || '')];
-                    let row = new Array(15).fill("");
+                    let row = new Array(16).fill("");
                     row[0] = item.code; row[1] = item.name; 
                     row[5] = history.rank_w1 || ""; row[6] = history.rank_w2 || ""; 
                     row[7] = history.rank_w3 || ""; row[8] = history.rank_w4 || ""; 
                     row[9] = history.rank_w5 || ""; 
                     row[12] = item.image_url;
                     row[14] = lastMonthRank;
+                    row[15] = item.product_type || 'mine';
                     return row;
                 })));
             }
@@ -190,6 +197,9 @@ window.refreshDashData = async function(type) {
         } else if (type === 'youtube') {
             const { data } = await supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', 'youtube').order('saved_at', { ascending: false }).limit(10);
             if(data) renderDashNotes(data, 'dash-yt-list', 'youtube');
+        } else if (type === 'blogrank') {
+            const { data } = await supabaseClient.from('blog_rank_results').select('results, checked_at').order('checked_at', { ascending: false }).limit(1).single();
+            renderDashBlogRank(data || null);
         }
         setRefreshTime(type);
     } catch(e) { console.error("새로고침 오류:", e); showToast('새로고침 중 오류가 발생했습니다.', 'error'); } 
@@ -254,37 +264,64 @@ function setDiffUI(id, diff) {
 function renderDashRanking(data) {
     if (!data || data.length <= 1) return;
     let rows = data.slice(1);
-    let upList = [], downList = [];
+    let upList = [], downList = [], outList = [];
+
+    // 전체 데이터 기준 마지막 수집 주차 인덱스 계산 (globalLastWIdx 역할)
+    let globalLastWIdx = -1;
+    rows.forEach(r => {
+        let ranks = [r[5], r[6], r[7], r[8], r[9]];
+        for (let i = 4; i >= 0; i--) {
+            if (ranks[i] !== '' && ranks[i] != null) {
+                if (i > globalLastWIdx) globalLastWIdx = i;
+                break;
+            }
+        }
+    });
 
     rows.forEach(r => {
         let ranks = [r[5], r[6], r[7], r[8], r[9]];
-        let lastIdx = -1;
-        for (let i = 4; i >= 0; i--) { if (ranks[i] !== "" && ranks[i] != null) { lastIdx = i; break; } }
+        let thumb = r[12] || '';
+        let name = r[1];
+        let link = `https://smartstore.naver.com/hkdy/products/${r[0]}`;
 
-        if (lastIdx >= 0) {
-            let curRank = Number(ranks[lastIdx]);
+        // 이탈 판단: 마지막 수집 주차 기준으로 현재 값이 없으면 이탈
+        // (이번 달 내내 순위 없는 상품 = 계속 이탈 중인 상품도 포함)
+        let lastHasIdx = -1;
+        for (let i = 4; i >= 0; i--) {
+            if (ranks[i] !== '' && ranks[i] != null) { lastHasIdx = i; break; }
+        }
+
+        // lastHasIdx < globalLastWIdx: 이번 달 중간에 이탈
+        // lastHasIdx === -1: 이번 달 내내 순위 없음 (계속 이탈 중)
+        const isOut = (globalLastWIdx !== -1) && (lastHasIdx < globalLastWIdx);
+        const isMine = (r[15] || 'mine') === 'mine';
+
+        if (isOut && isMine) {
+            // 이전 순위: 이번 달 마지막 순위 or 없으면 "-"로 표시
+            let prevRank = lastHasIdx >= 0 ? Number(ranks[lastHasIdx]) : 0;
+            outList.push({ prevRank, name, thumb, link });
+            return;
+        }
+
+        // 급상승/급하락 판단
+        if (lastHasIdx >= 0) {
+            let curRank = Number(ranks[lastHasIdx]);
             let prevRank = null;
-
-            if (lastIdx > 0 && ranks[lastIdx - 1] !== "" && ranks[lastIdx - 1] != null) {
-                prevRank = Number(ranks[lastIdx - 1]);
-            } else if (lastIdx === 0 && r[14] !== "" && r[14] != null) {
+            if (lastHasIdx > 0 && ranks[lastHasIdx - 1] !== '' && ranks[lastHasIdx - 1] != null) {
+                prevRank = Number(ranks[lastHasIdx - 1]);
+            } else if (lastHasIdx === 0 && r[14] !== '' && r[14] != null) {
                 prevRank = Number(r[14]);
             }
-
             if (prevRank !== null && prevRank > 0 && curRank > 0) {
-                let diff = prevRank - curRank; 
-                let thumb = r[12] || ''; 
-                let name = r[1]; 
-                let link = `https://smartstore.naver.com/hkdy/products/${r[0]}`;
-                
-                if (diff >= 10) upList.push({ diff, curRank, name, thumb, link }); 
+                let diff = prevRank - curRank;
+                if (diff >= 10) upList.push({ diff, curRank, name, thumb, link });
                 else if (diff <= -10) downList.push({ diff, curRank, name, thumb, link });
             }
         }
     });
 
-    upList.sort((a, b) => b.diff - a.diff).slice(0, 15);
-    downList.sort((a, b) => a.diff - b.diff).slice(0, 15);
+    upList.sort((a, b) => b.diff - a.diff);
+    downList.sort((a, b) => a.diff - b.diff);
     document.getElementById('dash-rank-up-count').innerText = upList.length + '건';
     document.getElementById('dash-rank-down-count').innerText = downList.length + '건';
 
@@ -300,8 +337,24 @@ function renderDashRanking(data) {
             <span class="dash-rank-name" title="${item.name}">${item.name}</span>
         </a>`;
 
+    const buildOutHTML = (item) => `
+        <a href="${item.link}" target="_blank" class="dash-rank-item">
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width: 48px; flex-shrink: 0; gap: 4px; background: #fef2f2; padding: 6px 0; border-radius: 8px;">
+                <span style="font-size:11px; font-weight:800; color:#ef4444; line-height:1;">이탈</span>
+                <span style="font-size:10px; font-weight:600; color:#ef4444; line-height:1;">${item.prevRank > 0 ? item.prevRank + "위▼" : "계속"}</span>
+            </div>
+            <div class="dash-rank-thumb" ${item.thumb ? `style="background-image:url(${item.thumb})"` : ''} style="margin-left: 4px;"></div>
+            <span class="dash-rank-name" title="${item.name}">${item.name}</span>
+        </a>`;
+
     document.getElementById('dash-rank-up-list').innerHTML = upList.length ? upList.map(item => buildItemHTML(item, true)).join('') : '<div style="padding:15px; text-align:center; color:#999; font-size:13px;">급상승 내역이 없습니다.</div>';
-    document.getElementById('dash-rank-down-list').innerHTML = downList.length ? downList.map(item => buildItemHTML(item, false)).join('') : '<div style="padding:15px; text-align:center; color:#999; font-size:13px;">급하락 내역이 없습니다.</div>';
+
+    // 이탈 먼저, 급하락 이후
+    const downHtml = [
+        ...outList.map(item => buildOutHTML(item)),
+        ...downList.map(item => buildItemHTML(item, false))
+    ].join('');
+    document.getElementById('dash-rank-down-list').innerHTML = downHtml || '<div style="padding:15px; text-align:center; color:#999; font-size:13px;">급하락 내역이 없습니다.</div>';
 }
 
 function getWeekIdForDate(year, month, targetDate) {
@@ -376,6 +429,59 @@ function renderDashProdLogs(data) {
     document.getElementById('dash-prodlog-list').innerHTML = listHTML;
 }
 
+
+/* ── 블로그 키워드 순위 대시보드 렌더링 ── */
+function renderDashBlogRank(data) {
+    const exposedEl  = document.getElementById('dash-blogrank-exposed');
+    const hiddenEl   = document.getElementById('dash-blogrank-hidden');
+    const checkedEl  = document.getElementById('dash-blogrank-checked-at');
+    if (!exposedEl || !hiddenEl) return;
+
+    if (!data || !data.results || !data.results.length) {
+        exposedEl.innerHTML  = '<li class="dash-list-empty">데이터 없음</li>';
+        hiddenEl.innerHTML   = '<li class="dash-list-empty">데이터 없음</li>';
+        return;
+    }
+
+    const results = data.results;
+    if (checkedEl) {
+        checkedEl.textContent = new Date(data.checked_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    // 노출(rank 있음) — 순위 낮은 순 정렬
+    const exposed = results
+        .filter(r => r.rank)
+        .sort((a, b) => a.rank - b.rank)
+        .slice(0, 10);
+
+    // 미노출
+    const hidden = results
+        .filter(r => !r.rank)
+        .slice(0, 10);
+
+    const navToBlogRank = "showPage('blogranking', document.querySelector('.menu-item[onclick*=\'blogranking\']'))";
+
+    exposedEl.innerHTML = exposed.length ? exposed.map(r => `
+        <li class="dash-hover-bg" onclick="${navToBlogRank}">
+            <span class="dot success"></span>
+            <span class="dash-blogrank-kw">${r.keyword}</span>
+            ${r.url && r.title
+                ? `<a href="${r.url}" target="_blank" rel="noopener"
+                      onclick="event.stopPropagation()"
+                      class="dash-blogrank-title"
+                      title="${(r.title||'').replace(/"/g,'&quot;')}">${r.title}</a>`
+                : ''}
+        </li>`).join('')
+    : '<li><span class="dash-empty">노출 키워드 없음</span></li>';
+
+    hiddenEl.innerHTML = hidden.length ? hidden.map(r => `
+        <li class="dash-hover-bg" onclick="${navToBlogRank}">
+            <span class="dot danger"></span>
+            <span class="dash-note-title dash-hover-underline">${r.keyword}</span>
+        </li>`).join('')
+    : '<li><span class="dash-empty">미노출 키워드 없음</span></li>';
+}
+
 function renderDashNotes(data, elementId, type) {
     if (!data || data.length === 0) {
         document.getElementById(elementId).innerHTML = `<li><span class="dash-empty">등록된 원고가 없습니다.</span></li>`;
@@ -411,462 +517,3 @@ window.toggleDashSales = function() {
         content.style.display = 'none'; icon.style.transform = 'rotate(0deg)';
     }
 };
-
-/* ================= [Note Logic: Real-time Save & Undo (Updated)] ================= */
-
-let currentNoteTab = 'general';
-let currentNoteId = null;
-let currentNoteMonth = ''; // 현재 로드된 월 (YYYY-MM)
-let noteOriginalContent = ''; // ✅ 롤백(취소) 기준점
-let noteAutoSaveTimer = null; // 자동 저장 타이머
-
-window.setNoteTab = function(tab) {
-    currentNoteTab = tab;
-    document.querySelectorAll('.tab-btn, .nt-tab').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = document.querySelector(`.tab-btn[onclick*="${tab}"], .nt-tab[onclick*="${tab}"]`);
-    if(activeBtn) activeBtn.classList.add('active');
-
-    const metaArea = document.getElementById('draftMetadataArea');
-    const listContainer = document.getElementById('draftListContainer');
-    const editorWrapper = document.getElementById('editor-wrapper');
-    const titleInput = document.getElementById('draftTitle');
-
-    if (tab === 'general') {
-        if(metaArea) metaArea.style.display = 'none'; 
-        if(listContainer) listContainer.style.display = 'none'; 
-        if(editorWrapper) editorWrapper.style.display = 'flex';
-        handleNoteMonthChange();
-    } else {
-        if(metaArea) metaArea.style.display = 'none'; 
-        if(listContainer) listContainer.style.display = 'block'; 
-        if(editorWrapper) editorWrapper.style.display = 'none';
-        if(titleInput) titleInput.placeholder = tab === 'blog' ? "블로그 원고 제목을 입력하세요" : "유튜브 기획/대본 제목을 입력하세요";
-        loadDraftList(tab);
-    }
-}
-
-window.backToList = function() {
-    document.getElementById('draftMetadataArea').style.display = 'none'; 
-    document.getElementById('editor-wrapper').style.display = 'none';
-    document.getElementById('draftListContainer').style.display = 'block';
-    loadDraftList(currentNoteTab);
-}
-
-// 📌 노트 데이터 불러오기 (월 변경 시)
-window.handleNoteDateChange = async function() {
-    // 하위호환용 - handleNoteMonthChange 호출
-    handleNoteMonthChange();
-}
-
-window.handleNoteMonthChange = async function() {
-    if (!supabaseClient || currentNoteTab !== 'general') return;
-    const monthStr = document.getElementById('noteMonthPicker').value; // YYYY-MM
-    if (!monthStr) return;
-    currentNoteMonth = monthStr;
-    const monthDate = monthStr + '-01'; // DB 저장 형식: YYYY-MM-01
-
-    try {
-        const { data, error } = await supabaseClient.from('notes')
-            .select('*')
-            .eq('date', monthDate)
-            .eq('type', 'general')
-            .limit(1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) { 
-            currentNoteId = data[0].id; 
-            const noteContent = data[0].content || '';
-            if (window.quill) window.quill.root.innerHTML = noteContent;
-            noteOriginalContent = noteContent;
-        } else { 
-            currentNoteId = null; 
-            if (window.quill) window.quill.root.innerHTML = '';
-            noteOriginalContent = ''; 
-        }
-        
-        const statusLabel = document.getElementById('noteSaveStatus');
-        if(statusLabel) statusLabel.innerHTML = '최신 상태';
-
-    } catch (e) { 
-        console.error("노트 로드 실패:", e);
-        showToast("원고 데이터를 불러오지 못했습니다.", "error"); 
-    } finally { 
-        document.getElementById('loader').style.display = 'none'; 
-    }
-}
-
-// 📌 오늘 날짜 헤더를 에디터에 삽입
-window.insertTodayHeader = function() {
-    if (!window.quill) return;
-    const now = new Date();
-    const days = ['일','월','화','수','목','금','토'];
-    const label = now.getFullYear() + '년 ' + (now.getMonth()+1) + '월 ' + now.getDate() + '일 (' + days[now.getDay()] + ')';
-    const range = window.quill.getSelection(true);
-    const index = range ? range.index : window.quill.getLength();
-    // 앞에 줄바꿈 하나 추가 (내용이 있을 때만)
-    if (window.quill.getLength() > 1) {
-        window.quill.insertText(index, '\n', 'user');
-    }
-    window.quill.insertEmbed(index + (window.quill.getLength() > 1 ? 1 : 0), 'divider', true, 'user');
-    const afterHr = index + (window.quill.getLength() > 1 ? 2 : 1);
-    window.quill.insertText(afterHr, label + '\n', { 'bold': true, 'color': '#4f46e5' }, 'user');
-    window.quill.setSelection(afterHr + label.length + 1, 'silent');
-}
-
-// 📌 Quill 에디터 초기화
-window.initQuill = function() {
-    if (window.quill) return;
-
-    // ── 구분선(HR) Blot 등록 (Quill 인스턴스 생성 직전에 등록해야 안전) ──
-    if (!Quill.imports['formats/divider']) {
-        const BlockEmbed = Quill.import('blots/block/embed');
-        class DividerBlot extends BlockEmbed {}
-        DividerBlot.blotName = 'divider';
-        DividerBlot.tagName  = 'hr';
-        Quill.register(DividerBlot);
-    }
-
-    window.quill = new Quill('#editor', {
-        theme: 'snow', 
-        placeholder: '만능 비서와 함께 업무 내용을 자유롭게 기록하세요...',
-        modules: {
-            toolbar: {
-                container: [
-                    [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'color': [] }, { 'background': [] }], [{ 'list': 'ordered'}, { 'list': 'bullet' }], ['image', 'link', 'divider', 'clean']
-                ],
-                handlers: {
-                    'image': imageUploadHandler,
-                    'divider': function() {
-                        const range = this.quill.getSelection(true);
-                        this.quill.insertText(range.index, '\n', Quill.sources.USER);
-                        this.quill.insertEmbed(range.index + 1, 'divider', true, Quill.sources.USER);
-                        this.quill.setSelection(range.index + 2, Quill.sources.SILENT);
-                    }
-                }
-            }
-        }
-    });
-
-    // 🚀 실시간 자동 저장 (Debounce: 2초)
-    window.quill.on('text-change', function(delta, oldDelta, source) {
-        if (source === 'user') {
-            const statusLabel = document.getElementById('noteSaveStatus');
-            if (statusLabel) statusLabel.innerHTML = '작성 중...';
-            
-            clearTimeout(noteAutoSaveTimer);
-            noteAutoSaveTimer = setTimeout(function() {
-                autoSaveNote(); // 자동 저장 실행
-            }, 2000);
-        }
-    });
-
-    // 이미지/파일 드래그 앤 드롭 핸들러 등 생략...
-    window.quill.root.addEventListener('paste', handleImagePaste);
-    window.quill.root.addEventListener('drop', handleImageDrop);
-}
-
-// 📌 [자동 저장] - 원본(noteOriginalContent)은 갱신하지 않음!
-async function autoSaveNote() {
-    if (!supabaseClient || currentNoteTab !== 'general') return;
-    const monthStr = currentNoteMonth || document.getElementById('noteMonthPicker').value;
-    const noteContent = window.quill.root.innerHTML;
-    if (!monthStr || !noteContent || noteContent === '<p><br></p>') return;
-
-    const statusLabel = document.getElementById('noteSaveStatus');
-    
-    try {
-        if (currentNoteId) {
-            await supabaseClient.from('notes').update({ content: noteContent, saved_at: new Date() }).eq('id', currentNoteId);
-        } else {
-            const { data } = await supabaseClient.from('notes').insert([{ date: monthStr + '-01', type: 'general', title: '일반 노트', content: noteContent, status: 'saving' }]).select();
-            if (data && data.length > 0) currentNoteId = data[0].id;
-        }
-        
-        if (statusLabel) {
-            const now = new Date();
-            statusLabel.innerHTML = '<span style="color:#10b981;">자동 저장됨 (' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ')</span>';
-        }
-    } catch(e) {
-        console.error('자동저장 실패:', e);
-        showToast('자동저장에 실패했습니다.', 'error');
-        if (statusLabel) statusLabel.innerHTML = '자동저장 실패';
-    }
-}
-
-// 📌 [수동 저장] - 이때 비로소 원본(noteOriginalContent)을 갱신
-window.saveNoteManual = async function() {
-    clearTimeout(noteAutoSaveTimer); // 대기 중인 자동저장 취소
-    await saveNoteToServer(true); // true = 매뉴얼 저장 플래그
-}
-
-window.saveNoteToServer = async function(isManual = false) {
-    if (!supabaseClient) return;
-    const date = currentNoteTab === 'general'
-        ? (currentNoteMonth ? currentNoteMonth + '-01' : document.getElementById('noteMonthPicker').value + '-01')
-        : document.getElementById('noteDate').value;
-    const title = currentNoteTab === 'general' ? '일반 노트' : document.getElementById('draftTitle').value.trim();
-    const status = currentNoteTab === 'general' ? 'saving' : document.getElementById('draftStatus').value;
-    const content = window.quill.root.innerHTML;
-
-    if (!date) { showToast('월을 선택해주세요.', 'warning'); return; }
-    if (content === "<p><br></p>" || !content) { showToast('내용을 입력해주세요.', 'warning'); return; }
-
-    const saveBtn = document.querySelector('.note-controls .btn-primary');
-    const originalText = saveBtn.innerHTML; 
-    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 저장중...'; 
-    saveBtn.disabled = true;
-
-    try {
-        if (currentNoteId) {
-            const { error } = await supabaseClient.from('notes').update({ title: title, content: content, status: status, saved_at: new Date() }).eq('id', currentNoteId);
-            if (error) throw error;
-        } else {
-            const { data, error } = await supabaseClient.from('notes').insert([{ date: date, type: currentNoteTab, title: title, content: content, status: status }]).select();
-            if (error) throw error; 
-            if (data && data.length > 0) currentNoteId = data[0].id; 
-        }
-
-        // ✅ 수동 저장 성공 시에만 원본 갱신
-        if(isManual) {
-            noteOriginalContent = content; 
-            showToast('저장되었습니다.', 'success');
-        }
-        
-        const statusLabel = document.getElementById('noteSaveStatus');
-        if(statusLabel) statusLabel.innerHTML = '저장 완료';
-        
-        if (currentNoteTab !== 'general') loadDraftList(currentNoteTab);
-
-    } catch (e) { 
-        console.error("저장 오류:", e);
-        showToast("저장 중 오류가 발생했습니다.", "error"); 
-        showToast('저장 중 오류가 발생했습니다.', 'error'); 
-    } finally { 
-        saveBtn.innerHTML = originalText; 
-        saveBtn.disabled = false; 
-    }
-}
-
-// 📌 [취소/롤백] - 자동 저장된 내용까지 모두 날리고 원본으로 복구
-window.cancelNoteChanges = async function() {
-    if(!confirm("작성 중인 내용을 취소하고, 마지막 저장 상태로 되돌리겠습니까?\n(자동 저장된 내용도 초기화됩니다.)")) return;
-
-    clearTimeout(noteAutoSaveTimer); // 자동저장 타이머 Kill
-
-    // 1. 에디터 내용을 원본으로 롤백
-    if (window.quill) window.quill.root.innerHTML = noteOriginalContent;
-    
-    const statusLabel = document.getElementById('noteSaveStatus');
-    if(statusLabel) statusLabel.innerHTML = '복구 중...';
-
-    // 2. 서버 데이터도 원본으로 덮어씌우기 (자동 저장된 내용 무효화)
-    if(currentNoteId) {
-        try {
-            await supabaseClient.from('notes').update({ content: noteOriginalContent, saved_at: new Date() }).eq('id', currentNoteId);
-            if(statusLabel) statusLabel.innerHTML = '복구 완료';
-        } catch(e) {
-            console.error("롤백 실패:", e);
-            showToast("서버 데이터 복구 중 오류가 발생했습니다.", "error");
-            showToast('서버 데이터 복구 중 오류가 발생했습니다.', 'error');
-        }
-    } else {
-        if(statusLabel) statusLabel.innerHTML = '초기화됨';
-    }
-}
-
-// 📌 [인쇄 기능]
-window.printNote = function() {
-    window.print();
-}
-
-// (이하 이미지 핸들러 등 보조 함수는 그대로 유지)
-function handleImagePaste(e) {
-    if (e.clipboardData && e.clipboardData.items) {
-        const items = e.clipboardData.items;
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.startsWith('image/')) {
-                e.preventDefault(); const file = items[i].getAsFile(); uploadFileToSupabase(file); return;
-            }
-        }
-    }
-}
-function handleImageDrop(e) {
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
-        const file = e.dataTransfer.files[0];
-        if (file.type.startsWith('image/')) { e.preventDefault(); uploadFileToSupabase(file); }
-    }
-}
-function imageUploadHandler() {
-    const input = document.createElement('input'); input.setAttribute('type', 'file'); input.setAttribute('accept', 'image/*'); input.click();
-    input.onchange = () => { const file = input.files[0]; if (file) uploadFileToSupabase(file); };
-}
-async function uploadFileToSupabase(file) {
-    if (!supabaseClient) return;
-    document.getElementById('loader').style.display = 'flex';
-    try {
-        const fileExt = file.name.split('.').pop() || 'png'; const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`; const filePath = `editor/${fileName}`;
-        const { error: uploadError } = await supabaseClient.storage.from('images').upload(filePath, file, { cacheControl: '3600', upsert: false });
-        if (uploadError) throw uploadError;
-        const { data } = supabaseClient.storage.from('images').getPublicUrl(filePath);
-        let range = window.quill.getSelection(); let index = range ? range.index : window.quill.getLength();
-        window.quill.insertEmbed(index, 'image', data.publicUrl); window.quill.setSelection(index + 1);
-    } catch (error) { console.error('이미지 업로드 오류:', error); showToast('이미지 업로드 실패.', 'error'); } 
-    finally { document.getElementById('loader').style.display = 'none'; }
-}
-async function loadDraftList(type) {
-    if (!supabaseClient) return;
-    const listEl = document.getElementById('draftListBody'); if (!listEl) return;
-    listEl.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> 로딩중...</td></tr>';
-    try {
-        const { data, error } = await supabaseClient.from('notes').select('id, date, title, status, saved_at').eq('type', type).order('saved_at', { ascending: false });
-        if (error) throw error;
-        if (data && data.length > 0) {
-            listEl.innerHTML = data.map(item => {
-                let statusTxt = item.status === 'uploaded' ? '업로드 완료' : '작성중'; 
-                let statusColor = item.status === 'uploaded' ? '#166534' : '#64748b'; 
-                let statusBg = item.status === 'uploaded' ? '#dcfce7' : '#f1f5f9';
-                let statusBadge = `<span style="background:${statusBg}; color:${statusColor}; padding:4px 8px; border-radius:12px; font-size:11px; font-weight:700;">${statusTxt}</span>`;
-                let savedTime = new Date(item.saved_at); 
-                let timeStr = `${savedTime.getMonth()+1}/${savedTime.getDate()} ${String(savedTime.getHours()).padStart(2,'0')}:${String(savedTime.getMinutes()).padStart(2,'0')}`;
-                return `<tr onclick="loadDraftContent('${item.id}')"><td class="text-sub">${item.date}</td><td class="text-left font-bold">${item.title || '(제목 없음)'}</td><td>${statusBadge}</td><td class="text-sub">${timeStr}</td></tr>`;
-            }).join('');
-        } else { listEl.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:30px; color:#94a3b8; font-size:13px;">등록된 원고가 없습니다.</td></tr>'; }
-    } catch (e) { console.error("리스트 오류:", e); listEl.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#ef4444;">리스트 로드 실패</td></tr>'; }
-}
-window.loadDraftContent = async function(noteId) {
-    if (!supabaseClient) return;
-    document.getElementById('loader').style.display = 'flex';
-    try {
-        const { data, error } = await supabaseClient.from('notes').select('*').eq('id', noteId).single();
-        if (error) throw error;
-        if (data) {
-            currentNoteId = data.id; document.getElementById('noteDate').value = data.date;
-            document.getElementById('draftTitle').value = data.title || ''; document.getElementById('draftStatus').value = data.status || 'saving';
-            if (window.quill) window.quill.root.innerHTML = data.content || '';
-            noteOriginalContent = data.content || ''; // 원고 로드 시에도 백업
-            document.getElementById('draftListContainer').style.display = 'none'; document.getElementById('draftMetadataArea').style.display = 'flex'; document.getElementById('editor-wrapper').style.display = 'flex';
-        }
-    } catch (e) { console.error("원고 불러오기 오류:", e); showToast('원고를 불러오지 못했습니다.', 'error'); } finally { document.getElementById('loader').style.display = 'none'; }
-}
-window.createNewDraft = function() {
-    currentNoteId = null; document.getElementById('draftTitle').value = ''; document.getElementById('draftStatus').value = 'saving'; 
-    if (window.quill) window.quill.root.innerHTML = '';
-    noteOriginalContent = '';
-    // 신규 작성 시 날짜를 오늘로 자동 설정
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const noteDateEl = document.getElementById('noteDate');
-    if (noteDateEl) noteDateEl.value = todayStr;
-    document.getElementById('draftListContainer').style.display = 'none'; document.getElementById('draftMetadataArea').style.display = 'flex'; document.getElementById('editor-wrapper').style.display = 'flex';
-}
-
-window.resetNoteToOriginal = window.cancelNoteChanges; // 기존 함수명 호환
-window.searchNotes = function() { /* 추후 구현 */ }
-
-
-/* ================= [🚀 NEW: 퀵 메모 (Quick Memo) 연동 로직] ================= */
-let quickQuill = null;
-let currentQuickNoteId = null;
-let currentQuickNoteMonth = '';
-
-window.toggleQuickMemo = function() {
-    openPanel('quickMemoPanel', () => {
-        initQuickEditor();
-        loadQuickMemo();
-    });
-}
-
-window.initQuickEditor = function() {
-    if (quickQuill) return;
-    quickQuill = new Quill('#quickEditor', {
-        theme: 'snow',
-        placeholder: '오늘의 번뜩이는 아이디어나 업무를 빠르게 메모하세요...',
-        modules: {
-            toolbar: [
-                ['bold', 'italic', 'underline', 'strike'],
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }]
-            ]
-        }
-    });
-}
-
-// 🚀 이번 달 일반 노트를 찾아서 퀵 메모에 띄우기
-window.loadQuickMemo = async function() {
-    if(!supabaseClient) return;
-    const now = new Date();
-    const monthStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-    const todayLabel = now.getFullYear() + '년 ' + (now.getMonth()+1) + '월';
-    document.getElementById('quickMemoDate').innerText = todayLabel;
-    document.getElementById('quickMemoStatus').innerText = '';
-    
-    try {
-        const { data, error } = await supabaseClient
-            .from('notes')
-            .select('*')
-            .eq('date', monthStr + '-01')
-            .eq('type', 'general')
-            .limit(1);
-            
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-            currentQuickNoteId = data[0].id;
-            currentQuickNoteMonth = monthStr;
-            // 이번 달 노트 내용을 그대로 표시 (수정 가능)
-            if (quickQuill) quickQuill.root.innerHTML = data[0].content || '';
-        } else {
-            currentQuickNoteId = null;
-            currentQuickNoteMonth = monthStr;
-            if (quickQuill) quickQuill.root.innerHTML = '';
-        }
-    } catch(e) {
-        console.error('퀵 메모 로드 실패:', e);
-        showToast('퀵 메모를 불러오지 못했습니다.', 'error');
-    }
-}
-
-// 🚀 퀵 메모 저장 (월 노트 전체를 그대로 update)
-window.saveQuickMemo = async function() {
-    if(!supabaseClient) return;
-    const quickContent = quickQuill.root.innerHTML;
-    const statusMsg = document.getElementById('quickMemoStatus');
-    
-    if (quickContent === '<p><br></p>' || !quickContent) return;
-    
-    statusMsg.innerText = '저장 중...';
-    statusMsg.style.color = '#f59e0b';
-
-    const now = new Date();
-    const monthStr = currentQuickNoteMonth || (now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0'));
-
-    try {
-        if (currentQuickNoteId) {
-            // 퀵에디터 내용 그대로 월 노트 업데이트
-            const { error } = await supabaseClient.from('notes')
-                .update({ content: quickContent, saved_at: new Date() })
-                .eq('id', currentQuickNoteId);
-            if(error) throw error;
-        } else {
-            // 이번 달 노트 없으면 새로 생성
-            const { data, error } = await supabaseClient.from('notes')
-                .insert([{ date: monthStr + '-01', type: 'general', title: '일반 노트', content: quickContent, status: 'saving' }])
-                .select();
-            if(error) throw error;
-            if (data && data.length > 0) currentQuickNoteId = data[0].id;
-        }
-        
-        statusMsg.innerText = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ' 저장됨!';
-        statusMsg.style.color = '#10b981';
-
-        // 업무 노트 페이지가 열려있고 같은 달이면 리렌더
-        if (document.getElementById('page-notes').classList.contains('active') && currentNoteMonth === monthStr) {
-            handleNoteMonthChange();
-        }
-    } catch(e) {
-        console.error('퀵 메모 저장 실패:', e);
-        showToast('퀵 메모 저장에 실패했습니다.', 'error');
-        statusMsg.innerText = '저장 실패';
-        statusMsg.style.color = '#ef4444';
-    }
-}
