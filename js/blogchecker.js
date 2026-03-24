@@ -85,7 +85,34 @@ async function bcLoadHistoryList() {
   } catch { /* 무시 */ }
 }
 
+async function bcDeleteHistory() {
+  const sel = document.getElementById('bc-history-select');
+  const id = sel?.value;
+  if (!id) return;
+  const label = sel.options[sel.selectedIndex]?.text || '이 이력';
+  if (!confirm(`"${label}" 이력을 삭제하시겠습니까?`)) return;
+  try {
+    const res = await fetch(`http://127.0.0.1:5000/api/history/${id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.ok) {
+      showToast('이력이 삭제되었습니다.', 'success');
+      await bcLoadHistoryList();
+      sel.value = '';
+      const delBtn = document.getElementById('bc-del-btn');
+      if (delBtn) delBtn.style.display = 'none';
+      await bcLoadLatestResult();
+    } else {
+      showToast('삭제 실패: ' + (json.msg || ''), 'error');
+    }
+  } catch(e) {
+    showToast('서버 연결 오류', 'error');
+  }
+}
+
 async function bcLoadHistoryById(id) {
+  // 삭제버튼 표시/숨김
+  const delBtn = document.getElementById('bc-del-btn');
+  if (delBtn) delBtn.style.display = id ? 'inline-block' : 'none';
   if (!id) { await bcLoadLatestResult(); return; }
   if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
   try {
@@ -326,21 +353,24 @@ async function bcStartCheck() {
   if (pctEl) pctEl.textContent = '0%';
 
   // 선택된 키워드만 서버에 임시 저장 후 실행
-  const selectedKws = [...bcKws.main, ...bcKws.sub].filter(k => bcSelected.has(k));
+  const allKws = [...bcKws.main, ...bcKws.sub];  // 전체 백업
+  const selectedKws = allKws.filter(k => bcSelected.has(k));
   try {
     // 선택된 키워드 임시 저장
     await bcSaveKeywords(selectedKws);
     const res  = await fetch(BC_API + '/api/start', { method: 'POST' });
     const data = await res.json();
-    if (!data.ok) { bcShowError(data.msg); btn.disabled = false; return; }
+    if (!data.ok) {
+      await bcSaveKeywords(allKws);  // 실패 시 즉시 복구
+      bcShowError(data.msg); btn.disabled = false; return;
+    }
     bcRunning = true;
     clearInterval(bcTimer);
     bcTimer = setInterval(bcPoll, 1200);
   } catch {
     bcShowError('Python 서버에 연결할 수 없습니다.');
     btn.disabled = false;
-    // 임시 저장한 키워드를 전체로 원상복구
-    await bcSaveKeywords([...bcKws.main, ...bcKws.sub]);
+    await bcSaveKeywords(allKws);  // 실패 시 즉시 복구
   }
 }
 
@@ -375,7 +405,7 @@ async function bcPoll() {
       document.getElementById('bc-progress-bar').style.width = '100%';
       if (pctEl) pctEl.textContent = '100%';
       // 전체 키워드 다시 저장 (체크 후 원상복구)
-      await bcSaveKeywords([...bcKws.main, ...bcKws.sub]);
+      await bcSaveKeywords(allKws);
       // 저장은 app.py(run_crawl)에서만 수행 — JS 측 중복 저장 제거
       bcRenderResults(data.results);
       document.getElementById('bc-run-btn').disabled = false;

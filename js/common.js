@@ -68,10 +68,11 @@ window.onload = async function() {
                 applyRoleUI();
                 document.getElementById('loginScreen').classList.add('hidden');
                 const nameEl = document.getElementById('loggedUserName');
-                if (nameEl) nameEl.innerText = display_name || username;
+                const _rawName1 = (display_name || username).replace(/님$/, '');
+                if (nameEl) nameEl.innerText = _rawName1 + '님';
                 updateRoleBadge(role);
                 const keepCheck = document.getElementById('keepLoginCheck');
-                showWelcomeModal(display_name || username, role);
+                showWelcomeModal(_rawName1, role);
                 if (keepCheck) keepCheck.checked = true;
                 let startPage = 'dashboard';
                 const restriction = ROLE_RESTRICTIONS[currentUser.role];
@@ -187,9 +188,10 @@ async function tryLogin() {
         document.getElementById('loginScreen').classList.add('hidden');
 
         const nameEl = document.getElementById('loggedUserName');
-        if (nameEl) nameEl.innerText = data.display_name || data.username;
+        const _rawName2 = (data.display_name || data.username).replace(/님$/, '');
+        if (nameEl) nameEl.innerText = _rawName2 + '님';
         updateRoleBadge(data.role);
-        showWelcomeModal(data.display_name || data.username, data.role);
+        showWelcomeModal(_rawName2, data.role);
 
         let startPage = 'dashboard';
         const restriction = ROLE_RESTRICTIONS[currentUser.role];
@@ -226,7 +228,7 @@ function showWelcomeModal(displayName, role) {
         '오늘도 에너가드컴퍼니를 이끌어 주세요 💪',
         '모든 팀원이 믿고 있습니다. 오늘도 파이팅! 🚀',
         '좋은 하루가 되길 바랍니다. 오늘도 화이팅! ✨',
-        '에너가드의 성장을 함께 만들어 가요 📈',
+        '에너가드컴퍼니의 성장을 함께 만들어 가요 📈',
     ] : [
         '오늘 하루도 함께해 주셔서 감사해요 😊',
         '작은 노력이 큰 결과를 만들어요. 오늘도 파이팅! 💫',
@@ -610,8 +612,31 @@ function changeCalculator(url) { document.getElementById('calcFrame').src = url;
 
 /* ================================================================
    자료실 (Archive Panel) — Supabase Storage 'archives' 버킷 사용
-   폴더 구조: archives/{카테고리}/{파일명}
+   폴더 구조: 공용(company/cert): archives/{cat}/{file} / 개인(quote/image/etc): archives/{cat}/{username}/{file}
    ================================================================ */
+
+
+/* ── 자료실 경로 헬퍼 ──────────────────────────────────────────
+   공용: company, cert       → archives/{cat}/{filename}
+   개인: quote, image, etc  → archives/{cat}/{username}/{filename}
+────────────────────────────────────────────────────────────── */
+const ARC_PUBLIC_CATS = ['company', 'cert'];
+
+function arcIsPublic(cat) {
+    return ARC_PUBLIC_CATS.includes(cat);
+}
+
+function arcStoragePath(cat, fileName) {
+    const username = currentUser?.username || 'unknown';
+    return arcIsPublic(cat)
+        ? `${cat}/${fileName}`
+        : `${cat}/${username}/${fileName}`;
+}
+
+function arcListPath(cat) {
+    const username = currentUser?.username || 'unknown';
+    return arcIsPublic(cat) ? cat : `${cat}/${username}`;
+}
 
 let arcCurrentCategory = 'all';
 
@@ -644,9 +669,10 @@ async function arcLoadFiles() {
             : [arcCurrentCategory];
 
         for (const cat of categories) {
+            const listPath = arcListPath(cat);
             const { data, error } = await supabaseClient.storage
                 .from('archives')
-                .list(cat, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+                .list(listPath, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
             if (!error && data) {
                 allFiles = allFiles.concat(data
                     .filter(f => f.name !== '.emptyFolderPlaceholder')
@@ -742,7 +768,7 @@ async function arcUploadFiles(files) {
         // 파일명: 타임스탬프___원본명(인코딩) 구조로 저장, 표시 시 디코딩
         const encodedOriginal = encodeURIComponent(file.name).replace(/%/g, '-');
         const safeName = `${Date.now()}___${encodedOriginal}`;
-        const path = `${cat}/${safeName}`;
+        const path = arcStoragePath(cat, safeName);
         const { error } = await supabaseClient.storage
             .from('archives')
             .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream' });
@@ -839,7 +865,7 @@ async function arcShowPreview(category, fileName, originalName) {
 
     // Signed URL 발급 후 렌더링
     try {
-        const path = `${category}/${fileName}`;
+        const path = arcStoragePath(category, fileName);
         const { data, error } = await supabaseClient.storage
             .from('archives')
             .createSignedUrl(path, 300); // 5분 유효
@@ -912,7 +938,7 @@ function arcDeleteItem(btn) {
 
 async function arcDownload(category, fileName, originalName) {
     if (!supabaseClient) return;
-    const path = `${category}/${fileName}`;
+    const path = arcStoragePath(category, fileName);
     const { data, error } = await supabaseClient.storage
         .from('archives')
         .download(path);
@@ -935,7 +961,7 @@ async function arcDelete(category, fileName, btn) {
 
     const { error } = await supabaseClient.storage
         .from('archives')
-        .remove([`${category}/${fileName}`]);
+        .remove([arcStoragePath(category, fileName)]);
 
     if (error) {
         showToast('삭제 실패', 'error');

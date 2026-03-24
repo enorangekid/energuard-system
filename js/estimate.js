@@ -388,7 +388,15 @@ window.estOnThickChange = function(sel) {
   const price = _estGetRealPrice(productId, t);
   row.querySelector('.est-print-name').textContent = meta.name;
   row.querySelector('.est-spec-input').value = meta.specFn(t);
-  row.querySelector('.est-price').value = price ? price.toLocaleString('ko-KR') : '';
+  // VAT토글 상태 확인 후 단가 세팅
+  const vatBtn = row.querySelector('.est-vat-toggle');
+  const isVatActive = vatBtn && vatBtn.classList.contains('active');
+  let displayPrice = price || 0;
+  if (isVatActive && displayPrice > 0) {
+      // VAT포함 모드: 원가 → 공급가 역산 (10원 단위 내림)
+      displayPrice = Math.floor(displayPrice / 1.1 / 10) * 10;
+  }
+  row.querySelector('.est-price').value = displayPrice ? displayPrice.toLocaleString('ko-KR') : '';
   calcEst();
   row.style.transition = 'background 0.4s';
   row.style.background = '#eff6ff';
