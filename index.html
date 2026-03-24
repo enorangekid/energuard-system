@@ -119,6 +119,7 @@
         <h2>에너가드컴퍼니 통합 관리 시스템</h2>
 
         <!-- 입력창 묶음 -->
+        <form onsubmit="tryLogin(); return false;" autocomplete="on" style="margin:0; padding:0;">
         <div class="login-input-group">
             <div class="login-id-wrap">
                 <input type="text" id="loginUsernameInput" class="login-input-field login-input-top"
@@ -147,8 +148,8 @@
                 </div>
             </div>
         </div>
-
-        <button class="login-btn" onclick="tryLogin()">로그인</button>
+        <button type="submit" class="login-btn">로그인</button>
+        </form>
 
         <div class="login-options">
             <label class="toggle-label">
@@ -787,6 +788,12 @@
                 onchange="bcLoadHistoryById(this.value)">
                 <option value="">-- 이력 조회 --</option>
               </select>
+              <button id="bc-del-btn" onclick="bcDeleteHistory()"
+                title="선택한 이력 삭제"
+                style="padding:7px 10px; border-radius:6px; border:1px solid #e2e8f0; background:#fff;
+                       color:#ef4444; cursor:pointer; font-size:13px; display:none;">
+                <i class="fa-solid fa-trash"></i>
+              </button>
               <button id="bc-run-btn" class="bc-run-btn" onclick="bcStartCheck()">
                 <i class="fa-solid fa-play"></i>지금 체크하기
               </button>
