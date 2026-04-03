@@ -365,7 +365,10 @@ function createRowHtml(p, realIndex, className, btnHtml, code, isSub = false, gl
   var detailCatStr = p[IDX_DETAIL_CAT] ? String(p[IDX_DETAIL_CAT]) : "";
   var codeDisplay, nameHtml, priceDisplay, keywordContent, deleteCell;
 
-      codeDisplay = isSub ? '' : `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;"><a href="${linkUrl}" target="_blank" class="prod-link"><span class="prod-no">${p[IDX_CODE]}</span></a><button class="row-edit-btn" onclick="openProductEditModal(${realIndex})">편집</button></div>`;
+      const editBtnHtml = (window.currentUser?.role === 'admin')
+          ? `<button class="row-edit-btn" onclick="openProductEditModal(${realIndex})">편집</button>`
+          : '';
+      codeDisplay = isSub ? '' : `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;"><a href="${linkUrl}" target="_blank" class="prod-link"><span class="prod-no">${p[IDX_CODE]}</span></a>${editBtnHtml}</div>`;
       var nameClass = isChecked ? 'danger-bg' : '';
       var catHtml = detailCatStr ? `<div style="font-size:12px; color:#64748b; margin-top:3px; font-weight:500;">${detailCatStr}</div>` : '';
       var companyName = p[IDX_COMPANY] ? String(p[IDX_COMPANY]) : '';
@@ -1228,6 +1231,7 @@ window.saveNewProduct = function() {
 var _editProductIndex = -1;      // 메인 행 인덱스
 var _editSubIndices   = [];      // 보조 키워드 행 인덱스 배열
 var _editOriginalKeywords = {};  // { realIndex: 원래키워드 } — 키워드 변경 감지용
+var _editOriginalCode = '';      // 원래 상품번호 — code 변경 감지용
 
 window.openProductEditModal = function(realIndex) {
   _editProductIndex = realIndex;
@@ -1235,6 +1239,7 @@ window.openProductEditModal = function(realIndex) {
 
   // 같은 code를 가진 보조 행 찾기
   var code = p[IDX_CODE];
+  _editOriginalCode = code;  // 원래 code 저장
   _editSubIndices = [];
   _editOriginalKeywords = {};
   _editOriginalKeywords[realIndex] = p[IDX_KEYWORD] || '';  // 메인 키워드 원본 저장
@@ -1559,8 +1564,20 @@ window.saveProductEdit = function() {
     showToast('키워드 변경으로 이전 데이터가 정리되었습니다.', 'info');
   }
 
+  // 상품번호(code)가 변경된 경우 DB에서 이전 code 행 전부 삭제
+  if(_editOriginalCode && _editOriginalCode !== code && supabaseClient) {
+    (async () => {
+      await supabaseClient.from('product_rankings')
+        .delete()
+        .eq('code', _editOriginalCode);
+      await supabaseClient.from('ranking_history')
+        .delete()
+        .eq('product_code', _editOriginalCode);
+    })();
+  }
+
   document.getElementById('productEditModal').style.display = 'none';
-  _editProductIndex = -1; _editSubIndices = []; _editOriginalKeywords = {};
+  _editProductIndex = -1; _editSubIndices = []; _editOriginalKeywords = {}; _editOriginalCode = '';
 
   showToast('저장 중...', 'info');
   saveData(true); // 즉시 DB 저장

@@ -469,9 +469,8 @@ async function saveEstimateToArchive() {
         const receiver = (receiverEl?.value?.trim() || '').replace(/[^a-zA-Z0-9가-힣_-]/g, '') || '거래처';
         const originalName = `${yy}${mm}${dd}_${receiver}.pdf`;
 
-        // 스토리지용 safe 파일명 (한글 인코딩)
-        const encodedOriginal = encodeURIComponent(originalName).replace(/%/g, '-');
-        const safeName = `${Date.now()}___${encodedOriginal}`;
+        // 스토리지용 파일명
+        const safeName = `${Date.now()}___${originalName}`;
 
         const source = document.getElementById('estimatePrintArea');
 

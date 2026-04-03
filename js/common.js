@@ -28,6 +28,7 @@ const ROLE_RESTRICTIONS = {
         hiddenMenus:     ['timeline', 'worklog'],
         blockedPanels:   ['widgetPanel'],   // 스포츠 위젯 패널 차단
         readonlyNoteTabs: ['blog', 'youtube'], // 읽기 전용 노트 탭
+        readonlyPages:   ['ranking', 'sales', 'pricing'], // 편집 불가 페이지
     }
 };
 
@@ -330,6 +331,31 @@ function applyRoleUI() {
     // 대시보드 금주 주간 목표 카드 숨기기
     const taskCard = document.querySelector('#dash-task-list')?.closest('.dash-card');
     if (taskCard) taskCard.style.display = 'none';
+
+    // 읽기 전용 페이지 편집 요소 숨기기
+    if (restriction.readonlyPages) {
+        // 상품검색순위: 상품 추가 버튼, 편집 버튼, 저장 버튼
+        const addProductBtn = document.getElementById('addProductBtn');
+        if (addProductBtn) addProductBtn.style.display = 'none';
+        const saveBtn = document.getElementById('saveBtn');
+        if (saveBtn) saveBtn.style.display = 'none';
+
+        // 매출분석: 편집/추가/저장 버튼
+        const editSalesBtn = document.getElementById('editSalesBtn');
+        if (editSalesBtn) editSalesBtn.style.display = 'none';
+        const addSalesRowBtn = document.getElementById('addSalesRowBtn');
+        if (addSalesRowBtn) addSalesRowBtn.style.display = 'none';
+        const saveSalesBtn = document.getElementById('saveSalesBtn');
+        if (saveSalesBtn) saveSalesBtn.style.display = 'none';
+
+        // 단가표: 원가 저장, 엑셀 저장, 마진 편집 버튼 숨김
+        document.querySelectorAll('[onclick*="savePricingCosts"]').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('[onclick*="exportPricingExcel"]').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('[onclick*="openPricingModal"]').forEach(el => el.style.display = 'none');
+        // 마진 편집 모달 저장 버튼도 숨김
+        const pimConfirm = document.querySelector('.pim-btn-confirm');
+        if (pimConfirm) pimConfirm.style.display = 'none';
+    }
 
     // 차단된 패널의 우측바 아이콘 숨기기
     if (restriction.blockedPanels) {
@@ -686,13 +712,20 @@ async function arcLoadFiles() {
             return;
         }
 
-        // 저장된 파일명에서 원본명 추출: {timestamp}___{인코딩된원본명}
+        // 저장된 파일명에서 원본명 추출: {timestamp}___{원본명}
+        // 구버전: encodeURIComponent 후 %를 -로 치환 → 항상 -XX로 시작 (예: -ED-95-9C...)
+        // 신버전: 평문 그대로 저장 → 날짜/영문/숫자로 시작
         const decodeArcName = (name) => {
             const idx = name.indexOf('___');
             if (idx === -1) return name;
+            const raw = name.substring(idx + 3);
             try {
-                return decodeURIComponent(name.substring(idx + 3).replace(/-/g, '%'));
-            } catch { return name; }
+                // 구버전 감지: -로 시작하고 바로 뒤 2자리가 16진수
+                if (/^-[0-9A-Fa-f]{2}/.test(raw)) {
+                    return decodeURIComponent(raw.replace(/-/g, '%'));
+                }
+                return raw;
+            } catch { return raw; }
         };
 
         const extIcon = (name) => {
@@ -765,9 +798,8 @@ async function arcUploadFiles(files) {
     dropZone.style.pointerEvents = 'none';
 
     for (const file of files) {
-        // 파일명: 타임스탬프___원본명(인코딩) 구조로 저장, 표시 시 디코딩
-        const encodedOriginal = encodeURIComponent(file.name).replace(/%/g, '-');
-        const safeName = `${Date.now()}___${encodedOriginal}`;
+        // 파일명: 타임스탬프___원본명 구조로 저장
+        const safeName = `${Date.now()}___${file.name}`;
         const path = arcStoragePath(cat, safeName);
         const { error } = await supabaseClient.storage
             .from('archives')

@@ -544,13 +544,39 @@ function renderAllInputDiff() {
 /* ═══════════════════════════════════════
    탭 전환
 ═══════════════════════════════════════ */
+let _activePricingTab = 'isopink';
 window.setPricingTab = function(tabId, el) {
+  _activePricingTab = tabId;
   document.querySelectorAll('.pricing-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.pricing-tab-pane').forEach(p => p.classList.remove('active'));
   if (el) el.classList.add('active');
   document.getElementById('pricing-tab-' + tabId)?.classList.add('active');
   // 공통 엔진 대상 탭은 _recalcTab으로 통합, 아이소핑크는 별도 유지
   if (tabId in _subtabState) _recalcTab(tabId);
+};
+
+/* 현재 탭에 맞는 모음전 엑셀 export */
+window.exportCurrentTabOption = function() {
+  if (_activePricingTab === 'isopink') {
+    exportSmartStoreOptionExcel();
+  } else if (_activePricingTab === 'bead') {
+    const sub = _subtabState.bead;
+    const jong1 = ['ia2','iia2','iiib'];
+    const jong2 = ['ia1','iia1','iiia2'];
+    const junbul = ['ib_09','ib_06'];
+    if (jong1.includes(sub))        exportBeadOptionExcel1jong();
+    else if (jong2.includes(sub))   exportBeadOptionExcel2jong();
+    else if (junbul.includes(sub))  exportBeadOptionExcelJunbul();
+    else showToast('현재 탭에서는 모음전 옵션 엑셀을 지원하지 않습니다.', 'error');
+  } else if (_activePricingTab === 'pu') {
+    exportPuOptionExcel(_subtabState.pu);
+  } else if (_activePricingTab === 'fr') {
+    exportFrOptionExcel(_subtabState.fr);
+  } else if (_activePricingTab === 'pf') {
+    exportPfOptionExcel(_subtabState.pf);
+  } else {
+    showToast('현재 탭에서는 모음전 옵션 엑셀을 지원하지 않습니다.', 'error');
+  }
 };
 
 /* ═══════════════════════════════════════
@@ -940,6 +966,7 @@ const _modalConfig = {
   fr:      { title:'불연단열재 마진 편집',     sub:'두께별 마진 (원/장)',               width:'500px', builder: buildFrModalBody      },
 };
 window.openPricingModal = function(type) {
+  if (window.currentUser?.role !== 'admin') return; // general 계정 접근 차단
   _pimType = type;
   const cfg = _modalConfig[type];
   if (!cfg) return;
@@ -1145,7 +1172,7 @@ function buildBeadTab() {
     { id:'ia2',   cls:'pcut-special', label:'1종',   name:'I-A-2 (1종 3호)',   rowspan:3 },
     { id:'iia2',  cls:'pcut-special', label:null,    name:'II-A-2 (1종 2호)',  rowspan:0 },
     { id:'iiib',  cls:'pcut-special', label:null,    name:'III-B (1종 1호)',   rowspan:0 },
-    { id:'ib',    cls:'bead-junbul',  label:'준불연', name:'I-B (0.6×1.2m)',   rowspan:1 },
+    { id:'ib',    cls:'bead-junbul',  label:'준불연', name:'I-B (준불연)',      rowspan:1 },
   ];
   const costRows = costGrades.map((g, i) => `
     <tr${i===0||i===3||i===6?' class="pcut-grade-row"':''}>
@@ -1557,4 +1584,304 @@ function _styleSheet(ws, totalRows) {
     { wch: 12 }, // 순수마진
     { wch: 10 }, // 마진율
   ];
+}
+
+/* ═══════════════════════════════════════
+   모음전 옵션 엑셀 — 스마트스토어 업로드용
+═══════════════════════════════════════ */
+
+// 비드법 단일 등급 realPrice 계산 헬퍼
+function _beadRealPrice(grade, t) {
+  const costId = _getCostId('bead', grade, t);
+  const cost   = costId ? fieldVal(costId) : 0;
+  const margin = _getMargin('bead', grade, t);
+  if (!cost) return null;
+  return calcSheetRow(cost, margin, t, grade.area).realPrice;
+}
+
+// ── 비드법 1종 모음전 ──
+window.exportBeadOptionExcel1jong = function() {
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => _doBeadExport('1jong');
+    document.head.appendChild(s);
+  } else { _doBeadExport('1jong'); }
+};
+
+// ── 비드법 2종 모음전 ──
+window.exportBeadOptionExcel2jong = function() {
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => _doBeadExport('2jong');
+    document.head.appendChild(s);
+  } else { _doBeadExport('2jong'); }
+};
+
+// ── 비드법 준불연 모음전 ──
+window.exportBeadOptionExcelJunbul = function() {
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => _doBeadExport('junbul');
+    document.head.appendChild(s);
+  } else { _doBeadExport('junbul'); }
+};
+
+function _doBeadExport(type) {
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  const wb = XLSX.utils.book_new();
+
+  if (type === '1jong' || type === '2jong') {
+    const gradeIds  = type === '1jong' ? ['ia2','iia2','iiib'] : ['ia1','iia1','iiia2'];
+    const gradeObjs = gradeIds.map(id => BEAD_GRADES.find(g => g.id === id));
+    const jong      = type === '1jong' ? '1종' : '2종';
+    const basePrice = _beadRealPrice(gradeObjs[0], BEAD_ROWS[0]);
+    if (!basePrice) { showToast(`비드법 ${jong} 원가 데이터가 없습니다.`, 'error'); return; }
+    const rows = [['종류', '규격', '옵션가', '재고수량', '관리코드', '사용여부']];
+    BEAD_ROWS.forEach(t => {
+      gradeObjs.forEach(grade => {
+        const rp = _beadRealPrice(grade, t);
+        if (rp == null) return;
+        const gradeNum = grade.sub.replace(/.*?(\d호)$/, '$1');
+        rows.push([`비드법단열재 ${jong}${gradeNum}`, `900x1800 ${t}T`, rp - basePrice, 99999, '', 'Y']);
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
+    XLSX.utils.book_append_sheet(wb, ws, `비드법${jong} 옵션`);
+    XLSX.writeFile(wb, `스마트스토어_비드법${jong}_옵션_${dateStr}.xls`);
+    showToast(`비드법 ${jong} 모음전 엑셀 저장 완료!`, 'success');
+
+  } else if (type === 'junbul') {
+    const g09 = BEAD_GRADES.find(g => g.id === 'ib_09');
+    const g06 = BEAD_GRADES.find(g => g.id === 'ib_06');
+    // 기준가: 600x1200 10T = 0
+    const basePrice = _beadRealPrice(g06, BEAD_ROWS[0]);
+    if (!basePrice) { showToast('준불연 원가 데이터가 없습니다.', 'error'); return; }
+    const rows = [['두께', '규격', '옵션가', '재고수량', '관리코드', '사용여부']];
+    BEAD_ROWS.forEach(t => {
+      const rp06 = _beadRealPrice(g06, t);
+      const rp09 = _beadRealPrice(g09, t);
+      const name = `심재준불연 비드법 단열재 ${t}T`;
+      // 순서: 600x1200 → 900x1800
+      if (rp06 != null) rows.push([name, '600x1200', rp06 - basePrice, 99999, '', 'Y']);
+      if (rp09 != null) rows.push([name, '900x1800', rp09 - basePrice, 99999, '', 'Y']);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 26 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
+    XLSX.utils.book_append_sheet(wb, ws, '준불연 옵션');
+    XLSX.writeFile(wb, `스마트스토어_비드법준불연_옵션_${dateStr}.xls`);
+    showToast('준불연 모음전 엑셀 저장 완료!', 'success');
+  }
+}
+
+// ── 아이소핑크 모음전 ──
+window.exportSmartStoreOptionExcel = function() {
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => _doSmartStoreExport();
+    document.head.appendChild(s);
+  } else {
+    _doSmartStoreExport();
+  }
+};
+
+function _doSmartStoreExport() {
+  const wb = XLSX.utils.book_new();
+
+  // 아이소핑크 모음전 옵션 시트
+  const baseRow = _isoCalcRow(ISOPINK_ROWS[0]);
+  if (!baseRow) { showToast('아이소핑크 원가 데이터가 없습니다.', 'error'); return; }
+  const basePrice = baseRow.realPrice;
+
+  const rows = [['아이소핑크 두께 선택', '옵션가', '재고수량', '관리코드', '사용여부']];
+  ISOPINK_ROWS.forEach(t => {
+    const r = _isoCalcRow(t);
+    if (!r) return;
+    const optionName = `아이소핑크 KS정품 900x1800 ${t}T`;
+    const optionPrice = r.realPrice - basePrice;
+    rows.push([optionName, optionPrice, 99999, '', 'Y']);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 36 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
+  XLSX.utils.book_append_sheet(wb, ws, '아이소핑크 옵션');
+
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  XLSX.writeFile(wb, `스마트스토어_아이소핑크_옵션_${dateStr}.xls`);
+  showToast('모음전 옵션 엑셀 저장 완료!', 'success');
+}
+
+/* ═══════════════════════════════════════
+   경질우레탄 모음전 옵션 엑셀
+═══════════════════════════════════════ */
+function _puRealPrice(grade, t) {
+  const band = grade.costBands?.find(b => t >= b.min && t <= b.max);
+  if (!band) return null;
+  const cost   = fieldVal(band.costId);
+  const margin = _getMargin('pu', grade, t);
+  if (!cost) return null;
+  return calcSheetRow(cost, margin, t, grade.area).realPrice;
+}
+
+const PU_OPTION_MAP = {
+  ic:     { header: '경질 우레탄보드 I-C (1종3호)',    fileName: '경질우레탄_1종3호' },
+  iiia:   { header: '경질 우레탄보드 III-A (2종1호)',  fileName: '경질우레탄_2종1호' },
+  iia:    { header: '경질 우레탄보드 II-A (2종2호)',   fileName: '경질우레탄_2종2호' },
+  id_in:  { header: '준불연 경질 우레탄보드',           fileName: '준불연_경질우레탄' },
+  id_out: { header: '심재 준불연 경질 우레탄보드',      fileName: '심재준불연_경질우레탄' },
+};
+
+window.exportPuOptionExcel = function(gradeId) {
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => _doPuExport(gradeId);
+    document.head.appendChild(s);
+  } else { _doPuExport(gradeId); }
+};
+
+function _doPuExport(gradeId) {
+  const grade = PU_GRADES.find(g => g.id === gradeId);
+  const cfg   = PU_OPTION_MAP[gradeId];
+  if (!grade || !cfg) { showToast('지원하지 않는 경질우레탄 등급입니다.', 'error'); return; }
+  const basePrice = _puRealPrice(grade, grade.rows[0]);
+  if (!basePrice) { showToast(`${cfg.header} 원가 데이터가 없습니다.`, 'error'); return; }
+  const rows = [[cfg.header, '옵션가', '재고수량', '관리코드', '사용여부']];
+  grade.rows.forEach(t => {
+    const rp = _puRealPrice(grade, t);
+    if (rp == null) return;
+    rows.push([`1000x2000 ${t}T`, rp - basePrice, 99999, '', 'Y']);
+  });
+  const wb  = XLSX.utils.book_new();
+  const ws  = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
+  XLSX.utils.book_append_sheet(wb, ws, '경질우레탄 옵션');
+  const now     = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  XLSX.writeFile(wb, `스마트스토어_${cfg.fileName}_옵션_${dateStr}.xls`);
+  showToast(`${cfg.header} 모음전 엑셀 저장 완료!`, 'success');
+}
+
+/* ═══════════════════════════════════════
+   불연/준불연 열반사 모음전 옵션 엑셀
+═══════════════════════════════════════ */
+const FR_OPTION_MAP = {
+  fr_bul: { header: '미네랄울 불연단열재',       fileName: '불연_열반사' },
+  fr_jun: { header: '심재 준불연 열반사단열재',   fileName: '준불연_열반사' },
+};
+
+function _frRealPriceById(grade, t) {
+  const costId  = `fr_cost_${grade.id}_t${t}`;
+  const costEl  = document.getElementById(costId);
+  const costDefault = FR_COST_DEFAULTS[grade.costId]?.[t] || 0;
+  const costPerM2   = (costEl && costEl.value.trim() !== '') ? parseFloat(costEl.value) : costDefault;
+  const marginId    = `fr_m_${grade.id}_t${t}`;
+  const marginEl    = document.getElementById(marginId);
+  const margin      = (marginEl && marginEl.value.trim() !== '') ? parseFloat(marginEl.value) : (grade.fallback?.[t] || 0);
+  const r = calcFrSheetRow(costPerM2, margin, grade.area);
+  return r ? r.realPrice : null;
+}
+
+window.exportFrOptionExcel = function(gradeId) {
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => _doFrExport(gradeId);
+    document.head.appendChild(s);
+  } else { _doFrExport(gradeId); }
+};
+
+function _doFrExport(gradeId) {
+  const grade = FR_GRADES.find(g => g.id === gradeId);
+  const cfg   = FR_OPTION_MAP[gradeId];
+  if (!grade || !cfg) { showToast('지원하지 않는 열반사 등급입니다.', 'error'); return; }
+  const basePrice = _frRealPriceById(grade, grade.rows[0]);
+  if (!basePrice) { showToast(`${cfg.header} 원가 데이터가 없습니다.`, 'error'); return; }
+  const rows = [['제품선택', '옵션가', '재고수량', '관리코드', '사용여부']];
+  grade.rows.forEach(t => {
+    const rp = _frRealPriceById(grade, t);
+    if (rp == null) return;
+    rows.push([`${cfg.header} ${t}T`, rp - basePrice, 99999, '', 'Y']);
+  });
+  const wb  = XLSX.utils.book_new();
+  const ws  = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 28 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
+  XLSX.utils.book_append_sheet(wb, ws, '열반사 옵션');
+  const now     = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  XLSX.writeFile(wb, `스마트스토어_${cfg.fileName}_옵션_${dateStr}.xls`);
+  showToast(`${cfg.header} 모음전 엑셀 저장 완료!`, 'success');
+}
+
+/* ═══════════════════════════════════════
+   PF보드 모음전 옵션 엑셀
+═══════════════════════════════════════ */
+
+// PF realPrice 헬퍼
+function _pfRealPrice(grade, t) {
+  const cost   = fieldVal(grade.costId);
+  const margin = _getMargin('pf', grade, t);
+  if (!cost) return null;
+  return calcSheetRow(cost, margin, t, grade.area).realPrice;
+}
+
+// PF 모음전 설정: 서브탭 ID → { 소형 grade, 대형 grade, 소형 규격, 대형 규격, 옵션명 prefix, 파일명 }
+const PF_OPTION_MAP = {
+  lxi_s: { s: 'lxi_s', l: 'lxi_l', sSize: '600x1200', lSize: '1200x2000', prefix: 'LX하우시스 PF보드 준불연',    fileName: 'PF보드_LX_준불연'    },
+  lxi_l: { s: 'lxi_s', l: 'lxi_l', sSize: '600x1200', lSize: '1200x2000', prefix: 'LX하우시스 PF보드 준불연',    fileName: 'PF보드_LX_준불연'    },
+  lxo_s: { s: 'lxo_s', l: 'lxo_l', sSize: '600x1200', lSize: '1200x2000', prefix: 'LX하우시스 PF보드 심재준불연', fileName: 'PF보드_LX_심재준불연'  },
+  lxo_l: { s: 'lxo_s', l: 'lxo_l', sSize: '600x1200', lSize: '1200x2000', prefix: 'LX하우시스 PF보드 심재준불연', fileName: 'PF보드_LX_심재준불연'  },
+  kdi_s: { s: 'kdi_s', l: 'kdi_l', sSize: '600x1200', lSize: '1200x2000', prefix: '국산 PF보드 준불연',          fileName: 'PF보드_국산_준불연'   },
+  kdi_l: { s: 'kdi_s', l: 'kdi_l', sSize: '600x1200', lSize: '1200x2000', prefix: '국산 PF보드 준불연',          fileName: 'PF보드_국산_준불연'   },
+  kdo_s: { s: 'kdo_s', l: 'kdo_l', sSize: '600x1200', lSize: '1200x2000', prefix: '국산 PF보드 심재준불연',       fileName: 'PF보드_국산_심재준불연' },
+  kdo_l: { s: 'kdo_s', l: 'kdo_l', sSize: '600x1200', lSize: '1200x2000', prefix: '국산 PF보드 심재준불연',       fileName: 'PF보드_국산_심재준불연' },
+  imi_s: { s: 'imi_s', l: 'imi_l', sSize: '600x1200', lSize: '1000x1200',     prefix: '수입산 PF보드 준불연',         fileName: 'PF보드_수입_준불연'   },
+  imi_l: { s: 'imi_s', l: 'imi_l', sSize: '600x1200', lSize: '1000x1200',     prefix: '수입산 PF보드 준불연',         fileName: 'PF보드_수입_준불연'   },
+  imo_s: { s: 'imo_s', l: 'imo_l', sSize: '600x1200', lSize: '1000x1200',     prefix: '수입산 PF보드 심재준불연',      fileName: 'PF보드_수입_심재준불연' },
+  imo_l: { s: 'imo_s', l: 'imo_l', sSize: '600x1200', lSize: '1000x1200',     prefix: '수입산 PF보드 심재준불연',      fileName: 'PF보드_수입_심재준불연' },
+};
+
+window.exportPfOptionExcel = function(subtabId) {
+  if (typeof XLSX === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => _doPfExport(subtabId);
+    document.head.appendChild(s);
+  } else { _doPfExport(subtabId); }
+};
+
+function _doPfExport(subtabId) {
+  const cfg = PF_OPTION_MAP[subtabId];
+  if (!cfg) { showToast('지원하지 않는 PF보드 등급입니다.', 'error'); return; }
+
+  const gradeS = PF_GRADES.find(g => g.id === cfg.s);
+  const gradeL = PF_GRADES.find(g => g.id === cfg.l);
+  if (!gradeS || !gradeL) { showToast('PF보드 등급 데이터가 없습니다.', 'error'); return; }
+
+  const basePrice = _pfRealPrice(gradeS, PF_ROWS[0]);
+  if (!basePrice) { showToast(`${cfg.prefix} 원가 데이터가 없습니다.`, 'error'); return; }
+
+  const rows = [['두께', '규격', '옵션가', '재고수량', '관리코드', '사용여부']];
+  PF_ROWS.forEach(t => {
+    const rpS = _pfRealPrice(gradeS, t);
+    const rpL = _pfRealPrice(gradeL, t);
+    if (rpS != null) rows.push([`${cfg.prefix} ${t}T`, cfg.sSize, rpS - basePrice, 99999, '', 'Y']);
+    if (rpL != null) rows.push([`${cfg.prefix} ${t}T`, cfg.lSize, rpL - basePrice, 99999, '', 'Y']);
+  });
+
+  const wb  = XLSX.utils.book_new();
+  const ws  = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'PF보드 옵션');
+
+  const now     = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  XLSX.writeFile(wb, `스마트스토어_${cfg.fileName}_옵션_${dateStr}.xls`);
+  showToast(`${cfg.prefix} 모음전 엑셀 저장 완료!`, 'success');
 }
