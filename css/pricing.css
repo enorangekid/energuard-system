@@ -400,6 +400,8 @@
 /* rowspan 품명 셀 — 아이소핑크의 pcut-special(Ⅱ-B-2)은 테이블 마지막이므로 라운드 적용
    rowspan 셀은 자신이 속한 tr이 last-child가 아니므로 직접 클래스에 고정 */
 .pricing-cost-unified-table tbody .pcut-name-cell.pcut-special { border-radius: 0 0 0 8px; }
+/* 비드법 탭에서는 pcut-special(1종)이 중간에 위치 → 라운드 제거 */
+#pricing-tab-bead .pricing-cost-unified-table tbody .pcut-name-cell.pcut-special { border-radius: 0; }
 /* 비드법 품종 단가 표 — 준불연(마지막 행) 좌하단 라운드 */
 .pcut-name-cell.bead-junbul  { border-radius: 0 0 0 8px; }
 /* 비드법 마진 표 — 마지막 행 좌하단 라운드 */
