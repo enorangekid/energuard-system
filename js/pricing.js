@@ -78,14 +78,14 @@ const BEAD_ROWS = [
 ];
 
 const BEAD_GRADES = [
-  { id:'ia1',   label:'I-A-1',   sub:'2종 3호', area:1.62, colorClass:'bead-2jong' },
-  { id:'iia1',  label:'II-A-1',  sub:'2종 2호', area:1.62, colorClass:'bead-2jong' },
-  { id:'iiia2', label:'III-A-2', sub:'2종 1호', area:1.62, colorClass:'bead-2jong' },
-  { id:'ia2',   label:'I-A-2',   sub:'1종 3호', area:1.62, colorClass:'bead-1jong' },
-  { id:'iia2',  label:'II-A-2',  sub:'1종 2호', area:1.62, colorClass:'bead-1jong' },
-  { id:'iiib',  label:'III-B',   sub:'1종 1호', area:1.62, colorClass:'bead-1jong' },
-  { id:'ib_09', label:'I-B',     sub:'심재 준불연 0.9×1.8', area:1.62, colorClass:'bead-junbul' },
-  { id:'ib_06', label:'I-B',     sub:'심재 준불연 0.6×1.2', area:0.72, colorClass:'bead-junbul' },
+  { id:'ia1',   label:'I-A-1',   sub:'2종 3호', area:1.62, colorClass:'bead-2jong', marginKey:'bead_m2_3' },
+  { id:'iia1',  label:'II-A-1',  sub:'2종 2호', area:1.62, colorClass:'bead-2jong', marginKey:'bead_m2_2' },
+  { id:'iiia2', label:'III-A-2', sub:'2종 1호', area:1.62, colorClass:'bead-2jong', marginKey:'bead_m2_1' },
+  { id:'ia2',   label:'I-A-2',   sub:'1종 3호', area:1.62, colorClass:'bead-1jong', marginKey:'bead_m1_3' },
+  { id:'iia2',  label:'II-A-2',  sub:'1종 2호', area:1.62, colorClass:'bead-1jong', marginKey:'bead_m1_2' },
+  { id:'iiib',  label:'III-B',   sub:'1종 1호', area:1.62, colorClass:'bead-1jong', marginKey:'bead_m1_1' },
+  { id:'ib_09', label:'I-B',     sub:'심재 준불연 0.9×1.8', area:1.62, colorClass:'bead-junbul', marginKey:'bead_mj' },
+  { id:'ib_06', label:'I-B',     sub:'심재 준불연 0.6×1.2', area:0.72, colorClass:'bead-junbul', marginKey:'bead_mj' },
 ];
 
 /* 비드법 마진 기본값 */
@@ -96,8 +96,15 @@ const BEAD_MARGIN_FALLBACK = (() => {
   const m1 = [75,65,55,45,35,30,25,25,25,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,20];
   const mj = [80,70,60,50,35,35,35,35,35,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30];
   T.forEach((t,i) => {
-    fb[`bead_m2_t${t}`] = m2[i];
-    fb[`bead_m1_t${t}`] = m1[i];
+    /* 2종: 3호/2호/1호 개별 + 기존 호환용 bead_m2 */
+    fb[`bead_m2_3_t${t}`] = m2[i];
+    fb[`bead_m2_2_t${t}`] = m2[i];
+    fb[`bead_m2_1_t${t}`] = m2[i];
+    /* 1종: 3호/2호/1호 개별 + 기존 호환용 bead_m1 */
+    fb[`bead_m1_3_t${t}`] = m1[i];
+    fb[`bead_m1_2_t${t}`] = m1[i];
+    fb[`bead_m1_1_t${t}`] = m1[i];
+    /* 준불연 */
     fb[`bead_mj_t${t}`] = mj[i];
   });
   return fb;
@@ -162,7 +169,7 @@ const ALL_COST_FIELDS = [
 /* 마진 필드 목록 (margins JSON 컬럼에 저장) */
 const ALL_MARGIN_FIELDS = [
   ...ISOPINK_ROWS.map(t => `margin_iso_t${t}`),
-  ...BEAD_ROWS.flatMap(t => [`bead_m2_t${t}`,`bead_m1_t${t}`,`bead_mj_t${t}`]),
+  ...BEAD_ROWS.flatMap(t => [`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_t${t}`]),
   ...PU_GRADES.flatMap(g => g.rows.map(t => `pu_m_${g.id}_t${t}`)),
   ...PF_ROWS.flatMap(t => ['lxo','lxi','kdo','kdi','imo','imi'].map(mk => `pf_m_${mk}_t${t}`)),
   ...FR_GRADES.flatMap(g => g.rows.map(t => `fr_m_${g.id}_t${t}`)),
@@ -246,8 +253,8 @@ function compareFrSheetRealPrice(costPerM2, marginPerSheet, area) {
 /* 불연단열재 결과 행 HTML
    컬럼: 품명 | 두께 | m²당원가 | 장당마진 | 장당원가 | 장당판매가 | VAT포함판매가 | 최종판매가 | 이전대비 | 마진금액 | 부가세 | 수수료6% | 순수마진 | 마진율 */
 function _frResultRow(t, r, badge, extraCells) {
-  if (!r) return `<tr>${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
-  return `<tr>${extraCells}
+  if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
+  return `<tr data-t="${t}">${extraCells}
     <td class="td-thick">${t}</td>
     <td class="td-num">${fmt(r.costPerM2)}</td>
     <td class="td-num">${fmt(r.marginPerSheet)}</td>
@@ -266,8 +273,8 @@ function _frResultRow(t, r, badge, extraCells) {
 
 /* 결과 테이블 행 HTML (비드법·PU·PF 공통) */
 function _resultRow(t, r, badge, extraCells) {
-  if (!r) return `<tr>${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
-  return `<tr>${extraCells}
+  if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
+  return `<tr data-t="${t}">${extraCells}
     <td class="td-thick">${t}</td>
     <td class="td-num">${fmt(r.costPerM2)}</td><td class="td-num">${fmt(r.marginPerM2)}</td><td class="td-num">${fmt(r.sellPerM2)}</td>
     <td class="td-num">${fmt(r.costPerSheet)}</td><td class="td-num">${fmt(r.sellPerSheet)}</td>
@@ -330,12 +337,12 @@ window.recalcPricing = function() {
     return rows.map((t, i) => {
       const r = _isoCalcRow(t);
       const nameTd = i===0 ? `<td rowspan="${rows.length}" class="pricing-name-cell pricing-name-${gradeClass}">${gradeLabel}</td>` : '';
-      if (!r) return `<tr>${nameTd}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
+      if (!r) return `<tr data-t="${t}">${nameTd}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
       const prevCost   = _compareData ? (_isoGetCost_fromData(_compareData, t)) : null;
       const prevMargin = _compareData ? _isoGetMargin(t, _compareData) : null;
       const prevPrice  = prevCost ? Math.ceil(Math.round(t*(prevCost+prevMargin)*1.1)/100)*100 : null;
       const badge = diffBadge(r.realPrice, prevPrice);
-      return `<tr>${nameTd}
+      return `<tr data-t="${t}">${nameTd}
         <td class="td-thick">${t}</td>
         <td class="td-num">${fmt(r.cost)}</td><td class="td-num">${fmt(r.margin)}</td><td class="td-num">${fmt(r.mmSellPrice)}</td>
         <td class="td-num">${fmt(r.costPerSheet)}</td><td class="td-num">${fmt(r.sellPerSheet)}</td>
@@ -368,6 +375,7 @@ function _isoGetCost_fromData(s, t) {
    각 상품 탭의 현재 선택 등급 ID를 보관.
    새 상품 추가 시 여기에만 항목 추가하면 됨. */
 const _subtabState = { bead: 'ia1', pu: 'ic', pf: 'lxo_s', fr: 'fr_bul' };
+window._subtabState = _subtabState; // pricing-competitor.js 연동용
 
 /* ── 상품별 grade 목록 조회 ── */
 function _gradesOf(tabId) {
@@ -404,9 +412,8 @@ function _getCostId(tabId, grade, t) {
 /* ── 마진 field ID 조회 ── */
 function _getMarginId(tabId, grade, t) {
   if (tabId === 'bead') {
-    const pfx = grade.colorClass === 'bead-2jong' ? 'bead_m2'
-              : grade.colorClass === 'bead-junbul' ? 'bead_mj' : 'bead_m1';
-    return `${pfx}_t${Math.min(300, Math.max(10, Math.round(t / 10) * 10))}`;
+    const tKey = Math.min(300, Math.max(10, Math.round(t / 10) * 10));
+    return `${grade.marginKey}_t${tKey}`;
   }
   if (tabId === 'pu')  return `pu_m_${grade.id}_t${t}`;
   if (tabId === 'pf')  return `pf_m_${grade.mk}_t${t}`;
@@ -545,8 +552,10 @@ function renderAllInputDiff() {
    탭 전환
 ═══════════════════════════════════════ */
 let _activePricingTab = 'isopink';
+window._activePricingTab = _activePricingTab; // pricing-competitor.js 연동용
 window.setPricingTab = function(tabId, el) {
   _activePricingTab = tabId;
+  window._activePricingTab = tabId; // 동기화
   document.querySelectorAll('.pricing-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.pricing-tab-pane').forEach(p => p.classList.remove('active'));
   if (el) el.classList.add('active');
@@ -694,6 +703,9 @@ async function loadPricingCosts() {
   recalcPricing();
   Object.keys(_subtabState).forEach(tabId => _recalcTab(tabId));
   _viewingIdx = null;
+  /* 경쟁사 단가 컬럼 주입 콜백 (pricing-competitor.js 연동) */
+  if (typeof window._onPricingLoaded === 'function') window._onPricingLoaded();
+  if (typeof window._applyHighlights === 'function') window._applyHighlights();
   /* 이력 버튼 UI 초기화 */
   const histBtn = document.getElementById('pricingHistoryBtn');
   if (histBtn) {
@@ -835,30 +847,32 @@ function buildIsopinkModalBody() {
 
 /* ── 모달 바디 빌더: 비드법 ── */
 function buildBeadModalBody() {
-  const fb2 = {}, fb1 = {}, fbJ = {};
-  BEAD_ROWS.forEach(t => {
-    fb2[t] = BEAD_MARGIN_FALLBACK[`bead_m2_t${t}`];
-    fb1[t] = BEAD_MARGIN_FALLBACK[`bead_m1_t${t}`];
-    fbJ[t] = BEAD_MARGIN_FALLBACK[`bead_mj_t${t}`];
-  });
+  // 2종 3개, 1종 3개, 준불연 1개 — 각 등급별 개별 마진
+  const grades = [
+    { key:'bead_m2_3', label:'2종 3호', cls:'bead-2jong-th' },
+    { key:'bead_m2_2', label:'2종 2호', cls:'bead-2jong-th' },
+    { key:'bead_m2_1', label:'2종 1호', cls:'bead-2jong-th' },
+    { key:'bead_m1_3', label:'1종 3호', cls:'bead-1jong-th' },
+    { key:'bead_m1_2', label:'1종 2호', cls:'bead-1jong-th' },
+    { key:'bead_m1_1', label:'1종 1호', cls:'bead-1jong-th' },
+    { key:'bead_mj',   label:'준불연',  cls:'bead-junbul-th' },
+  ];
   let html = `<div class="pim-section-title">비드법 단열재 — 두께별 마진 (원/m²)</div>
     <div class="pim-table-scroll-wrap">
-    <table class="pim-table pim-margin-only-table" style="min-width:420px">
+    <table class="pim-table pim-margin-only-table" style="min-width:720px">
       <thead><tr>
         <th>두께</th>
-        <th class="bead-2jong-th">2종</th><th class="pim-th-diff">이전대비</th>
-        <th class="bead-1jong-th">1종</th><th class="pim-th-diff">이전대비</th>
-        <th class="bead-junbul-th">준불연</th><th class="pim-th-diff">이전대비</th>
+        ${grades.map(g => `<th class="${g.cls}" style="min-width:68px">${g.label}</th><th class="pim-th-diff">이전대비</th>`).join('')}
       </tr></thead><tbody>`;
   BEAD_ROWS.forEach(t => {
-    html += `<tr><td class="pim-td-t">${t}T</td>
-      <td><input type="text" inputmode="numeric" id="${_pimId('bead_m2_t'+t)}" class="pim-input pim-input-margin" placeholder="${fb2[t]}" value="${_realVal('bead_m2_t'+t)}"></td>
-      <td class="pim-td-diff" id="pimdiff_bead_m2_t${t}"><span class="pcut-diff-empty">—</span></td>
-      <td><input type="text" inputmode="numeric" id="${_pimId('bead_m1_t'+t)}" class="pim-input pim-input-margin" placeholder="${fb1[t]}" value="${_realVal('bead_m1_t'+t)}"></td>
-      <td class="pim-td-diff" id="pimdiff_bead_m1_t${t}"><span class="pcut-diff-empty">—</span></td>
-      <td><input type="text" inputmode="numeric" id="${_pimId('bead_mj_t'+t)}" class="pim-input pim-input-margin" placeholder="${fbJ[t]}" value="${_realVal('bead_mj_t'+t)}"></td>
-      <td class="pim-td-diff" id="pimdiff_bead_mj_t${t}"><span class="pcut-diff-empty">—</span></td>
-    </tr>`;
+    html += `<tr><td class="pim-td-t">${t}T</td>`;
+    grades.forEach(g => {
+      const fieldId = `${g.key}_t${t}`;
+      const fb = BEAD_MARGIN_FALLBACK[fieldId] ?? 0;
+      html += `<td><input type="text" inputmode="numeric" id="${_pimId(fieldId)}" class="pim-input pim-input-margin" placeholder="${fb}" value="${_realVal(fieldId)}" style="width:58px"></td>
+      <td class="pim-td-diff" id="pimdiff_${fieldId}"><span class="pcut-diff-empty">—</span></td>`;
+    });
+    html += `</tr>`;
   });
   return html + `</tbody></table></div>`;
 }
@@ -1000,7 +1014,7 @@ function _renderPimDiff(el, fieldId, fallback) {
 /* ── 타입별 마진 fieldId 목록 ── */
 function _modalMarginFields(type) {
   if (type === 'isopink') return ISOPINK_ROWS.map(t => `margin_iso_t${t}`);
-  if (type === 'bead')    return BEAD_ROWS.flatMap(t => [`bead_m2_t${t}`, `bead_m1_t${t}`, `bead_mj_t${t}`]);
+  if (type === 'bead')    return BEAD_ROWS.flatMap(t => [`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_t${t}`]);
   if (type === 'pu')      return [...new Set(PU_GRADES.flatMap(g => g.rows.map(t => `pu_m_${g.id}_t${t}`)))];
   if (type === 'pf')      return PF_ROWS.flatMap(t => ['lxo','lxi','kdo','kdi','imo','imi'].map(mk => `pf_m_${mk}_t${t}`));
   if (type === 'fr')      return FR_GRADES.flatMap(g => g.rows.map(t => `fr_m_${g.id}_t${t}`));
@@ -1018,7 +1032,7 @@ function renderModalDiff(type) {
       const t = parseInt(id.replace('margin_iso_t', ''));
       fb = ISO_MARGIN_DEFS[t] ?? 55;
     } else if (type === 'bead') {
-      fb = BEAD_MARGIN_FALLBACK[id] ?? 0;
+      fb = BEAD_MARGIN_FALLBACK[id] ?? 0;  // marginKey 기반 필드명이므로 그대로 조회
     } else if (type === 'pu') {
       const m = id.match(/^pu_m_(.+)_t(\d+)$/);
       if (m) { const g = PU_GRADES.find(g => g.id === m[1]); fb = g?.fallback?.[+m[2]] ?? 0; }
@@ -1186,7 +1200,7 @@ function buildBeadTab() {
     <thead><tr><th>종류</th><th>품명</th><th>단가 (원/m²)</th><th class="pricing-col-diff">이전대비</th></tr></thead>
     <tbody>${costRows}</tbody>
   </table>`;
-  const hiddenHtml = _hiddenFields(BEAD_ROWS.flatMap(t=>[`bead_m2_t${t}`,`bead_m1_t${t}`,`bead_mj_t${t}`]),'recalcBead');
+  const hiddenHtml = _hiddenFields(BEAD_ROWS.flatMap(t=>[`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_t${t}`]),'recalcBead');
   const subtabBar = `<div class="bead-subtab-bar">
     ${BEAD_GRADES.map((g,i)=>`<button class="bead-subtab${i===0?' active':''}" onclick="setBeadSubtab('${g.id}',this)">${g.label}<span class="bead-subtab-sub">${g.sub}</span></button>`).join('')}
   </div>`;
@@ -1422,7 +1436,8 @@ function _doExport() {
 
   // ── 시트 공통 헤더 ──
   const COMMON_HEADER = ['품명', '두께(mm)', '규격(m²당원가)', '장당마진', 'm²당판매가',
-    '장당원가(VAT미포함)', '장당판매가(VAT미포함)', '최종판매가(VAT포함)', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)'];
+    '장당원가(VAT미포함)', '장당판매가(VAT미포함)', '최종판매가(VAT포함)', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)',
+    ..._compHeaders()];
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 1. 아이소핑크
@@ -1437,10 +1452,11 @@ function _doExport() {
     ISOPINK_ROWS.forEach(t => {
       const r = _isoCalcRow(t);
       const grade = (t===10||t===20) ? 'II-A 압출법단열재 1호' : 'II-B-2 압출법단열재 특호';
-      if (!r) { rows.push([grade, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']); return; }
+      if (!r) { rows.push([grade, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('isopink', 'isopink', t)]); return; }
       rows.push([grade, t, r.cost, r.margin, r.mmSellPrice,
         r.costPerSheet, r.sellPerSheet, r.realPrice,
-        r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate]);
+        r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate,
+        ..._compCells('isopink', 'isopink', t, r.realPrice)]);
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
     _styleSheet(ws, rows.length);
@@ -1464,10 +1480,11 @@ function _doExport() {
         const marginPerM2 = _getMargin('bead', grade, t);
         const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
         const gradeName = `${grade.label} 비드법단열재 ${grade.sub}`;
-        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']); return; }
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('fr', grade.id, t)]); return; }
         rows.push([gradeName, t, r.costPerM2, r.marginPerM2, r.sellPerM2,
           r.costPerSheet, r.sellPerSheet, r.realPrice,
-          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate]);
+          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate,
+          ..._compCells('bead', grade.id, t, r.realPrice)]);
       });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -1493,10 +1510,11 @@ function _doExport() {
         const tEff = grade.tFactor ?? t;
         const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, tEff, grade.area) : null;
         const gradeName = `${grade.label} 경질우레탄 ${grade.sub2||grade.sub1}`;
-        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']); return; }
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('fr', grade.id, t)]); return; }
         rows.push([gradeName, t, r.costPerM2, r.marginPerM2, r.sellPerM2,
           r.costPerSheet, r.sellPerSheet, r.realPrice,
-          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate]);
+          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate,
+          ..._compCells('pu', grade.id, t, r.realPrice)]);
       });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -1520,10 +1538,11 @@ function _doExport() {
         const marginPerM2 = _getMargin('pf', grade, t);
         const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
         const gradeName = `${grade.pfCat} ${grade.pfGrade} ${grade.areaLabel}`;
-        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']); return; }
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('fr', grade.id, t)]); return; }
         rows.push([gradeName, t, r.costPerM2, r.marginPerM2, r.sellPerM2,
           r.costPerSheet, r.sellPerSheet, r.realPrice,
-          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate]);
+          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate,
+          ..._compCells('pf', grade.id, t, r.realPrice)]);
       });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -1540,7 +1559,8 @@ function _doExport() {
       [`기준월: ${baseMonth || dateStr}`, '', '', '', '', '', '', '', '', '', '', '', '', ''],
       [],
       ['품명', '두께(mm)', 'm²당원가', '장당마진', '장당원가(VAT미포함)', '장당판매가(VAT미포함)',
-       'VAT포함판매가', '최종판매가', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)'],
+       'VAT포함판매가', '최종판매가', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)',
+       ..._compHeaders()],
     ];
     FR_GRADES.forEach(grade => {
       grade.rows.forEach(t => {
@@ -1549,10 +1569,11 @@ function _doExport() {
         const marginSheet = _getMargin('fr', grade, t);
         const r = calcFrSheetRow(costPerM2, marginSheet, grade.area);
         const gradeName = `${grade.sub1} ${grade.sub2}`;
-        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-']); return; }
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('fr', grade.id, t)]); return; }
         rows.push([gradeName, t, r.costPerM2, r.marginPerSheet,
           r.costPerSheet, r.sellPerSheet, r.vatSell, r.realPrice,
-          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate]);
+          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate,
+          ..._compCells('fr', grade.id, t, r.realPrice)]);
       });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -1567,22 +1588,68 @@ function _doExport() {
 }
 
 /* 공통 시트 스타일 적용 */
+/* ═══════════════════════════════════════
+   엑셀 서식 유틸
+═══════════════════════════════════════ */
+
+/* 경쟁사 이름 배열 */
+function _compNames() {
+  try {
+    const s = JSON.parse(localStorage.getItem('energuard_comp_names') || '[]');
+    return ['크린슐라','산일상사','대유물류'].map((d,i) => s[i] || d);
+  } catch { return ['크린슐라','산일상사','대유물류']; }
+}
+
+/* 경쟁사 데이터 조회 */
+function _getCompData(tabId, gradeId, t) {
+  return window._compCache?.[tabId]?.[gradeId]?.[t] || {};
+}
+
+/* 경쟁사 헤더: 단가 / 차이 / 링크 */
+function _compHeaders() {
+  return _compNames().flatMap(n => [`${n} 단가`, `${n} 차이`, `${n} 링크`]);
+}
+
+/* 경쟁사 데이터 셀: 단가 / 차이(우리-경쟁사) / 링크 */
+function _compCells(tabId, gradeId, t, ourPrice) {
+  const d = _getCompData(tabId, gradeId, t);
+  const result = [];
+  for (let i = 1; i <= 3; i++) {
+    const price = d[`comp${i}_price`];
+    const link  = d[`comp${i}_link`];
+    const diff  = (ourPrice != null && price != null) ? (ourPrice - price) : null;
+    result.push(price != null ? price : '-');
+    result.push(diff  != null ? diff  : '-');
+    result.push(link  ? link  : '-');
+  }
+  return result;
+}
+
+/* 셀 서식 적용
+   - 1~2행: 제목/기준월 (병합+굵게+배경)
+   - 4행: 헤더 (배경+굵게+가운데)
+   - 데이터행: 숫자 천단위, 마진율 %, 차이 양수빨강/음수파랑, 링크 파란색
+*/
 function _styleSheet(ws, totalRows) {
-  // 열 너비 설정
+  // 열 너비만 설정 (값만 저장, 서식은 추후 적용)
   ws['!cols'] = [
     { wch: 28 }, // 품명
-    { wch: 10 }, // 두께
-    { wch: 14 }, // m²당원가
+    { wch: 8  }, // 두께
+    { wch: 12 }, // m²당원가
     { wch: 10 }, // 장당마진
-    { wch: 14 }, // m²당판매가
-    { wch: 18 }, // 장당원가
-    { wch: 18 }, // 장당판매가
-    { wch: 16 }, // 최종판매가
+    { wch: 12 }, // m²당판매가
+    { wch: 14 }, // 장당원가
+    { wch: 14 }, // 장당판매가
+    { wch: 14 }, // 최종판매가
     { wch: 12 }, // 마진금액
     { wch: 10 }, // 부가세
-    { wch: 12 }, // 수수료
+    { wch: 10 }, // 수수료
     { wch: 12 }, // 순수마진
-    { wch: 10 }, // 마진율
+    { wch: 8  }, // 마진율
+    // 경쟁사 3개 × (단가/차이/링크)
+    { wch: 12 }, { wch: 10 }, { wch: 40 },
+    { wch: 12 }, { wch: 10 }, { wch: 40 },
+    { wch: 12 }, { wch: 10 }, { wch: 40 },
   ];
 }
 
