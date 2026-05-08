@@ -501,7 +501,8 @@ async function saveEstimateToArchive() {
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             })
             .from(source)
-            .outputPdf('blob');
+            .toPdf()
+            .output('blob');
 
         // 캡처 후: 원상복구
         screenEls.forEach(el => {
@@ -513,7 +514,7 @@ async function saveEstimateToArchive() {
         // Supabase Storage 업로드
         const { error } = await supabaseClient.storage
             .from('archives')
-            .upload(`quote/${safeName}`, pdfBlob, {
+            .upload(`quote/${window.currentUser?.username || 'unknown'}/${safeName}`, pdfBlob, {
                 contentType: 'application/pdf',
                 cacheControl: '3600',
                 upsert: false
