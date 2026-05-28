@@ -179,9 +179,25 @@ window.initQuill = function() {
         }
     });
 
-    // 이미지/파일 드래그 앤 드롭 핸들러 등 생략...
-    window.quill.root.addEventListener('paste', handleImagePaste);
-    window.quill.root.addEventListener('drop', handleImageDrop);
+    // ── 이미지 붙여넣기: capture:true 로 Quill보다 먼저 가로채기 ──
+    window.quill.root.addEventListener('paste', handleImagePaste, true);
+
+    // ── 이미지 드래그 앤 드롭: capture:true + dragover 허용 ──
+    window.quill.root.addEventListener('dragover', function(e) {
+        if (e.dataTransfer && e.dataTransfer.types &&
+            Array.from(e.dataTransfer.types).includes('Files')) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        }
+    }, true);
+    window.quill.root.addEventListener('drop', handleImageDrop, true);
+
+    // ── 에디터 외부로 드롭 시 브라우저가 이미지를 새 탭으로 여는 것 방지 ──
+    document.addEventListener('dragover', function(e) { e.preventDefault(); }, false);
+    document.addEventListener('drop', function(e) {
+        if (e.target.closest('#editor')) return; // 에디터 내부는 위 핸들러가 처리
+        e.preventDefault();
+    }, false);
 }
 
 // 📌 [자동 저장] - 원본(noteOriginalContent)은 갱신하지 않음!
@@ -312,7 +328,11 @@ function handleImagePaste(e) {
         const items = e.clipboardData.items;
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.startsWith('image/')) {
-                e.preventDefault(); const file = items[i].getAsFile(); uploadFileToSupabase(file); return;
+                e.preventDefault();
+                e.stopPropagation();
+                const file = items[i].getAsFile();
+                uploadFileToSupabase(file);
+                return;
             }
         }
     }
@@ -320,25 +340,56 @@ function handleImagePaste(e) {
 function handleImageDrop(e) {
     if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
         const file = e.dataTransfer.files[0];
-        if (file.type.startsWith('image/')) { e.preventDefault(); uploadFileToSupabase(file); }
+        if (file.type.startsWith('image/')) {
+            e.preventDefault();
+            e.stopPropagation();
+            // 드롭한 위치의 커서 인덱스 계산
+            let dropIndex = null;
+            if (document.caretRangeFromPoint) {
+                const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                if (range) {
+                    const blot = Quill.find(range.startContainer) || Quill.find(range.startContainer.parentNode);
+                    if (blot) {
+                        const blotIndex = window.quill.getIndex(blot);
+                        dropIndex = blotIndex + range.startOffset;
+                    }
+                }
+            }
+            uploadFileToSupabase(file, dropIndex);
+        }
     }
 }
 function imageUploadHandler() {
     const input = document.createElement('input'); input.setAttribute('type', 'file'); input.setAttribute('accept', 'image/*'); input.click();
     input.onchange = () => { const file = input.files[0]; if (file) uploadFileToSupabase(file); };
 }
-async function uploadFileToSupabase(file) {
+async function uploadFileToSupabase(file, dropIndex = null) {
     if (!supabaseClient) return;
     document.getElementById('loader').style.display = 'flex';
     try {
-        const fileExt = file.name.split('.').pop() || 'png'; const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`; const filePath = `editor/${fileName}`;
-        const { error: uploadError } = await supabaseClient.storage.from('images').upload(filePath, file, { cacheControl: '3600', upsert: false });
+        const fileExt = file.name.split('.').pop() || 'png';
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `editor/${fileName}`;
+        const { error: uploadError } = await supabaseClient.storage
+            .from('images')
+            .upload(filePath, file, { cacheControl: '3600', upsert: false });
         if (uploadError) throw uploadError;
         const { data } = supabaseClient.storage.from('images').getPublicUrl(filePath);
-        let range = window.quill.getSelection(); let index = range ? range.index : window.quill.getLength();
-        window.quill.insertEmbed(index, 'image', data.publicUrl); window.quill.setSelection(index + 1);
-    } catch (error) { console.error('이미지 업로드 오류:', error); showToast('이미지 업로드 실패.', 'error'); } 
-    finally { document.getElementById('loader').style.display = 'none'; }
+        // 드롭 위치 > 현재 선택 > 맨 끝 순으로 삽입 위치 결정
+        let index = dropIndex;
+        if (index === null) {
+            const range = window.quill.getSelection();
+            index = range ? range.index : window.quill.getLength();
+        }
+        window.quill.insertEmbed(index, 'image', data.publicUrl, Quill.sources.USER);
+        window.quill.setSelection(index + 1, Quill.sources.SILENT);
+        showToast('이미지가 삽입되었습니다.', 'success');
+    } catch (error) {
+        console.error('이미지 업로드 오류:', error);
+        showToast('이미지 업로드 실패: ' + (error.message || ''), 'error');
+    } finally {
+        document.getElementById('loader').style.display = 'none';
+    }
 }
 async function loadDraftList(type) {
     if (!supabaseClient) return;

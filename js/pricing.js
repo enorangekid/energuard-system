@@ -234,7 +234,7 @@ function calcFrSheetRow(costPerM2, marginPerSheet, area) {
   const costPerSheet  = Math.round(costPerM2 * area);          // 8,400
   const sellPerSheet  = costPerSheet + marginPerSheet;          // 11,400
   const vatSell       = Math.round(sellPerSheet * 1.1);        // 12,540
-  const realPrice     = Math.round(vatSell / 500) * 500;       // 12,500
+  const realPrice     = Math.ceil(vatSell / 100) * 100;        // 100원 단위 올림
   const vatCost       = Math.round(costPerSheet * 1.1);        // 9,240 (비교용)
   const marginAmt     = realPrice - vatCost;                   // 3,260
   const vat           = Math.round(marginAmt / 11);            // 296
@@ -245,7 +245,7 @@ function calcFrSheetRow(costPerM2, marginPerSheet, area) {
 }
 function compareFrSheetRealPrice(costPerM2, marginPerSheet, area) {
   if (!costPerM2) return null;
-  return Math.round(Math.round((Math.round(costPerM2 * area) + marginPerSheet) * 1.1) / 500) * 500;
+  return Math.ceil(Math.round((Math.round(costPerM2 * area) + marginPerSheet) * 1.1) / 100) * 100;
 }
 
 
@@ -562,6 +562,8 @@ window.setPricingTab = function(tabId, el) {
   document.getElementById('pricing-tab-' + tabId)?.classList.add('active');
   // 공통 엔진 대상 탭은 _recalcTab으로 통합, 아이소핑크는 별도 유지
   if (tabId in _subtabState) _recalcTab(tabId);
+  // 앱 가격 탭
+  if (tabId === 'app') initAppPriceTab();
 };
 
 /* 현재 탭에 맞는 모음전 엑셀 export */
@@ -654,7 +656,147 @@ window.savePricingCosts = async function() {
     _compareData = prevEntry || null;
   }
   renderAllInputDiff();
+
+  /* 앱 가격 자동 동기화 */
+  syncAppProductPrices();
 };
+
+/* ═══════════════════════════════════════
+   앱 가격 동기화 — app_product_prices 테이블 업데이트
+   단가표 저장 시 realPrice → 앱 가격 자동 반영
+═══════════════════════════════════════ */
+async function syncAppProductPrices() {
+  if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
+
+  const updates = [];
+
+  function push(product_code, price) {
+    if (!product_code || !price || price <= 0) return;
+    updates.push({ product_code, price });
+  }
+
+  /* 1. 아이소핑크 */
+  ISOPINK_ROWS.forEach(t => {
+    const r = _isoCalcRow(t);
+    if (!r) return;
+    push(`Iso_900_1800_${t}_E`, r.realPrice);
+  });
+
+  /* 2. 비드법단열재 */
+  const BEAD_CODE_MAP = {
+    'iiia2': 'St_1',
+    'iia1':  'St_2',
+    'ia1':   'St_3',
+    'iiib':  'Neo_1',
+    'iia2':  'Neo_2',
+    'ia2':   'Neo_3',
+  };
+  BEAD_GRADES.forEach(grade => {
+    const prefix = BEAD_CODE_MAP[grade.id];
+    if (!prefix) return;
+    BEAD_ROWS.forEach(t => {
+      const costId = _getCostId('bead', grade, t);
+      const cost = costId ? fieldVal(costId) : 0;
+      const margin = _getMargin('bead', grade, t);
+      const r = cost ? calcSheetRow(cost, margin, t, grade.area) : null;
+      if (!r) return;
+      push(`${prefix}_900_1800_${t}_E`, r.realPrice);
+    });
+  });
+
+  // 준불연 비드법
+  const beadJun = BEAD_GRADES.find(g => g.id === 'ib_09');
+  if (beadJun) {
+    BEAD_ROWS.forEach(t => {
+      const costId = _getCostId('bead', beadJun, t);
+      const cost = costId ? fieldVal(costId) : 0;
+      const margin = _getMargin('bead', beadJun, t);
+      const r = cost ? calcSheetRow(cost, margin, t, beadJun.area) : null;
+      if (!r) return;
+      push(`NeoQF_900_1800_${t}_E`, r.realPrice);
+      push(`NeoQF_600_1200_${t}_E`, r.realPrice);
+    });
+  }
+
+  /* 3. 경질우레탄 */
+  const PU_CODE_MAP = {
+    'ic':    'U1_3',
+    'iiia':  'U2_1',
+    'iia':   'U2_2',
+    'id_in': 'UQ',
+  };
+  PU_GRADES.forEach(grade => {
+    const prefix = PU_CODE_MAP[grade.id];
+    if (!prefix) return;
+    grade.rows.forEach(t => {
+      const costId = _getCostId('pu', grade, t);
+      const cost = costId ? fieldVal(costId) : 0;
+      const margin = _getMargin('pu', grade, t);
+      const tEff = grade.tFactor ?? t;
+      const r = cost ? calcSheetRow(cost, margin, tEff, grade.area) : null;
+      if (!r) return;
+      push(`${prefix}_1000_2000_${t}_E`, r.realPrice);
+    });
+  });
+
+  /* 4. PF보드 */
+  const PF_CODE_MAP = {
+    'lxo_s': 'LXPF_QF_600_1200',
+    'lxo_l': 'LXPF_QF_1200_2000',
+    'lxi_s': 'LXPF_Q_600_1200',
+    'lxi_l': 'LXPF_Q_1200_2000',
+    'kdo_s': 'KRPF_QF_600_1200',
+    'kdo_l': 'KRPF_QF_1200_2000',
+    'kdi_s': 'KRPF_Q_600_1200',
+    'kdi_l': 'KRPF_Q_1200_2000',
+    'imo_l': 'IMPF_QF_1000_1200',
+    'imi_l': 'IMPF_Q_1000_1200',
+  };
+  PF_GRADES.forEach(grade => {
+    const prefix = PF_CODE_MAP[grade.id];
+    if (!prefix) return;
+    PF_ROWS.forEach(t => {
+      const cost = fieldVal(grade.costId);
+      const margin = _getMargin('pf', grade, t);
+      const r = cost ? calcSheetRow(cost, margin, t, grade.area) : null;
+      if (!r) return;
+      push(`${prefix}_${t}_E`, r.realPrice);
+    });
+  });
+
+  /* 5. 미네랄울 불연단열재 */
+  const frBul = FR_GRADES.find(g => g.id === 'fr_bul');
+  if (frBul) {
+    frBul.rows.forEach(t => {
+      const costId = _getCostId('fr', frBul, t);
+      const cost = costId ? fieldVal(costId) : 0;
+      const margin = _getMargin('fr', frBul, t);
+      const r = cost ? calcFrSheetRow(cost, margin, frBul.area) : null;
+      if (!r) return;
+      push(`HR_F_1000_1200_${t}_E`, r.realPrice);
+    });
+  }
+
+  if (updates.length === 0) return;
+
+  /* 기존 행만 UPDATE (INSERT 없음 — product_name NOT NULL 제약 때문) */
+  let successCount = 0;
+  let failCount = 0;
+  await Promise.all(updates.map(async u => {
+    const { error } = await supabaseClient
+      .from('app_product_prices')
+      .update({ price: u.price })
+      .eq('product_code', u.product_code);
+    if (error) failCount++;
+    else successCount++;
+  }));
+
+  if (failCount > 0) {
+    console.error(`앱 가격 동기화 일부 실패: 성공 ${successCount}건, 실패 ${failCount}건`);
+  } else {
+    console.log(`앱 가격 동기화 완료: ${successCount}건`);
+  }
+}
 
 /* ═══════════════════════════════════════
    통합 로드
@@ -1422,7 +1564,19 @@ window.exportPricingExcel = function() {
   }
 };
 
-function _doExport() {
+async function _doExport() {
+  /* 엑셀 저장 전 모든 탭/등급 경쟁사 데이터 병렬 로드 */
+  if (typeof loadCompPrices === 'function') {
+    const loadTasks = [
+      loadCompPrices('isopink', 'isopink'),
+      ...BEAD_GRADES.map(g => loadCompPrices('bead', g.id)),
+      ...PU_GRADES.map(g => loadCompPrices('pu', g.id)),
+      ...PF_GRADES.map(g => loadCompPrices('pf', g.id)),
+      ...FR_GRADES.map(g => loadCompPrices('fr', g.id)),
+    ];
+    await Promise.all(loadTasks);
+  }
+
   const wb = XLSX.utils.book_new();
   const baseMonth = document.getElementById('cost_base_month')?.value || '';
   const now = new Date();
@@ -1952,3 +2106,316 @@ function _doPfExport(subtabId) {
   XLSX.writeFile(wb, `스마트스토어_${cfg.fileName}_옵션_${dateStr}.xls`);
   showToast(`${cfg.prefix} 모음전 엑셀 저장 완료!`, 'success');
 }
+/* ═══════════════════════════════════════════════════════════════
+   앱 가격 탭
+   - 연동 상품: 단가표 realPrice 자동 표시 (읽기전용)
+   - 직접 입력: 열반사단열재, 접착식 단열벽지
+═══════════════════════════════════════════════════════════════ */
+
+/* 앱 가격 탭 내부 서브탭 상태 */
+let _appPriceSubTab = 'isopink';
+
+/* 직접 입력 상품 데이터 (id 기반) */
+const APP_MANUAL_PRODUCTS = {
+  reflective: {
+    label: '열반사단열재',
+    items: [
+      { id: 601, name: '고급형 비접착',  spec: '1M×40M', thickness: 5,  unit: '롤' },
+      { id: 603, name: '고급형 비접착',  spec: '1M×20M', thickness: 10, unit: '롤' },
+      { id: 605, name: '고급형 비접착',  spec: '1M×10M', thickness: 20, unit: '롤' },
+      { id: 602, name: '고급형 한쪽접착', spec: '1M×40M', thickness: 5,  unit: '롤' },
+      { id: 604, name: '고급형 한쪽접착', spec: '1M×20M', thickness: 10, unit: '롤' },
+      { id: 606, name: '고급형 한쪽접착', spec: '1M×10M', thickness: 20, unit: '롤' },
+    ]
+  },
+  wallpaper: {
+    label: '접착식 단열벽지',
+    items: [
+      { id: 607, name: '고급형',   spec: '1M×20M', thickness: 5, unit: '롤' },
+      { id: 608, name: '3D실크형', spec: '1M×20M', thickness: 5, unit: '롤' },
+    ]
+  }
+};
+
+/* 앱 가격 탭 서브탭 목록 */
+const APP_PRICE_SUBTABS = [
+  { id: 'isopink',    label: '아이소핑크' },
+  { id: 'bead',       label: '비드법단열재' },
+  { id: 'pu',         label: '경질우레탄' },
+  { id: 'pf',         label: 'PF보드' },
+  { id: 'fr',         label: '미네랄울 불연' },
+  { id: 'reflective', label: '열반사단열재' },
+  { id: 'wallpaper',  label: '접착식 단열벽지' },
+];
+
+/* 앱 가격 탭 초기화 */
+async function initAppPriceTab() {
+  const wrap = document.getElementById('pricing-tab-app');
+  if (!wrap) return;
+
+  // 로딩
+  wrap.innerHTML = `<div style="padding:40px;text-align:center;color:#94a3b8;">
+    <i class="fa-solid fa-spinner fa-spin"></i> 가격 데이터 불러오는 중...
+  </div>`;
+
+  // 직접 입력 상품 현재 가격 로드
+  let manualPrices = {};
+  if (typeof supabaseClient !== 'undefined') {
+    const allIds = [
+      ...APP_MANUAL_PRODUCTS.reflective.items.map(i => i.id),
+      ...APP_MANUAL_PRODUCTS.wallpaper.items.map(i => i.id),
+    ];
+    const { data } = await supabaseClient
+      .from('app_product_prices')
+      .select('id, price')
+      .in('id', allIds);
+    if (data) data.forEach(r => { manualPrices[r.id] = r.price; });
+  }
+
+  // 서브탭 버튼
+  const tabBtns = APP_PRICE_SUBTABS.map(t =>
+    `<button class="app-price-tab${t.id === _appPriceSubTab ? ' active' : ''}"
+      onclick="switchAppPriceSubTab('${t.id}',this)">${t.label}</button>`
+  ).join('');
+
+  wrap.innerHTML = `
+    <div style="padding: 20px 0 0;">
+      <div class="app-price-tabs">${tabBtns}</div>
+      <div id="app-price-content"></div>
+      <div class="app-price-save-bar">
+        <span class="app-price-save-status" id="appPriceSaveStatus"></span>
+        <button class="btn-app-save" onclick="saveAppManualPrices()">
+          <i class="fa-solid fa-cloud-arrow-up"></i> 앱에 저장
+        </button>
+      </div>
+    </div>
+  `;
+
+  // 현재 서브탭 렌더
+  window._appManualPrices = manualPrices;
+  renderAppPriceSubTab(_appPriceSubTab);
+}
+
+/* 서브탭 전환 */
+window.switchAppPriceSubTab = function(tabId, el) {
+  _appPriceSubTab = tabId;
+  document.querySelectorAll('.app-price-tab').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderAppPriceSubTab(tabId);
+};
+
+/* 서브탭 콘텐츠 렌더 */
+function renderAppPriceSubTab(tabId) {
+  const content = document.getElementById('app-price-content');
+  if (!content) return;
+
+  if (tabId === 'reflective' || tabId === 'wallpaper') {
+    content.innerHTML = buildManualPriceTable(tabId);
+    return;
+  }
+  content.innerHTML = buildAutoPriceTable(tabId);
+}
+
+/* 자동 연동 가격 테이블 (읽기전용) */
+function buildAutoPriceTable(tabId) {
+  const fmt = v => v ? v.toLocaleString() + '원' : '—';
+  let rows = '';
+
+  if (tabId === 'isopink') {
+    ISOPINK_ROWS.forEach(t => {
+      const r = _isoCalcRow(t);
+      const grade = (t === 10 || t === 20) ? '1호' : '특호';
+      rows += `<tr>
+        <td class="td-name">아이소핑크 압출법단열재</td>
+        <td>${grade}</td><td>900×1800</td><td>${t}T</td>
+        <td class="td-price">${fmt(r?.realPrice)}</td><td>장</td>
+      </tr>`;
+    });
+  }
+
+  else if (tabId === 'bead') {
+    const BEAD_CODE_MAP = {
+      'iiia2': { name: '비드법단열재 1종', sub: '1호' },
+      'iia1':  { name: '비드법단열재 1종', sub: '2호' },
+      'ia1':   { name: '비드법단열재 1종', sub: '3호' },
+      'iiib':  { name: '비드법단열재 2종', sub: '1호' },
+      'iia2':  { name: '비드법단열재 2종', sub: '2호' },
+      'ia2':   { name: '비드법단열재 2종', sub: '3호' },
+    };
+    BEAD_GRADES.forEach(grade => {
+      const info = BEAD_CODE_MAP[grade.id];
+      if (!info) return;
+      BEAD_ROWS.forEach(t => {
+        const costId = _getCostId('bead', grade, t);
+        const cost = costId ? fieldVal(costId) : 0;
+        const margin = _getMargin('bead', grade, t);
+        const r = cost ? calcSheetRow(cost, margin, t, grade.area) : null;
+        rows += `<tr>
+          <td class="td-name">${info.name}</td>
+          <td>${info.sub}</td><td>900×1800</td><td>${t}T</td>
+          <td class="td-price">${fmt(r?.realPrice)}</td><td>장</td>
+        </tr>`;
+      });
+    });
+  }
+
+  else if (tabId === 'pu') {
+    const PU_NAME_MAP = {
+      'ic':    { name: '경질우레탄보드', sub: '1종 3호' },
+      'iiia':  { name: '경질우레탄보드', sub: '2종 1호' },
+      'iia':   { name: '경질우레탄보드', sub: '2종 2호' },
+      'id_in': { name: '준불연 경질우레탄보드', sub: '준불연' },
+    };
+    PU_GRADES.forEach(grade => {
+      const info = PU_NAME_MAP[grade.id];
+      if (!info) return;
+      grade.rows.forEach(t => {
+        const costId = _getCostId('pu', grade, t);
+        const cost = costId ? fieldVal(costId) : 0;
+        const margin = _getMargin('pu', grade, t);
+        const tEff = grade.tFactor ?? t;
+        const r = cost ? calcSheetRow(cost, margin, tEff, grade.area) : null;
+        rows += `<tr>
+          <td class="td-name">${info.name}</td>
+          <td>${info.sub}</td><td>1000×2000</td><td>${t}T</td>
+          <td class="td-price">${fmt(r?.realPrice)}</td><td>장</td>
+        </tr>`;
+      });
+    });
+  }
+
+  else if (tabId === 'pf') {
+    const PF_NAME_MAP = {
+      'lxo_s': { name: '준불연 PF보드', sub1: 'LX하우시스', sub2: '심재준불연', spec: '600×1200' },
+      'lxo_l': { name: '준불연 PF보드', sub1: 'LX하우시스', sub2: '심재준불연', spec: '1200×2000' },
+      'lxi_s': { name: '준불연 PF보드', sub1: 'LX하우시스', sub2: '준불연',    spec: '600×1200' },
+      'lxi_l': { name: '준불연 PF보드', sub1: 'LX하우시스', sub2: '준불연',    spec: '1200×2000' },
+      'kdo_s': { name: '준불연 PF보드', sub1: '국내산',     sub2: '심재준불연', spec: '600×1200' },
+      'kdo_l': { name: '준불연 PF보드', sub1: '국내산',     sub2: '심재준불연', spec: '1200×2000' },
+      'kdi_s': { name: '준불연 PF보드', sub1: '국내산',     sub2: '준불연',    spec: '600×1200' },
+      'kdi_l': { name: '준불연 PF보드', sub1: '국내산',     sub2: '준불연',    spec: '1200×2000' },
+      'imo_l': { name: '준불연 PF보드', sub1: '수입산',     sub2: '심재준불연', spec: '1000×1200' },
+      'imi_l': { name: '준불연 PF보드', sub1: '수입산',     sub2: '준불연',    spec: '1000×1200' },
+    };
+    PF_GRADES.forEach(grade => {
+      const info = PF_NAME_MAP[grade.id];
+      if (!info) return;
+      PF_ROWS.forEach(t => {
+        const cost = fieldVal(grade.costId);
+        const margin = _getMargin('pf', grade, t);
+        const r = cost ? calcSheetRow(cost, margin, t, grade.area) : null;
+        rows += `<tr>
+          <td class="td-name">${info.name}</td>
+          <td>${info.sub1} ${info.sub2}</td><td>${info.spec}</td><td>${t}T</td>
+          <td class="td-price">${fmt(r?.realPrice)}</td><td>장</td>
+        </tr>`;
+      });
+    });
+  }
+
+  else if (tabId === 'fr') {
+    const frBul = FR_GRADES.find(g => g.id === 'fr_bul');
+    if (frBul) {
+      frBul.rows.forEach(t => {
+        const costId = _getCostId('fr', frBul, t);
+        const cost = costId ? fieldVal(costId) : 0;
+        const margin = _getMargin('fr', frBul, t);
+        const r = cost ? calcFrSheetRow(cost, margin, frBul.area) : null;
+        rows += `<tr>
+          <td class="td-name">미네랄울 불연단열재</td>
+          <td>—</td><td>1000×1200</td><td>${t}T</td>
+          <td class="td-price">${fmt(r?.realPrice)}</td><td>장</td>
+        </tr>`;
+      });
+    }
+  }
+
+  return `
+    <div class="app-price-section">
+      <div class="app-price-section-title">
+        가격 데이터 <span class="app-price-badge">단가표 자동 연동</span>
+      </div>
+      <table class="app-price-table">
+        <thead><tr>
+          <th>상품명</th><th>등급</th><th>규격</th><th>두께</th><th>앱 판매가</th><th>단위</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+/* 직접 입력 가격 테이블 */
+function buildManualPriceTable(tabId) {
+  const product = APP_MANUAL_PRODUCTS[tabId];
+  const manualPrices = window._appManualPrices || {};
+
+  let rows = product.items.map(item => `
+    <tr>
+      <td class="td-name">${item.name}</td>
+      <td>${item.spec}</td>
+      <td>${item.thickness}T</td>
+      <td>
+        <input type="text" inputmode="numeric" class="app-price-input"
+          id="app-manual-${item.id}"
+          value="${manualPrices[item.id] ?? ''}"
+          placeholder="0">
+      </td>
+      <td>${item.unit}</td>
+    </tr>`).join('');
+
+  return `
+    <div class="app-price-section">
+      <div class="app-price-section-title">
+        ${product.label} <span class="app-price-badge manual">직접 입력</span>
+      </div>
+      <table class="app-price-table">
+        <thead><tr>
+          <th>종류</th><th>규격</th><th>두께</th><th>앱 판매가</th><th>단위</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+/* 직접 입력 상품 저장 */
+window.saveAppManualPrices = async function() {
+  if (typeof supabaseClient === 'undefined') return;
+
+  const allItems = [
+    ...APP_MANUAL_PRODUCTS.reflective.items,
+    ...APP_MANUAL_PRODUCTS.wallpaper.items,
+  ];
+
+  const statusEl = document.getElementById('appPriceSaveStatus');
+  if (statusEl) statusEl.textContent = '저장 중...';
+
+  let successCount = 0, failCount = 0;
+
+  await Promise.all(allItems.map(async item => {
+    const el = document.getElementById(`app-manual-${item.id}`);
+    if (!el) return;
+    const val = parseInt(el.value.replace(/,/g, ''));
+    if (!val || val <= 0) return;
+
+    const { error } = await supabaseClient
+      .from('app_product_prices')
+      .update({ price: val })
+      .eq('id', item.id);
+
+    if (error) failCount++;
+    else {
+      successCount++;
+      if (window._appManualPrices) window._appManualPrices[item.id] = val;
+    }
+  }));
+
+  const now = new Date().toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  if (statusEl) {
+    statusEl.textContent = failCount > 0
+      ? `일부 실패 (성공 ${successCount}건, 실패 ${failCount}건)`
+      : `저장 완료: ${now}`;
+  }
+  if (typeof showToast === 'function') {
+    showToast(failCount > 0 ? `일부 저장 실패 (${failCount}건)` : `앱 가격 저장 완료 (${successCount}건)`, failCount > 0 ? 'error' : 'success');
+  }
+};
