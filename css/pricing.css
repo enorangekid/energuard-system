@@ -1124,3 +1124,130 @@
   flex: 1 1 auto;
   width: 100%;
 }
+/* ── 앱 가격 탭 ── */
+.pricing-tab-app {
+  background: #ecfdf5; color: #059669; border-color: #6ee7b7;
+}
+.pricing-tab-app:hover { background: #d1fae5; color: #047857; }
+.pricing-tab-app.active {
+  background: #059669; color: white; border-color: #059669;
+  box-shadow: 0 4px 10px rgba(5,150,105,0.25);
+}
+
+/* 앱 가격 탭 내부 */
+.app-price-input {
+  width: 110px; padding: 5px 8px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 13px; font-weight: 700;
+  color: #92400e; text-align: right; background: #fff;
+}
+.app-price-input:focus {
+  outline: none; border-color: #059669;
+  box-shadow: 0 0 0 2px rgba(5,150,105,0.15);
+}
+.btn-app-save {
+  background: #059669; color: white; border: none;
+  padding: 7px 16px; border-radius: 8px; font-size: 12px;
+  font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;
+}
+.btn-app-save:hover { background: #047857; }
+#pricing-tab-app .pricing-table { min-width: 0; table-layout: auto; }
+/* ═══════════════════════════════════════════════════════════════
+   앱 공지 관리 섹션
+═══════════════════════════════════════════════════════════════ */
+.app-notice-section {
+  margin-top: 0;
+}
+.app-notice-section-title {
+  font-size: 15px; font-weight: 700; color: #1e293b;
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 16px;
+}
+.app-notice-form {
+  background: #f8fafc; border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px; margin-bottom: 20px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.app-notice-form-row { display: flex; flex-direction: column; gap: 6px; }
+.app-notice-label {
+  font-size: 12px; font-weight: 700; color: #374151;
+}
+.app-notice-input {
+  padding: 9px 12px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13px; color: #1e293b;
+  background: #fff; outline: none; transition: border-color 0.2s;
+  width: 100%;
+}
+.app-notice-input:focus { border-color: #e85d2f; box-shadow: 0 0 0 2px rgba(232,93,47,0.12); }
+.app-notice-textarea {
+  padding: 9px 12px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13px; color: #1e293b;
+  background: #fff; outline: none; resize: vertical;
+  min-height: 80px; line-height: 1.6; transition: border-color 0.2s;
+  width: 100%; font-family: inherit;
+}
+.app-notice-textarea:focus { border-color: #e85d2f; box-shadow: 0 0 0 2px rgba(232,93,47,0.12); }
+.btn-notice-add {
+  background: #e85d2f; color: white; border: none;
+  padding: 9px 18px; border-radius: 8px; font-size: 13px;
+  font-weight: 600; cursor: pointer; white-space: nowrap;
+  display: flex; align-items: center; gap: 6px; align-self: flex-end;
+}
+.btn-notice-add:hover { background: #c94d22; }
+.btn-notice-add:disabled { background: #fca98a; cursor: not-allowed; }
+
+.app-notice-list-title {
+  font-size: 13px; font-weight: 700; color: #475569;
+  margin-bottom: 10px;
+}
+.app-notice-empty {
+  text-align: center; padding: 24px; color: #94a3b8;
+  font-size: 13px; background: #f8fafc;
+  border: 1px dashed var(--border); border-radius: 8px;
+}
+.app-notice-item {
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 10px; background: #fff;
+  transition: box-shadow 0.2s;
+}
+.app-notice-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.app-notice-item.inactive { background: #f8fafc; opacity: 0.65; }
+.app-notice-item-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.app-notice-item-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px;
+  border-radius: 4px; background: #dcfce7; color: #15803d;
+  flex-shrink: 0;
+}
+.app-notice-item-badge.off {
+  background: #f1f5f9; color: #94a3b8;
+}
+.app-notice-item-title {
+  font-size: 13px; font-weight: 700; color: #1e293b; flex: 1;
+}
+.app-notice-item-actions {
+  display: flex; gap: 6px; flex-shrink: 0;
+}
+.btn-notice-toggle {
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid var(--border); background: #f8fafc;
+  cursor: pointer; display: flex; align-items: center;
+  justify-content: center; font-size: 12px; color: #6b7280;
+  transition: all 0.15s;
+}
+.btn-notice-toggle:hover { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
+.btn-notice-del {
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid #fecaca; background: #fff5f5;
+  cursor: pointer; display: flex; align-items: center;
+  justify-content: center; font-size: 12px; color: #dc2626;
+  transition: all 0.15s;
+}
+.btn-notice-del:hover { background: #fee2e2; border-color: #f87171; }
+.app-notice-item-content {
+  font-size: 13px; color: #475569; line-height: 1.6;
+  white-space: pre-line; margin-bottom: 8px;
+}
+.app-notice-item-meta {
+  font-size: 11px; color: #94a3b8;
+}
