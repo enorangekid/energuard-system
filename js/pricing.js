@@ -2174,32 +2174,83 @@ async function initAppPriceTab() {
 
   // 서브탭 버튼
   const tabBtns = APP_PRICE_SUBTABS.map(t =>
-    `<button class="app-price-tab${t.id === _appPriceSubTab ? ' active' : ''}"
+    `<button class="bead-subtab${t.id === _appPriceSubTab ? ' active' : ''}"
       onclick="switchAppPriceSubTab('${t.id}',this)">${t.label}</button>`
   ).join('');
 
+  // 공지 데이터 로드
+  let existingNotices = [];
+  if (typeof supabaseClient !== 'undefined') {
+    const { data: nData } = await supabaseClient
+      .from('app_notices')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (nData) existingNotices = nData;
+  }
+  window._appNotices = existingNotices;
+
   wrap.innerHTML = `
-    <div style="padding: 20px 0 0;">
-      <div class="app-price-tabs">${tabBtns}</div>
-      <div id="app-price-content"></div>
-      <div class="app-price-save-bar">
-        <span class="app-price-save-status" id="appPriceSaveStatus"></span>
-        <button class="btn-app-save" onclick="saveAppManualPrices()">
-          <i class="fa-solid fa-cloud-arrow-up"></i> 앱에 저장
-        </button>
+    <div class="card pricing-result-card">
+      <div class="pricing-result-header">
+        <div class="pricing-result-title">앱 판매가 현황<span class="pricing-spec-badge">단가표 자동 연동</span></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="pricing-result-hint" id="appPriceSaveStatus"></span>
+          <button class="btn-app-save" onclick="saveAppManualPrices()">
+            <i class="fa-solid fa-cloud-arrow-up"></i> 앱에 저장
+          </button>
+        </div>
       </div>
+      <div class="bead-subtab-bar" id="appPriceSubtabBar">${tabBtns}</div>
+      <div class="pricing-table-scroll" id="app-price-content"></div>
+    </div>
+
+    <!-- ── 공지 관리 섹션 ── -->
+    <div class="card pricing-cost-card app-notice-section">
+      <div class="app-notice-section-title">
+        <i class="fa-solid fa-bell" style="color:#e85d2f;"></i> 앱 공지사항 관리
+      </div>
+
+      <div class="app-notice-form">
+        <div class="app-notice-form-row">
+          <label class="app-notice-label">제목 <span style="color:#e85d2f;">*</span></label>
+          <input type="text" id="noticeInputTitle" class="app-notice-input"
+            placeholder="예: 2026년 6월 단가가 업데이트 되었습니다">
+        </div>
+        <div class="app-notice-form-row">
+          <label class="app-notice-label">내용 <span style="color:#e85d2f;">*</span></label>
+          <textarea id="noticeInputContent" class="app-notice-textarea"
+            placeholder="공지 내용을 입력하세요."></textarea>
+        </div>
+        <div class="app-notice-form-row" style="display:flex;gap:12px;align-items:flex-end;">
+          <div style="flex:1;">
+            <label class="app-notice-label">만료일 <span style="color:#94a3b8;font-weight:400;">(비워두면 상시 표시)</span></label>
+            <input type="date" id="noticeInputExpires" class="app-notice-input">
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;padding-bottom:10px;cursor:pointer;white-space:nowrap;font-size:13px;font-weight:600;color:#e85d2f;">
+            <input type="checkbox" id="noticeInputImportant" style="width:16px;height:16px;accent-color:#e85d2f;cursor:pointer;">
+            📌 중요공지
+          </label>
+          <button class="btn-notice-add" onclick="addAppNotice()">
+            <i class="fa-solid fa-plus"></i> 공지 등록
+          </button>
+        </div>
+      </div>
+
+      <div class="app-notice-list-title">등록된 공지</div>
+      <div id="appNoticeList"></div>
     </div>
   `;
 
   // 현재 서브탭 렌더
   window._appManualPrices = manualPrices;
   renderAppPriceSubTab(_appPriceSubTab);
+  renderAppNoticeList();
 }
 
 /* 서브탭 전환 */
 window.switchAppPriceSubTab = function(tabId, el) {
   _appPriceSubTab = tabId;
-  document.querySelectorAll('.app-price-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#appPriceSubtabBar .bead-subtab').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
   renderAppPriceSubTab(tabId);
 };
@@ -2226,9 +2277,9 @@ function buildAutoPriceTable(tabId) {
       const r = _isoCalcRow(t);
       const grade = (t === 10 || t === 20) ? '1호' : '특호';
       rows += `<tr>
-        <td class="td-name">아이소핑크 압출법단열재</td>
-        <td>${grade}</td><td>900×1800</td><td>${t}T</td>
-        <td class="td-price">${fmt(r?.realPrice)}</td><td>장</td>
+        <td style="text-align:left;font-weight:600;">아이소핑크 압출법단열재</td>
+        <td style="text-align:center;">${grade}</td><td style="text-align:center;">900×1800</td><td class="td-thick">${t}T</td>
+        <td class="td-highlight">${fmt(r?.realPrice)}</td><td style="text-align:center;">장</td>
       </tr>`;
     });
   }
@@ -2251,9 +2302,9 @@ function buildAutoPriceTable(tabId) {
         const margin = _getMargin('bead', grade, t);
         const r = cost ? calcSheetRow(cost, margin, t, grade.area) : null;
         rows += `<tr>
-          <td class="td-name">${info.name}</td>
-          <td>${info.sub}</td><td>900×1800</td><td>${t}T</td>
-          <td class="td-price">${fmt(r?.realPrice)}</td><td>장</td>
+          <td style="text-align:left;font-weight:600;">${info.name}</td>
+          <td style="text-align:center;">${info.sub}</td><td style="text-align:center;">900×1800</td><td class="td-thick">${t}T</td>
+          <td class="td-highlight">${fmt(r?.realPrice)}</td><td style="text-align:center;">장</td>
         </tr>`;
       });
     });
@@ -2276,9 +2327,9 @@ function buildAutoPriceTable(tabId) {
         const tEff = grade.tFactor ?? t;
         const r = cost ? calcSheetRow(cost, margin, tEff, grade.area) : null;
         rows += `<tr>
-          <td class="td-name">${info.name}</td>
-          <td>${info.sub}</td><td>1000×2000</td><td>${t}T</td>
-          <td class="td-price">${fmt(r?.realPrice)}</td><td>장</td>
+          <td style="text-align:left;font-weight:600;">${info.name}</td>
+          <td style="text-align:center;">${info.sub}</td><td style="text-align:center;">1000×2000</td><td class="td-thick">${t}T</td>
+          <td class="td-highlight">${fmt(r?.realPrice)}</td><td style="text-align:center;">장</td>
         </tr>`;
       });
     });
@@ -2305,9 +2356,9 @@ function buildAutoPriceTable(tabId) {
         const margin = _getMargin('pf', grade, t);
         const r = cost ? calcSheetRow(cost, margin, t, grade.area) : null;
         rows += `<tr>
-          <td class="td-name">${info.name}</td>
-          <td>${info.sub1} ${info.sub2}</td><td>${info.spec}</td><td>${t}T</td>
-          <td class="td-price">${fmt(r?.realPrice)}</td><td>장</td>
+          <td style="text-align:left;font-weight:600;">${info.name}</td>
+          <td style="text-align:center;">${info.sub1} ${info.sub2}</td><td style="text-align:center;">${info.spec}</td><td class="td-thick">${t}T</td>
+          <td class="td-highlight">${fmt(r?.realPrice)}</td><td style="text-align:center;">장</td>
         </tr>`;
       });
     });
@@ -2322,26 +2373,24 @@ function buildAutoPriceTable(tabId) {
         const margin = _getMargin('fr', frBul, t);
         const r = cost ? calcFrSheetRow(cost, margin, frBul.area) : null;
         rows += `<tr>
-          <td class="td-name">미네랄울 불연단열재</td>
-          <td>—</td><td>1000×1200</td><td>${t}T</td>
-          <td class="td-price">${fmt(r?.realPrice)}</td><td>장</td>
+          <td style="text-align:left;font-weight:600;">미네랄울 불연단열재</td>
+          <td style="text-align:center;">—</td><td style="text-align:center;">1000×1200</td><td class="td-thick">${t}T</td>
+          <td class="td-highlight">${fmt(r?.realPrice)}</td><td style="text-align:center;">장</td>
         </tr>`;
       });
     }
   }
 
   return `
-    <div class="app-price-section">
-      <div class="app-price-section-title">
-        가격 데이터 <span class="app-price-badge">단가표 자동 연동</span>
-      </div>
-      <table class="app-price-table">
-        <thead><tr>
-          <th>상품명</th><th>등급</th><th>규격</th><th>두께</th><th>앱 판매가</th><th>단위</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+    <table class="pricing-table">
+      <thead><tr>
+        <th style="text-align:left;">상품명</th>
+        <th>등급</th><th>규격</th><th>두께</th>
+        <th class="pricing-col-highlight">앱 판매가</th>
+        <th>단위</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 /* 직접 입력 가격 테이블 */
@@ -2351,30 +2400,28 @@ function buildManualPriceTable(tabId) {
 
   let rows = product.items.map(item => `
     <tr>
-      <td class="td-name">${item.name}</td>
-      <td>${item.spec}</td>
-      <td>${item.thickness}T</td>
-      <td>
+      <td style="text-align:left;font-weight:600;">${item.name}</td>
+      <td style="text-align:center;">${item.spec}</td>
+      <td class="td-thick">${item.thickness}T</td>
+      <td class="td-highlight" style="padding:6px 12px;">
         <input type="text" inputmode="numeric" class="app-price-input"
           id="app-manual-${item.id}"
           value="${manualPrices[item.id] ?? ''}"
           placeholder="0">
       </td>
-      <td>${item.unit}</td>
+      <td style="text-align:center;">${item.unit}</td>
     </tr>`).join('');
 
   return `
-    <div class="app-price-section">
-      <div class="app-price-section-title">
-        ${product.label} <span class="app-price-badge manual">직접 입력</span>
-      </div>
-      <table class="app-price-table">
-        <thead><tr>
-          <th>종류</th><th>규격</th><th>두께</th><th>앱 판매가</th><th>단위</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+    <table class="pricing-table">
+      <thead><tr>
+        <th style="text-align:left;">종류 <span class="pricing-spec-badge" style="vertical-align:middle;font-size:10px;">직접 입력</span></th>
+        <th>규격</th><th>두께</th>
+        <th class="pricing-col-highlight">앱 판매가</th>
+        <th>단위</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 /* 직접 입력 상품 저장 */
@@ -2418,4 +2465,139 @@ window.saveAppManualPrices = async function() {
   if (typeof showToast === 'function') {
     showToast(failCount > 0 ? `일부 저장 실패 (${failCount}건)` : `앱 가격 저장 완료 (${successCount}건)`, failCount > 0 ? 'error' : 'success');
   }
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   앱 공지 관리
+═══════════════════════════════════════════════════════════════ */
+
+function renderAppNoticeList() {
+  const el = document.getElementById('appNoticeList');
+  if (!el) return;
+  const notices = window._appNotices || [];
+  if (!notices.length) {
+    el.innerHTML = '<div class="app-notice-empty">등록된 공지가 없습니다.</div>';
+    return;
+  }
+  el.innerHTML = notices.map(n => {
+    const date = new Date(n.created_at).toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric' });
+    const expires = n.expires_at
+      ? `· 만료: ${new Date(n.expires_at).toLocaleDateString('ko-KR')}`
+      : '· 상시 표시';
+    const isActive = n.is_active;
+    const isImportant = !!n.is_important;
+    const borderStyle = isImportant ? 'border-left:3px solid #e85d2f;' : '';
+    return `
+      <div class="app-notice-item${isActive ? '' : ' inactive'}" style="${borderStyle}">
+        <div class="app-notice-item-header">
+          <span class="app-notice-item-badge${isActive ? '' : ' off'}">${isActive ? '게시중' : '비활성'}</span>
+          ${isImportant ? '<span style="font-size:11px;font-weight:700;color:#e85d2f;background:#fff1ec;padding:2px 7px;border-radius:4px;margin-right:4px;">📌 중요</span>' : ''}
+          <span class="app-notice-item-title">${n.title}</span>
+          <div class="app-notice-item-actions">
+            <button class="btn-notice-toggle" onclick="toggleImportantNotice(${n.id}, ${isImportant})" title="${isImportant ? '중요 해제' : '중요 설정'}" style="color:${isImportant ? '#e85d2f' : '#94a3b8'};">
+              <i class="fa-solid fa-thumbtack"></i>
+            </button>
+            <button class="btn-notice-toggle" onclick="toggleAppNotice(${n.id}, ${isActive})" title="${isActive ? '비활성화' : '활성화'}">
+              <i class="fa-solid fa-${isActive ? 'eye-slash' : 'eye'}"></i>
+            </button>
+            <button class="btn-notice-del" onclick="deleteAppNotice(${n.id})" title="삭제">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+        <div class="app-notice-item-content">${n.content}</div>
+        <div class="app-notice-item-meta">${date} ${expires}</div>
+      </div>`;
+  }).join('');
+}
+
+window.addAppNotice = async function() {
+  const title   = document.getElementById('noticeInputTitle')?.value.trim();
+  const content = document.getElementById('noticeInputContent')?.value.trim();
+  const expires = document.getElementById('noticeInputExpires')?.value;
+
+  if (!title)   { if(typeof showToast==='function') showToast('제목을 입력해주세요.', 'error'); return; }
+  if (!content) { if(typeof showToast==='function') showToast('내용을 입력해주세요.', 'error'); return; }
+  if (!supabaseClient) return;
+
+  const btn = document.querySelector('.btn-notice-add');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+
+  const isImportant = document.getElementById('noticeInputImportant')?.checked || false;
+
+  const payload = {
+    title,
+    content,
+    is_active: true,
+    is_important: isImportant,
+    expires_at: expires ? new Date(expires).toISOString() : null,
+  };
+
+  const { data, error } = await supabaseClient
+    .from('app_notices')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-plus"></i> 공지 등록'; }
+
+  if (error) {
+    console.error('공지 등록 오류:', error.code, error.message, error.details);
+    if(typeof showToast==='function') showToast(`공지 등록 실패: ${error.message}`, 'error');
+    return;
+  }
+
+  window._appNotices = [data, ...(window._appNotices || [])];
+  document.getElementById('noticeInputTitle').value = '';
+  document.getElementById('noticeInputContent').value = '';
+  document.getElementById('noticeInputExpires').value = '';
+  document.getElementById('noticeInputImportant').checked = false;
+  renderAppNoticeList();
+  if(typeof showToast==='function') showToast('공지가 등록되었습니다.', 'success');
+};
+
+window.deleteAppNotice = async function(id) {
+  if (!confirm('공지를 삭제하시겠습니까?')) return;
+  if (typeof supabaseClient === 'undefined') return;
+
+  const { error } = await supabaseClient.from('app_notices').delete().eq('id', id);
+  if (error) { if(typeof showToast==='function') showToast('삭제 실패', 'error'); return; }
+
+  window._appNotices = (window._appNotices || []).filter(n => n.id !== id);
+  renderAppNoticeList();
+  if(typeof showToast==='function') showToast('공지가 삭제되었습니다.', 'success');
+};
+
+window.toggleImportantNotice = async function(id, currentImportant) {
+  if (typeof supabaseClient === 'undefined') return;
+
+  const { error } = await supabaseClient
+    .from('app_notices')
+    .update({ is_important: !currentImportant })
+    .eq('id', id);
+
+  if (error) { if(typeof showToast==='function') showToast('변경 실패', 'error'); return; }
+
+  window._appNotices = (window._appNotices || []).map(n =>
+    n.id === id ? { ...n, is_important: !currentImportant } : n
+  );
+  renderAppNoticeList();
+  if(typeof showToast==='function') showToast(currentImportant ? '중요 공지를 해제했습니다.' : '중요 공지로 설정했습니다.', 'success');
+};
+
+window.toggleAppNotice = async function(id, currentActive) {
+  if (typeof supabaseClient === 'undefined') return;
+
+  const { error } = await supabaseClient
+    .from('app_notices')
+    .update({ is_active: !currentActive })
+    .eq('id', id);
+
+  if (error) { if(typeof showToast==='function') showToast('변경 실패', 'error'); return; }
+
+  window._appNotices = (window._appNotices || []).map(n =>
+    n.id === id ? { ...n, is_active: !currentActive } : n
+  );
+  renderAppNoticeList();
+  if(typeof showToast==='function') showToast(currentActive ? '공지를 비활성화했습니다.' : '공지를 활성화했습니다.', 'success');
 };
