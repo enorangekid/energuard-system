@@ -2134,6 +2134,15 @@ const APP_MANUAL_PRODUCTS = {
       { id: 607, name: '고급형',   spec: '1M×20M', thickness: 5, unit: '롤' },
       { id: 608, name: '3D실크형', spec: '1M×20M', thickness: 5, unit: '롤' },
     ]
+  },
+  pufoam: {
+    label: '이액형 폴리우레탄폼',
+    items: [
+      { id: 701, sub1: '경질', name: '타이거폼 2K', unit: '세트' },
+      { id: 702, sub1: '경질', name: '라이트폼',    unit: '세트' },
+      { id: 703, sub1: '연질', name: '타이거폼 2K', unit: '세트' },
+      { id: 704, sub1: '연질', name: '라이트폼',    unit: '세트' },
+    ]
   }
 };
 
@@ -2146,6 +2155,7 @@ const APP_PRICE_SUBTABS = [
   { id: 'fr',         label: '미네랄울 불연' },
   { id: 'reflective', label: '열반사단열재' },
   { id: 'wallpaper',  label: '접착식 단열벽지' },
+  { id: 'pufoam',     label: '이액형 PU폼' },
 ];
 
 /* 앱 가격 탭 초기화 */
@@ -2164,6 +2174,7 @@ async function initAppPriceTab() {
     const allIds = [
       ...APP_MANUAL_PRODUCTS.reflective.items.map(i => i.id),
       ...APP_MANUAL_PRODUCTS.wallpaper.items.map(i => i.id),
+      ...APP_MANUAL_PRODUCTS.pufoam.items.map(i => i.id),
     ];
     const { data } = await supabaseClient
       .from('app_product_prices')
@@ -2260,7 +2271,7 @@ function renderAppPriceSubTab(tabId) {
   const content = document.getElementById('app-price-content');
   if (!content) return;
 
-  if (tabId === 'reflective' || tabId === 'wallpaper') {
+  if (tabId === 'reflective' || tabId === 'wallpaper' || tabId === 'pufoam') {
     content.innerHTML = buildManualPriceTable(tabId);
     return;
   }
@@ -2398,11 +2409,38 @@ function buildManualPriceTable(tabId) {
   const product = APP_MANUAL_PRODUCTS[tabId];
   const manualPrices = window._appManualPrices || {};
 
+  if (tabId === 'pufoam') {
+    const rows = product.items.map(item => `
+      <tr>
+        <td style="text-align:center;font-weight:600;">${item.sub1}</td>
+        <td style="text-align:center;">${item.name}</td>
+        <td class="td-highlight" style="padding:6px 12px;">
+          <input type="text" inputmode="numeric" class="app-price-input"
+            id="app-manual-${item.id}"
+            value="${manualPrices[item.id] ?? ''}"
+            placeholder="0">
+        </td>
+        <td style="text-align:center;">${item.unit}</td>
+      </tr>`).join('');
+    return `
+      <table class="pricing-table">
+        <thead><tr>
+          <th>종류 <span class="pricing-spec-badge" style="vertical-align:middle;font-size:10px;">직접 입력</span></th>
+          <th>브랜드</th>
+          <th class="pricing-col-highlight">앱 판매가</th>
+          <th>단위</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  const thicknessHeader = product.thicknessHeader || '두께';
+
   let rows = product.items.map(item => `
     <tr>
       <td style="text-align:left;font-weight:600;">${item.name}</td>
       <td style="text-align:center;">${item.spec}</td>
-      <td class="td-thick">${item.thickness}T</td>
+      <td class="td-thick">${item.thicknessDisplay ?? (item.thickness != null ? item.thickness + 'T' : '-')}</td>
       <td class="td-highlight" style="padding:6px 12px;">
         <input type="text" inputmode="numeric" class="app-price-input"
           id="app-manual-${item.id}"
@@ -2416,7 +2454,7 @@ function buildManualPriceTable(tabId) {
     <table class="pricing-table">
       <thead><tr>
         <th style="text-align:left;">종류 <span class="pricing-spec-badge" style="vertical-align:middle;font-size:10px;">직접 입력</span></th>
-        <th>규격</th><th>두께</th>
+        <th>규격</th><th>${thicknessHeader}</th>
         <th class="pricing-col-highlight">앱 판매가</th>
         <th>단위</th>
       </tr></thead>
@@ -2431,6 +2469,7 @@ window.saveAppManualPrices = async function() {
   const allItems = [
     ...APP_MANUAL_PRODUCTS.reflective.items,
     ...APP_MANUAL_PRODUCTS.wallpaper.items,
+    ...APP_MANUAL_PRODUCTS.pufoam.items,
   ];
 
   const statusEl = document.getElementById('appPriceSaveStatus');
