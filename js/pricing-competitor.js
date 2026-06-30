@@ -25,19 +25,54 @@
 ═══════════════════════════════════════ */
 const COMP_COUNT         = 3;
 const COMP_DEFAULT_NAMES = ['크린슐라', '산일상사', '대유물류'];
-const COMP_STORAGE_KEY   = 'energuard_comp_names';
 const COMP_COLORS        = ['#3b82f6', '#f59e0b', '#10b981'];
 
-function _compNames(tabId) {
+/* 탭별 이름 인메모리 캐시 */
+let _compNamesCache = {};
+
+async function _compNames(tabId) {
+  if (_compNamesCache[tabId]) return _compNamesCache[tabId];
   try {
-    const key = COMP_STORAGE_KEY + (tabId ? '_' + tabId : '');
-    const s = JSON.parse(localStorage.getItem(key) || '[]');
-    return COMP_DEFAULT_NAMES.map((d, i) => s[i] || d);
-  } catch { return [...COMP_DEFAULT_NAMES]; }
+    const res = await fetch(
+      `${supabaseClient.supabaseUrl}/rest/v1/competitor_names?tab_id=eq.${tabId}&select=comp1_name,comp2_name,comp3_name`,
+      { headers: _sbHeaders() }
+    );
+    const rows = await res.json();
+    if (Array.isArray(rows) && rows.length > 0) {
+      const r = rows[0];
+      const names = [
+        r.comp1_name || COMP_DEFAULT_NAMES[0],
+        r.comp2_name || COMP_DEFAULT_NAMES[1],
+        r.comp3_name || COMP_DEFAULT_NAMES[2],
+      ];
+      _compNamesCache[tabId] = names;
+      return names;
+    }
+  } catch(e) { console.warn('[Comp] 이름 로드 실패', e); }
+  return [...COMP_DEFAULT_NAMES];
 }
-function _saveCompNames(names, tabId) {
-  const key = COMP_STORAGE_KEY + (tabId ? '_' + tabId : '');
-  localStorage.setItem(key, JSON.stringify(names));
+
+async function _saveCompNames(names, tabId) {
+  try {
+    await fetch(
+      `${supabaseClient.supabaseUrl}/rest/v1/competitor_names?on_conflict=tab_id`,
+      {
+        method: 'POST',
+        headers: { ..._sbHeaders(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({
+          tab_id: tabId,
+          comp1_name: names[0],
+          comp2_name: names[1],
+          comp3_name: names[2],
+          updated_at: new Date().toISOString(),
+        }),
+      }
+    );
+    _compNamesCache[tabId] = names;
+  } catch(e) {
+    console.warn('[Comp] 이름 저장 실패', e);
+    if (typeof showToast === 'function') showToast('이름 저장 실패', 'error');
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -335,7 +370,7 @@ async function _injectCompColumns(tabId, gradeId) {
   table.querySelectorAll('colgroup .cp-col').forEach(el => el.remove());
   tbody.querySelectorAll('.cp-td-price, .cp-td-diff').forEach(el => el.remove());
 
-  const names = _compNames(tabId);
+  const names = await _compNames(tabId);
 
   /* ── 1. thead 헤더 추가 ── */
   const thead    = table.querySelector('thead');
@@ -418,19 +453,20 @@ async function _injectCompColumns(tabId, gradeId) {
 /* ═══════════════════════════════════════
    경쟁사 이름 변경
 ═══════════════════════════════════════ */
-window.editCompName = function(idx, tabId) {
+window.editCompName = async function(idx, tabId) {
   if (window.currentUser?.role !== 'admin') {
     if (typeof showToast === 'function') showToast('관리자만 이름을 변경할 수 있습니다.', 'warning');
     return;
   }
-  const names   = _compNames(tabId);
+  const names   = await _compNames(tabId);
   const newName = prompt('경쟁사 이름을 입력하세요:', names[idx]);
   if (!newName || !newName.trim()) return;
   names[idx] = newName.trim();
-  _saveCompNames(names, tabId);
+  await _saveCompNames(names, tabId);
   document.querySelectorAll(`.cp-th-name[data-ci="${idx}"][data-tab="${tabId}"]`).forEach(el => {
     el.textContent = names[idx];
   });
+  if (typeof showToast === 'function') showToast('저장되었습니다.', 'success');
 }
 
 /* ═══════════════════════════════════════
