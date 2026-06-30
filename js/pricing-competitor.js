@@ -349,17 +349,7 @@ async function _injectCompColumns(tabId, gradeId) {
         <div class="cp-th-inner">
           <span class="cp-th-name" data-ci="${i}">${name}</span>
           <div class="cp-th-actions">
-            <button class="cp-name-btn" title="이름 변경" onclick="(function(){
-              if(window.currentUser?.role!=='admin')return;
-              const names=JSON.parse(localStorage.getItem('energuard_comp_names')||'[]');
-              const defs=['크린슐라','산일상사','대유물류'];
-              const cur=names[${i}]||defs[${i}];
-              const nw=prompt('경쟁사 이름:',cur);
-              if(!nw||!nw.trim())return;
-              names[${i}]=nw.trim();
-              localStorage.setItem('energuard_comp_names',JSON.stringify(names));
-              document.querySelectorAll('.cp-th-name[data-ci=\'${i}\']').forEach(el=>el.textContent=nw.trim());
-            })()"><i class="fa-solid fa-pen-to-square" style="font-size:9px"></i></button>
+            <button class="cp-name-btn" title="이름 변경" onclick="editCompName(${i})"><i class="fa-solid fa-pen-to-square" style="font-size:9px"></i></button>
             <button class="cp-edit-btn" data-ci="${i}" title="단가 편집"
               onclick="toggleCompEdit(${i})"><i class="fa-solid fa-pen-to-square"></i></button>
           </div>
@@ -426,15 +416,18 @@ async function _injectCompColumns(tabId, gradeId) {
 /* ═══════════════════════════════════════
    경쟁사 이름 변경
 ═══════════════════════════════════════ */
-function _editCompName(idx, tabId, gradeId) {
-  if (window.currentUser?.role !== 'admin') return;
+window.editCompName = function(idx) {
+  if (window.currentUser?.role !== 'admin') {
+    if (typeof showToast === 'function') showToast('관리자만 이름을 변경할 수 있습니다.', 'warning');
+    return;
+  }
   const names   = _compNames();
   const newName = prompt('경쟁사 이름을 입력하세요:', names[idx]);
   if (!newName || !newName.trim()) return;
   names[idx] = newName.trim();
   _saveCompNames(names);
   document.querySelectorAll(`.cp-th-name[data-ci="${idx}"]`).forEach(el => {
-    el.innerHTML = names[idx] + ' <small>✎</small>';
+    el.textContent = names[idx];
   });
 }
 
