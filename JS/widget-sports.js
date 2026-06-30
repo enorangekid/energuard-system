@@ -146,6 +146,73 @@ const TEAM_KO_MAP = {
     "Slavia Prague": "슬라비아 프라하",
     "Sparta Prague": "스파르타 프라하",
     "Girona": "지로나", "Girona FC": "지로나",
+
+    // 국가대표 (월드컵)
+    "Korea Republic": "대한민국", "South Korea": "대한민국",
+    "Brazil": "브라질",
+    "Argentina": "아르헨티나",
+    "France": "프랑스",
+    "Germany": "독일",
+    "Spain": "스페인",
+    "England": "잉글랜드",
+    "Portugal": "포르투갈",
+    "Netherlands": "네덜란드",
+    "Belgium": "벨기에",
+    "Croatia": "크로아티아",
+    "Uruguay": "우루과이",
+    "Mexico": "멕시코",
+    "United States": "미국",
+    "Canada": "캐나다",
+    "Japan": "일본",
+    "Australia": "호주",
+    "Morocco": "모로코",
+    "Senegal": "세네갈",
+    "Ghana": "가나",
+    "Nigeria": "나이지리아",
+    "Ivory Coast": "코트디부아르", "Côte d'Ivoire": "코트디부아르",
+    "Egypt": "이집트",
+    "Algeria": "알제리",
+    "Cameroon": "카메룬",
+    "Mali": "말리",
+    "Tunisia": "튀니지",
+    "Saudi Arabia": "사우디아라비아",
+    "Iran": "이란",
+    "Iraq": "이라크",
+    "Qatar": "카타르",
+    "China PR": "중국", "China": "중국",
+    "Indonesia": "인도네시아",
+    "Japan": "일본",
+    "Ecuador": "에콰도르",
+    "Colombia": "콜롬비아",
+    "Chile": "칠레",
+    "Peru": "페루",
+    "Venezuela": "베네수엘라",
+    "Bolivia": "볼리비아",
+    "Paraguay": "파라과이",
+    "Panama": "파나마",
+    "Honduras": "온두라스",
+    "Jamaica": "자메이카",
+    "El Salvador": "엘살바도르",
+    "Costa Rica": "코스타리카",
+    "Serbia": "세르비아",
+    "Switzerland": "스위스",
+    "Denmark": "덴마크",
+    "Poland": "폴란드",
+    "Austria": "오스트리아",
+    "Slovakia": "슬로바키아",
+    "Romania": "루마니아",
+    "Hungary": "헝가리",
+    "Turkey": "튀르키예", "Türkiye": "튀르키예",
+    "Ukraine": "우크라이나",
+    "Sweden": "스웨덴",
+    "Norway": "노르웨이",
+    "Scotland": "스코틀랜드",
+    "Wales": "웨일스",
+    "Albania": "알바니아",
+    "Slovenia": "슬로베니아",
+    "Czechia": "체코", "Czech Republic": "체코",
+    "New Zealand": "뉴질랜드",
+    "South Africa": "남아프리카공화국",
 };
 
 // ✅ Spurs 중복 문제 완벽 해결 (종목별 컨텍스트 파악)
@@ -173,6 +240,7 @@ const WIDGET_CFG = {
     nba: { label:'NBA',      soccer:false },
     epl: { label:'EPL',      soccer:true  },
     ucl: { label:'UEFA CL',  soccer:true  },
+    wc:  { label:'FIFA WC',  soccer:true  },
     mlb: { label:'MLB',      soccer:false },
 };
 
@@ -180,12 +248,14 @@ const WIDGET_SCORE_EP = {
     nba: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard',
     epl: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard',
     ucl: 'https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard',
+    wc:  'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard',
     mlb: 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard',
 };
 const WIDGET_STAND_EP = {
     nba: 'https://site.api.espn.com/apis/v2/sports/basketball/nba/standings',
     epl: 'https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings',
-    mlb: null, // MLB 순위표는 시즌 중(4월~10월)에만 제공됨
+    wc:  'https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings',
+    mlb: 'https://site.api.espn.com/apis/v2/sports/baseball/mlb/standings',
 };
 
 function setWidgetTab(tab, el) {
@@ -241,12 +311,6 @@ function renderWidget(tab, data) {
     
     if (data.standings) {
         html += widgetStandings(data.standings, tab);
-    } else if (tab === 'mlb') {
-        html += `<div class="sp-standings-wrap" style="text-align:center; padding:20px 10px; color:#94a3b8;">
-            <i class="fa-solid fa-baseball" style="font-size:28px; margin-bottom:10px; display:block;"></i>
-            <div style="font-size:13px; font-weight:600; color:#64748b;">MLB 시즌 준비 중</div>
-            <div style="font-size:11px; margin-top:4px;">순위표는 정규 시즌(4월~10월) 중에 제공됩니다</div>
-        </div>`;
     }
 
     document.getElementById('sp-content').innerHTML = html;
@@ -335,6 +399,10 @@ function getRankStyle(rank, tab, total) {
     } else if (tab === 'nba') {
         if (rank <= 6)  return { bg: 'rgba(37,99,235,0.08)',  border: '#2563eb' }; // 플레이오프
         if (rank <= 10) return { bg: 'rgba(234,179,8,0.08)',  border: '#eab308' }; // 플레이인
+    } else if (tab === 'wc') {
+        if (rank <= 2) return { bg: 'rgba(37,99,235,0.08)',  border: '#2563eb' }; // 16강 진출
+        if (rank === 3) return { bg: 'rgba(234,179,8,0.08)', border: '#eab308' }; // 3위 (진출 경쟁)
+        if (rank === 4) return { bg: 'rgba(239,68,68,0.08)', border: '#ef4444' }; // 탈락
     }
     return null;
 }
@@ -358,7 +426,7 @@ function buildStandingsRows(entries, tab) {
             ? `<span class="sp-rank-num" style="background:${style.border}; color:#fff;">${rank}</span>`
             : `<span class="sp-rank-num">${rank}</span>`;
 
-        if (tab === 'epl') {
+        if (tab === 'epl' || tab === 'wc') {
             const w = getStat('wins');
             const d = getStat('ties');
             const l = getStat('losses');
@@ -482,6 +550,47 @@ function widgetStandings(data, tab) {
         }
 
         return html || `<div class="sp-state-box"><span>순위 데이터를 불러올 수 없습니다</span></div>`;
+    }
+    // ✅ WC: 조별리그 그룹별 분리 렌더링
+    else if (tab === 'wc') {
+        if (!data.children?.length) {
+            return `<div class="sp-standings-wrap" style="text-align:center; padding:20px 10px; color:#94a3b8;">
+                <div style="font-size:13px; font-weight:600; color:#64748b;">조별 순위 데이터 없음</div>
+                <div style="font-size:11px; margin-top:4px;">토너먼트 단계이거나 데이터가 아직 제공되지 않습니다</div>
+            </div>`;
+        }
+
+        let html = '';
+        data.children.forEach(group => {
+            const groupName = group.name || '그룹';
+            const entries = group.standings?.entries || [];
+            if (!entries.length) return;
+
+            entries.sort((a, b) => {
+                const gs = (t, n) => parseFloat(t.stats?.find(s => s.name === n)?.displayValue || 0);
+                const ptsDiff = gs(b, 'points') - gs(a, 'points');
+                return ptsDiff !== 0 ? ptsDiff : gs(b, 'pointDifferential') - gs(a, 'pointDifferential');
+            });
+
+            const rows = buildStandingsRows(entries, 'wc');
+            html += `
+            <div class="sp-standings-wrap">
+                <div class="sp-section-title" style="margin-top:6px;">${groupName}</div>
+                <table class="sp-standings-table">
+                    <thead><tr><th>#</th><th>팀</th><th>승</th><th>무</th><th>패</th><th>승점</th><th>득실</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+        });
+
+        if (html) {
+            html += `<div style="display:flex;gap:10px;flex-wrap:wrap;padding:6px 4px 10px;font-size:10px;color:#64748b;">
+                <span style="padding-left:6px;border-left:3px solid #2563eb;">16강 진출</span>
+                <span style="padding-left:6px;border-left:3px solid #eab308;">3위 (진출 경쟁)</span>
+                <span style="padding-left:6px;border-left:3px solid #ef4444;">탈락</span>
+            </div>`;
+        }
+        return html || `<div class="sp-state-box"><span>조별 순위 데이터를 불러올 수 없습니다</span></div>`;
     }
     else {
         let entries = [];
