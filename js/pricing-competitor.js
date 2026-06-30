@@ -28,14 +28,16 @@ const COMP_DEFAULT_NAMES = ['크린슐라', '산일상사', '대유물류'];
 const COMP_STORAGE_KEY   = 'energuard_comp_names';
 const COMP_COLORS        = ['#3b82f6', '#f59e0b', '#10b981'];
 
-function _compNames() {
+function _compNames(tabId) {
   try {
-    const s = JSON.parse(localStorage.getItem(COMP_STORAGE_KEY) || '[]');
+    const key = COMP_STORAGE_KEY + (tabId ? '_' + tabId : '');
+    const s = JSON.parse(localStorage.getItem(key) || '[]');
     return COMP_DEFAULT_NAMES.map((d, i) => s[i] || d);
   } catch { return [...COMP_DEFAULT_NAMES]; }
 }
-function _saveCompNames(names) {
-  localStorage.setItem(COMP_STORAGE_KEY, JSON.stringify(names));
+function _saveCompNames(names, tabId) {
+  const key = COMP_STORAGE_KEY + (tabId ? '_' + tabId : '');
+  localStorage.setItem(key, JSON.stringify(names));
 }
 
 /* ═══════════════════════════════════════
@@ -333,7 +335,7 @@ async function _injectCompColumns(tabId, gradeId) {
   table.querySelectorAll('colgroup .cp-col').forEach(el => el.remove());
   tbody.querySelectorAll('.cp-td-price, .cp-td-diff').forEach(el => el.remove());
 
-  const names = _compNames();
+  const names = _compNames(tabId);
 
   /* ── 1. thead 헤더 추가 ── */
   const thead    = table.querySelector('thead');
@@ -347,9 +349,9 @@ async function _injectCompColumns(tabId, gradeId) {
       th.style.cssText = `--cc:${COMP_COLORS[i]}`;
       th.innerHTML = `
         <div class="cp-th-inner">
-          <span class="cp-th-name" data-ci="${i}">${name}</span>
+          <span class="cp-th-name" data-ci="${i}" data-tab="${tabId}">${name}</span>
           <div class="cp-th-actions">
-            <button class="cp-name-btn" title="이름 변경" onclick="editCompName(${i})"><i class="fa-solid fa-pen-to-square" style="font-size:9px"></i></button>
+            <button class="cp-name-btn" title="이름 변경" onclick="editCompName(${i}, '${tabId}')"><i class="fa-solid fa-pen-to-square" style="font-size:9px"></i></button>
             <button class="cp-edit-btn" data-ci="${i}" title="단가 편집"
               onclick="toggleCompEdit(${i})"><i class="fa-solid fa-pen-to-square"></i></button>
           </div>
@@ -416,17 +418,17 @@ async function _injectCompColumns(tabId, gradeId) {
 /* ═══════════════════════════════════════
    경쟁사 이름 변경
 ═══════════════════════════════════════ */
-window.editCompName = function(idx) {
+window.editCompName = function(idx, tabId) {
   if (window.currentUser?.role !== 'admin') {
     if (typeof showToast === 'function') showToast('관리자만 이름을 변경할 수 있습니다.', 'warning');
     return;
   }
-  const names   = _compNames();
+  const names   = _compNames(tabId);
   const newName = prompt('경쟁사 이름을 입력하세요:', names[idx]);
   if (!newName || !newName.trim()) return;
   names[idx] = newName.trim();
-  _saveCompNames(names);
-  document.querySelectorAll(`.cp-th-name[data-ci="${idx}"]`).forEach(el => {
+  _saveCompNames(names, tabId);
+  document.querySelectorAll(`.cp-th-name[data-ci="${idx}"][data-tab="${tabId}"]`).forEach(el => {
     el.textContent = names[idx];
   });
 }
