@@ -11,6 +11,8 @@ let currentNoteId = null;
 let currentNoteMonth = ''; // 현재 로드된 월 (YYYY-MM)
 let noteOriginalContent = ''; // ✅ 롤백(취소) 기준점
 let noteAutoSaveTimer = null; // 자동 저장 타이머
+let aiSuggestCache = { blog: '', youtube: '' };
+let aiSuggestCacheDraftId = { blog: null, youtube: null };
 
 window.setNoteTab = function(tab) {
     currentNoteTab = tab;
@@ -428,6 +430,26 @@ window.loadDraftContent = async function(noteId) {
 
             // 읽기 전용 탭이면 에디터 비활성화 + 저장 버튼 숨기기
             const readonly = typeof window.isNoteTabReadonly === 'function' && window.isNoteTabReadonly(currentNoteTab);
+            document.getElementById('aiSuggestBtn').style.display = readonly ? 'none' : '';
+            const aiResultEl = document.getElementById('aiSuggestResult');
+            const _tab = currentNoteTab;
+            const _savedAi = !readonly && localStorage.getItem('aiSuggest_' + noteId);
+            if (_savedAi) {
+                aiResultEl.innerHTML = _savedAi;
+                aiResultEl.style.display = 'block';
+                const statusEl = aiResultEl.querySelector('.ai-save-status');
+                if (statusEl) statusEl.textContent = '저장됨 ✓';
+                aiSuggestCache[_tab] = _savedAi;
+                aiSuggestCacheDraftId[_tab] = noteId;
+            } else if (!readonly && noteId == aiSuggestCacheDraftId[_tab] && aiSuggestCache[_tab]) {
+                aiResultEl.innerHTML = aiSuggestCache[_tab];
+                aiResultEl.style.display = 'block';
+            } else {
+                aiSuggestCache[_tab] = '';
+                aiSuggestCacheDraftId[_tab] = null;
+                aiResultEl.innerHTML = '';
+                aiResultEl.style.display = 'none';
+            }
             if (window.quill) window.quill.enable(!readonly);
             const draftTitle  = document.getElementById('draftTitle');
             const draftStatus = document.getElementById('draftStatus');
@@ -731,5 +753,162 @@ window.saveQuickMemo = async function() {
         showToast('퀵 메모 저장에 실패했습니다.', 'error');
         statusMsg.innerText = '저장 실패';
         statusMsg.style.color = '#ef4444';
+    }
+}
+/* ================= [✨ AI 추천 기능] ================= */
+
+// 원고 열릴 때 AI 추천 버튼 표시/숨김 제어 — loadDraftContent 함수 내 data 처리 직후 호출
+// loadDraftContent 함수에서 editor-wrapper display:flex 설정 줄 바로 아래에 아래 한 줄 추가:
+// document.getElementById('aiSuggestBtn').style.display = readonly ? 'none' : '';
+// document.getElementById('aiSuggestResult').style.display = 'none';
+
+window.saveAiSuggestResult = function() {
+    const resultEl = document.getElementById('aiSuggestResult');
+    if (!currentNoteId || !resultEl || resultEl.style.display === 'none') return;
+    localStorage.setItem('aiSuggest_' + currentNoteId, resultEl.innerHTML);
+    const statusEl = resultEl.querySelector('.ai-save-status');
+    if (statusEl) statusEl.textContent = '저장됨 ✓';
+    showToast('AI 추천 결과가 저장되었습니다.', 'success');
+}
+
+window.clearAiSuggestResult = function() {
+    if (currentNoteId) localStorage.removeItem('aiSuggest_' + currentNoteId);
+    const resultEl = document.getElementById('aiSuggestResult');
+    if (resultEl) { resultEl.innerHTML = ''; resultEl.style.display = 'none'; }
+    const _tab = currentNoteTab;
+    aiSuggestCache[_tab] = '';
+    aiSuggestCacheDraftId[_tab] = null;
+}
+
+window.runAiSuggest = async function() {
+    const btn = document.getElementById('aiSuggestBtn');
+    const resultEl = document.getElementById('aiSuggestResult');
+    if (!window.quill) return;
+
+    // 에디터 HTML → 문단 추출
+    const html = window.quill.root.innerHTML;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+
+    // HR(구분선) 기준으로 섹션 분리, 없으면 <p> 기준
+    const paragraphs = [];
+    let current = [];
+    tmp.childNodes.forEach(node => {
+        if (node.tagName === 'HR') {
+            if (current.length) {
+                const text = current.map(n => n.textContent || '').join(' ').trim();
+                if (text) paragraphs.push(text);
+                current = [];
+            }
+        } else {
+            current.push(node);
+        }
+    });
+    if (current.length) {
+        const text = current.map(n => n.textContent || '').join(' ').trim();
+        if (text) paragraphs.push(text);
+    }
+
+    if (!paragraphs.length) {
+        showToast('원고 내용이 없습니다.', 'warning');
+        return;
+    }
+
+    const isYoutube = currentNoteTab === 'youtube';
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 분석중...';
+    resultEl.style.display = 'none';
+    resultEl.innerHTML = '';
+
+    try {
+        const prompt = `당신은 ${isYoutube ? '유튜브 영상 제작' : '블로그 포스팅'} 전문 콘텐츠 디렉터입니다.
+아래 원고의 각 문단에 어울리는 ${isYoutube ? 'B-roll 영상 소스' : '이미지 소재'}를 추천해주세요.
+
+[출력 형식 — 반드시 준수]
+각 문단마다:
+
+[문단 N] 문단 핵심 키워드
+${isYoutube
+    ? `① 강추 🎬 장면 설명 (구도·피사체·분위기)
+   🔍 검색어: footage keyword1, keyword2 (영문)
+② 차선 🎬 장면 설명
+   🔍 검색어: footage keyword1, keyword2 (영문)`
+    : `① 강추 📷 이미지 설명 (구도·색감·분위기·소재)
+   🔍 검색어: image keyword1, keyword2 (영문)
+② 차선 📷 이미지 설명
+   🔍 검색어: image keyword1, keyword2 (영문)`}
+
+[전체 요약] (맨 마지막에 한 번만)
+👑 가장 임팩트 있는 ${isYoutube ? '장면' : '이미지'} TOP 3: 문단N-①, 문단N-①, 문단N-① 순으로 우선 확보 권장
+
+[주의사항]
+- 검색어는 반드시 영문으로, Pixabay·Pexels·${isYoutube ? 'Storyblocks' : 'Unsplash'}에서 바로 쓸 수 있는 실용적인 단어로
+- 추상적 표현 금지, 구체적 피사체와 상황 묘사 필수
+- 한국 단열재/건축자재 업체 콘텐츠임을 감안해 현장감 있는 소재 우선 추천
+- [주의] 인사말, 도입 설명 없이 [문단 1]부터 바로 시작할 것
+
+---원고---
+${paragraphs.map((p, i) => `[문단 ${i+1}]\n${p}`).join('\n\n')}`;
+
+        const res = await fetch(
+            `${SUPABASE_URL}/functions/v1/gemini-chat`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                },
+                body: JSON.stringify({ chatHistory: [{ role: 'user', parts: [{ text: prompt }] }] })
+            }
+        );
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        console.log('Gemini 원본 응답:', text);
+
+        if (!text) throw new Error('응답 없음');
+
+        // 결과 파싱 — [문단 N] 번호 기준으로 매핑
+        const sectionMatches = [...text.matchAll(/\[문단\s*(\d+)\]([\s\S]*?)(?=\[문단\s*\d+\]|\[전체 요약\]|$)/g)];
+        const sectionMap = {};
+        sectionMatches.forEach(m => { sectionMap[parseInt(m[1])] = m[2].trim(); });
+
+        const contentHTML = paragraphs.map((p, i) => {
+            const suggestion = sectionMap[i + 1] || '-';
+            const preview = p.length > 60 ? p.slice(0, 60) + '…' : p;
+            return `<div class="ai-suggest-item">
+                <div class="ai-suggest-paragraph">문단 ${i+1}: ${preview}</div>
+                <div class="ai-suggest-content">${suggestion.replace(/\n/g, '<br>')}</div>
+            </div>`;
+        }).join('');
+
+        const summaryMatch = text.match(/\[전체 요약\]([\s\S]*?)$/);
+        const summaryHTML = summaryMatch
+            ? `<div class="ai-suggest-item" style="background:#fefce8;border-color:#fde047;">
+                <div class="ai-suggest-paragraph" style="color:#854d0e;">👑 전체 요약</div>
+                <div class="ai-suggest-content">${summaryMatch[1].trim().replace(/\n/g, '<br>')}</div>
+               </div>`
+            : '';
+
+        resultEl.innerHTML =
+            `<div class="ai-suggest-save-bar" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;margin-bottom:12px;gap:8px;">
+                <span style="font-size:12px;color:#0369a1;"><i class="fa-solid fa-wand-magic-sparkles"></i> AI 추천 결과 (${isYoutube ? '영상 소스' : '이미지 아이디어'})</span>
+                <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+                    <span class="ai-save-status" style="font-size:11px;color:#10b981;font-weight:600;"></span>
+                    <button onclick="saveAiSuggestResult()" style="padding:4px 12px;background:#0ea5e9;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;"><i class="fa-solid fa-floppy-disk"></i> 저장</button>
+                    <button onclick="clearAiSuggestResult()" title="결과 삭제" style="padding:4px 9px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;font-size:12px;cursor:pointer;"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+            </div>` + contentHTML + summaryHTML;
+
+        resultEl.style.display = 'block';
+        aiSuggestCache[currentNoteTab] = resultEl.innerHTML;
+        aiSuggestCacheDraftId[currentNoteTab] = currentNoteId;
+
+    } catch(e) {
+        console.error('AI 추천 오류:', e);
+        showToast('AI 추천 중 오류가 발생했습니다.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI 추천';
     }
 }

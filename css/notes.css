@@ -239,3 +239,63 @@
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"] { font-size: 14px; }
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"] { font-size: 16px; }
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"] { font-size: 18px; }
+/* ── AI 추천 버튼 ── */
+.btn-ai-suggest {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    border: none;
+    box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+}
+.btn-ai-suggest:hover {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+}
+.btn-ai-suggest:disabled {
+    background: #e2e8f0;
+    color: #94a3b8;
+    box-shadow: none;
+    transform: none;
+    cursor: not-allowed;
+}
+
+/* ── AI 추천 결과 영역 ── */
+#aiSuggestResult {
+    border-top: 1px solid #f1f5f9;
+    padding: 24px 60px;
+    background: #fafbff;
+    overflow-y: auto;
+    max-height: 400px;
+}
+#aiSuggestResult h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #6366f1;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ai-suggest-item {
+    margin-bottom: 16px;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    border-left: 3px solid #6366f1;
+}
+.ai-suggest-paragraph {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    font-weight: 600;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.ai-suggest-content {
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.7;
+    white-space: pre-wrap;
+}
