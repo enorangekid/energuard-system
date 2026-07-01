@@ -278,8 +278,9 @@ async function loadWidgetData(tab) {
     icon.classList.add('fa-spin');
 
     try {
+        const scoreUrl = tab === 'wc' ? _wcScoreUrl() : WIDGET_SCORE_EP[tab];
         const [scoreRes, standRes] = await Promise.all([
-            fetch(WIDGET_SCORE_EP[tab]).then(r => r.json()),
+            fetch(scoreUrl).then(r => r.json()),
             WIDGET_STAND_EP[tab] ? fetch(WIDGET_STAND_EP[tab]).then(r => r.json()).catch(()=>null) : Promise.resolve(null)
         ]);
 
@@ -299,18 +300,28 @@ async function loadWidgetData(tab) {
 
 function renderWidget(tab, data) {
     const events = data.scores?.events || [];
-    const live  = events.filter(e => e.status?.type?.state === 'in');
-    const post  = events.filter(e => e.status?.type?.state === 'post').slice(0,8);
-    const pre   = events.filter(e => e.status?.type?.state === 'pre').slice(0,8);
-
     let html = '';
-    if (live.length)  html += widgetSection(`LIVE (${live.length}경기)`, live.map(e=>widgetCard(e,'live',tab)).join(''));
-    if (pre.length)   html += widgetSection('예정 경기',  pre.map(e=>widgetCard(e,'sched',tab)).join(''));
-    if (post.length)  html += widgetSection('최근 결과',  post.map(e=>widgetCard(e,'final',tab)).join(''));
-    if (!html)        html  = `<div class="sp-state-box"><i class="fa-regular fa-calendar-xmark"></i><span>경기 정보가 없습니다</span></div>`;
-    
-    if (data.standings) {
-        html += widgetStandings(data.standings, tab);
+
+    if (tab === 'wc') {
+        html = _renderWCMatches(events);
+        if (data.standings) {
+            const hasKnockout = events.some(ev => _wcGetRound(ev));
+            html += `<div class="sp-section-title" style="margin-top:8px;">🗂 조별리그${hasKnockout ? ' 최종' : ''} 순위</div>`;
+            html += widgetStandings(data.standings, tab);
+        }
+    } else {
+        const live  = events.filter(e => e.status?.type?.state === 'in');
+        const post  = events.filter(e => e.status?.type?.state === 'post').slice(0,8);
+        const pre   = events.filter(e => e.status?.type?.state === 'pre').slice(0,8);
+
+        if (live.length)  html += widgetSection(`LIVE (${live.length}경기)`, live.map(e=>widgetCard(e,'live',tab)).join(''));
+        if (pre.length)   html += widgetSection('예정 경기',  pre.map(e=>widgetCard(e,'sched',tab)).join(''));
+        if (post.length)  html += widgetSection('최근 결과',  post.map(e=>widgetCard(e,'final',tab)).join(''));
+        if (!html)        html  = `<div class="sp-state-box"><i class="fa-regular fa-calendar-xmark"></i><span>경기 정보가 없습니다</span></div>`;
+
+        if (data.standings) {
+            html += widgetStandings(data.standings, tab);
+        }
     }
 
     document.getElementById('sp-content').innerHTML = html;
@@ -318,6 +329,86 @@ function renderWidget(tab, data) {
 
 function widgetSection(title, body) {
     return `<div class="sp-section-title">${title}</div>${body}`;
+}
+
+// ── WC 토너먼트 헬퍼 ──
+const _WC_ROUNDS = [
+    'Round of 32', 'Round of 16',
+    'Quarter-Final', 'Quarterfinal',
+    'Semi-Final',   'Semifinal',
+    'Third Place',  '3rd Place',
+    'Final'
+];
+const _WC_ROUND_KO = {
+    'Round of 32':'32강',    'Round of 16':'16강',
+    'Quarter-Final':'8강',   'Quarterfinal':'8강',
+    'Semi-Final':'4강',      'Semifinal':'4강',
+    'Third Place':'3·4위전', '3rd Place':'3·4위전',
+    'Final':'결승'
+};
+
+function _wcScoreUrl() {
+    const fmt = d => d.toISOString().slice(0,10).replace(/-/g,'');
+    const from = new Date(); from.setDate(from.getDate() - 7);
+    const to   = new Date(); to.setDate(to.getDate() + 21);
+    return `${WIDGET_SCORE_EP.wc}?dates=${fmt(from)}-${fmt(to)}`;
+}
+
+function _wcGetRound(ev) {
+    const notes = ev.competitions?.[0]?.notes || [];
+    for (const note of notes) {
+        const h = note.headline || note.type || '';
+        const r = _WC_ROUNDS.find(k => h.includes(k));
+        if (r) return r;
+    }
+    const nm = (ev.name || '') + ' ' + (ev.shortName || '');
+    const r = _WC_ROUNDS.find(k => nm.includes(k));
+    if (r) return r;
+    if (ev.season?.type?.id === '3' || Number(ev.season?.type?.type) === 3) return '_knockout';
+    return null;
+}
+
+function _renderWCMatches(events) {
+    const byRound = {};
+    const grp = { live:[], pre:[], post:[] };
+
+    events.forEach(ev => {
+        const round = _wcGetRound(ev);
+        const state = ev.status?.type?.state;
+        if (round) {
+            if (!byRound[round]) byRound[round] = [];
+            byRound[round].push(ev);
+        } else {
+            if (state === 'in')        grp.live.push(ev);
+            else if (state === 'pre')  grp.pre.push(ev);
+            else if (state === 'post') grp.post.push(ev);
+        }
+    });
+
+    let html = '';
+
+    // 토너먼트 라운드 (32강 → 16강 → 8강 → 4강 → 3위전 → 결승 순)
+    Object.keys(byRound)
+        .sort((a, b) => {
+            const ai = _WC_ROUNDS.indexOf(a), bi = _WC_ROUNDS.indexOf(b);
+            return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+        })
+        .forEach(round => {
+            const label = _WC_ROUND_KO[round] || (round === '_knockout' ? '토너먼트' : round);
+            const cards = byRound[round].map(ev => {
+                const st = ev.status?.type?.state;
+                return widgetCard(ev, st === 'in' ? 'live' : st === 'post' ? 'final' : 'sched', 'wc');
+            }).join('');
+            html += widgetSection(label, cards);
+        });
+
+    // 조별리그 경기 (아직 남아 있을 경우)
+    if (grp.live.length)  html += widgetSection(`조별리그 LIVE (${grp.live.length}경기)`, grp.live.map(e=>widgetCard(e,'live','wc')).join(''));
+    if (grp.pre.length)   html += widgetSection('조별리그 예정', grp.pre.slice(0,6).map(e=>widgetCard(e,'sched','wc')).join(''));
+    if (grp.post.length)  html += widgetSection('조별리그 결과', grp.post.slice(0,6).map(e=>widgetCard(e,'final','wc')).join(''));
+
+    if (!html) html = `<div class="sp-state-box"><i class="fa-regular fa-calendar-xmark"></i><span>경기 정보가 없습니다</span></div>`;
+    return html;
 }
 
 function widgetCard(ev, type, tab) {
