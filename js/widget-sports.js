@@ -493,19 +493,34 @@ function widgetStandings(data, tab) {
     } 
     // ✅ MLB: AL/NL → 동부/중부/서부 지구별 분리
     else if (tab === 'mlb' && data.children) {
-        const divKo = { 'East':'동부', 'Central':'중부', 'West':'서부' };
-        const lgKo  = { 'American League':'🔵 AL 아메리칸리그', 'National League':'🔴 NL 내셔널리그' };
+        // 팀 약어 기반 하드코딩 지구 편성 (API 구조에 무관하게 동작)
+        const MLB_DIVS = [
+            {
+                lg: '🔵 AL 아메리칸리그',
+                divs: [
+                    { name: '▸ 동부지구', abbs: ['NYY','BOS','TOR','BAL','TB'] },
+                    { name: '▸ 중부지구', abbs: ['CWS','CLE','DET','KC','MIN'] },
+                    { name: '▸ 서부지구', abbs: ['HOU','LAA','ATH','OAK','SEA','TEX'] },
+                ]
+            },
+            {
+                lg: '🔴 NL 내셔널리그',
+                divs: [
+                    { name: '▸ 동부지구', abbs: ['ATL','MIA','NYM','PHI','WSH'] },
+                    { name: '▸ 중부지구', abbs: ['CHC','CIN','MIL','PIT','STL'] },
+                    { name: '▸ 서부지구', abbs: ['ARI','LAD','SD','SF','COL'] },
+                ]
+            }
+        ];
 
         const sortByPct = arr => arr.slice().sort((a,b) => {
             const g = t => parseFloat(t.stats?.find(x=>x.name==='winPercent')?.displayValue||0);
             return g(b)-g(a);
         });
 
-        // 리그 헤더 (테이블 없이 타이틀만)
         const makeLeagueHeader = (title) => `
             <div class="sp-section-title" style="margin-top:14px; font-weight:800; font-size:13px; background:#e8edf5; padding:6px 10px; border-radius:4px;">${title}</div>`;
 
-        // 지구별 테이블
         const makeDivTable = (title, entries) => {
             if (!entries.length) return '';
             const rows = buildStandingsRows(entries, tab);
@@ -519,35 +534,34 @@ function widgetStandings(data, tab) {
             </div>`;
         };
 
-        let html = '';
-
-        // 2단계: children = AL/NL, 그 안에 children = 지구
-        const hasLeagues = data.children.some(c => c.children?.length);
-        if (hasLeagues) {
-            data.children.forEach(league => {
-                const lgName = lgKo[league.name] || league.name;
-                html += makeLeagueHeader(lgName);
-
-                (league.children || []).forEach(div => {
-                    const dk = Object.keys(divKo).find(k => div.name?.includes(k));
-                    const divName = `▸ ${dk ? divKo[dk] : div.name}지구`;
-                    html += makeDivTable(divName, sortByPct(div.standings?.entries || []));
-                });
+        // API 응답에서 모든 팀 entries 수집 (중복 제거)
+        const seen = new Set();
+        const allEntries = [];
+        const collect = (entries) => {
+            (entries || []).forEach(e => {
+                const key = e.team?.id || e.team?.abbreviation;
+                if (key && !seen.has(key)) { seen.add(key); allEntries.push(e); }
             });
-        } else {
-            // 1단계: children이 바로 지구 (이름에 AL/NL 포함)
-            const lgMap = { 'American':'🔵 AL 아메리칸리그', 'National':'🔴 NL 내셔널리그' };
-            ['American','National'].forEach(lg => {
-                const lgDivs = data.children.filter(c => c.name?.includes(lg));
-                if (!lgDivs.length) return;
-                html += makeLeagueHeader(lgMap[lg]);
-                lgDivs.forEach(div => {
-                    const dk = Object.keys(divKo).find(k => div.name?.includes(k));
-                    const divName = `▸ ${dk ? divKo[dk] : div.name}지구`;
-                    html += makeDivTable(divName, sortByPct(div.standings?.entries || []));
-                });
-            });
+        };
+        data.children.forEach(c => {
+            collect(c.standings?.entries);
+            (c.children || []).forEach(div => collect(div.standings?.entries));
+        });
+
+        if (!allEntries.length) {
+            return `<div class="sp-state-box"><span>순위 데이터를 불러올 수 없습니다</span></div>`;
         }
+
+        let html = '';
+        MLB_DIVS.forEach(({ lg, divs }) => {
+            html += makeLeagueHeader(lg);
+            divs.forEach(({ name, abbs }) => {
+                const divEntries = allEntries.filter(e =>
+                    abbs.includes((e.team?.abbreviation || '').toUpperCase())
+                );
+                html += makeDivTable(name, sortByPct(divEntries));
+            });
+        });
 
         return html || `<div class="sp-state-box"><span>순위 데이터를 불러올 수 없습니다</span></div>`;
     }
