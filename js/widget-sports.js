@@ -377,16 +377,28 @@ function _wcScoreUrl() {
 }
 
 function _wcGetRound(ev) {
+    // 1) competition notes 체크 (ESPN이 주로 여기에 round 정보 담음)
     const notes = ev.competitions?.[0]?.notes || [];
     for (const note of notes) {
-        const h = note.headline || note.type || '';
+        const h = note.headline || note.type || note.text || '';
         const r = _WC_ROUNDS.find(k => h.includes(k));
         if (r) return r;
     }
+    // 2) 이벤트명 / shortName 체크
     const nm = (ev.name || '') + ' ' + (ev.shortName || '');
-    const r = _WC_ROUNDS.find(k => nm.includes(k));
-    if (r) return r;
-    if (ev.season?.type?.id === '3' || Number(ev.season?.type?.type) === 3) return '_knockout';
+    const r2 = _WC_ROUNDS.find(k => nm.includes(k));
+    if (r2) return r2;
+    // 3) competition type text/abbreviation 체크
+    const compType = ev.competitions?.[0]?.type?.text || ev.competitions?.[0]?.type?.abbreviation || '';
+    const r3 = _WC_ROUNDS.find(k => compType.includes(k));
+    if (r3) return r3;
+    // 4) season type으로 포스트시즌(토너먼트) 판단
+    const stId   = ev.season?.type?.id;
+    const stType = Number(ev.season?.type?.type);
+    const stName = (ev.season?.type?.name || '').toLowerCase();
+    if (stId === '3' || stType === 3 || stName.includes('playoff') || stName.includes('knockout') || stName.includes('round of')) {
+        return '_knockout';
+    }
     return null;
 }
 
@@ -478,12 +490,14 @@ function widgetCard(ev, type, tab) {
 
     const teamEl = (t, win, isAway) => {
         const teamData = (isAway ? R : L).team;
-        const rawName = teamData?.shortDisplayName || teamData?.name || '';
-        // bracket placeholder 감지: "RD32 W7", "W7", "TBD", "Winner of ...", "Loser of ..." 등
-        const isHolder = /^(RD\d+\s*W\d+|W\d+|L\d+|TBD|TBA|미정)$/i.test(rawName.trim())
-            || rawName.toLowerCase().includes('winner')
-            || rawName.toLowerCase().includes('loser')
-            || /^rd\d+/i.test(rawName.trim());
+        // shortDisplayName → displayName → name 순으로 fallback (ESPN WC는 displayName이 더 정확할 수 있음)
+        const rawName = teamData?.shortDisplayName || teamData?.displayName || teamData?.name || '';
+        // ESPN bracket placeholder 감지: "RD32 W7", "RD16", "W7", "TBD" 등 ESPN 고유 형식만 체크
+        // "Winner of Group A" 같이 영어 winner 포함 실제팀명도 있으므로 includes()는 사용 안 함
+        const isHolder = /^RD\d+(\s*[WL]\d+)?$/i.test(rawName.trim())
+            || /^[WL]\d+$/i.test(rawName.trim())
+            || /^(TBD|TBA|미정)$/i.test(rawName.trim())
+            || rawName.trim() === '';
         const displayName = isHolder ? '미정' : getKoName(rawName, tab);
         const logoUrl = !isHolder && (teamData?.logo || (teamData?.logos && teamData.logos[0]?.href));
 
