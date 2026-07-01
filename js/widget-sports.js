@@ -278,11 +278,33 @@ async function loadWidgetData(tab) {
     icon.classList.add('fa-spin');
 
     try {
-        const scoreUrl = tab === 'wc' ? _wcScoreUrl() : WIDGET_SCORE_EP[tab];
-        const [scoreRes, standRes] = await Promise.all([
-            fetch(scoreUrl).then(r => r.json()),
-            WIDGET_STAND_EP[tab] ? fetch(WIDGET_STAND_EP[tab]).then(r => r.json()).catch(()=>null) : Promise.resolve(null)
-        ]);
+        let scoreRes, standRes;
+        if (tab === 'wc') {
+            // ESPN soccer scoreboard의 dates 범위 파라미터가 동작하지 않아 날짜별로 병렬 fetch
+            const dateFmts = [];
+            for (let i = -3; i <= 20; i++) {
+                const d = new Date(); d.setDate(d.getDate() + i);
+                dateFmts.push(d.toISOString().slice(0,10).replace(/-/g,''));
+            }
+            const [standData, ...dayResults] = await Promise.all([
+                WIDGET_STAND_EP.wc ? fetch(WIDGET_STAND_EP.wc).then(r=>r.json()).catch(()=>null) : Promise.resolve(null),
+                ...dateFmts.map(dt => fetch(`${WIDGET_SCORE_EP.wc}?dates=${dt}`).then(r=>r.json()).catch(()=>null))
+            ]);
+            standRes = standData;
+            const seenIds = new Set();
+            const allEvents = [];
+            dayResults.forEach(res => {
+                (res?.events || []).forEach(ev => {
+                    if (ev.id && !seenIds.has(ev.id)) { seenIds.add(ev.id); allEvents.push(ev); }
+                });
+            });
+            scoreRes = { events: allEvents };
+        } else {
+            [scoreRes, standRes] = await Promise.all([
+                fetch(WIDGET_SCORE_EP[tab]).then(r => r.json()),
+                WIDGET_STAND_EP[tab] ? fetch(WIDGET_STAND_EP[tab]).then(r => r.json()).catch(()=>null) : Promise.resolve(null)
+            ]);
+        }
 
         widgetCache[tab] = { scores: scoreRes, standings: standRes };
         renderWidget(tab, widgetCache[tab]);
@@ -415,8 +437,9 @@ function widgetCard(ev, type, tab) {
     const comp = ev.competitions?.[0];
     if (!comp) return '';
     const isSoccer = WIDGET_CFG[tab]?.soccer;
-    const home = comp.competitors?.find(c => c.homeAway === 'home');
-    const away = comp.competitors?.find(c => c.homeAway === 'away');
+    // 중립 경기장(월드컵 등)은 homeAway 없을 수 있어 인덱스 fallback
+    const home = comp.competitors?.find(c => c.homeAway === 'home') || comp.competitors?.[0];
+    const away = comp.competitors?.find(c => c.homeAway === 'away') || comp.competitors?.[1];
     if (!home || !away) return '';
 
     const L = home;
@@ -431,7 +454,15 @@ function widgetCard(ev, type, tab) {
     let badge='', tinfo='';
     if (type==='live') {
         badge = `<span class="sp-status-badge live">LIVE</span>`;
-        tinfo = `<span class="sp-time-info live">${ev.status?.displayClock||''} ${ev.status?.period?`Q${ev.status.period}`:''}</span>`;
+        if (isSoccer) {
+            // soccer는 status.type.detail이 "45'", "HT", "90+3'" 등의 경기 시간을 가짐
+            const detail = ev.status?.type?.detail || ev.status?.type?.shortDetail || '진행중';
+            tinfo = `<span class="sp-time-info live">${detail}</span>`;
+        } else {
+            const clock = ev.status?.displayClock || '';
+            const periodStr = ev.status?.period ? ` Q${ev.status.period}` : '';
+            tinfo = `<span class="sp-time-info live">${clock}${periodStr}</span>`;
+        }
     } else if (type==='final') {
         badge = `<span class="sp-status-badge final">종료</span>`;
         tinfo = `<span class="sp-time-info">Final</span>`;
@@ -447,12 +478,18 @@ function widgetCard(ev, type, tab) {
 
     const teamEl = (t, win, isAway) => {
         const teamData = (isAway ? R : L).team;
-        const logoUrl = teamData?.logo || (teamData?.logos && teamData.logos[0]?.href);
-        const displayName = getKoName(teamData?.shortDisplayName || teamData?.name, tab);
-        
-        const logoHtml = logoUrl 
-            ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:contain; border-radius:50%;">` 
-            : `${teamData?.abbreviation?.slice(0,2)||'?'}`;
+        const rawName = teamData?.shortDisplayName || teamData?.name || '';
+        // bracket placeholder 감지: "RD32 W7", "W7", "TBD", "Winner of ...", "Loser of ..." 등
+        const isHolder = /^(RD\d+\s*W\d+|W\d+|L\d+|TBD|TBA|미정)$/i.test(rawName.trim())
+            || rawName.toLowerCase().includes('winner')
+            || rawName.toLowerCase().includes('loser')
+            || /^rd\d+/i.test(rawName.trim());
+        const displayName = isHolder ? '미정' : getKoName(rawName, tab);
+        const logoUrl = !isHolder && (teamData?.logo || (teamData?.logos && teamData.logos[0]?.href));
+
+        const logoHtml = logoUrl
+            ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:contain; border-radius:50%;">`
+            : `<span style="font-size:9px; color:#94a3b8;">?</span>`;
 
         return `
         <div class="sp-team ${isAway?'away':''} ${win?'winner':''}">
