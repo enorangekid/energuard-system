@@ -27,6 +27,7 @@
 <link rel="stylesheet" href="css/prod-modal.css">
 <link rel="stylesheet" href="css/pricing.css">
 <link rel="stylesheet" href="css/blogchecker.css">
+<link rel="stylesheet" href="css/rankcollect.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
     /* [업무 노트 인쇄 전용 스타일] */
@@ -206,6 +207,10 @@
           <li class="menu-item" onclick="showPage('ranking', this)" title="상품 검색 순위">
               <div class="icon-circle"><i class="fa-solid fa-trophy"></i></div>
               <span class="menu-text">상품 검색 순위</span>
+          </li>
+          <li class="menu-item" onclick="showPage('rankcollect', this)" title="순위 수집 (API)">
+              <div class="icon-circle"><i class="fa-solid fa-satellite-dish"></i></div>
+              <span class="menu-text">순위 수집 (API)</span>
           </li>
           <li class="menu-item" onclick="showPage('blogranking', this)" title="블로그 순위">
               <div class="icon-circle"><i class="fa-brands fa-neos"></i></div>
@@ -935,6 +940,56 @@
         <div id="bc-error-msg"></div>
 
       </div><!-- /#page-blogranking -->
+
+      <!-- ══ 순위 수집 (API) 페이지 ══ -->
+      <div id="page-rankcollect" class="page-section">
+
+        <div id="rc-admin-guard">
+          <i class="fa-solid fa-lock" style="font-size:28px;margin-bottom:10px;display:block;"></i>
+          이 페이지는 관리자 전용입니다.
+        </div>
+
+        <div id="rc-main">
+          <!-- 컨트롤 카드 -->
+          <div class="card" style="padding:0;">
+            <div class="rc-header">
+              <span class="rc-title"><i class="fa-solid fa-satellite-dish"></i> 순위 수집 (API)</span>
+              <span class="rc-week-badge" id="rc-week-badge">-</span>
+              <select class="rc-week-select" id="rc-week-select" onchange="rcChangeWeek(this.value)" title="저장 주차 (자동 계산, 필요 시 변경)">
+                <option value="1">1주차</option><option value="2">2주차</option>
+                <option value="3">3주차</option><option value="4">4주차</option>
+                <option value="5">5주차</option>
+              </select>
+              <span class="rc-week-note" id="rc-week-note"><i class="fa-solid fa-triangle-exclamation"></i> 자동 주차와 다름</span>
+              <span class="rc-spacer"></span>
+              <button class="rc-btn" id="rc-btn-main" onclick="rcCollect('main')"><i class="fa-solid fa-play"></i> 메인 수집</button>
+              <button class="rc-btn secondary" id="rc-btn-all" onclick="rcCollect('all')"><i class="fa-solid fa-forward"></i> 전체 수집</button>
+            </div>
+            <div class="rc-sub">
+              네이버 쇼핑 검색 API 기준 · 가격비교 상품 제외 · 400위까지 조회 · <b>수집 결과를 확인한 뒤 선택 저장</b>합니다.
+              크롬 확장(bbdb) 수집과 병행 검증 중 — API 순위는 광고 제외라 실제 화면과 1~3위 차이가 있을 수 있습니다.
+            </div>
+            <div id="rc-progress-wrap">
+              <div class="rc-progress-row">
+                <span id="rc-progress-msg">준비 중...</span>
+                <span id="rc-progress-pct">0/0</span>
+              </div>
+              <div class="rc-progress-track"><div id="rc-progress-bar"></div></div>
+            </div>
+          </div>
+
+          <!-- 요약 + 결과 -->
+          <div id="rc-summary"></div>
+          <div id="rc-results"></div>
+
+          <!-- 저장 바 -->
+          <div id="rc-save-bar">
+            <span class="rc-save-note"><i class="fa-solid fa-circle-info"></i> 체크 해제한 항목은 저장되지 않습니다. 이탈 항목은 기록하지 않습니다(기존 방식과 동일).</span>
+            <button id="rc-save-btn" onclick="rcSave()"><i class="fa-solid fa-floppy-disk"></i> 저장</button>
+          </div>
+        </div>
+
+      </div><!-- /#page-rankcollect -->
 
     </div><!-- /.content-body -->
   </div>
@@ -1728,6 +1783,7 @@
 <script src="js/tasks.js"></script>
 <script src="js/analytics.js"></script>
 <script src="js/blogchecker.js"></script>
+<script src="js/rankcollect.js"></script>
 <script src="js/pricing.js"></script>
 <script src="js/pricing-competitor.js"></script>
 <script src="js/pricing-highlight.js"></script>

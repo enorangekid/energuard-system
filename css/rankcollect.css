@@ -1,0 +1,117 @@
+/* ===============================================================
+   css/rankcollect.css — 순위 수집 (API) 페이지
+   =============================================================== */
+
+/* 상단 컨트롤 바 */
+.rc-header {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 16px 18px;
+}
+.rc-title { font-size: 17px; font-weight: 800; margin-right: 4px; }
+.rc-week-badge {
+  font-size: 12.5px; font-weight: 700; color: #0369a1;
+  background: #e0f2fe; padding: 4px 10px; border-radius: 14px;
+}
+.rc-week-select {
+  padding: 6px 9px; border: 1px solid #e2e8f0; border-radius: 6px;
+  font-size: 12.5px; background: #fff; cursor: pointer;
+}
+.rc-week-note { font-size: 11.5px; color: #b45309; font-weight: 600; display: none; }
+.rc-header .rc-spacer { flex: 1; }
+
+.rc-btn {
+  padding: 9px 16px; border: none; border-radius: 8px; cursor: pointer;
+  font-size: 13.5px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, #10b981, #059669);
+  transition: opacity .12s;
+}
+.rc-btn:hover { opacity: .9; }
+.rc-btn:disabled { opacity: .45; cursor: not-allowed; }
+.rc-btn.secondary { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+.rc-btn.rc-btn-stop { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+
+.rc-sub {
+  padding: 0 18px 14px; font-size: 12.5px; color: #64748b;
+}
+
+/* 진행 바 */
+#rc-progress-wrap { display: none; padding: 0 18px 16px; }
+.rc-progress-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12.5px; color: #475569; margin-bottom: 6px;
+}
+#rc-progress-msg { color: #64748b; }
+#rc-progress-pct { font-weight: 700; }
+.rc-progress-track {
+  height: 6px; background: #e2e8f0; border-radius: 6px; overflow: hidden;
+}
+#rc-progress-bar {
+  height: 100%; width: 0%; border-radius: 6px;
+  background: linear-gradient(90deg, #10b981, #059669);
+  transition: width .3s;
+}
+
+/* 요약 */
+#rc-summary { padding: 2px 4px 12px; font-size: 13.5px; color: #334155; }
+#rc-summary b { color: #059669; }
+#rc-summary .rc-sum-miss { color: #ef4444; }
+
+/* 키워드 카드 */
+.rc-kw-card { margin-bottom: 14px; padding: 0; overflow: hidden; }
+.rc-kw-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-bottom: 1px solid #f1f5f9;
+}
+.rc-kw-name { font-size: 15px; font-weight: 800; }
+.rc-kw-stat { font-size: 12px; color: #64748b; }
+.rc-kw-err { font-size: 12.5px; color: #ef4444; font-weight: 600; }
+.rc-kw-toggle {
+  margin-left: auto; font-size: 12px; color: #64748b; cursor: pointer;
+  display: flex; align-items: center; gap: 5px; user-select: none;
+}
+
+/* 결과 테이블 */
+.rc-table { width: 100%; }
+.rc-table td { vertical-align: middle; }
+.rc-td-name {
+  max-width: 360px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 12.5px;
+}
+.rc-td-rank b { color: #0f766e; }
+.rc-td-cur { font-size: 12.5px; color: #64748b; }
+.rc-td-price { font-size: 12.5px; color: #64748b; }
+.rc-diff-up   { color: #059669; font-size: 11px; font-weight: 700; }
+.rc-diff-down { color: #ef4444; font-size: 11px; font-weight: 700; }
+.rc-diff-same { color: #94a3b8; font-size: 11px; }
+
+.rc-type {
+  font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
+  white-space: nowrap;
+}
+.rc-type-mine  { background: #dcfce7; color: #15803d; }
+.rc-type-watch { background: #fef3c7; color: #b45309; }
+
+.rc-row-missing td { opacity: .62; }
+.rc-row-saved td { background: #f0fdf4 !important; }
+
+/* 저장 바 (하단 고정) */
+#rc-save-bar {
+  display: none; position: sticky; bottom: 12px; z-index: 30;
+  align-items: center; gap: 12px;
+  background: #0f172a; color: #e2e8f0;
+  padding: 10px 16px; border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .25);
+}
+#rc-save-bar .rc-save-note { font-size: 12px; color: #94a3b8; }
+#rc-save-btn {
+  margin-left: auto; padding: 9px 18px; border: none; border-radius: 8px;
+  background: #10b981; color: #fff; font-size: 13.5px; font-weight: 700; cursor: pointer;
+}
+#rc-save-btn:hover { background: #059669; }
+#rc-save-btn:disabled { opacity: .5; cursor: wait; }
+
+/* 권한 안내 */
+#rc-admin-guard {
+  display: none; padding: 40px 20px; text-align: center;
+  color: #64748b; font-size: 14px;
+}

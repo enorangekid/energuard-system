@@ -23,9 +23,10 @@ let pageTransitionTimer = null;
              대시보드 금주목표 카드 숨김
 ─────────────────────────────────────────────────── */
 const ROLE_RESTRICTIONS = {
+    
     general: {
-        blockedPages:    ['timeline', 'worklog'],
-        hiddenMenus:     ['timeline', 'worklog'],
+        blockedPages:    ['timeline', 'worklog', 'rankcollect'],
+        hiddenMenus:     ['timeline', 'worklog', 'rankcollect'],
         blockedPanels:   ['widgetPanel'],   // 스포츠 위젯 패널 차단
         readonlyNoteTabs: ['blog', 'youtube'], // 읽기 전용 노트 탭
         readonlyPages:   ['ranking', 'sales', 'pricing'], // 편집 불가 페이지

@@ -1747,7 +1747,7 @@ async function _doExport() {
 ═══════════════════════════════════════ */
 
 /* 경쟁사 이름 배열 */
-function _compNames() {
+function _compExportNames() {
   try {
     const s = JSON.parse(localStorage.getItem('energuard_comp_names') || '[]');
     return ['크린슐라','산일상사','대유물류'].map((d,i) => s[i] || d);
@@ -1761,7 +1761,7 @@ function _getCompData(tabId, gradeId, t) {
 
 /* 경쟁사 헤더: 단가 / 차이 / 링크 */
 function _compHeaders() {
-  return _compNames().flatMap(n => [`${n} 단가`, `${n} 차이`, `${n} 링크`]);
+  return _compExportNames().flatMap(n => [`${n} 단가`, `${n} 차이`, `${n} 링크`]);
 }
 
 /* 경쟁사 데이터 셀: 단가 / 차이(우리-경쟁사) / 링크 */
