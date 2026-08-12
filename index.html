@@ -282,6 +282,22 @@
                     <div class="dash-lab-metrics" id="dash-keyword-metrics">
                         <div class="dash-lab-loading">키워드 데이터를 불러오고 있습니다.</div>
                     </div>
+                    <div class="dash-rank-wrapper" id="dash-keyword-rank-wrapper" style="margin-top:16px;">
+                        <div class="dash-rank-box">
+                            <div class="dash-rank-header">
+                                <span style="color:#ef4444;"><i class="fa-solid fa-caret-up"></i> 순위 급상승</span>
+                                <span class="dash-rank-badge" id="dash-keyword-up-count" style="color:#ef4444;background:#fef2f2;">0건</span>
+                            </div>
+                            <div class="dash-rank-list-scroll" id="dash-keyword-up-list"></div>
+                        </div>
+                        <div class="dash-rank-box">
+                            <div class="dash-rank-header">
+                                <span style="color:#3b82f6;"><i class="fa-solid fa-caret-down"></i> 순위 급하락</span>
+                                <span class="dash-rank-badge" id="dash-keyword-down-count" style="color:#3b82f6;background:#eff6ff;">0건</span>
+                            </div>
+                            <div class="dash-rank-list-scroll" id="dash-keyword-down-list"></div>
+                        </div>
+                    </div>
                 </article>
 
                 <article class="dash-lab-card">
@@ -294,6 +310,20 @@
                     </div>
                     <div class="dash-lab-metrics" id="dash-blogrank-metrics">
                         <div class="dash-lab-loading">블로그 데이터를 불러오고 있습니다.</div>
+                    </div>
+                    <div class="dash-rank-wrapper" id="dash-blogrank-rank-wrapper" style="margin-top:16px;">
+                        <div class="dash-rank-box">
+                            <div class="dash-rank-header">
+                                <span style="color:#10b981;"><i class="fa-solid fa-eye"></i> 노출 키워드 (순위 낮은 순)</span>
+                            </div>
+                            <ul class="dash-list dash-rank-list-scroll" id="dash-blogrank-exposed"></ul>
+                        </div>
+                        <div class="dash-rank-box">
+                            <div class="dash-rank-header">
+                                <span style="color:#ef4444;"><i class="fa-solid fa-eye-slash"></i> 미노출 키워드</span>
+                            </div>
+                            <ul class="dash-list dash-rank-list-scroll" id="dash-blogrank-hidden"></ul>
+                        </div>
                     </div>
                 </article>
             </div>

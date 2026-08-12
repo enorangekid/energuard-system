@@ -152,35 +152,42 @@ async function latestTableDate(table, column, configure) {
     return data?.[0]?.[column] || null;
 }
 
+// 매출 데이터는 naver_product_daily 테이블에 anon/authenticated 읽기 정책이 없어서(네이버 API
+// 인증정보가 서버 쪽에만 있는 구조) 클라이언트에서 테이블을 직접 읽을 수 없다 — 에너가드랩의
+// sales-analysis.html이 쓰는 것과 동일한 naver-ad-report 엣지함수를 그대로 호출해서 받는다
+// (2026-08-12, 직접 테이블 조회로는 데이터가 항상 비어있던 문제를 고침).
+async function fetchSalesDailyRows(dateFrom, dateTo) {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ action: 'naverStatSummary', dateFrom, dateTo }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.error) throw new Error(body.error || `매출 데이터 조회 실패 (${res.status})`);
+    return Array.isArray(body.daily) ? body.daily : [];
+}
+
 async function loadSalesOverview() {
-    const latest = await latestTableDate('naver_product_daily', 'report_date', query =>
-        query.or('product_id.eq.전체,product_name.eq.전체')
-    );
-    if (!latest) {
+    const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    const rangeFrom = dateDaysBefore(today, 59);
+    const rows = await fetchSalesDailyRows(rangeFrom, today);
+    if (!rows.length) {
         setLabPeriod('dash-sales-period', '저장 데이터 없음');
         setLabCardState('dash-sales-metrics', '<div class="dash-lab-empty">매출분석에서 판매 자료를 먼저 수집해 주세요.</div>');
         return;
     }
 
+    const latest = rows[rows.length - 1].date;
     const currentFrom = dateDaysBefore(latest, 29);
     const previousTo = dateDaysBefore(currentFrom, 1);
     const previousFrom = dateDaysBefore(previousTo, 29);
-    const { data, error } = await supabaseClient
-        .from('naver_product_daily')
-        .select('report_date,visits,pay_count,sales_total,sales_net,refund_amount')
-        .or('product_id.eq.전체,product_name.eq.전체')
-        .gte('report_date', previousFrom)
-        .lte('report_date', latest)
-        .order('report_date', { ascending: true });
-    if (error) throw error;
 
-    const sum = (from, to) => (data || []).filter(row => row.report_date >= from && row.report_date <= to).reduce((acc, row) => {
-        acc.sales += Number(row.sales_net) || 0;
-        acc.orders += Number(row.pay_count) || 0;
+    const sum = (from, to) => rows.filter(row => row.date >= from && row.date <= to).reduce((acc, row) => {
+        acc.sales += Number(row.salesNet) || 0;
+        acc.orders += Number(row.payCount) || 0;
         acc.visits += Number(row.visits) || 0;
-        acc.refunds += Number(row.refund_amount) || 0;
         return acc;
-    }, { sales: 0, orders: 0, visits: 0, refunds: 0 });
+    }, { sales: 0, orders: 0, visits: 0 });
     const current = sum(currentFrom, latest);
     const previous = sum(previousFrom, previousTo);
     const conversion = current.visits ? current.orders / current.visits * 100 : 0;
@@ -218,10 +225,70 @@ function keywordSummary(rows) {
 async function fetchKeywordDateRows(date) {
     return fetchPagedRows((from, to) => supabaseClient
         .from('keyword_rank_history')
-        .select('product_code,keyword,rank')
+        .select('product_code,keyword,rank,product_name,product_image,product_link')
         .eq('store_name', DASH_STORE_NAME)
         .eq('collected_date', date)
         .range(from, to));
+}
+
+// 같은 상품+키워드 조합의 순위를 최신/이전 수집일끼리 비교해 급상승/급하락 목록을 만든다.
+// diff는 "이전 순위 - 최신 순위"라 양수면 상승(숫자가 작아짐=더 좋은 순위).
+function rankDeltaList(latestRows, previousRows) {
+    const prevMap = new Map();
+    previousRows.forEach(row => {
+        if (row.rank == null) return;
+        prevMap.set(`${row.product_code}|${row.keyword}`, Number(row.rank));
+    });
+    const items = [];
+    latestRows.forEach(row => {
+        if (row.rank == null) return;
+        const prevRank = prevMap.get(`${row.product_code}|${row.keyword}`);
+        if (prevRank == null) return;
+        const diff = prevRank - Number(row.rank);
+        if (diff === 0) return;
+        items.push({
+            name: row.product_name || row.product_code,
+            thumb: row.product_image || '',
+            link: row.product_link || '',
+            curRank: Number(row.rank),
+            diff,
+        });
+    });
+    return items;
+}
+
+function dashRankItemHtml(item, isUp) {
+    return `
+        <a href="${item.link || '#'}" target="_blank" rel="noopener" class="dash-rank-item">
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width: 48px; flex-shrink: 0; gap: 4px; background: ${isUp ? '#fef2f2' : '#eff6ff'}; padding: 6px 0; border-radius: 8px;">
+                <span style="font-size:14px; font-weight:800; color:#1e293b; line-height:1;">${item.curRank}위</span>
+                <span class="dash-rank-diff ${isUp ? 'up' : 'down'}" style="font-size:11px; font-weight:700; width:auto; line-height:1;">
+                    ${isUp ? '<i class="fa-solid fa-caret-up"></i>' : '<i class="fa-solid fa-caret-down"></i>'} ${Math.abs(item.diff)}
+                </span>
+            </div>
+            <div class="dash-rank-thumb" ${item.thumb ? `style="background-image:url(${item.thumb});margin-left:4px;"` : 'style="margin-left:4px;"'}></div>
+            <span class="dash-rank-name" title="${item.name}">${item.name}</span>
+        </a>`;
+}
+
+function renderKeywordRankLists(latestRows, previousRows) {
+    const deltas = rankDeltaList(latestRows, previousRows);
+    const up = deltas.filter(item => item.diff >= 10).sort((a, b) => b.diff - a.diff).slice(0, 10);
+    const down = deltas.filter(item => item.diff <= -10).sort((a, b) => a.diff - b.diff).slice(0, 10);
+
+    const upCountEl = document.getElementById('dash-keyword-up-count');
+    const downCountEl = document.getElementById('dash-keyword-down-count');
+    if (upCountEl) upCountEl.textContent = `${up.length}건`;
+    if (downCountEl) downCountEl.textContent = `${down.length}건`;
+
+    const upListEl = document.getElementById('dash-keyword-up-list');
+    const downListEl = document.getElementById('dash-keyword-down-list');
+    if (upListEl) upListEl.innerHTML = up.length
+        ? up.map(item => dashRankItemHtml(item, true)).join('')
+        : '<div style="padding:15px; text-align:center; color:#999; font-size:13px;">급상승 내역이 없습니다.</div>';
+    if (downListEl) downListEl.innerHTML = down.length
+        ? down.map(item => dashRankItemHtml(item, false)).join('')
+        : '<div style="padding:15px; text-align:center; color:#999; font-size:13px;">급하락 내역이 없습니다.</div>';
 }
 
 async function loadKeywordOverview() {
@@ -229,6 +296,7 @@ async function loadKeywordOverview() {
     if (!latest) {
         setLabPeriod('dash-keyword-period', '저장 데이터 없음');
         setLabCardState('dash-keyword-metrics', '<div class="dash-lab-empty">에너가드랩에서 키워드 순위를 먼저 수집해 주세요.</div>');
+        renderKeywordRankLists([], []);
         return;
     }
     const previous = await latestTableDate('keyword_rank_history', 'collected_date', query => query.eq('store_name', DASH_STORE_NAME).lt('collected_date', latest));
@@ -246,6 +314,7 @@ async function loadKeywordOverview() {
         dashboardMetric('TOP 10', `${current.top10.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.top10, before.top10) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>'),
         dashboardMetric('이탈 상품', `${current.left.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.left, before.left) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>', current.left ? 'warning' : '')
     ].join(''));
+    renderKeywordRankLists(latestRows, previousRows);
 }
 
 function blogSummary(rows) {
@@ -275,6 +344,30 @@ async function fetchBlogDateRows(blogIds, date) {
         .range(from, to));
 }
 
+function renderBlogRankLists(latestRows) {
+    const byKeyword = new Map();
+    latestRows.forEach(row => {
+        const key = `${row.blog_id || ''}::${row.keyword || ''}`;
+        if (!byKeyword.has(key)) byKeyword.set(key, row);
+    });
+    const values = [...byKeyword.values()];
+    const exposed = values.filter(row => row.found && row.rank != null).sort((a, b) => Number(a.rank) - Number(b.rank)).slice(0, 10);
+    const hidden = values.filter(row => !row.found).slice(0, 10);
+
+    const exposedEl = document.getElementById('dash-blogrank-exposed');
+    const hiddenEl = document.getElementById('dash-blogrank-hidden');
+    if (exposedEl) {
+        exposedEl.innerHTML = exposed.length
+            ? exposed.map(row => `<li><span class="dot success"></span><span class="dash-note-title">${row.keyword}</span><span class="dash-date">${row.rank}위</span></li>`).join('')
+            : '<li><span class="dash-empty">노출 키워드 없음</span></li>';
+    }
+    if (hiddenEl) {
+        hiddenEl.innerHTML = hidden.length
+            ? hidden.map(row => `<li><span class="dot danger"></span><span class="dash-note-title">${row.keyword}</span></li>`).join('')
+            : '<li><span class="dash-empty">미노출 키워드 없음</span></li>';
+    }
+}
+
 async function loadBlogOverview() {
     const { data: blogs, error: blogError } = await supabaseClient.from('blog_rank_blogs').select('blog_id').eq('is_mine', true).eq('active', true);
     if (blogError) throw blogError;
@@ -282,12 +375,14 @@ async function loadBlogOverview() {
     if (!blogIds.length) {
         setLabPeriod('dash-blogrank-period', '내 블로그 없음');
         setLabCardState('dash-blogrank-metrics', '<div class="dash-lab-empty">에너가드랩에서 내 블로그를 등록해 주세요.</div>');
+        renderBlogRankLists([]);
         return;
     }
     const latest = await latestTableDate('blog_rank_exposure_history', 'checked_date', query => query.in('blog_id', blogIds).eq('provider', 'naver_blog_screen'));
     if (!latest) {
         setLabPeriod('dash-blogrank-period', '진단 데이터 없음');
         setLabCardState('dash-blogrank-metrics', '<div class="dash-lab-empty">블로그 노출 현황을 먼저 수집해 주세요.</div>');
+        renderBlogRankLists([]);
         return;
     }
     const previous = await latestTableDate('blog_rank_exposure_history', 'checked_date', query => query.in('blog_id', blogIds).eq('provider', 'naver_blog_screen').lt('checked_date', latest));
@@ -305,6 +400,7 @@ async function loadBlogOverview() {
         dashboardMetric('미노출', `${current.hidden.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.hidden, before.hidden) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>', current.hidden ? 'warning' : ''),
         dashboardMetric('노출률', dashboardPercent(current.rate), before ? `<span class="dash-lab-compare ${current.rate >= before.rate ? 'up' : 'down'}">${current.rate >= before.rate ? '▲' : '▼'}${Math.abs(current.rate - before.rate).toFixed(1)}%p</span>` : '<span class="dash-lab-compare muted">이전 데이터 없음</span>')
     ].join(''));
+    renderBlogRankLists(latestRows);
 }
 
 async function loadLabOverviewData(section = 'all') {
