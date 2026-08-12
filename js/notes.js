@@ -128,16 +128,21 @@ window.insertTodayHeader = function() {
     window.quill.setSelection(afterHr + label.length + 1, 'silent');
 }
 
-// 📌 Quill 에디터 초기화
+// 📌 Quill 에디터 초기화 (Quill 2.x + quill-table-better, 에너가드랩 admin/work-notes.js에서 이식)
 window.initQuill = function() {
     if (window.quill) return;
 
-    // ── 구분선(HR) Blot 등록 (Quill 인스턴스 생성 직전에 등록해야 안전) ──
     // ── 폰트 크기 Whitelist 등록 (attributors/style/size로 무조건 덮어씀) ──
     const Size = Quill.import('attributors/style/size');
-    Size.whitelist = ['14px', '16px', '18px'];
+    Size.whitelist = ['14px', '15px', '16px', '18px'];
     Quill.register(Size, true);
 
+    // ── 폰트 패밀리 Whitelist 등록 ──
+    const Font = Quill.import('formats/font');
+    Font.whitelist = ['nanum-square', 'nanum-myeongjo', 'gowun-dodum'];
+    Quill.register(Font, true);
+
+    // ── 구분선(HR) Blot 등록 (Quill 인스턴스 생성 직전에 등록해야 안전) ──
     if (!Quill.imports['formats/divider']) {
         const BlockEmbed = Quill.import('blots/block/embed');
         class DividerBlot extends BlockEmbed {}
@@ -146,26 +151,52 @@ window.initQuill = function() {
         Quill.register(DividerBlot);
     }
 
-    window.quill = new Quill('#editor', {
-        theme: 'snow',
-        placeholder: '만능 비서와 함께 업무 내용을 자유롭게 기록하세요...',
-        modules: {
-            toolbar: {
-                container: [
-                    [{ 'size': ['14px', '16px', '18px', false] }], ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'color': [] }, { 'background': [] }], [{ 'list': 'ordered'}, { 'list': 'bullet' }], ['image', 'link', 'divider', 'clean']
-                ],
-                handlers: {
-                    'image': imageUploadHandler,
-                    'divider': function() {
-                        const range = this.quill.getSelection(true);
-                        this.quill.insertText(range.index, '\n', Quill.sources.USER);
-                        this.quill.insertEmbed(range.index + 1, 'divider', true, Quill.sources.USER);
-                        this.quill.setSelection(range.index + 2, Quill.sources.SILENT);
+    // ── quill-table-better — CDN 로드 실패/API 변경 시에도 나머지 에디터 기능은
+    // 정상 동작하도록 try/catch로 감싼다 ──
+    let tableModuleConfig = false;
+    let keyboardBindings;
+    try {
+        if (typeof QuillTableBetter !== 'undefined') {
+            Quill.register({ 'modules/table-better': QuillTableBetter }, true);
+            tableModuleConfig = {};
+            keyboardBindings = QuillTableBetter.keyboardBindings;
+        }
+    } catch (e) {
+        console.error('quill-table-better 등록 실패:', e);
+    }
+
+    const modules = {
+        toolbar: {
+            container: '#nt-toolbar',
+            handlers: {
+                'image': imageUploadHandler,
+                'divider': function() {
+                    const range = this.quill.getSelection(true);
+                    this.quill.insertText(range.index, '\n', Quill.sources.USER);
+                    this.quill.insertEmbed(range.index + 1, 'divider', true, Quill.sources.USER);
+                    this.quill.setSelection(range.index + 2, Quill.sources.SILENT);
+                },
+                'table-insert': function() {
+                    const tableBetter = window.quill.getModule('table-better');
+                    if (tableBetter && typeof tableBetter.insertTable === 'function') {
+                        tableBetter.insertTable(3, 3);
+                    } else {
+                        showToast('표 모듈을 불러오지 못했습니다.', 'error');
                     }
                 }
             }
         }
+    };
+    if (tableModuleConfig !== false) {
+        modules.table = false;
+        modules['table-better'] = tableModuleConfig;
+        if (keyboardBindings) modules.keyboard = { bindings: keyboardBindings };
+    }
+
+    window.quill = new Quill('#editor', {
+        theme: 'snow',
+        placeholder: '만능 비서와 함께 업무 내용을 자유롭게 기록하세요...',
+        modules
     });
 
     // 🚀 실시간 자동 저장 (Debounce: 2초)
@@ -433,7 +464,7 @@ window.loadDraftContent = async function(noteId) {
             document.getElementById('aiSuggestBtn').style.display = readonly ? 'none' : '';
             const aiResultEl = document.getElementById('aiSuggestResult');
             const _tab = currentNoteTab;
-            const _savedAi = !readonly && localStorage.getItem('aiSuggest_' + noteId);
+            const _savedAi = !readonly && data.ai_suggestion;
             if (_savedAi) {
                 aiResultEl.innerHTML = _savedAi;
                 aiResultEl.style.display = 'block';
@@ -762,17 +793,31 @@ window.saveQuickMemo = async function() {
 // document.getElementById('aiSuggestBtn').style.display = readonly ? 'none' : '';
 // document.getElementById('aiSuggestResult').style.display = 'none';
 
-window.saveAiSuggestResult = function() {
+// ai_suggestion 컬럼에 영구 저장 — 레거시(localStorage)와 달리 기기가 바뀌어도 유지됨
+window.saveAiSuggestResult = async function() {
     const resultEl = document.getElementById('aiSuggestResult');
     if (!currentNoteId || !resultEl || resultEl.style.display === 'none') return;
-    localStorage.setItem('aiSuggest_' + currentNoteId, resultEl.innerHTML);
-    const statusEl = resultEl.querySelector('.ai-save-status');
-    if (statusEl) statusEl.textContent = '저장됨 ✓';
-    showToast('AI 추천 결과가 저장되었습니다.', 'success');
+    try {
+        const { error } = await supabaseClient.from('notes').update({ ai_suggestion: resultEl.innerHTML }).eq('id', currentNoteId);
+        if (error) throw error;
+        const statusEl = resultEl.querySelector('.ai-save-status');
+        if (statusEl) statusEl.textContent = '저장됨 ✓';
+        showToast('AI 추천 결과가 저장되었습니다.', 'success');
+    } catch (e) {
+        console.error('AI 추천 저장 실패:', e);
+        showToast('AI 추천 결과 저장에 실패했습니다.', 'error');
+    }
 }
 
-window.clearAiSuggestResult = function() {
-    if (currentNoteId) localStorage.removeItem('aiSuggest_' + currentNoteId);
+window.clearAiSuggestResult = async function() {
+    if (currentNoteId) {
+        try {
+            const { error } = await supabaseClient.from('notes').update({ ai_suggestion: null }).eq('id', currentNoteId);
+            if (error) throw error;
+        } catch (e) {
+            console.error('AI 추천 삭제 실패:', e);
+        }
+    }
     const resultEl = document.getElementById('aiSuggestResult');
     if (resultEl) { resultEl.innerHTML = ''; resultEl.style.display = 'none'; }
     const _tab = currentNoteTab;

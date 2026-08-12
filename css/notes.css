@@ -237,8 +237,39 @@
 
 /* 드롭다운 아이템 크기 미리보기 */
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"] { font-size: 14px; }
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="15px"] { font-size: 15px; }
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"] { font-size: 16px; }
 .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"] { font-size: 18px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="15px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="15px"]::before { content: '15px'; }
+
+/* ── Quill 폰트 패밀리 드롭다운(나눔스퀘어/나눔명조/고운돋움), 에너가드랩에서 이식 ── */
+.ql-snow .ql-picker.ql-font { width: 110px; }
+.ql-snow .ql-picker.ql-font .ql-picker-label::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item::before { content: '나눔스퀘어'; }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="nanum-myeongjo"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="nanum-myeongjo"]::before { content: '나눔명조'; }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="gowun-dodum"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="gowun-dodum"]::before { content: '고운돋움'; }
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="nanum-myeongjo"] { font-family: 'Nanum Myeongjo', serif; }
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="gowun-dodum"] { font-family: 'Gowun Dodum', sans-serif; }
+
+.ql-font-nanum-square { font-family: 'NanumSquare', 'Pretendard', sans-serif; }
+.ql-font-nanum-myeongjo { font-family: 'Nanum Myeongjo', serif; }
+.ql-font-gowun-dodum { font-family: 'Gowun Dodum', sans-serif; }
+
+/* 표 삽입 툴바 버튼 (구분선과 같은 패턴으로 CSS 아이콘) */
+.ql-table-insert {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 28px !important;
+  height: 24px !important;
+  font-size: 15px;
+  color: #444;
+}
+.ql-table-insert::before { content: '⊞'; }
+.ql-table-insert:hover { color: #4f46e5; }
 /* ── AI 추천 버튼 ── */
 .btn-ai-suggest {
     background: linear-gradient(135deg, #6366f1, #8b5cf6);
