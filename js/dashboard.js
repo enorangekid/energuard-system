@@ -462,21 +462,21 @@ async function loadLabOverviewData(section = 'all') {
         keyword: { run: loadKeywordOverview, target: 'dash-keyword-metrics', label: '키워드' },
         blog: { run: loadBlogOverview, target: 'dash-blogrank-metrics', label: '블로그' }
     };
-    const entries = section === 'all' ? Object.values(loaders) : [loaders[section]].filter(Boolean);
-    await Promise.all(entries.map(async item => {
-        const button = document.querySelector(`[onclick="refreshDashData('lab-${Object.keys(loaders).find(key => loaders[key] === item)}')"] i`);
-        if (button) button.classList.add('fa-spin');
+    const entries = section === 'all' ? Object.entries(loaders) : Object.entries(loaders).filter(([key]) => key === section);
+    await Promise.all(entries.map(async ([key, item]) => {
+        const icon = document.querySelector(`[onclick="refreshDashData('lab-${key}')"] i`);
+        if (icon) icon.classList.add('fa-spin');
         try {
             await item.run();
+            const timeEl = document.getElementById(`time-lab-${key}`);
+            if (timeEl) timeEl.textContent = `최근 ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`;
         } catch (error) {
             console.error(`${item.label} 현황 로드 실패:`, error);
             setLabCardState(item.target, `<div class="dash-lab-empty error">${item.label} 데이터를 불러오지 못했습니다.</div>`);
         } finally {
-            if (button) button.classList.remove('fa-spin');
+            if (icon) icon.classList.remove('fa-spin');
         }
     }));
-    const time = document.getElementById('time-lab-overview');
-    if (time) time.textContent = `기준 ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function setRefreshTime(type) {
