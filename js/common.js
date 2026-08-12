@@ -373,24 +373,16 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
     if(targetPage) targetPage.classList.add('active');
     // content-body 패딩은 base.css (30px 40px) 그대로 유지
   
-    // 2. 사이드바 메뉴 액티브 토글 및 상단 타이틀 변경
+    // 2. 사이드바 메뉴 액티브 토글
     if(element) {
         document.querySelectorAll('.menu-item').forEach(menu => { menu.classList.remove('active'); });
         element.classList.add('active');
-        let menuText = element.querySelector('.menu-text');
-        const titleEl = document.getElementById('pageTitleText');
-        if(titleEl) titleEl.innerText = menuText ? menuText.innerText.trim() : element.innerText.trim();
     } else {
         document.querySelectorAll('.menu-item').forEach(menu => { menu.classList.remove('active'); });
         let targetMenu = document.querySelector(`.menu-item[onclick*="${pageId}"]`);
         if (targetMenu) {
             targetMenu.classList.add('active');
-            let menuText = targetMenu.querySelector('.menu-text');
-            const titleEl = document.getElementById('pageTitleText');
-            if(titleEl) titleEl.innerText = menuText ? menuText.innerText.trim() : targetMenu.innerText.trim();
         } else if(pageId === 'dashboard') {
-            const titleEl = document.getElementById('pageTitleText');
-            if(titleEl) titleEl.innerText = '지표 요약';
             let dashMenu = document.querySelector('.menu-item[onclick*="dashboard"]');
             if(dashMenu) dashMenu.classList.add('active');
         }
