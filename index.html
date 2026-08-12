@@ -252,19 +252,19 @@
         <section class="dash-lab-overview" aria-label="에너가드랩 지표 요약">
             <div class="dash-lab-grid">
                 <article class="dash-lab-card">
-                    <div class="dash-lab-card-head">
-                        <button type="button" class="dash-lab-title" onclick="openEnerguardLabPage('sales-analysis.html')">
+                    <div class="dash-lab-card-head" style="cursor:pointer;" onclick="toggleDashLabSales()" title="클릭하여 펼치기/접기">
+                        <span class="dash-lab-title">
                             <span class="dash-lab-icon sales"><i class="fa-solid fa-chart-line"></i></span>
-                            <span><strong>매출 현황</strong><small id="dash-sales-period">최근 30일</small></span>
-                        </button>
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <div class="dash-refresh" onclick="refreshDashData('lab-sales')" title="매출 현황 새로고침">
+                            <span><strong>판매 성과 (스마트스토어 + 쿠팡)</strong><small>* 전월 동기간 대비</small></span>
+                        </span>
+                        <div style="display:flex; align-items:center; gap:15px;">
+                            <div class="dash-refresh" onclick="event.stopPropagation(); refreshDashData('lab-sales')" title="새로고침">
                                 <span id="time-lab-sales">불러오는 중</span> <i class="fa-solid fa-rotate-right"></i>
                             </div>
-                            <i class="fa-solid fa-chevron-down" id="dash-sales-toggle-icon" onclick="toggleDashLabSales()" title="매출 현황 펼치기/접기(민감정보)" style="cursor:pointer; color:#94a3b8; transition:transform .2s;"></i>
+                            <i class="fa-solid fa-chevron-down" id="dash-sales-toggle-icon" style="color:#94a3b8; transition:transform .3s;"></i>
                         </div>
                     </div>
-                    <div class="dash-lab-metrics" id="dash-sales-metrics" style="display:none;">
+                    <div class="dash-lab-metrics" id="dash-sales-metrics" style="display:none; margin-top:20px; padding-top:20px; border-top:1px solid #f1f5f9;">
                         <div class="dash-lab-loading">매출 데이터를 불러오고 있습니다.</div>
                     </div>
                 </article>

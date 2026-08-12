@@ -216,7 +216,6 @@ async function loadSalesOverview() {
     });
 
     if (!byDate.size) {
-        setLabPeriod('dash-sales-period', '저장 데이터 없음');
         setLabCardState('dash-sales-metrics', '<div class="dash-lab-empty">매출분석에서 판매 자료를 먼저 수집해 주세요.</div>');
         return;
     }
@@ -239,8 +238,6 @@ async function loadSalesOverview() {
     const conversion = current.visits ? current.orders / current.visits * 100 : 0;
     const previousConversion = previous && previous.visits ? previous.orders / previous.visits * 100 : null;
 
-    const [y, m] = currentMonth.split('-');
-    setLabPeriod('dash-sales-period', `${y}년 ${Number(m)}월 · 전월 동기간 대비`);
     setLabCardState('dash-sales-metrics', [
         dashboardMetric('매출', dashboardMoney(current.sales), previous ? dashboardComparison(current.sales, previous.sales) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>', 'accent'),
         dashboardMetric('결제 건수', `${current.orders.toLocaleString('ko-KR')}건`, previous ? dashboardComparison(current.orders, previous.orders) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>'),
