@@ -219,57 +219,117 @@
 #draftListContainer::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
 
 
-/* ── Quill 폰트 크기 드롭다운 ── */
-/* 드롭다운 버튼 너비 확보 */
-.ql-snow .ql-picker.ql-size { width: 64px; }
-
-/* 기본(미선택) 상태 라벨 */
-.ql-snow .ql-picker.ql-size .ql-picker-label::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item::before { content: '기본'; }
-
-/* 각 크기 라벨 */
-.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before { content: '14px'; }
-.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="16px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"]::before { content: '16px'; }
-.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="18px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before { content: '18px'; }
-
-/* 드롭다운 아이템 크기 미리보기 */
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"] { font-size: 14px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="15px"] { font-size: 15px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"] { font-size: 16px; }
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"] { font-size: 18px; }
-.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="15px"]::before,
-.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="15px"]::before { content: '15px'; }
-
-/* ── Quill 폰트 패밀리 드롭다운(나눔스퀘어/나눔명조/고운돋움), 에너가드랩에서 이식 ── */
-.ql-snow .ql-picker.ql-font { width: 110px; }
-.ql-snow .ql-picker.ql-font .ql-picker-label::before,
-.ql-snow .ql-picker.ql-font .ql-picker-item::before { content: '나눔스퀘어'; }
-.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="nanum-myeongjo"]::before,
-.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="nanum-myeongjo"]::before { content: '나눔명조'; }
-.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="gowun-dodum"]::before,
-.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="gowun-dodum"]::before { content: '고운돋움'; }
-.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="nanum-myeongjo"] { font-family: 'Nanum Myeongjo', serif; }
-.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="gowun-dodum"] { font-family: 'Gowun Dodum', sans-serif; }
-
+/* 글꼴/크기는 Quill 기본 드롭다운(.ql-picker) 대신 아래 .store-chips 커스텀 UI를 쓰므로
+   본문에 실제로 적용되는 서식 클래스만 필요하다(피커 라벨 텍스트용 CSS는 불필요). */
 .ql-font-nanum-square { font-family: 'NanumSquare', 'Pretendard', sans-serif; }
 .ql-font-nanum-myeongjo { font-family: 'Nanum Myeongjo', serif; }
 .ql-font-gowun-dodum { font-family: 'Gowun Dodum', sans-serif; }
 
-/* 표 삽입 툴바 버튼 (구분선과 같은 패턴으로 CSS 아이콘) */
-.ql-table-insert {
-  display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  width: 28px !important;
-  height: 24px !important;
-  font-size: 15px;
-  color: #444;
+/* ================================================================
+   에너가드랩 admin/admin.css에서 이식 — 드롭박스 컴포넌트(.store-chips 계열) +
+   커스텀 SVG 아이콘 툴바. 색상 변수만 이 프로젝트 것으로 치환(--accent→--primary,
+   --accent-dark→--primary-hover, --line→--border, --sub→--text-sub, --ink→--text-main).
+   ================================================================ */
+.store-chips { position: relative; display: block; flex: 0 0 auto; }
+.store-select {
+  height: 42px; min-width: 190px; padding: 0 14px 0 18px;
+  border: 1px solid #dfe4ec; border-radius: 6px; background: #fff;
+  color: var(--text-sub); font-family: inherit; font-size: 14px; font-weight: 800;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: space-between; gap: 18px;
 }
-.ql-table-insert::before { content: '⊞'; }
-.ql-table-insert:hover { color: #4f46e5; }
+.store-select:hover, .store-chips.open .store-select { border-color: #c8cdd4; background: #fafbfc; }
+.store-caret { display: inline-flex; align-items: center; justify-content: center; color: #8a93a5; line-height: 1; }
+.store-caret svg { width: 14px; height: 14px; }
+.store-menu {
+  position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; min-width: 100%;
+  padding: 6px; border: 1px solid var(--border); border-radius: 6px; background: #fff;
+  box-shadow: 0 16px 34px rgba(5, 7, 11, 0.12); display: none;
+}
+.store-chips.open .store-menu { display: flex; flex-direction: column; gap: 4px; }
+.store-chip {
+  height: 34px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent;
+  color: var(--text-sub); font-family: inherit; font-size: 12.5px; font-weight: 800;
+  text-align: left; cursor: pointer;
+}
+.store-chip:hover { background: #f4f6f9; color: var(--text-main); }
+.store-chip.active { background: var(--text-main); color: #fff; }
+
+.nt-toolbar.ql-toolbar.ql-snow {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0; padding: 7px 14px;
+  border-color: var(--border); border-radius: 8px 8px 0 0; background: #fff; overflow: visible;
+}
+.nt-toolbar .ql-formats { float: none !important; margin: 0 !important; width: auto; }
+.nt-toolbar-divider { width: 1px; height: 20px; background: var(--border); margin: 0 10px; flex-shrink: 0; align-self: center; }
+.nt-toolbar .nt-tool-group {
+  display: flex !important; flex-wrap: wrap; align-items: center; justify-content: flex-start;
+  gap: 2px; width: auto !important; min-width: 0;
+}
+.nt-toolbar.ql-snow button.nt-tb-btn {
+  display: flex !important; flex-direction: column !important; align-items: center !important;
+  justify-content: center !important; gap: 0; float: none !important;
+  width: 34px !important; min-width: 34px !important; height: 34px !important; padding: 0 !important;
+  border: 1px solid transparent !important; border-radius: 6px !important; background: transparent !important;
+  color: #6f7788 !important; cursor: pointer;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.nt-toolbar.ql-snow button.nt-tb-btn svg {
+  display: block !important; width: 20px !important; height: 20px !important; max-width: 20px !important;
+  flex-shrink: 0; float: none !important; margin: 0 !important;
+}
+.nt-toolbar.ql-snow button.nt-tb-btn .nt-tb-label { display: none; }
+.nt-toolbar.ql-snow button.nt-tb-btn::after { content: none; }
+.nt-toolbar.ql-snow button.nt-tb-btn:hover { background: transparent !important; color: var(--primary) !important; }
+.nt-toolbar.ql-snow button.nt-tb-btn.ql-active { background: transparent !important; color: var(--primary-hover) !important; }
+.nt-toolbar.ql-snow button.nt-tb-accent { color: #6f7788 !important; }
+.nt-toolbar.ql-snow button.nt-tb-accent:hover { color: var(--primary) !important; }
+.nt-toolbar .nt-picker-tool {
+  position: relative; display: flex; width: 34px; height: 34px; flex-direction: column;
+  align-items: center; justify-content: center; gap: 0; border: 1px solid transparent;
+  border-radius: 6px; color: #6f7788;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.nt-toolbar .nt-picker-label { display: none; }
+.nt-toolbar .nt-picker-tool:hover { background: transparent; color: var(--primary); }
+.nt-toolbar .nt-picker-tool .ql-picker { display: flex; width: 32px; height: 20px; align-items: center; justify-content: center; color: inherit !important; }
+.nt-toolbar .nt-picker-tool .ql-picker-label { display: flex; width: 100%; height: 20px; align-items: center; justify-content: center; padding: 0 !important; border: 0 !important; color: inherit !important; }
+.nt-toolbar .nt-picker-tool .ql-picker.ql-color .ql-picker-label svg { width: 23px; height: 23px; stroke-width: 1.75; }
+.nt-toolbar .nt-picker-tool .ql-picker.ql-background .ql-picker-label svg { width: 20px; height: 20px; }
+.nt-toolbar .nt-picker-tool .ql-picker-label svg .ql-stroke,
+.nt-toolbar .nt-picker-tool .ql-picker-label svg .ql-color-label.ql-stroke { stroke: currentColor !important; stroke-width: 1.5; }
+.nt-toolbar .nt-picker-tool .ql-picker-label svg .ql-fill,
+.nt-toolbar .nt-picker-tool .ql-picker-label svg .ql-color-label { fill: currentColor !important; }
+.nt-toolbar .nt-picker-tool .ql-picker.ql-color .ql-picker-label svg .ql-stroke { stroke-width: 1.3; }
+.nt-toolbar .nt-picker-tool .ql-picker-options {
+  top: calc(100% + 13px) !important; margin-top: 0 !important; width: 172px !important; padding: 8px !important;
+  border: 1px solid var(--border) !important; border-radius: 6px; background: #fff;
+  box-shadow: 0 16px 34px rgba(5, 7, 11, 0.12);
+}
+.nt-toolbar .nt-picker-tool .ql-picker.ql-expanded .ql-picker-options { border-color: var(--border) !important; }
+.nt-toolbar .nt-picker-tool .ql-picker-options .ql-picker-item { width: 18px; height: 18px; margin: 2px; border: 1px solid rgba(5, 7, 11, 0.08) !important; border-radius: 4px; }
+.nt-toolbar .nt-picker-tool .ql-picker-options .ql-picker-item:hover { border-color: var(--primary) !important; }
+
+.nt-tool-group--selects { align-items: center; flex-wrap: nowrap; gap: 2px; }
+.nt-select-chips { flex: 0 0 auto !important; width: auto !important; }
+.nt-toolbar.ql-snow .nt-select-chips button.store-select {
+  float: none !important; display: inline-flex !important; align-items: center !important;
+  width: auto !important; height: 34px !important; min-width: 0; padding: 0 8px 0 10px !important;
+  border: 1px solid transparent !important; background: transparent; color: #6f7788;
+  font-size: 13px; font-weight: 600; gap: 5px; white-space: nowrap; flex-shrink: 0; border-radius: 6px;
+}
+.nt-toolbar.ql-snow .nt-select-chips button.store-select:hover,
+.nt-toolbar.ql-snow .nt-select-chips.open button.store-select { background: transparent; color: var(--primary); }
+.nt-select-chips .store-select > span:first-child { white-space: nowrap; }
+.nt-select-chips .store-caret svg { width: 12px; height: 12px; }
+.nt-toolbar.ql-snow .nt-select-chips--size button.store-select { padding: 0 6px 0 8px !important; }
+.nt-select-chips .store-menu { width: 140px; min-width: 0; }
+.nt-select-chips--size .store-menu { width: 72px; }
+.nt-toolbar.ql-snow .nt-select-chips .store-menu button.store-chip {
+  float: none !important; display: block !important; width: 100% !important; height: 34px !important;
+  padding: 0 12px !important; border: 0 !important; border-radius: 4px !important; background: transparent;
+  color: var(--text-sub); font-size: 12.5px; font-weight: 800; text-align: left; white-space: nowrap;
+}
+.nt-toolbar.ql-snow .nt-select-chips .store-menu button.store-chip:hover { background: #f4f6f9; color: var(--text-main); }
+.nt-toolbar.ql-snow .nt-select-chips .store-menu button.store-chip.active { background: var(--text-main); color: #fff; }
 /* ── AI 추천 버튼 ── */
 .btn-ai-suggest {
     background: linear-gradient(135deg, #6366f1, #8b5cf6);

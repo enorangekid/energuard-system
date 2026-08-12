@@ -551,39 +551,61 @@
                 </div>
 
                 <div id="editor-wrapper">
-                    <div id="nt-toolbar" class="ql-toolbar ql-snow">
-                        <span class="ql-formats">
-                            <select class="ql-font">
-                                <option value="nanum-square" selected>나눔스퀘어</option>
-                                <option value="nanum-myeongjo">나눔명조</option>
-                                <option value="gowun-dodum">고운돋움</option>
-                            </select>
-                            <select class="ql-size">
-                                <option value="14px">14</option>
-                                <option value="15px" selected>15</option>
-                                <option value="16px">16</option>
-                                <option value="18px">18</option>
-                            </select>
+                    <div id="nt-toolbar" class="ql-toolbar ql-snow nt-toolbar">
+                        <span class="ql-formats nt-tool-group nt-tool-group--selects">
+                            <div class="store-chips nt-select-chips" id="wnFontChips">
+                                <button type="button" class="store-select" data-action="toggle-wn-font-menu" aria-label="글꼴 선택">
+                                    <span id="wnFontLabel">나눔스퀘어</span>
+                                    <span class="store-caret" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                    </span>
+                                </button>
+                                <div class="store-menu" role="menu">
+                                    <button type="button" class="store-chip active" data-wn-font="nanum-square" role="menuitem">나눔스퀘어</button>
+                                    <button type="button" class="store-chip" data-wn-font="nanum-myeongjo" role="menuitem">나눔명조</button>
+                                    <button type="button" class="store-chip" data-wn-font="gowun-dodum" role="menuitem">고운돋움</button>
+                                </div>
+                            </div>
+                            <div class="store-chips nt-select-chips nt-select-chips--size" id="wnSizeChips">
+                                <button type="button" class="store-select" data-action="toggle-wn-size-menu" aria-label="글자 크기 선택">
+                                    <span id="wnSizeLabel">15</span>
+                                    <span class="store-caret" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                    </span>
+                                </button>
+                                <div class="store-menu" role="menu">
+                                    <button type="button" class="store-chip" data-wn-size="14px" role="menuitem">14</button>
+                                    <button type="button" class="store-chip active" data-wn-size="15px" role="menuitem">15</button>
+                                    <button type="button" class="store-chip" data-wn-size="16px" role="menuitem">16</button>
+                                    <button type="button" class="store-chip" data-wn-size="18px" role="menuitem">18</button>
+                                </div>
+                            </div>
                         </span>
-                        <span class="ql-formats">
-                            <button class="ql-bold" title="굵게"></button>
-                            <button class="ql-italic" title="기울임"></button>
-                            <button class="ql-underline" title="밑줄"></button>
-                            <button class="ql-strike" title="취소선"></button>
-                            <select class="ql-color" title="글자색"></select>
-                            <select class="ql-background" title="배경색"></select>
+                        <span class="nt-toolbar-divider"></span>
+                        <span class="ql-formats nt-tool-group">
+                            <button class="ql-bold nt-tb-btn nt-format-btn" type="button" title="굵게" data-label="굵게" data-icon="bold"></button>
+                            <button class="ql-italic nt-tb-btn nt-format-btn" type="button" title="기울임" data-label="기울임" data-icon="italic"></button>
+                            <button class="ql-underline nt-tb-btn nt-format-btn" type="button" title="밑줄" data-label="밑줄" data-icon="underline"></button>
+                            <button class="ql-strike nt-tb-btn nt-format-btn" type="button" title="취소선" data-label="취소선" data-icon="strike"></button>
+                            <span class="nt-picker-tool">
+                                <select class="ql-color" title="글자색"></select>
+                            </span>
+                            <span class="nt-picker-tool">
+                                <select class="ql-background" title="배경색"></select>
+                            </span>
                         </span>
-                        <span class="ql-formats">
-                            <button class="ql-list" value="ordered" title="번호 목록"></button>
-                            <button class="ql-list" value="bullet" title="글머리 목록"></button>
-                            <button class="ql-blockquote" title="인용구"></button>
-                            <button class="ql-image" title="사진"></button>
-                            <button class="ql-divider" title="구분선"></button>
-                            <button class="ql-table-insert" title="표"></button>
-                            <button class="ql-link" title="링크"></button>
+                        <span class="nt-toolbar-divider"></span>
+                        <span class="ql-formats nt-tool-group">
+                            <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="ordered" title="번호 목록" data-label="번호" data-icon="ordered-list"></button>
+                            <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="bullet" title="글머리 목록" data-label="목록" data-icon="bullet-list"></button>
+                            <button class="ql-blockquote nt-tb-btn" type="button" title="인용구" data-label="인용구"></button>
+                            <button class="ql-divider nt-tb-btn" type="button" title="구분선" data-label="구분선"></button>
+                            <button class="ql-image nt-tb-btn nt-tb-accent" type="button" title="사진" data-label="사진"></button>
+                            <button class="ql-table-insert nt-tb-btn" type="button" title="표" data-label="표"></button>
                         </span>
-                        <span class="ql-formats">
-                            <button class="ql-clean" title="초기화"></button>
+                        <span class="nt-toolbar-divider"></span>
+                        <span class="ql-formats nt-tool-group">
+                            <button class="ql-clean nt-tb-btn nt-format-btn" type="button" title="초기화" data-label="초기화" data-icon="clean"></button>
                         </span>
                     </div>
                     <div id="editor"></div>

@@ -210,6 +210,9 @@ window.initQuill = function() {
         placeholder: '만능 비서와 함께 업무 내용을 자유롭게 기록하세요...',
         modules
     });
+    applyNoteToolbarUi();
+    requestAnimationFrame(applyNoteToolbarUi);
+    initFontSizeSelects();
 
     // 🚀 실시간 자동 저장 (Debounce: 2초)
     window.quill.on('text-change', function(delta, oldDelta, source) {
@@ -243,6 +246,98 @@ window.initQuill = function() {
         if (e.target.closest('#editor')) return; // 에디터 내부는 위 핸들러가 처리
         e.preventDefault();
     }, false);
+}
+
+// ── 글꼴/크기 — Quill picker 대신 사이트 공용 .store-select 컴포넌트를 그대로 써서
+// quill.format()만 호출한다(에너가드랩 admin/work-notes.js에서 이식). ──
+function initFontSizeSelects() {
+    const fontLabelMap = { 'nanum-square': '나눔스퀘어', 'nanum-myeongjo': '나눔명조', 'gowun-dodum': '고운돋움' };
+    const sizeLabelMap = { '14px': '14', '15px': '15', '16px': '16', '18px': '18' };
+
+    function setActiveChip(chipsId, value, attr) {
+        document.querySelectorAll('#' + chipsId + ' [' + attr + ']').forEach((chip) => {
+            chip.classList.toggle('active', chip.getAttribute(attr) === value);
+        });
+    }
+    function applyFont(value) {
+        window.quill.format('font', value);
+        document.getElementById('wnFontLabel').textContent = fontLabelMap[value] || value;
+        setActiveChip('wnFontChips', value, 'data-wn-font');
+    }
+    function applySize(value) {
+        window.quill.format('size', value);
+        document.getElementById('wnSizeLabel').textContent = sizeLabelMap[value] || value;
+        setActiveChip('wnSizeChips', value, 'data-wn-size');
+    }
+
+    document.addEventListener('click', (e) => {
+        const fontChips = document.getElementById('wnFontChips');
+        const sizeChips = document.getElementById('wnSizeChips');
+
+        if (e.target.closest('[data-action="toggle-wn-font-menu"]')) {
+            fontChips?.classList.toggle('open');
+            sizeChips?.classList.remove('open');
+            return;
+        }
+        const fontOption = e.target.closest('[data-wn-font]');
+        if (fontOption) {
+            applyFont(fontOption.dataset.wnFont);
+            fontChips?.classList.remove('open');
+            return;
+        }
+        if (fontChips && !e.target.closest('#wnFontChips')) fontChips.classList.remove('open');
+
+        if (e.target.closest('[data-action="toggle-wn-size-menu"]')) {
+            sizeChips?.classList.toggle('open');
+            fontChips?.classList.remove('open');
+            return;
+        }
+        const sizeOption = e.target.closest('[data-wn-size]');
+        if (sizeOption) {
+            applySize(sizeOption.dataset.wnSize);
+            sizeChips?.classList.remove('open');
+            return;
+        }
+        if (sizeChips && !e.target.closest('#wnSizeChips')) sizeChips.classList.remove('open');
+    });
+
+    window.quill.on('selection-change', (range) => {
+        if (!range) return;
+        const format = window.quill.getFormat(range);
+        const fontVal = format.font || 'nanum-square';
+        const sizeVal = format.size || '15px';
+        document.getElementById('wnFontLabel').textContent = fontLabelMap[fontVal] || fontVal;
+        setActiveChip('wnFontChips', fontVal, 'data-wn-font');
+        document.getElementById('wnSizeLabel').textContent = sizeLabelMap[sizeVal] || sizeVal;
+        setActiveChip('wnSizeChips', sizeVal, 'data-wn-size');
+    });
+}
+
+// ── 툴바 버튼 아이콘을 Tabler 아이콘 세트(SVG)로 교체(에너가드랩 admin/work-notes.js에서 이식) ──
+function applyNoteToolbarUi() {
+    const icons = {
+        image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 8h.01"/><path d="M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5"/><path d="M14 14l1 -1c.928 -.893 2.072 -.893 3 0l3 3"/></svg>',
+        blockquote: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11h-4a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h3a1 1 0 0 1 1 1v6c0 2.667 -1.333 4.333 -4 5"/><path d="M19 11h-4a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h3a1 1 0 0 1 1 1v6c0 2.667 -1.333 4.333 -4 5"/></svg>',
+        divider: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l16 0"/><path d="M4 4l0 .01"/><path d="M8 4l0 .01"/><path d="M12 4l0 .01"/><path d="M16 4l0 .01"/><path d="M20 4l0 .01"/><path d="M4 8l0 .01"/><path d="M12 8l0 .01"/><path d="M20 8l0 .01"/><path d="M4 16l0 .01"/><path d="M12 16l0 .01"/><path d="M20 16l0 .01"/><path d="M4 20l0 .01"/><path d="M8 20l0 .01"/><path d="M12 20l0 .01"/><path d="M16 20l0 .01"/><path d="M20 20l0 .01"/></svg>',
+        'table-insert': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14"/><path d="M3 10h18"/><path d="M10 3v18"/></svg>',
+        bold: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5h6a3.5 3.5 0 0 1 0 7h-6l0 -7"/><path d="M13 12h1a3.5 3.5 0 0 1 0 7h-7v-7"/></svg>',
+        italic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5l6 0"/><path d="M7 19l6 0"/><path d="M14 5l-4 14"/></svg>',
+        underline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5v5a5 5 0 0 0 10 0v-5"/><path d="M5 19h14"/></svg>',
+        strike: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l14 0"/><path d="M16 6.5a4 2 0 0 0 -4 -1.5h-1a3.5 3.5 0 0 0 0 7h2a3.5 3.5 0 0 1 0 7h-1.5a4 2 0 0 1 -4 -1.5"/></svg>',
+        'ordered-list': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6h9"/><path d="M11 12h9"/><path d="M12 18h8"/><path d="M4 16a2 2 0 1 1 4 0c0 .591 -.5 1 -1 1.5l-3 2.5h4"/><path d="M6 10v-6l-2 2"/></svg>',
+        'bullet-list': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l11 0"/><path d="M9 12l11 0"/><path d="M9 18l11 0"/><path d="M5 6l0 .01"/><path d="M5 12l0 .01"/><path d="M5 18l0 .01"/></svg>',
+        clean: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 15l4 4m0 -4l-4 4"/><path d="M7 6v-1h11v1"/><path d="M7 19l4 0"/><path d="M13 5l-4 14"/></svg>',
+    };
+
+    document.querySelectorAll('#nt-toolbar button.nt-tb-btn[data-label]').forEach((button) => {
+        const key =
+            button.dataset.icon ||
+            Array.from(button.classList)
+                .find((className) => className.startsWith('ql-'))
+                ?.replace('ql-', '');
+        if (!key || !icons[key]) return;
+        button.innerHTML = icons[key] + '<span class="nt-tb-label">' + button.dataset.label + '</span>';
+    });
 }
 
 // 📌 [자동 저장] - 원본(noteOriginalContent)은 갱신하지 않음!
