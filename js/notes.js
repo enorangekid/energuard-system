@@ -151,7 +151,7 @@ window.initQuill = function() {
 
     // ── 폰트 패밀리 Whitelist 등록 ──
     const Font = Quill.import('formats/font');
-    Font.whitelist = ['nanum-square', 'nanum-myeongjo', 'gowun-dodum'];
+    Font.whitelist = ['gmarket-sans', 'nanum-square', 'nanum-myeongjo', 'gowun-dodum'];
     Quill.register(Font, true);
 
     // ── 구분선(HR) Blot 등록 (Quill 인스턴스 생성 직전에 등록해야 안전) ──
@@ -251,7 +251,7 @@ window.initQuill = function() {
 // ── 글꼴/크기 — Quill picker 대신 사이트 공용 .store-select 컴포넌트를 그대로 써서
 // quill.format()만 호출한다(에너가드랩 admin/work-notes.js에서 이식). ──
 function initFontSizeSelects() {
-    const fontLabelMap = { 'nanum-square': '나눔스퀘어', 'nanum-myeongjo': '나눔명조', 'gowun-dodum': '고운돋움' };
+    const fontLabelMap = { 'gmarket-sans': '지마켓 산스', 'nanum-square': '나눔스퀘어', 'nanum-myeongjo': '나눔명조', 'gowun-dodum': '고운돋움' };
     const sizeLabelMap = { '14px': '14', '15px': '15', '16px': '16', '18px': '18' };
 
     function setActiveChip(chipsId, value, attr) {
@@ -304,7 +304,7 @@ function initFontSizeSelects() {
     window.quill.on('selection-change', (range) => {
         if (!range) return;
         const format = window.quill.getFormat(range);
-        const fontVal = format.font || 'nanum-square';
+        const fontVal = format.font || 'gmarket-sans';
         const sizeVal = format.size || '15px';
         document.getElementById('wnFontLabel').textContent = fontLabelMap[fontVal] || fontVal;
         setActiveChip('wnFontChips', fontVal, 'data-wn-font');
