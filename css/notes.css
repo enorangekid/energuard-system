@@ -180,8 +180,8 @@
   border: none !important; border-bottom: 1px solid #f1f5f9 !important; 
   padding: 12px 24px !important; background: #fff; 
 }
-.ql-container.ql-snow { 
-  border: none !important; font-size: 14px; line-height: 1.8; color: #334155;
+.ql-container.ql-snow {
+  border: none !important; font-size: 14px; line-height: 2.1; color: #334155;
   flex: 1; overflow-y: auto; padding: 0;
 }
 .ql-editor { padding: 40px 60px; color: #000000 !important; font-family: 'NanumSquare', 'Pretendard', sans-serif; }
