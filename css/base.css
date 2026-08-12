@@ -25,7 +25,11 @@ body {
   font-family: 'Pretendard', 'Inter', sans-serif; 
   background-color: var(--bg-body); 
   color: var(--text-main); 
-  height: 100dvh; overflow: hidden; display: flex; 
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  align-items: flex-start;
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -290,6 +294,9 @@ body {
 /* ================= [3. Sidebar] ================= */
 .sidebar { 
   width: 240px; 
+  height: 100dvh;
+  position: sticky;
+  top: 0;
   background-color: var(--bg-sidebar); 
   color: #f8fafc; 
   display: flex; flex-direction: column; flex-shrink: 0; 
@@ -397,11 +404,11 @@ body {
 .main-content {
   flex: 1;
   min-width: 0;
-  min-height: 0;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 70px;
-  grid-template-rows: 70px minmax(0, 1fr);
-  overflow: hidden;
+  grid-template-rows: 70px minmax(calc(100dvh - 70px), auto);
+  overflow: visible;
 }
 .header { 
   grid-column: 1 / -1;
@@ -409,7 +416,10 @@ body {
   height: 70px; flex-shrink: 0; background: white; 
   border-bottom: 1px solid var(--border); 
   display: flex; justify-content: space-between; align-items: center; 
-  padding: 0 40px; z-index: 2000; position: relative;
+  padding: 0 40px;
+  z-index: 2000;
+  position: sticky;
+  top: 0;
 }
 .page-title { font-size: 20px; font-weight: 800; color: var(--text-main); }
 .header-controls { font-size: 14px; color: var(--text-sub); display: flex; gap: 24px; align-items: center; font-weight: 500; }
@@ -437,8 +447,7 @@ body {
   min-height: 0;
   height: auto;
   padding: 30px 40px;
-  overflow-y: auto;
-  overflow-x: auto;
+  overflow: visible;
   position: relative;
   overflow-anchor: none;
 }
