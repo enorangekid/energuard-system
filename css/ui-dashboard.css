@@ -157,8 +157,9 @@
 .dash-lab-title > span:last-child {
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .dash-lab-title strong {
@@ -191,6 +192,11 @@
   background: #f05a2b;
   color: #fff;
   font-size: 14px;
+}
+
+.dash-lab-icon.sales {
+  background: #4f46e5;
+  color: #fff;
 }
 
 .dash-lab-icon.keyword {
