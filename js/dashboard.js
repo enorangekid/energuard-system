@@ -480,7 +480,7 @@ function setRefreshTime(type) {
     const el = document.getElementById(`time-${type}`);
     if (!el) return;
     const now = new Date();
-    el.innerText = `최근 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    el.innerText = `최근 ${now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 window.navigateFromDash = function(pageId, tabId) {
