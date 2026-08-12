@@ -47,12 +47,11 @@ function enterAuthenticatedApp(user, showWelcome = false) {
     const loginScreen = document.getElementById('loginScreen');
     if (loginScreen) loginScreen.classList.add('hidden');
 
-    const rawName = (currentUser.display_name || currentUser.username || '관리자').replace(/님$/, '');
     const nameEl = document.getElementById('loggedUserName');
-    if (nameEl) nameEl.innerText = rawName + '님';
+    if (nameEl) nameEl.innerText = '관리자님';
     updateRoleBadge('admin');
     applyRoleUI();
-    if (showWelcome) showWelcomeModal(rawName, 'admin');
+    if (showWelcome) showWelcomeModal('관리자', 'admin');
 
     showPage('dashboard', document.querySelector('.menu-item[onclick*="dashboard"]'), true);
 }
