@@ -147,7 +147,7 @@ window.initQuill = function() {
     }
 
     window.quill = new Quill('#editor', {
-        theme: 'snow', 
+        theme: 'snow',
         placeholder: '만능 비서와 함께 업무 내용을 자유롭게 기록하세요...',
         modules: {
             toolbar: {

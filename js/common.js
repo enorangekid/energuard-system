@@ -378,8 +378,7 @@ async function handleLogout() {
 }
 
 window.openEnerguardLab = function() {
-    const labUrl = `${window.location.protocol}//${window.location.hostname}:5500/`;
-    window.open(labUrl, '_blank', 'noopener');
+    window.open('https://enorangekid.github.io/energuard-lab/', '_blank', 'noopener');
 };
 
 /* ================= [3. Navigation & Routing Logic (새로 추가됨!)] ================= */
