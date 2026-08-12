@@ -17,7 +17,8 @@ window.loadDashboardData = async function() {
             supabaseClient.from('monthly_tasks').select('*').eq('year', year).eq('month', month),
             supabaseClient.from('monthly_memos').select('key, content').eq('type', 'ProductLog').neq('content', ''),
             supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', 'blog').order('saved_at', { ascending: false }).limit(10),
-            supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', 'youtube').order('saved_at', { ascending: false }).limit(10)
+            supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', 'youtube').order('saved_at', { ascending: false }).limit(10),
+            loadLabOverviewData()
         ]);
 
         const tasks = taskRes.data ? {
@@ -42,6 +43,11 @@ window.loadDashboardData = async function() {
 
 window.refreshDashData = async function(type) {
     if (!supabaseClient) return;
+    if (type.startsWith('lab-')) {
+        const key = type.replace('lab-', '');
+        await loadLabOverviewData(key);
+        return;
+    }
     const timeEl = document.getElementById(`time-${type}`);
     const iconEl = timeEl?.nextElementSibling;
     if (iconEl) iconEl.classList.add('fa-spin');
@@ -68,6 +74,261 @@ window.refreshDashData = async function(type) {
         if (iconEl) iconEl.classList.remove('fa-spin');
     }
 };
+
+const LAB_BASE_URL = 'https://enorangekid.github.io/energuard-lab/';
+const DASH_STORE_NAME = '한국 단열';
+
+window.openEnerguardLabPage = function(path) {
+    window.open(`${LAB_BASE_URL}${path || ''}`, '_blank', 'noopener');
+};
+
+function dashboardDate(date) {
+    if (!date) return '-';
+    const parts = String(date).slice(0, 10).split('-');
+    return parts.length === 3 ? `${Number(parts[1])}.${Number(parts[2])}` : String(date);
+}
+
+function dashboardMoney(value) {
+    return `${Math.round(Number(value) || 0).toLocaleString('ko-KR')}원`;
+}
+
+function dashboardPercent(value) {
+    return `${(Number(value) || 0).toFixed(1)}%`;
+}
+
+function dashboardComparison(current, previous, suffix = '') {
+    if (previous == null) return '<span class="dash-lab-compare muted">이전 데이터 없음</span>';
+    if (previous === 0) {
+        return current === 0
+            ? '<span class="dash-lab-compare muted">이전과 동일</span>'
+            : '<span class="dash-lab-compare up">이전 대비 신규</span>';
+    }
+    const change = ((current - previous) / previous) * 100;
+    if (Math.abs(change) < 0.05) return '<span class="dash-lab-compare muted">이전과 동일</span>';
+    const up = change > 0;
+    return `<span class="dash-lab-compare ${up ? 'up' : 'down'}">${up ? '▲' : '▼'}${Math.abs(change).toFixed(1)}%${suffix}</span>`;
+}
+
+function dashboardMetric(label, value, note = '', tone = '') {
+    return `<div class="dash-lab-metric${tone ? ` ${tone}` : ''}">
+        <span class="dash-lab-metric-label">${label}</span>
+        <strong>${value}</strong>
+        <span class="dash-lab-metric-note">${note || '&nbsp;'}</span>
+    </div>`;
+}
+
+function setLabCardState(targetId, html) {
+    const el = document.getElementById(targetId);
+    if (el) el.innerHTML = html;
+}
+
+function setLabPeriod(targetId, text) {
+    const el = document.getElementById(targetId);
+    if (el) el.textContent = text;
+}
+
+async function fetchPagedRows(makeQuery, pageSize = 1000) {
+    const rows = [];
+    for (let from = 0; ; from += pageSize) {
+        const { data, error } = await makeQuery(from, from + pageSize - 1);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+    }
+    return rows;
+}
+
+function dateDaysBefore(dateString, days) {
+    const date = new Date(`${dateString}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - days);
+    return date.toISOString().slice(0, 10);
+}
+
+async function latestTableDate(table, column, configure) {
+    let query = supabaseClient.from(table).select(column).order(column, { ascending: false }).limit(1);
+    if (configure) query = configure(query);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data?.[0]?.[column] || null;
+}
+
+async function loadSalesOverview() {
+    const latest = await latestTableDate('naver_product_daily', 'report_date', query =>
+        query.or('product_id.eq.전체,product_name.eq.전체')
+    );
+    if (!latest) {
+        setLabPeriod('dash-sales-period', '저장 데이터 없음');
+        setLabCardState('dash-sales-metrics', '<div class="dash-lab-empty">매출분석에서 판매 자료를 먼저 수집해 주세요.</div>');
+        return;
+    }
+
+    const currentFrom = dateDaysBefore(latest, 29);
+    const previousTo = dateDaysBefore(currentFrom, 1);
+    const previousFrom = dateDaysBefore(previousTo, 29);
+    const { data, error } = await supabaseClient
+        .from('naver_product_daily')
+        .select('report_date,visits,pay_count,sales_total,sales_net,refund_amount')
+        .or('product_id.eq.전체,product_name.eq.전체')
+        .gte('report_date', previousFrom)
+        .lte('report_date', latest)
+        .order('report_date', { ascending: true });
+    if (error) throw error;
+
+    const sum = (from, to) => (data || []).filter(row => row.report_date >= from && row.report_date <= to).reduce((acc, row) => {
+        acc.sales += Number(row.sales_net) || 0;
+        acc.orders += Number(row.pay_count) || 0;
+        acc.visits += Number(row.visits) || 0;
+        acc.refunds += Number(row.refund_amount) || 0;
+        return acc;
+    }, { sales: 0, orders: 0, visits: 0, refunds: 0 });
+    const current = sum(currentFrom, latest);
+    const previous = sum(previousFrom, previousTo);
+    const conversion = current.visits ? current.orders / current.visits * 100 : 0;
+    const previousConversion = previous.visits ? previous.orders / previous.visits * 100 : null;
+
+    setLabPeriod('dash-sales-period', `${dashboardDate(currentFrom)} - ${dashboardDate(latest)}`);
+    setLabCardState('dash-sales-metrics', [
+        dashboardMetric('매출(순)', dashboardMoney(current.sales), dashboardComparison(current.sales, previous.sales), 'accent'),
+        dashboardMetric('결제 건수', `${current.orders.toLocaleString('ko-KR')}건`, dashboardComparison(current.orders, previous.orders)),
+        dashboardMetric('방문수', `${current.visits.toLocaleString('ko-KR')}회`, dashboardComparison(current.visits, previous.visits)),
+        dashboardMetric('구매전환율', dashboardPercent(conversion), previousConversion == null ? '<span class="dash-lab-compare muted">이전 데이터 없음</span>' : `<span class="dash-lab-compare ${conversion >= previousConversion ? 'up' : 'down'}">${conversion >= previousConversion ? '▲' : '▼'}${Math.abs(conversion - previousConversion).toFixed(1)}%p</span>`)
+    ].join(''));
+}
+
+function keywordSummary(rows) {
+    const products = new Map();
+    rows.forEach(row => {
+        const code = String(row.product_code || '').trim();
+        if (!code) return;
+        const current = products.get(code) || { ranks: [], keywords: new Set() };
+        current.keywords.add(row.keyword);
+        if (row.rank != null) current.ranks.push(Number(row.rank));
+        products.set(code, current);
+    });
+    const values = [...products.values()];
+    return {
+        tracked: values.length,
+        exposed: values.filter(item => item.ranks.length).length,
+        top10: values.filter(item => item.ranks.some(rank => rank <= 10)).length,
+        left: values.filter(item => !item.ranks.length).length,
+        keywordCount: new Set(rows.map(row => row.keyword).filter(Boolean)).size
+    };
+}
+
+async function fetchKeywordDateRows(date) {
+    return fetchPagedRows((from, to) => supabaseClient
+        .from('keyword_rank_history')
+        .select('product_code,keyword,rank')
+        .eq('store_name', DASH_STORE_NAME)
+        .eq('collected_date', date)
+        .range(from, to));
+}
+
+async function loadKeywordOverview() {
+    const latest = await latestTableDate('keyword_rank_history', 'collected_date', query => query.eq('store_name', DASH_STORE_NAME));
+    if (!latest) {
+        setLabPeriod('dash-keyword-period', '저장 데이터 없음');
+        setLabCardState('dash-keyword-metrics', '<div class="dash-lab-empty">에너가드랩에서 키워드 순위를 먼저 수집해 주세요.</div>');
+        return;
+    }
+    const previous = await latestTableDate('keyword_rank_history', 'collected_date', query => query.eq('store_name', DASH_STORE_NAME).lt('collected_date', latest));
+    const [latestRows, previousRows] = await Promise.all([
+        fetchKeywordDateRows(latest),
+        previous ? fetchKeywordDateRows(previous) : Promise.resolve([])
+    ]);
+    const current = keywordSummary(latestRows);
+    const before = previous ? keywordSummary(previousRows) : null;
+
+    setLabPeriod('dash-keyword-period', `${dashboardDate(latest)} 수집 · 키워드 ${current.keywordCount}개`);
+    setLabCardState('dash-keyword-metrics', [
+        dashboardMetric('추적 상품', `${current.tracked.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.tracked, before.tracked) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>'),
+        dashboardMetric('노출 상품', `${current.exposed.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.exposed, before.exposed) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>', 'accent'),
+        dashboardMetric('TOP 10', `${current.top10.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.top10, before.top10) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>'),
+        dashboardMetric('이탈 상품', `${current.left.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.left, before.left) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>', current.left ? 'warning' : '')
+    ].join(''));
+}
+
+function blogSummary(rows) {
+    const byKeyword = new Map();
+    rows.forEach(row => {
+        const key = `${row.blog_id || ''}::${row.keyword || ''}`;
+        if (!byKeyword.has(key)) byKeyword.set(key, row);
+    });
+    const values = [...byKeyword.values()];
+    const exposed = values.filter(row => row.found).length;
+    return {
+        total: values.length,
+        exposed,
+        pageOne: values.filter(row => row.found && Number(row.rank) <= 10).length,
+        hidden: values.filter(row => !row.found).length,
+        rate: values.length ? exposed / values.length * 100 : 0
+    };
+}
+
+async function fetchBlogDateRows(blogIds, date) {
+    return fetchPagedRows((from, to) => supabaseClient
+        .from('blog_rank_exposure_history')
+        .select('blog_id,keyword,found,rank')
+        .in('blog_id', blogIds)
+        .eq('provider', 'naver_blog_screen')
+        .eq('checked_date', date)
+        .range(from, to));
+}
+
+async function loadBlogOverview() {
+    const { data: blogs, error: blogError } = await supabaseClient.from('blog_rank_blogs').select('blog_id').eq('is_mine', true).eq('active', true);
+    if (blogError) throw blogError;
+    const blogIds = (blogs || []).map(row => row.blog_id);
+    if (!blogIds.length) {
+        setLabPeriod('dash-blogrank-period', '내 블로그 없음');
+        setLabCardState('dash-blogrank-metrics', '<div class="dash-lab-empty">에너가드랩에서 내 블로그를 등록해 주세요.</div>');
+        return;
+    }
+    const latest = await latestTableDate('blog_rank_exposure_history', 'checked_date', query => query.in('blog_id', blogIds).eq('provider', 'naver_blog_screen'));
+    if (!latest) {
+        setLabPeriod('dash-blogrank-period', '진단 데이터 없음');
+        setLabCardState('dash-blogrank-metrics', '<div class="dash-lab-empty">블로그 노출 현황을 먼저 수집해 주세요.</div>');
+        return;
+    }
+    const previous = await latestTableDate('blog_rank_exposure_history', 'checked_date', query => query.in('blog_id', blogIds).eq('provider', 'naver_blog_screen').lt('checked_date', latest));
+    const [latestRows, previousRows] = await Promise.all([
+        fetchBlogDateRows(blogIds, latest),
+        previous ? fetchBlogDateRows(blogIds, previous) : Promise.resolve([])
+    ]);
+    const current = blogSummary(latestRows);
+    const before = previous ? blogSummary(previousRows) : null;
+
+    setLabPeriod('dash-blogrank-period', `${dashboardDate(latest)} 진단 · 키워드 ${current.total}개`);
+    setLabCardState('dash-blogrank-metrics', [
+        dashboardMetric('노출중', `${current.exposed.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.exposed, before.exposed) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>', 'accent'),
+        dashboardMetric('1페이지', `${current.pageOne.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.pageOne, before.pageOne) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>'),
+        dashboardMetric('미노출', `${current.hidden.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.hidden, before.hidden) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>', current.hidden ? 'warning' : ''),
+        dashboardMetric('노출률', dashboardPercent(current.rate), before ? `<span class="dash-lab-compare ${current.rate >= before.rate ? 'up' : 'down'}">${current.rate >= before.rate ? '▲' : '▼'}${Math.abs(current.rate - before.rate).toFixed(1)}%p</span>` : '<span class="dash-lab-compare muted">이전 데이터 없음</span>')
+    ].join(''));
+}
+
+async function loadLabOverviewData(section = 'all') {
+    const loaders = {
+        sales: { run: loadSalesOverview, target: 'dash-sales-metrics', label: '매출' },
+        keyword: { run: loadKeywordOverview, target: 'dash-keyword-metrics', label: '키워드' },
+        blog: { run: loadBlogOverview, target: 'dash-blogrank-metrics', label: '블로그' }
+    };
+    const entries = section === 'all' ? Object.values(loaders) : [loaders[section]].filter(Boolean);
+    await Promise.all(entries.map(async item => {
+        const button = document.querySelector(`[onclick="refreshDashData('lab-${Object.keys(loaders).find(key => loaders[key] === item)}')"] i`);
+        if (button) button.classList.add('fa-spin');
+        try {
+            await item.run();
+        } catch (error) {
+            console.error(`${item.label} 현황 로드 실패:`, error);
+            setLabCardState(item.target, `<div class="dash-lab-empty error">${item.label} 데이터를 불러오지 못했습니다.</div>`);
+        } finally {
+            if (button) button.classList.remove('fa-spin');
+        }
+    }));
+    const time = document.getElementById('time-lab-overview');
+    if (time) time.textContent = `기준 ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`;
+}
 
 function setRefreshTime(type) {
     const el = document.getElementById(`time-${type}`);

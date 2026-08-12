@@ -72,6 +72,247 @@
 .dash-note-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash-hover-underline:hover { text-decoration: underline; color: var(--primary); }
 .dash-empty { color: #94a3b8; text-align: center; width: 100%; padding: 10px 0; font-weight: 400; }
+
+/* Energuard Lab overview */
+.dash-lab-overview {
+  margin-bottom: 32px;
+}
+
+.dash-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 0 0 16px;
+}
+
+.dash-section-heading h2 {
+  margin: 0 0 5px;
+  color: var(--text-main);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.dash-section-heading p,
+.dash-section-time {
+  margin: 0;
+  color: var(--text-sub);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dash-section-time {
+  flex-shrink: 0;
+  padding-bottom: 1px;
+}
+
+.dash-work-heading {
+  margin-top: 4px;
+}
+
+.dash-lab-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.dash-lab-card {
+  min-width: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.dash-lab-card-head {
+  min-height: 70px;
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dash-lab-title,
+.dash-lab-refresh {
+  border: 0;
+  background: transparent;
+  font: inherit;
+}
+
+.dash-lab-title {
+  min-width: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dash-lab-title > span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dash-lab-title strong {
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.dash-lab-title small {
+  overflow: hidden;
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-lab-title:hover strong {
+  color: var(--primary);
+}
+
+.dash-lab-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff1ec;
+  color: var(--primary);
+  font-size: 14px;
+}
+
+.dash-lab-icon.keyword {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.dash-lab-icon.blog {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.dash-lab-refresh {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.dash-lab-refresh:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.dash-lab-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dash-lab-metric {
+  min-width: 0;
+  min-height: 95px;
+  padding: 15px 16px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.dash-lab-metric:nth-child(2n) {
+  border-right: 0;
+}
+
+.dash-lab-metric:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.dash-lab-metric-label {
+  margin-bottom: 6px;
+  color: var(--text-sub);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dash-lab-metric strong {
+  overflow: hidden;
+  color: var(--text-main);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-lab-metric.accent strong {
+  color: var(--primary);
+}
+
+.dash-lab-metric.warning strong {
+  color: #ef4444;
+}
+
+.dash-lab-metric-note {
+  min-height: 17px;
+  margin-top: 5px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.dash-lab-compare.up { color: #059669; }
+.dash-lab-compare.down { color: #ef4444; }
+.dash-lab-compare.muted { color: #94a3b8; font-weight: 500; }
+
+.dash-lab-loading,
+.dash-lab-empty {
+  grid-column: 1 / -1;
+  min-height: 190px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 12px;
+  text-align: center;
+}
+
+.dash-lab-empty.error {
+  color: #ef4444;
+}
+
+@media (max-width: 1180px) {
+  .dash-lab-grid { grid-template-columns: 1fr; }
+  .dash-lab-metric { min-height: 82px; }
+}
+
+@media (max-width: 720px) {
+  .dash-section-heading { align-items: flex-start; }
+  .dash-section-heading p { display: none; }
+  .dash-lab-card-head { padding: 14px; }
+  .dash-lab-metric { padding: 14px; }
+  .dash-lab-metric strong { font-size: 18px; }
+}
 /* ================= [11. Right Quick Bar (NEW)] ================= */
 
 .right-quickbar {
