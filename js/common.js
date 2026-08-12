@@ -8,38 +8,57 @@ const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 let supabaseClient = null;
 if (typeof supabase !== 'undefined') {
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseClient.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_OUT' && activeSession) {
+            activeSession = null;
+            currentUser = null;
+            location.reload();
+        }
+    });
 } else {
     console.error("🚨 Supabase 라이브러리를 로드하지 못했습니다.");
 }
 
 let activeSession = null;
-window.currentUser = null;  // { username, role, display_name }
+window.currentUser = null;  // Supabase Auth 사용자 프로필
 // 🚀 [추가] 페이지 전환 중복 방지 타이머
 let pageTransitionTimer = null;
 
-/* ── 역할별 접근 제한 정의 ──────────────────────────
-   admin   : 전체 접근
-   general : timeline, worklog 접근 불가
-             대시보드 금주목표 카드 숨김
-─────────────────────────────────────────────────── */
-const ROLE_RESTRICTIONS = {
-    
-    general: {
-        blockedPages:    ['timeline', 'worklog'],
-        hiddenMenus:     ['timeline', 'worklog'],
-        blockedPanels:   ['widgetPanel'],   // 스포츠 위젯 패널 차단
-        readonlyNoteTabs: ['blog', 'youtube'], // 읽기 전용 노트 탭
-        readonlyPages:   ['pricing'], // 편집 불가 페이지
-    }
-};
+// 통합관리자와 에너가드랩은 하나의 로그인 계정으로 모든 기능을 사용합니다.
+const ROLE_RESTRICTIONS = {};
+
+function profileFromAuthUser(user) {
+    const metadata = user?.user_metadata || {};
+    const email = user?.email || '';
+    const displayName = metadata.display_name || metadata.name || email.split('@')[0] || '관리자';
+    return {
+        id: user?.id || null,
+        username: email,
+        email,
+        role: 'admin',
+        display_name: displayName
+    };
+}
+
+function enterAuthenticatedApp(user, showWelcome = false) {
+    currentUser = profileFromAuthUser(user);
+    activeSession = true;
+
+    const loginScreen = document.getElementById('loginScreen');
+    if (loginScreen) loginScreen.classList.add('hidden');
+
+    const rawName = (currentUser.display_name || currentUser.username || '관리자').replace(/님$/, '');
+    const nameEl = document.getElementById('loggedUserName');
+    if (nameEl) nameEl.innerText = rawName + '님';
+    updateRoleBadge('admin');
+    applyRoleUI();
+    if (showWelcome) showWelcomeModal(rawName, 'admin');
+
+    showPage('dashboard', document.querySelector('.menu-item[onclick*="dashboard"]'), true);
+}
 
 /* ================= [2. Login Logic] ================= */
 window.onload = async function() {
-    // 기존 Supabase Auth 세션 완전 제거 (users 테이블 기반 로그인으로 전환)
-    if (supabaseClient) {
-        await supabaseClient.auth.signOut().catch(() => {});
-    }
-
     // 엔터키 핸들러
     const passEl = document.getElementById("loginPassInput");
     if (passEl) passEl.addEventListener("keypress", e => { if(e.key === "Enter") tryLogin(); });
@@ -58,34 +77,11 @@ window.onload = async function() {
     loadWeather();
     setInterval(loadWeather, 30 * 60 * 1000);
 
-    // ── 로그인 상태 유지 자동 복원 ──
-    const saved = localStorage.getItem('keepLogin');
-    if (saved) {
-        try {
-            const { username, role, display_name, expiry } = JSON.parse(saved);
-            // 만료 확인 (30일)
-            if (expiry && Date.now() < expiry) {
-                currentUser   = { username, role, display_name };
-                activeSession = true;
-                applyRoleUI();
-                document.getElementById('loginScreen').classList.add('hidden');
-                const nameEl = document.getElementById('loggedUserName');
-                const _rawName1 = (display_name || username).replace(/님$/, '');
-                if (nameEl) nameEl.innerText = _rawName1 + '님';
-                updateRoleBadge(role);
-                const keepCheck = document.getElementById('keepLoginCheck');
-                showWelcomeModal(_rawName1, role);
-                if (keepCheck) keepCheck.checked = true;
-                let startPage = 'dashboard';
-                const restriction = ROLE_RESTRICTIONS[currentUser.role];
-                if (restriction && restriction.blockedPages.includes(startPage)) startPage = 'dashboard';
-                showPage(startPage, document.querySelector(`.menu-item[onclick*="${startPage}"]`), true);
-                return;
-            } else {
-                localStorage.removeItem('keepLogin');
-            }
-        } catch(e) {
-            localStorage.removeItem('keepLogin');
+    // Supabase Auth 세션은 같은 GitHub Pages 도메인의 에너가드랩과 공유됩니다.
+    if (supabaseClient) {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (!error && data?.session?.user) {
+            enterAuthenticatedApp(data.session.user);
         }
     }
 };
@@ -133,72 +129,36 @@ function togglePassVisible() {
     }
 }
 
-// users 테이블 기반 로그인
+// 통합관리자와 에너가드랩이 함께 사용하는 Supabase Auth 로그인
 async function tryLogin() {
     const usernameEl = document.getElementById('loginUsernameInput');
     const passEl     = document.getElementById('loginPassInput');
     const msg        = document.getElementById('loginMsg');
-    const username   = (usernameEl ? usernameEl.value : '').trim();
+    const email      = (usernameEl ? usernameEl.value : '').trim();
     const pass       = passEl ? passEl.value : '';
 
     if (!supabaseClient) {
         msg.innerText = "🚨 시스템 초기화 실패. 새로고침을 해주세요.";
         msg.style.color = "red"; return;
     }
-    if (!username || !pass) {
-        msg.innerText = "아이디와 비밀번호를 입력해주세요.";
+    if (!email || !pass) {
+        msg.innerText = "이메일과 비밀번호를 입력해주세요.";
         msg.style.color = "red"; return;
     }
 
     msg.innerText = "인증 중..."; msg.style.color = "#666";
 
     try {
-        // username 또는 phone으로 조회
-        const { data, error } = await supabaseClient
-            .from('users')
-            .select('id, username, password, role, display_name')
-            .or(`username.eq.${username},phone.eq.${username}`)
-            .single();
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
 
-        if (error || !data || data.password !== pass) {
-            msg.innerText = "⛔ 아이디 또는 비밀번호가 틀렸습니다.";
+        if (error || !data?.user) {
+            msg.innerText = "이메일 또는 비밀번호가 올바르지 않습니다.";
             msg.style.color = "red";
             if (passEl) { passEl.value = ''; passEl.focus(); }
             return;
         }
-
-        // 로그인 성공
-        currentUser   = { username: data.username, role: data.role, display_name: data.display_name };
-        activeSession = true;
-
-        // ── 로그인 상태 유지 저장 ──
-        const keepCheck = document.getElementById('keepLoginCheck');
-        if (keepCheck && keepCheck.checked) {
-            const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30일
-            localStorage.setItem('keepLogin', JSON.stringify({
-                username: data.username,
-                role: data.role,
-                display_name: data.display_name,
-                expiry
-            }));
-        } else {
-            localStorage.removeItem('keepLogin');
-        }
-
-        applyRoleUI();
-
-        document.getElementById('loginScreen').classList.add('hidden');
-
-        const nameEl = document.getElementById('loggedUserName');
-        const _rawName2 = (data.display_name || data.username).replace(/님$/, '');
-        if (nameEl) nameEl.innerText = _rawName2 + '님';
-        updateRoleBadge(data.role);
-        showWelcomeModal(_rawName2, data.role);
-
-        let startPage = 'dashboard';
-        const restriction = ROLE_RESTRICTIONS[currentUser.role];
-        if (restriction && restriction.blockedPages.includes(startPage)) startPage = 'dashboard';
-        showPage(startPage, document.querySelector(`.menu-item[onclick*="${startPage}"]`), true);
+        localStorage.removeItem('keepLogin');
+        enterAuthenticatedApp(data.user, true);
 
     } catch(e) {
         msg.innerText = "⛔ 오류: " + e.message;
@@ -369,6 +329,7 @@ window.isNoteTabReadonly = function(tab) {
 
 async function handleLogout() {
     if (confirm("로그아웃 하시겠습니까?")) {
+        if (supabaseClient) await supabaseClient.auth.signOut().catch(() => {});
         activeSession = null;
         currentUser   = null;
         localStorage.removeItem('keepLogin');

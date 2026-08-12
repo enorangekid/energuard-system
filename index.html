@@ -119,9 +119,9 @@
         <form onsubmit="tryLogin(); return false;" autocomplete="on" style="margin:0; padding:0;">
         <div class="login-input-group">
             <div class="login-id-wrap">
-                <input type="text" id="loginUsernameInput" class="login-input-field login-input-top"
-                       placeholder="아이디 또는 전화번호"
-                       autocomplete="username"
+                <input type="email" id="loginUsernameInput" class="login-input-field login-input-top"
+                       placeholder="이메일"
+                       autocomplete="email"
                        oninput="onIdInput()"
                        onkeypress="if(event.key==='Enter') document.getElementById('loginPassInput').focus()">
                 <div class="login-pass-icons" id="idIcons" style="display:none;">
@@ -148,15 +148,6 @@
         <button type="submit" class="login-btn">로그인</button>
         </form>
 
-        <div class="login-options">
-            <label class="toggle-label">
-                <input type="checkbox" id="keepLoginCheck">
-                <span class="toggle-track">
-                    <span class="toggle-thumb"></span>
-                </span>
-                <span class="toggle-text">로그인 상태 유지</span>
-            </label>
-        </div>
         <div id="loginMsg" style="color:#ef4444; margin-top:14px; font-size:13px; font-weight:600; min-height:18px; text-align:center;"></div>
     </div>
     <div class="footer-login">
