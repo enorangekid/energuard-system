@@ -25,11 +25,11 @@ let pageTransitionTimer = null;
 const ROLE_RESTRICTIONS = {
     
     general: {
-        blockedPages:    ['timeline', 'worklog', 'rankcollect'],
-        hiddenMenus:     ['timeline', 'worklog', 'rankcollect'],
+        blockedPages:    ['timeline', 'worklog'],
+        hiddenMenus:     ['timeline', 'worklog'],
         blockedPanels:   ['widgetPanel'],   // 스포츠 위젯 패널 차단
         readonlyNoteTabs: ['blog', 'youtube'], // 읽기 전용 노트 탭
-        readonlyPages:   ['ranking', 'sales', 'pricing'], // 편집 불가 페이지
+        readonlyPages:   ['pricing'], // 편집 불가 페이지
     }
 };
 
@@ -335,20 +335,6 @@ function applyRoleUI() {
 
     // 읽기 전용 페이지 편집 요소 숨기기
     if (restriction.readonlyPages) {
-        // 상품검색순위: 상품 추가 버튼, 편집 버튼, 저장 버튼
-        const addProductBtn = document.getElementById('addProductBtn');
-        if (addProductBtn) addProductBtn.style.display = 'none';
-        const saveBtn = document.getElementById('saveBtn');
-        if (saveBtn) saveBtn.style.display = 'none';
-
-        // 매출분석: 편집/추가/저장 버튼
-        const editSalesBtn = document.getElementById('editSalesBtn');
-        if (editSalesBtn) editSalesBtn.style.display = 'none';
-        const addSalesRowBtn = document.getElementById('addSalesRowBtn');
-        if (addSalesRowBtn) addSalesRowBtn.style.display = 'none';
-        const saveSalesBtn = document.getElementById('saveSalesBtn');
-        if (saveSalesBtn) saveSalesBtn.style.display = 'none';
-
         // 단가표: 원가 저장, 엑셀 저장, 마진 편집 버튼 숨김
         document.querySelectorAll('[onclick*="savePricingCosts"]').forEach(el => el.style.display = 'none');
         document.querySelectorAll('[onclick*="exportPricingExcel"]').forEach(el => el.style.display = 'none');
@@ -390,6 +376,11 @@ async function handleLogout() {
         location.reload();
     }
 }
+
+window.openEnerguardLab = function() {
+    const labUrl = `${window.location.protocol}//${window.location.hostname}:5500/`;
+    window.open(labUrl, '_blank', 'noopener');
+};
 
 /* ================= [3. Navigation & Routing Logic (새로 추가됨!)] ================= */
 window.showPage = function(pageId, element = null, isHistoryAction = false) {
@@ -467,35 +458,6 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
         loadWorklogFromServer();
     }
     if(pageId === 'productlogs' && typeof renderProductLogPage === 'function') renderProductLogPage();
-    if(pageId === 'ranking' && typeof loadRankingData === 'function') {
-        loadRankingData();
-        // sticky 헤더 그림자 감지
-        const _cb = document.querySelector('.content-body');
-        const _rh = document.querySelector('.rk-sticky-header');
-        const _rt = document.querySelector('.rk-tabs-col-sticky');
-        if (_cb && _rh) {
-            _cb.addEventListener('scroll', function _rkScroll() {
-                if (!document.getElementById('page-ranking').classList.contains('active')) {
-                    _cb.removeEventListener('scroll', _rkScroll); return;
-                }
-                _rh.classList.toggle('is-stuck', _cb.scrollTop > 10);
-            }, { passive: true });
-        }
-    }
-    if(pageId === 'sales' && typeof loadSalesData === 'function') {
-        if(!salesData || salesData.length === 0) loadSalesData();
-        const _cb2 = document.querySelector('.content-body');
-        const _sh = document.querySelector('.sales-sticky-header');
-        if (_cb2 && _sh) {
-            _cb2.addEventListener('scroll', function _salesScroll() {
-                if (!document.getElementById('page-sales').classList.contains('active')) {
-                    _cb2.removeEventListener('scroll', _salesScroll); return;
-                }
-                _sh.classList.toggle('is-stuck', _cb2.scrollTop > 10);
-            }, { passive: true });
-        }
-    }
-
     // 🚀 [노트 페이지 로직 수정] 타이머에 할당하여 페이지 이탈 시 취소 가능하게 만듦
     if(pageId === 'notes') {
         pageTransitionTimer = setTimeout(() => {
