@@ -34,8 +34,8 @@ window.loadDashboardData = async function() {
         ['tasks', 'prodlogs', 'blog', 'youtube'].forEach(setRefreshTime);
         isDashboardLoaded = true;
     } catch (error) {
-        console.error('???? ??? ?? ??:', error);
-        showToast('???? ???? ???? ?????.', 'error');
+        console.error('대시보드 데이터 로드 오류:', error);
+        showToast('대시보드 데이터를 불러오지 못했습니다.', 'error');
     } finally {
         if (loader) loader.style.display = 'none';
     }
@@ -68,8 +68,8 @@ window.refreshDashData = async function(type) {
         }
         setRefreshTime(type);
     } catch (error) {
-        console.error('???? ??:', error);
-        showToast('???? ? ??? ??????.', 'error');
+        console.error('새로고침 오류:', error);
+        showToast('새로고침 중 오류가 발생했습니다.', 'error');
     } finally {
         if (iconEl) iconEl.classList.remove('fa-spin');
     }
@@ -480,7 +480,7 @@ function setRefreshTime(type) {
     const el = document.getElementById(`time-${type}`);
     if (!el) return;
     const now = new Date();
-    el.innerText = `?? ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    el.innerText = `최근 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 }
 
 window.navigateFromDash = function(pageId, tabId) {
