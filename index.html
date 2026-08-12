@@ -251,11 +251,7 @@
       <div id="page-dashboard" class="page-section active">
         <section class="dash-lab-overview" aria-label="에너가드랩 지표 요약">
             <div class="dash-section-heading">
-                <div>
-                    <h2>에너가드랩 현황</h2>
-                    <p>매출과 검색 노출, 블로그 순위를 최신 저장 데이터로 확인합니다.</p>
-                </div>
-                <span id="time-lab-overview" class="dash-section-time">불러오는 중</span>
+                <span id="time-lab-overview" class="dash-section-time" style="margin-left:auto;">불러오는 중</span>
             </div>
             <div class="dash-lab-grid">
                 <article class="dash-lab-card">
@@ -265,8 +261,9 @@
                             <span><strong>매출 현황</strong><small id="dash-sales-period">최근 30일</small></span>
                         </button>
                         <button type="button" class="dash-lab-refresh" onclick="refreshDashData('lab-sales')" title="매출 현황 새로고침"><i class="fa-solid fa-rotate-right"></i></button>
+                        <button type="button" class="dash-lab-refresh" onclick="toggleDashLabSales()" title="매출 현황 펼치기/접기(민감정보)"><i class="fa-solid fa-chevron-down" id="dash-sales-toggle-icon" style="transition:transform .2s;"></i></button>
                     </div>
-                    <div class="dash-lab-metrics" id="dash-sales-metrics">
+                    <div class="dash-lab-metrics" id="dash-sales-metrics" style="display:none;">
                         <div class="dash-lab-loading">매출 데이터를 불러오고 있습니다.</div>
                     </div>
                 </article>
@@ -329,12 +326,6 @@
             </div>
         </section>
 
-        <div class="dash-section-heading dash-work-heading">
-            <div>
-                <h2>업무 현황</h2>
-                <p>이번 주 업무와 최근 작성 자료를 확인합니다.</p>
-            </div>
-        </div>
         <div class="dash-grid-2">
             <div class="dash-card">
                 <div class="dash-card-header">

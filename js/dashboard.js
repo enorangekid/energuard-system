@@ -82,6 +82,16 @@ window.openEnerguardLabPage = function(path) {
     window.open(`${LAB_BASE_URL}${path || ''}`, '_blank', 'noopener');
 };
 
+// 매출 현황은 민감정보라 화면 진입 시 기본으로 접혀있게 한다(구버전과 동일).
+window.toggleDashLabSales = function() {
+    const el = document.getElementById('dash-sales-metrics');
+    const icon = document.getElementById('dash-sales-toggle-icon');
+    if (!el) return;
+    const isHidden = el.style.display === 'none';
+    el.style.display = isHidden ? '' : 'none';
+    if (icon) icon.style.transform = isHidden ? 'rotate(180deg)' : '';
+};
+
 function dashboardDate(date) {
     if (!date) return '-';
     const parts = String(date).slice(0, 10).split('-');
@@ -285,6 +295,7 @@ function rankDeltaList(latestRows, previousRows) {
         if (diff === 0) return;
         items.push({
             name: row.product_name || row.product_code,
+            keyword: row.keyword || '',
             thumb: row.product_image || '',
             link: row.product_link || '',
             curRank: Number(row.rank),
@@ -304,7 +315,10 @@ function dashRankItemHtml(item, isUp) {
                 </span>
             </div>
             <div class="dash-rank-thumb" ${item.thumb ? `style="background-image:url(${item.thumb});margin-left:4px;"` : 'style="margin-left:4px;"'}></div>
-            <span class="dash-rank-name" title="${item.name}">${item.name}</span>
+            <span style="min-width:0; display:flex; flex-direction:column; gap:2px;">
+                <span class="dash-rank-name" title="${item.name}">${item.name}</span>
+                <span style="font-size:11px; color:#94a3b8; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${item.keyword}">${item.keyword}</span>
+            </span>
         </a>`;
 }
 
@@ -381,7 +395,8 @@ async function fetchBlogDateRows(blogIds, date) {
         .range(from, to));
 }
 
-function renderBlogRankLists(latestRows) {
+function renderBlogRankLists(latestRows, blogNameMap) {
+    const nameOf = blogId => (blogNameMap && blogNameMap.get(blogId)) || blogId || '';
     const byKeyword = new Map();
     latestRows.forEach(row => {
         const key = `${row.blog_id || ''}::${row.keyword || ''}`;
@@ -395,20 +410,21 @@ function renderBlogRankLists(latestRows) {
     const hiddenEl = document.getElementById('dash-blogrank-hidden');
     if (exposedEl) {
         exposedEl.innerHTML = exposed.length
-            ? exposed.map(row => `<li><span class="dot success"></span><span class="dash-note-title">${row.keyword}</span><span class="dash-date">${row.rank}위</span></li>`).join('')
+            ? exposed.map(row => `<li><span class="dot success"></span><span class="dash-note-title" title="${row.keyword} · ${nameOf(row.blog_id)}">${row.keyword} <span style="color:#94a3b8;font-weight:500;">· ${nameOf(row.blog_id)}</span></span><span class="dash-date">${row.rank}위</span></li>`).join('')
             : '<li><span class="dash-empty">노출 키워드 없음</span></li>';
     }
     if (hiddenEl) {
         hiddenEl.innerHTML = hidden.length
-            ? hidden.map(row => `<li><span class="dot danger"></span><span class="dash-note-title">${row.keyword}</span></li>`).join('')
+            ? hidden.map(row => `<li><span class="dot danger"></span><span class="dash-note-title" title="${row.keyword} · ${nameOf(row.blog_id)}">${row.keyword} <span style="color:#94a3b8;font-weight:500;">· ${nameOf(row.blog_id)}</span></span></li>`).join('')
             : '<li><span class="dash-empty">미노출 키워드 없음</span></li>';
     }
 }
 
 async function loadBlogOverview() {
-    const { data: blogs, error: blogError } = await supabaseClient.from('blog_rank_blogs').select('blog_id').eq('is_mine', true).eq('active', true);
+    const { data: blogs, error: blogError } = await supabaseClient.from('blog_rank_blogs').select('blog_id,blog_name').eq('is_mine', true).eq('active', true);
     if (blogError) throw blogError;
     const blogIds = (blogs || []).map(row => row.blog_id);
+    const blogNameMap = new Map((blogs || []).map(row => [row.blog_id, row.blog_name || row.blog_id]));
     if (!blogIds.length) {
         setLabPeriod('dash-blogrank-period', '내 블로그 없음');
         setLabCardState('dash-blogrank-metrics', '<div class="dash-lab-empty">에너가드랩에서 내 블로그를 등록해 주세요.</div>');
@@ -437,7 +453,7 @@ async function loadBlogOverview() {
         dashboardMetric('미노출', `${current.hidden.toLocaleString('ko-KR')}개`, before ? dashboardComparison(current.hidden, before.hidden) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>', current.hidden ? 'warning' : ''),
         dashboardMetric('노출률', dashboardPercent(current.rate), before ? `<span class="dash-lab-compare ${current.rate >= before.rate ? 'up' : 'down'}">${current.rate >= before.rate ? '▲' : '▼'}${Math.abs(current.rate - before.rate).toFixed(1)}%p</span>` : '<span class="dash-lab-compare muted">이전 데이터 없음</span>')
     ].join(''));
-    renderBlogRankLists(latestRows);
+    renderBlogRankLists(latestRows, blogNameMap);
 }
 
 async function loadLabOverviewData(section = 'all') {
