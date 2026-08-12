@@ -74,11 +74,11 @@
 .dash-empty { color: #94a3b8; text-align: center; width: 100%; padding: 10px 0; font-weight: 400; }
 /* ================= [11. Right Quick Bar (NEW)] ================= */
 
-/* ✅ 기존 body의 display 설정을 우측바까지 포함하도록 유지 */
-/* 기존에 body { display: flex; } 로 설정되어 있으므로 자연스럽게 우측에 붙습니다. */
-
 .right-quickbar {
+  grid-column: 2;
+  grid-row: 2;
   width: 70px;
+  min-height: 0;
   background-color: #ffffff;
   border-left: 1px solid var(--border);
   display: flex;
@@ -88,6 +88,8 @@
   z-index: 100;
   box-shadow: -2px 0 10px rgba(0,0,0,0.02);
   flex-shrink: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .quick-menu-list {
@@ -160,4 +162,3 @@
   .right-quickbar { display: none !important; }
 }
 /* [중복제거] right-quickbar 중복 → 위 섹션으로 통합 */
-
