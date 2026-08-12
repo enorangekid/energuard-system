@@ -167,37 +167,74 @@ async function fetchSalesDailyRows(dateFrom, dateTo) {
     return Array.isArray(body.daily) ? body.daily : [];
 }
 
+async function fetchCoupangSalesRows(dateFrom, dateTo) {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ action: 'coupangSalesSummary', dateFrom, dateTo }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.error) throw new Error(body.error || `쿠팡 매출 조회 실패 (${res.status})`);
+    return Array.isArray(body.items) ? body.items : [];
+}
+
+// 구버전 "판매 성과 (스마트스토어 + 쿠팡) * 전월 동기간 대비"와 동일한 방식으로 복원한다.
+// 데이터는 수동 입력이라 이번 달 자료가 아직 없을 수 있음 — 달력상 "이번 달"이 아니라
+// 실제로 데이터가 있는 가장 최근 두 개 월을 비교한다(예: 8월 자료가 없으면 7월 vs 6월).
 async function loadSalesOverview() {
     const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-    const rangeFrom = dateDaysBefore(today, 59);
-    const rows = await fetchSalesDailyRows(rangeFrom, today);
-    if (!rows.length) {
+    const rangeFrom = dateDaysBefore(today, 119);
+    const [naverRows, coupangRows] = await Promise.all([
+        fetchSalesDailyRows(rangeFrom, today),
+        fetchCoupangSalesRows(rangeFrom, today).catch(() => []),
+    ]);
+
+    const byDate = new Map();
+    naverRows.forEach(row => {
+        const item = byDate.get(row.date) || { sales: 0, orders: 0, visits: 0 };
+        item.sales += Number(row.salesNet) || 0;
+        item.orders += Number(row.payCount) || 0;
+        item.visits += Number(row.visits) || 0;
+        byDate.set(row.date, item);
+    });
+    coupangRows.forEach(row => {
+        const item = byDate.get(row.date) || { sales: 0, orders: 0, visits: 0 };
+        item.sales += Number(row.sales) || 0;
+        item.orders += Number(row.orders) || 0;
+        item.visits += Number(row.visitors) || 0;
+        byDate.set(row.date, item);
+    });
+
+    if (!byDate.size) {
         setLabPeriod('dash-sales-period', '저장 데이터 없음');
         setLabCardState('dash-sales-metrics', '<div class="dash-lab-empty">매출분석에서 판매 자료를 먼저 수집해 주세요.</div>');
         return;
     }
 
-    const latest = rows[rows.length - 1].date;
-    const currentFrom = dateDaysBefore(latest, 29);
-    const previousTo = dateDaysBefore(currentFrom, 1);
-    const previousFrom = dateDaysBefore(previousTo, 29);
+    const monthMap = new Map();
+    byDate.forEach((row, date) => {
+        const month = date.slice(0, 7);
+        const acc = monthMap.get(month) || { sales: 0, orders: 0, visits: 0 };
+        acc.sales += row.sales;
+        acc.orders += row.orders;
+        acc.visits += row.visits;
+        monthMap.set(month, acc);
+    });
+    const sortedMonths = [...monthMap.keys()].sort().reverse();
+    const currentMonth = sortedMonths[0];
+    const previousMonth = sortedMonths[1] || null;
+    const current = monthMap.get(currentMonth);
+    const previous = previousMonth ? monthMap.get(previousMonth) : null;
 
-    const sum = (from, to) => rows.filter(row => row.date >= from && row.date <= to).reduce((acc, row) => {
-        acc.sales += Number(row.salesNet) || 0;
-        acc.orders += Number(row.payCount) || 0;
-        acc.visits += Number(row.visits) || 0;
-        return acc;
-    }, { sales: 0, orders: 0, visits: 0 });
-    const current = sum(currentFrom, latest);
-    const previous = sum(previousFrom, previousTo);
     const conversion = current.visits ? current.orders / current.visits * 100 : 0;
-    const previousConversion = previous.visits ? previous.orders / previous.visits * 100 : null;
+    const previousConversion = previous && previous.visits ? previous.orders / previous.visits * 100 : null;
 
-    setLabPeriod('dash-sales-period', `${dashboardDate(currentFrom)} - ${dashboardDate(latest)}`);
+    const [y, m] = currentMonth.split('-');
+    setLabPeriod('dash-sales-period', `${y}년 ${Number(m)}월 · 전월 동기간 대비`);
     setLabCardState('dash-sales-metrics', [
-        dashboardMetric('매출(순)', dashboardMoney(current.sales), dashboardComparison(current.sales, previous.sales), 'accent'),
-        dashboardMetric('결제 건수', `${current.orders.toLocaleString('ko-KR')}건`, dashboardComparison(current.orders, previous.orders)),
-        dashboardMetric('방문수', `${current.visits.toLocaleString('ko-KR')}회`, dashboardComparison(current.visits, previous.visits)),
+        dashboardMetric('매출', dashboardMoney(current.sales), previous ? dashboardComparison(current.sales, previous.sales) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>', 'accent'),
+        dashboardMetric('결제 건수', `${current.orders.toLocaleString('ko-KR')}건`, previous ? dashboardComparison(current.orders, previous.orders) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>'),
+        dashboardMetric('방문수', `${current.visits.toLocaleString('ko-KR')}회`, previous ? dashboardComparison(current.visits, previous.visits) : '<span class="dash-lab-compare muted">이전 데이터 없음</span>'),
         dashboardMetric('구매전환율', dashboardPercent(conversion), previousConversion == null ? '<span class="dash-lab-compare muted">이전 데이터 없음</span>' : `<span class="dash-lab-compare ${conversion >= previousConversion ? 'up' : 'down'}">${conversion >= previousConversion ? '▲' : '▼'}${Math.abs(conversion - previousConversion).toFixed(1)}%p</span>`)
     ].join(''));
 }
