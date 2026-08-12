@@ -91,12 +91,12 @@ window.handleNoteMonthChange = async function() {
         if (data && data.length > 0) { 
             currentNoteId = data[0].id; 
             const noteContent = data[0].content || '';
-            if (window.quill) window.quill.root.innerHTML = noteContent;
+            setQuillContent(window.quill, noteContent);
             noteOriginalContent = noteContent;
-        } else { 
-            currentNoteId = null; 
-            if (window.quill) window.quill.root.innerHTML = '';
-            noteOriginalContent = ''; 
+        } else {
+            currentNoteId = null;
+            setQuillContent(window.quill, '');
+            noteOriginalContent = '';
         }
         
         const statusLabel = document.getElementById('noteSaveStatus');
@@ -126,6 +126,18 @@ window.insertTodayHeader = function() {
     const afterHr = index + (window.quill.getLength() > 1 ? 2 : 1);
     window.quill.insertText(afterHr, label + '\n', { 'bold': true, 'color': '#4f46e5' }, 'user');
     window.quill.setSelection(afterHr + label.length + 1, 'silent');
+}
+
+// 📌 저장된 HTML을 에디터에 안전하게 로드한다. root.innerHTML을 직접 바꾸면 Quill의
+// MutationObserver가 이를 "사용자 편집"으로 오인해 text-change(user)를 발생시키고
+// (→ 자동저장 트리거), 옛 버전(1.3.6)에서 저장된 중첩 서식 HTML을 Quill 2.x가
+// 잘못 재해석해 텍스트가 중복되는 심각한 손상이 실제로 있었다(2026-08-12). 반드시
+// clipboard.convert()로 변환한 뒤 setContents(..., 'silent')로 넣어야 안전하다.
+function setQuillContent(quillInstance, html) {
+    if (!quillInstance) return;
+    if (!html) { quillInstance.setContents([], 'silent'); return; }
+    const delta = quillInstance.clipboard.convert({ html: html });
+    quillInstance.setContents(delta, 'silent');
 }
 
 // 📌 Quill 에디터 초기화 (Quill 2.x + quill-table-better, 에너가드랩 admin/work-notes.js에서 이식)
@@ -330,7 +342,7 @@ window.cancelNoteChanges = async function() {
     clearTimeout(noteAutoSaveTimer); // 자동저장 타이머 Kill
 
     // 1. 에디터 내용을 원본으로 롤백
-    if (window.quill) window.quill.root.innerHTML = noteOriginalContent;
+    setQuillContent(window.quill, noteOriginalContent);
     
     const statusLabel = document.getElementById('noteSaveStatus');
     if(statusLabel) statusLabel.innerHTML = '복구 중...';
@@ -453,7 +465,7 @@ window.loadDraftContent = async function(noteId) {
         if (data) {
             currentNoteId = data.id; document.getElementById('noteDate').value = data.date;
             document.getElementById('draftTitle').value = data.title || ''; document.getElementById('draftStatus').value = data.status || 'saving';
-            if (window.quill) window.quill.root.innerHTML = data.content || '';
+            setQuillContent(window.quill, data.content || '');
             noteOriginalContent = data.content || '';
             document.getElementById('draftListContainer').style.display = 'none';
             document.getElementById('draftMetadataArea').style.display = 'flex';
@@ -510,8 +522,8 @@ window.createNewDraft = function() {
         if (typeof showToast === 'function') showToast('읽기 전용 탭입니다. 새 원고를 작성할 수 없습니다.', 'warning');
         return;
     }
-    currentNoteId = null; document.getElementById('draftTitle').value = ''; document.getElementById('draftStatus').value = 'saving'; 
-    if (window.quill) window.quill.root.innerHTML = '';
+    currentNoteId = null; document.getElementById('draftTitle').value = ''; document.getElementById('draftStatus').value = 'saving';
+    setQuillContent(window.quill, '');
     noteOriginalContent = '';
     // 신규 작성 시 날짜를 오늘로 자동 설정
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -730,11 +742,11 @@ window.loadQuickMemo = async function() {
             currentQuickNoteId = data[0].id;
             currentQuickNoteMonth = monthStr;
             // 이번 달 노트 내용을 그대로 표시 (수정 가능)
-            if (quickQuill) quickQuill.root.innerHTML = data[0].content || '';
+            setQuillContent(quickQuill, data[0].content || '');
         } else {
             currentQuickNoteId = null;
             currentQuickNoteMonth = monthStr;
-            if (quickQuill) quickQuill.root.innerHTML = '';
+            setQuillContent(quickQuill, '');
         }
     } catch(e) {
         console.error('퀵 메모 로드 실패:', e);
