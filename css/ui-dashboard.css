@@ -113,23 +113,23 @@
 
 .dash-lab-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  margin-bottom: 24px;
 }
 
 .dash-lab-card {
   min-width: 0;
-  overflow: hidden;
+  padding: 24px;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .dash-lab-card-head {
-  min-height: 70px;
-  padding: 15px 16px;
-  border-bottom: 1px solid var(--border);
+  min-height: 34px;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -148,7 +148,7 @@
   padding: 0;
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   color: var(--text-main);
   text-align: left;
   cursor: pointer;
@@ -158,19 +158,19 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .dash-lab-title strong {
-  font-size: 14px;
-  font-weight: 800;
+  font-size: 16px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .dash-lab-title small {
   overflow: hidden;
   color: var(--text-sub);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -181,35 +181,35 @@
 }
 
 .dash-lab-icon {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #fff1ec;
-  color: var(--primary);
+  background: #f05a2b;
+  color: #fff;
   font-size: 14px;
 }
 
 .dash-lab-icon.keyword {
-  background: #eef2ff;
-  color: #4f46e5;
+  background: #f59e0b;
+  color: #fff;
 }
 
 .dash-lab-icon.blog {
-  background: #ecfdf5;
-  color: #059669;
+  background: #10b981;
+  color: #fff;
 }
 
 .dash-lab-refresh {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -219,46 +219,40 @@
 }
 
 .dash-lab-refresh:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-  color: #475569;
+  background: #f1f5f9;
+  color: var(--primary);
 }
 
 .dash-lab-metrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
 }
 
 .dash-lab-metric {
   min-width: 0;
-  min-height: 95px;
-  padding: 15px 16px;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  min-height: 92px;
+  padding: 16px;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 
-.dash-lab-metric:nth-child(2n) {
-  border-right: 0;
-}
-
-.dash-lab-metric:nth-last-child(-n + 2) {
-  border-bottom: 0;
-}
-
 .dash-lab-metric-label {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   color: var(--text-sub);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .dash-lab-metric strong {
   overflow: hidden;
   color: var(--text-main);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -275,9 +269,9 @@
 
 .dash-lab-metric-note {
   min-height: 17px;
-  margin-top: 5px;
-  font-size: 10px;
-  font-weight: 700;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .dash-lab-compare.up { color: #059669; }
@@ -287,8 +281,8 @@
 .dash-lab-loading,
 .dash-lab-empty {
   grid-column: 1 / -1;
-  min-height: 190px;
-  padding: 24px;
+  min-height: 92px;
+  padding: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -302,14 +296,15 @@
 }
 
 @media (max-width: 1180px) {
-  .dash-lab-grid { grid-template-columns: 1fr; }
+  .dash-lab-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dash-lab-metric { min-height: 82px; }
 }
 
 @media (max-width: 720px) {
   .dash-section-heading { align-items: flex-start; }
   .dash-section-heading p { display: none; }
-  .dash-lab-card-head { padding: 14px; }
+  .dash-lab-card { padding: 18px; }
+  .dash-lab-metrics { grid-template-columns: 1fr; gap: 10px; }
   .dash-lab-metric { padding: 14px; }
   .dash-lab-metric strong { font-size: 18px; }
 }
