@@ -259,17 +259,24 @@
                     <div class="dash-lab-card-head" style="cursor:pointer; margin-bottom:0;" onclick="toggleDashLabSales()" title="클릭하여 펼치기/접기">
                         <span class="dash-lab-title">
                             <span class="dash-lab-icon sales"><i class="fa-solid fa-chart-line"></i></span>
-                            <span><strong>판매 성과 (스마트스토어 + 쿠팡)</strong><small>* 전월 동기간 대비</small></span>
+                            <span><strong>판매 성과</strong></span>
                         </span>
                         <div style="display:flex; align-items:center; gap:15px;">
+                            <select id="dash-sales-source-select" class="dash-store-select" onclick="event.stopPropagation()" onchange="switchSalesSource(this.value)" title="판매 채널 선택">
+                                <option value="naver">스마트스토어</option>
+                                <option value="coupang">쿠팡</option>
+                            </select>
                             <div class="dash-refresh" onclick="event.stopPropagation(); refreshDashData('lab-sales')" title="새로고침">
-                                <span id="time-lab-sales">불러오는 중</span> <i class="fa-solid fa-rotate-right"></i>
+                                <span id="time-lab-sales">불러오는 중</span> <svg class="dash-refresh-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 1024 1024"><path d="M0 0h1024v1024H0z" fill="none"/><path fill="currentColor" d="M784.5 230.3v-50.6a32 32 0 1 1 64 0v149a32 32 0 0 1-32 32h-149a32 32 0 1 1 0-64h93a320 320 0 1 0-235.7 536.5a320 320 0 0 0 320-320h64a384 384 0 0 1-384 384a384 384 0 0 1-384-384a384 384 0 0 1 643.7-283"/></svg>
                             </div>
                             <i class="fa-solid fa-chevron-down" id="dash-sales-toggle-icon" style="color:#94a3b8; transition:transform .3s;"></i>
                         </div>
                     </div>
-                    <div class="dash-lab-metrics" id="dash-sales-metrics" style="display:none; margin-top:20px; padding-top:20px; border-top:1px solid #f1f5f9;">
-                        <div class="dash-lab-loading">매출 데이터를 불러오고 있습니다.</div>
+                    <div id="dash-sales-body" style="display:none; margin-top:20px; padding-top:20px; border-top:1px solid #f1f5f9;">
+                        <div class="dash-lab-metrics dash-lab-metrics-5" id="dash-sales-metrics">
+                            <div class="dash-lab-loading">매출 데이터를 불러오고 있습니다.</div>
+                        </div>
+                        <div id="dash-sales-extras-wrap"></div>
                     </div>
                 </article>
 
@@ -277,112 +284,100 @@
                     <div class="dash-lab-card-head">
                         <button type="button" class="dash-lab-title" onclick="openEnerguardLabPage('rank-tracker.html')">
                             <span class="dash-lab-icon keyword"><i class="fa-solid fa-trophy"></i></span>
-                            <span><strong>키워드 현황</strong><small id="dash-keyword-period">최근 수집일</small></span>
+                            <span><strong>키워드 현황</strong></span>
                         </button>
-                        <div class="dash-refresh" onclick="refreshDashData('lab-keyword')" title="키워드 현황 새로고침">
-                            <span id="time-lab-keyword">불러오는 중</span> <i class="fa-solid fa-rotate-right"></i>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <select id="dash-keyword-store-select" class="dash-store-select" style="display:none;" onchange="switchKeywordStore(this.value)" title="스토어 선택">
+                                <option value="한국 단열">한국 단열</option>
+                                <option value="에너가드컴퍼니">에너가드컴퍼니</option>
+                            </select>
+                            <div class="dash-refresh" onclick="refreshDashData('lab-keyword')" title="키워드 현황 새로고침">
+                                <span id="time-lab-keyword">불러오는 중</span> <svg class="dash-refresh-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 1024 1024"><path d="M0 0h1024v1024H0z" fill="none"/><path fill="currentColor" d="M784.5 230.3v-50.6a32 32 0 1 1 64 0v149a32 32 0 0 1-32 32h-149a32 32 0 1 1 0-64h93a320 320 0 1 0-235.7 536.5a320 320 0 0 0 320-320h64a384 384 0 0 1-384 384a384 384 0 0 1-384-384a384 384 0 0 1 643.7-283"/></svg>
+                            </div>
                         </div>
                     </div>
-                    <div class="dash-lab-metrics" id="dash-keyword-metrics">
+                    <div class="dash-lab-metrics dash-lab-metrics-5" id="dash-keyword-metrics">
                         <div class="dash-lab-loading">키워드 데이터를 불러오고 있습니다.</div>
                     </div>
-                    <div class="dash-rank-wrapper" id="dash-keyword-rank-wrapper" style="margin-top:16px;">
-                        <div class="dash-rank-box">
-                            <div class="dash-rank-header">
-                                <span style="color:#ef4444;"><i class="fa-solid fa-caret-up"></i> 순위 급상승</span>
-                                <span class="dash-rank-badge" id="dash-keyword-up-count" style="color:#ef4444;background:#fef2f2;">0건</span>
-                            </div>
-                            <div class="dash-rank-list-scroll" id="dash-keyword-up-list"></div>
-                        </div>
-                        <div class="dash-rank-box">
-                            <div class="dash-rank-header">
-                                <span style="color:#3b82f6;"><i class="fa-solid fa-caret-down"></i> 순위 급하락</span>
-                                <span class="dash-rank-badge" id="dash-keyword-down-count" style="color:#3b82f6;background:#eff6ff;">0건</span>
-                            </div>
-                            <div class="dash-rank-list-scroll" id="dash-keyword-down-list"></div>
-                        </div>
-                    </div>
+                    <div id="dash-keyword-movers-wrap" style="margin-top:16px;"></div>
                 </article>
 
                 <article class="dash-lab-card">
                     <div class="dash-lab-card-head">
                         <button type="button" class="dash-lab-title" onclick="openEnerguardLabPage('blog-rank.html')">
                             <span class="dash-lab-icon blog"><i class="fa-brands fa-neos"></i></span>
-                            <span><strong>블로그 순위 현황</strong><small id="dash-blogrank-period">최근 진단일</small></span>
+                            <span><strong>블로그 순위 현황</strong></span>
                         </button>
                         <div class="dash-refresh" onclick="refreshDashData('lab-blog')" title="블로그 순위 현황 새로고침">
-                            <span id="time-lab-blog">불러오는 중</span> <i class="fa-solid fa-rotate-right"></i>
+                            <span id="time-lab-blog">불러오는 중</span> <svg class="dash-refresh-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 1024 1024"><path d="M0 0h1024v1024H0z" fill="none"/><path fill="currentColor" d="M784.5 230.3v-50.6a32 32 0 1 1 64 0v149a32 32 0 0 1-32 32h-149a32 32 0 1 1 0-64h93a320 320 0 1 0-235.7 536.5a320 320 0 0 0 320-320h64a384 384 0 0 1-384 384a384 384 0 0 1-384-384a384 384 0 0 1 643.7-283"/></svg>
                         </div>
                     </div>
-                    <div class="dash-lab-metrics" id="dash-blogrank-metrics">
+                    <div class="dash-lab-metrics dash-lab-metrics-5" id="dash-blogrank-metrics">
                         <div class="dash-lab-loading">블로그 데이터를 불러오고 있습니다.</div>
                     </div>
-                    <div class="dash-rank-wrapper" id="dash-blogrank-rank-wrapper" style="margin-top:16px;">
-                        <div class="dash-rank-box">
-                            <div class="dash-rank-header">
-                                <span style="color:#10b981;"><i class="fa-solid fa-eye"></i> 노출 키워드 (순위 낮은 순)</span>
-                            </div>
-                            <ul class="dash-list dash-rank-list-scroll" id="dash-blogrank-exposed"></ul>
-                        </div>
-                        <div class="dash-rank-box">
-                            <div class="dash-rank-header">
-                                <span style="color:#ef4444;"><i class="fa-solid fa-eye-slash"></i> 미노출 키워드</span>
-                            </div>
-                            <ul class="dash-list dash-rank-list-scroll" id="dash-blogrank-hidden"></ul>
-                        </div>
-                    </div>
+                    <div id="dash-blogrank-movers-wrap" style="margin-top:16px;"></div>
                 </article>
             </div>
         </section>
 
-        <div class="dash-grid-2">
-            <div class="dash-card">
-                <div class="dash-card-header">
-                    <h4 class="dash-card-title clickable" onclick="navigateFromDash('worklog')" title="업무일지로 이동">
-                        <div class="dash-card-icon" style="background: #10b981;"><i class="fa-solid fa-calendar-check"></i></div> 
-                        금주 주간 목표 <span class="dash-card-subtitle" id="dash-week-label"></span>
-                    </h4>
-                    <div class="dash-refresh" onclick="refreshDashData('tasks')" title="새로고침">
-                        <span id="time-tasks">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+        <div class="dash-group-grid">
+            <div class="dash-group-card">
+                <div class="dash-group-card-title">업무</div>
+                <div class="dash-group-card-body">
+                    <div class="dash-group-card-item">
+                        <div class="dash-card-header">
+                            <h4 class="dash-card-title clickable" onclick="navigateFromDash('worklog')">
+                                <div class="dash-card-icon" style="background: #10b981;"><i class="fa-solid fa-calendar-check"></i></div>
+                                금주 주간 목표
+                            </h4>
+                            <div class="dash-refresh" onclick="refreshDashData('tasks')" title="새로고침">
+                                <span id="time-tasks">로딩중...</span> <svg class="dash-refresh-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 1024 1024"><path d="M0 0h1024v1024H0z" fill="none"/><path fill="currentColor" d="M784.5 230.3v-50.6a32 32 0 1 1 64 0v149a32 32 0 0 1-32 32h-149a32 32 0 1 1 0-64h93a320 320 0 1 0-235.7 536.5a320 320 0 0 0 320-320h64a384 384 0 0 1-384 384a384 384 0 0 1-384-384a384 384 0 0 1 643.7-283"/></svg>
+                            </div>
+                        </div>
+                        <ul class="dash-list" id="dash-task-list"></ul>
+                    </div>
+                    <div class="dash-group-card-item">
+                        <div class="dash-card-header">
+                            <h4 class="dash-card-title clickable" onclick="navigateFromDash('productlogs')">
+                                <div class="dash-card-icon" style="background: #8b5cf6;"><i class="fa-solid fa-pen-to-square"></i></div>
+                                최근 상품 수정
+                            </h4>
+                            <div class="dash-refresh" onclick="refreshDashData('prodlogs')" title="새로고침">
+                                <span id="time-prodlogs">로딩중...</span> <svg class="dash-refresh-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 1024 1024"><path d="M0 0h1024v1024H0z" fill="none"/><path fill="currentColor" d="M784.5 230.3v-50.6a32 32 0 1 1 64 0v149a32 32 0 0 1-32 32h-149a32 32 0 1 1 0-64h93a320 320 0 1 0-235.7 536.5a320 320 0 0 0 320-320h64a384 384 0 0 1-384 384a384 384 0 0 1-384-384a384 384 0 0 1 643.7-283"/></svg>
+                            </div>
+                        </div>
+                        <ul class="dash-list" id="dash-prodlog-list"></ul>
                     </div>
                 </div>
-                <ul class="dash-list" id="dash-task-list"></ul>
             </div>
-            <div class="dash-card">
-                <div class="dash-card-header">
-                    <h4 class="dash-card-title clickable" onclick="navigateFromDash('productlogs')" title="상품수정 내역으로 이동">
-                        <div class="dash-card-icon" style="background: #8b5cf6;"><i class="fa-solid fa-pen-to-square"></i></div> 
-                        최근 상품 수정
-                    </h4>
-                    <div class="dash-refresh" onclick="refreshDashData('prodlogs')" title="새로고침">
-                        <span id="time-prodlogs">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
+            <div class="dash-group-card">
+                <div class="dash-group-card-title">미디어 콘텐츠</div>
+                <div class="dash-group-card-body">
+                    <div class="dash-group-card-item">
+                        <div class="dash-card-header">
+                            <h4 class="dash-card-title clickable" onclick="navigateFromDash('notes', 'blog')">
+                                <div class="dash-card-icon" style="background: #10b981;"><i class="fa-solid fa-blog"></i></div>
+                                블로그 최신글
+                            </h4>
+                            <div class="dash-refresh" onclick="refreshDashData('blog')" title="새로고침">
+                                <span id="time-blog">로딩중...</span> <svg class="dash-refresh-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 1024 1024"><path d="M0 0h1024v1024H0z" fill="none"/><path fill="currentColor" d="M784.5 230.3v-50.6a32 32 0 1 1 64 0v149a32 32 0 0 1-32 32h-149a32 32 0 1 1 0-64h93a320 320 0 1 0-235.7 536.5a320 320 0 0 0 320-320h64a384 384 0 0 1-384 384a384 384 0 0 1-384-384a384 384 0 0 1 643.7-283"/></svg>
+                            </div>
+                        </div>
+                        <ul class="dash-list" id="dash-blog-list"></ul>
+                    </div>
+                    <div class="dash-group-card-item">
+                        <div class="dash-card-header">
+                            <h4 class="dash-card-title clickable" onclick="navigateFromDash('notes', 'youtube')">
+                                <div class="dash-card-icon" style="background: #ef4444;"><i class="fa-brands fa-youtube"></i></div>
+                                유튜브 최신영상
+                            </h4>
+                            <div class="dash-refresh" onclick="refreshDashData('youtube')" title="새로고침">
+                                <span id="time-youtube">로딩중...</span> <svg class="dash-refresh-icon" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 1024 1024"><path d="M0 0h1024v1024H0z" fill="none"/><path fill="currentColor" d="M784.5 230.3v-50.6a32 32 0 1 1 64 0v149a32 32 0 0 1-32 32h-149a32 32 0 1 1 0-64h93a320 320 0 1 0-235.7 536.5a320 320 0 0 0 320-320h64a384 384 0 0 1-384 384a384 384 0 0 1-384-384a384 384 0 0 1 643.7-283"/></svg>
+                            </div>
+                        </div>
+                        <ul class="dash-list" id="dash-yt-list"></ul>
                     </div>
                 </div>
-                <ul class="dash-list" id="dash-prodlog-list"></ul>
-            </div>
-            <div class="dash-card">
-                <div class="dash-card-header">
-                    <h4 class="dash-card-title clickable" onclick="navigateFromDash('notes', 'blog')" title="업무노트로 이동">
-                        <div class="dash-card-icon" style="background: #10b981;"><i class="fa-solid fa-blog"></i></div> 
-                        블로그 최신글
-                    </h4>
-                    <div class="dash-refresh" onclick="refreshDashData('blog')" title="새로고침">
-                        <span id="time-blog">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
-                    </div>
-                </div>
-                <ul class="dash-list" id="dash-blog-list"></ul>
-            </div>
-            <div class="dash-card">
-                <div class="dash-card-header">
-                    <h4 class="dash-card-title clickable" onclick="navigateFromDash('notes', 'youtube')" title="업무노트로 이동">
-                        <div class="dash-card-icon" style="background: #ef4444;"><i class="fa-brands fa-youtube"></i></div> 
-                        유튜브 최신영상
-                    </h4>
-                    <div class="dash-refresh" onclick="refreshDashData('youtube')" title="새로고침">
-                        <span id="time-youtube">로딩중...</span> <i class="fa-solid fa-rotate-right"></i>
-                    </div>
-                </div>
-                <ul class="dash-list" id="dash-yt-list"></ul>
             </div>
         </div>
         

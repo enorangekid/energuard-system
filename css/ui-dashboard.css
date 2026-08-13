@@ -20,6 +20,12 @@
 .dash-refresh { font-size: 13px; color: #94a3b8; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.2s; padding: 4px 8px; border-radius: 6px; }
 .dash-refresh:hover { background-color: #f1f5f9; color: var(--primary); }
 .dash-refresh i { font-size: 14px; }
+.dash-refresh-icon { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* 키워드 현황 카드의 스토어 스위치(한국단열 ↔ 에너가드컴퍼니) */
+.dash-store-select { font: inherit; font-size: 12.5px; font-weight: 700; color: var(--text-main); background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; cursor: pointer; }
+.dash-store-select:hover { border-color: var(--primary); }
+.dash-store-select:focus { outline: none; border-color: var(--primary); }
 
 /* 푸터 디자인 */
 .dash-footer {
@@ -39,39 +45,88 @@
 .dash-stat-diff.up { color: #ef4444; }
 .dash-stat-diff.down { color: #3b82f6; }
 
-/* Ranking Lists */
-.dash-rank-wrapper { display: flex; gap: 24px; }
-.dash-rank-box { flex: 1; border: 1px solid #f1f5f9; border-radius: 12px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-.dash-rank-header { font-size: 14px; font-weight: 700; margin-bottom: 0; padding: 16px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
-.dash-rank-badge { font-size: 12px; padding: 2px 10px; border-radius: 12px; font-weight: 700; }
-.dash-rank-list-scroll { padding: 0 16px 16px; max-height: 250px; overflow-y: auto; }
-.dash-rank-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f8fafc; text-decoration: none; color: var(--text-main); transition: 0.2s; }
-.dash-rank-item:last-child { border-bottom: none; }
-.dash-rank-item:hover { background: #f8fafc; border-radius: 6px; padding-left: 5px; padding-right: 5px; }
-.dash-rank-diff { width: 40px; font-size: 12px; font-weight: 800; }
-.dash-rank-diff.up { color: #ef4444; }
-.dash-rank-diff.down { color: #3b82f6; }
-.dash-rank-thumb { width: 36px; height: 36px; border-radius: 6px; background-color: #f1f5f9; background-size: cover; background-position: center; border: 1px solid #e2e8f0; flex-shrink: 0; }
-.dash-rank-name { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #475569; }
+/* 키워드/블로그 현황 무버 카드 — 에너가드랩 rank-tracker.html의 renderCategoryDashboard() 구조를
+   그대로 가져온 것: 키워드 상승/하락 TOP + 급상승/급하락 상품(모두 최근/직전 수집일 2개 비교),
+   그 아래 이탈 상품. 최대 10건까지 스크롤 없이 보여준다(moverKeywordRowHtml/moverProductRowHtml/
+   dropoutRowHtml 대응, 색상·변수명만 통합페이지 톤에 맞춤). */
+.dash-mover-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.dash-mover-card { min-width: 0; border: 1px solid #f1f5f9; border-radius: 10px; padding: 14px 16px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+.dash-mover-title { font-size: 12px; font-weight: 800; color: var(--text-sub); margin-bottom: 8px; }
+.dash-mover-empty { padding: 20px 0; text-align: center; color: #94a3b8; font-size: 12px; }
+.dash-mover-row { display: block; padding: 7px 0; border-bottom: 1px solid #f4f5f7; text-decoration: none; color: inherit; }
+.dash-mover-row:last-child { border-bottom: none; }
+.dash-mover-row:hover .dash-mover-name { color: var(--primary); text-decoration: underline; }
+.dash-mover-row-main { display: flex; align-items: center; gap: 6px; }
+.dash-mover-rank { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%; background: #f1f5f9; color: #64748b; font-size: 10.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.dash-mover-thumb { width: 16px; height: 16px; border-radius: 3px; background-color: #f1f5f9; object-fit: cover; border: 1px solid #e2e8f0; flex-shrink: 0; display: block; }
+.dash-mover-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 700; color: var(--text-main); }
+.dash-mover-delta { flex: 0 0 auto; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
+.dash-mover-delta.up { color: #059669; }
+.dash-mover-delta.down { color: #ef4444; }
+.dash-mover-detail { margin-top: 3px; padding-left: 24px; font-size: 11px; color: var(--text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Dashboard Grid 2x2 */
-.dash-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px; }
+/* 기본 5개만 보여주고 눌러야 펼쳐지는 "더보기" 버튼 — rank-tracker.html의 .summary-top3-more 이식. */
+.dash-mover-more { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; margin-top: 8px; padding: 8px 0 0; border: 0; border-top: 1px solid #f4f5f7; background: transparent; color: var(--text-sub); font: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer; }
+.dash-mover-more:hover { color: var(--primary); }
 
-/* Standard Lists */
+.dash-dropout-detail { margin-top: 5px; padding-left: 24px; display: flex; flex-wrap: wrap; gap: 6px; }
+.dash-dropout-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 20px; background: #fef2f2; color: #ef4444; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.dash-dropout-chip b { font-weight: 700; color: #94a3b8; }
+
+/* 이탈/누락 포스팅처럼 카드가 2개뿐인 줄 — 기본 4열 그리드를 2열로 좁힌다. */
+.dash-mover-grid.dash-mover-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* 핵심지표 TOP3처럼 카드가 3개인 줄. */
+.dash-mover-grid.dash-mover-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@media (max-width: 1180px) {
+  .dash-mover-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .dash-mover-grid { grid-template-columns: 1fr; }
+  .dash-mover-grid.dash-mover-grid-2 { grid-template-columns: 1fr; }
+  .dash-mover-grid.dash-mover-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* 판매 성과 확장 — 유입경로 비율(세그먼트 바), 전월·전년 토글, 섹션 제목.
+   rank-tracker.html의 1페이지/2~3페이지/4페이지 이하 분포 바와 같은 구조. */
+#dash-sales-extras-wrap:not(:empty) { margin-top: 20px; }
+.dash-sales-section-title { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 800; color: var(--text-main); margin-bottom: 10px; }
+.dash-bar-wrap { display: flex; flex-direction: column; gap: 10px; }
+.dash-bar { display: flex; width: 100%; height: 10px; border-radius: 999px; overflow: hidden; background: #f1f5f9; }
+.dash-bar-seg { display: block; height: 100%; }
+.dash-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.dash-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-sub); }
+.dash-legend-item b { color: var(--text-main); font-weight: 700; }
+.dash-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+.dash-period-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.dash-period-toggle-btn { font: inherit; font-size: 11.5px; font-weight: 700; color: var(--text-sub); background: #fff; border: 0; padding: 4px 10px; cursor: pointer; }
+.dash-period-toggle-btn + .dash-period-toggle-btn { border-left: 1px solid var(--border); }
+.dash-period-toggle-btn.on { background: var(--primary); color: #fff; }
+
+/* 업무/미디어 콘텐츠처럼 성격이 같은 카드 2개를 하나의 바깥 카드 안에 묶는다 —
+   각 안쪽 카드는 자기 테두리 없이 구분선(세로선)만으로 나뉜다(2026-08-14). */
+.dash-group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px; }
+.dash-group-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+.dash-group-card-title { font-size: 13px; font-weight: 800; color: var(--text-sub); margin-bottom: 16px; }
+.dash-group-card-body { display: grid; grid-template-columns: 1fr 1fr; }
+.dash-group-card-item { min-width: 0; padding: 0 24px; display: flex; flex-direction: column; }
+.dash-group-card-item:first-child { padding-left: 0; }
+.dash-group-card-item:last-child { padding-right: 0; border-left: 1px solid #f1f5f9; }
+
+@media (max-width: 900px) {
+  .dash-group-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .dash-group-card-body { grid-template-columns: 1fr; gap: 20px; }
+  .dash-group-card-item:last-child { padding-left: 0; border-left: 0; border-top: 1px solid #f1f5f9; padding-top: 20px; }
+}
+
+/* Standard Lists — 금주 주간목표/최근 상품수정/블로그·유튜브 최신글. 무버 카드(.dash-mover-row)와
+   같은 행 스타일을 재사용해서 대시보드 전체 톤을 맞춘다(2026-08-14 리뉴얼). */
 .dash-list { list-style: none; padding: 0; margin: 0; flex: 1; display: flex; flex-direction: column; gap: 0; }
-.dash-list li { padding: 12px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; font-weight: 500; display: flex; align-items: center; color: #475569; }
-.dash-list li:last-child { border-bottom: none; }
-.dash-hover-bg { transition: background-color 0.2s; padding-left: 8px !important; padding-right: 8px !important; border-radius: 6px; cursor: pointer; }
-.dash-hover-bg:hover { background-color: #f8fafc; }
-.dash-list .dot { width: 6px; height: 6px; border-radius: 50%; margin-right: 12px; flex-shrink: 0; }
-.dot.primary { background: var(--primary); }
-.dot.secondary { background: #94a3b8; }
-.dot.success { background: #10b981; }
-.dot.danger { background: #ef4444; }
-.dash-date { font-size: 11px; color: #94a3b8; white-space: nowrap; }
-.dash-note-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dash-hover-underline:hover { text-decoration: underline; color: var(--primary); }
-.dash-empty { color: #94a3b8; text-align: center; width: 100%; padding: 10px 0; font-weight: 400; }
+.dash-list .dash-mover-row { cursor: pointer; padding: 9px 0; }
+.dash-list .dash-mover-row-main { gap: 8px; }
 
 /* Energuard Lab overview */
 .dash-lab-overview {
@@ -163,17 +218,8 @@
 }
 
 .dash-lab-title strong {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
-  white-space: nowrap;
-}
-
-.dash-lab-title small {
-  overflow: hidden;
-  color: var(--text-sub);
-  font-size: 12px;
-  font-weight: 500;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -233,6 +279,10 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
+}
+
+.dash-lab-metrics.dash-lab-metrics-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .dash-lab-metric {
@@ -313,6 +363,10 @@
   .dash-lab-metrics { grid-template-columns: 1fr; gap: 10px; }
   .dash-lab-metric { padding: 14px; }
   .dash-lab-metric strong { font-size: 18px; }
+}
+
+@media (min-width: 721px) and (max-width: 1180px) {
+  .dash-lab-metrics.dash-lab-metrics-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 /* ================= [11. Right Quick Bar (NEW)] ================= */
 
