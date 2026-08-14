@@ -26,6 +26,20 @@
 .btn-add { background: var(--primary); color: white; border: none; padding: 0 24px; height: 46px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2); }
 .btn-add.update-mode { background: #2563eb; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3); }
 
+/* 수정 모드 안내 배너 — 이모지+민짜 버튼이던 걸 앱 다른 곳과 같은 톤(옅은 배경 배지 +
+   pill 버튼)으로 정리(2026-08-14). */
+.timeline-edit-banner {
+  display: flex; align-items: center; gap: 10px;
+  background: #eef2ff; color: var(--primary); border: 1px solid #c7d2fe; border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 14px; font-size: 13.5px; font-weight: 700;
+}
+.timeline-edit-cancel-btn {
+  margin-left: auto; border: none; background: #fff; color: var(--primary);
+  font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 20px;
+  cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.06); transition: 0.15s;
+}
+.timeline-edit-cancel-btn:hover { background: var(--primary); color: #fff; }
+
 .btn-server { background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
 
 /* 업무 타임라인 헤더 툴바 — 검색/월 이동/저장을 nt-toolbar-divider로 구분해 하나의
@@ -61,6 +75,21 @@
 .date-arrow { transition: transform 0.2s; }
 .badge { background: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 .badge-holiday { background: #fee2e2; color: #dc2626; }
+
+/* 상품 수정 내역 — 예전엔 renderProductLogPage()가 런타임에 <style> 태그를 직접 만들어
+   주입했다(#prodlog-custom-style). 리뉴얼하면서 공용 CSS 파일로 옮겨서 다른 페이지들과
+   같은 방식으로 관리되게 정리했다(2026-08-14). */
+.dash-lab-icon.prodlog { background: #8b5cf6; color: #fff; }
+.prodlog-month-clear { border: none; background: transparent; color: var(--primary); font-size: 12.5px; font-weight: 700; cursor: pointer; padding: 0 2px; white-space: nowrap; }
+.prodlog-month-clear:hover { text-decoration: underline; }
+.prodlog-month-divider { padding: 0 !important; }
+.prodlog-month-divider-text {
+  display: block; font-weight: 800; color: #334155; font-size: 14px; text-align: left;
+  padding: 12px 20px; background: #f8fafc; border-left: 3px solid #8b5cf6;
+}
+.prodlog-row { cursor: pointer; transition: background 0.15s ease; }
+.prodlog-row:hover { background-color: #f8fafc; }
+.prodlog-date-cell { font-weight: 700; color: var(--primary); }
 
 
 /* 블로그 순위 카드 — 한 줄 레이아웃 */

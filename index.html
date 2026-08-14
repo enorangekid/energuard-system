@@ -455,8 +455,9 @@
             <div class="worklog-month-quick-grid" id="timelineMonthQuick" style="grid-auto-flow:column; grid-template-columns:none;"></div>
           </div>
           <div class="timeline-section-divider"></div>
-          <div id="editModeMsg" style="display:none; color: var(--primary); font-weight:bold; margin-bottom:10px; font-size:14px;">
-             📝 기존 항목 수정 중... <button onclick="cancelEditMode()" style="font-size:12px; padding:3px 8px; border:1px solid #ccc; background:white; cursor:pointer; margin-left:10px; border-radius:4px;">취소</button>
+          <div id="editModeMsg" class="timeline-edit-banner" style="display:none;">
+            <i class="fa-solid fa-pen"></i> 기존 항목 수정 중...
+            <button type="button" class="timeline-edit-cancel-btn" onclick="cancelEditMode()">취소</button>
           </div>
           <div class="input-group-row">
             <div class="input-wrap small"><label>날짜</label><input type="date" id="tDate" class="form-input"></div>
@@ -516,10 +517,29 @@
       </div>
 
       <div id="page-productlogs" class="page-section">
-        <div class="card" style="padding:0; overflow:hidden;">
-          <div style="padding: 20px; border-bottom: 1px solid var(--border);">
-             <h2 style="margin:0;">전체 상품 수정 내역</h2>
+        <div class="card input-panel">
+          <h3>
+            <span class="dash-lab-title" style="cursor:default;">
+              <span class="dash-lab-icon prodlog"><i class="fa-solid fa-pen-to-square"></i></span>
+              <span><strong>상품 수정 내역</strong></span>
+            </span>
+            <div class="timeline-toolbar">
+              <div class="timeline-search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="prodlogSearch" placeholder="내용 검색..." oninput="renderProductLogPage()">
+              </div>
+            </div>
+          </h3>
+          <div class="timeline-month-quick-section" style="margin-bottom:0;">
+            <div class="worklog-month-quick-year-wrap">
+              <select class="worklog-month-quick-year" id="prodlogYearSelect" onchange="handleProdlogYearChange()"></select>
+              <svg class="worklog-month-quick-year-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <div class="worklog-month-quick-grid" id="prodlogMonthQuick" style="grid-auto-flow:column; grid-template-columns:none;"></div>
+            <button type="button" class="prodlog-month-clear" id="prodlogMonthClear" onclick="clearProdlogMonthFilter()" style="display:none;">전체보기</button>
           </div>
+        </div>
+        <div class="card" style="padding:0; overflow:hidden;">
           <table class="timeline-table">
             <thead><tr><th width="150">날짜</th><th>수정 내역</th></tr></thead>
             <tbody id="productLogList"></tbody>

@@ -990,56 +990,99 @@ async function fetchProductLogsIfNeeded() {
     return false;
 }
 
-async function renderProductLogPage() {
-    if (!document.getElementById('prodlog-custom-style')) {
-        const style = document.createElement('style');
-        style.id = 'prodlog-custom-style';
-        style.innerHTML = `
-            .prodlog-month-divider { background-color: #f1f5f9 !important; font-size: 14px; font-weight: 800; color: #334155; text-align: left !important; padding: 12px 20px !important; border-top: 2px solid #e2e8f0; border-bottom: 2px solid #e2e8f0; }
-            .prodlog-row { transition: all 0.2s ease; cursor: pointer; }
-            .prodlog-row td { transition: all 0.2s ease; }
-            .prodlog-row:hover { background-color: #f0f9ff !important; }
-            .prodlog-row:hover td { color: #2563eb !important; text-decoration: underline; font-weight: 700; }
-        `;
-        document.head.appendChild(style);
-    }
+// 연도/월 선택 UI는 업무 타임라인과 같은 month-quick 컴포넌트 재사용. 데이터는 이미
+// fetchProductLogsIfNeeded()가 전체를 한 번에 캐시해두므로, 검색/월 필터는 서버 재조회 없이
+// 캐시에서 클라이언트 필터링만 한다(2026-08-14, 헤더+검색+월 필터 신설).
+let prodlogSelectedMonth = null; // "YYYY-MM" | null(전체)
 
+function prodlogMonthSet() {
+    const set = new Set();
+    (cachedProductLogs || []).forEach(log => set.add(log.cleanDate.substring(0, 7)));
+    return set;
+}
+
+function renderProdlogMonthQuick() {
+    const yearSel = document.getElementById('prodlogYearSelect');
+    const grid = document.getElementById('prodlogMonthQuick');
+    const clearBtn = document.getElementById('prodlogMonthClear');
+    if (!yearSel || !grid) return;
+    const monthSet = prodlogMonthSet();
+    const years = Array.from(new Set(Array.from(monthSet).map(ym => ym.split('-')[0]))).sort().reverse();
+    if (!years.length) years.push(String(new Date().getFullYear()));
+    const selectedYear = prodlogSelectedMonth ? prodlogSelectedMonth.split('-')[0] : years[0];
+    yearSel.innerHTML = years.map(y => `<option value="${y}"${y === selectedYear ? ' selected' : ''}>${y}년</option>`).join('');
+    const year = yearSel.value;
+    grid.innerHTML = Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
+        const ym = `${year}-${String(month).padStart(2, '0')}`;
+        if (!monthSet.has(ym)) return `<button type="button" class="worklog-month-card" disabled>${month}월</button>`;
+        const active = ym === prodlogSelectedMonth;
+        return `<button type="button" class="worklog-month-card${active ? ' active' : ''}" onclick="selectProdlogMonth('${ym}')">${month}월</button>`;
+    }).join('');
+    if (clearBtn) clearBtn.style.display = prodlogSelectedMonth ? '' : 'none';
+}
+
+window.handleProdlogYearChange = function() {
+    renderProdlogMonthQuick();
+};
+
+window.selectProdlogMonth = function(ym) {
+    prodlogSelectedMonth = prodlogSelectedMonth === ym ? null : ym; // 같은 달 다시 클릭하면 해제
+    renderProdlogMonthQuick();
+    renderProductLogPage();
+};
+
+window.clearProdlogMonthFilter = function() {
+    prodlogSelectedMonth = null;
+    renderProdlogMonthQuick();
+    renderProductLogPage();
+};
+
+async function renderProductLogPage() {
     const tbody = document.getElementById('productLogList');
     await fetchProductLogsIfNeeded();
-    
+    renderProdlogMonthQuick();
+
+    const searchInput = document.getElementById('prodlogSearch');
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+    let logs = cachedProductLogs || [];
+    if (prodlogSelectedMonth) logs = logs.filter(log => log.cleanDate.startsWith(prodlogSelectedMonth));
+    if (query) logs = logs.filter(log => log.content.toLowerCase().includes(query));
+
     tbody.innerHTML = '';
-    
-    if(cachedProductLogs && cachedProductLogs.length > 0) {
+
+    if(logs.length > 0) {
         let currentMonth = "";
-        
-        cachedProductLogs.forEach(log => { 
+
+        logs.forEach(log => {
             // 정렬된 cleanDate 기준으로 월별 구분선 생성
-            let logMonth = log.cleanDate.substring(0, 7); 
+            let logMonth = log.cleanDate.substring(0, 7);
             if (logMonth !== currentMonth) {
                 currentMonth = logMonth;
                 const [yyyy, mm] = logMonth.split('-');
                 const divider = document.createElement('tr');
-                divider.innerHTML = `<td colspan="2" class="prodlog-month-divider">${yyyy}년 ${mm}월 수정 내역</td>`;
+                divider.innerHTML = `<td colspan="2" class="prodlog-month-divider"><span class="prodlog-month-divider-text">${yyyy}년 ${mm}월 수정 내역</span></td>`;
                 tbody.appendChild(divider);
             }
 
-            const tr = document.createElement('tr'); 
-            tr.className = "prodlog-row"; 
+            const tr = document.createElement('tr');
+            tr.className = "prodlog-row";
             tr.onclick = function() { jumpToWorkLog(log.date); };
             tr.title = "클릭하면 해당 일자의 업무일지로 이동합니다.";
-            
+
             // ✅ XSS 방지: DB에서 온 날짜/내용은 textContent로 처리
             const tdDate = document.createElement('td');
-            tdDate.style.cssText = 'font-weight:700; color:#4f46e5;';
+            tdDate.className = 'prodlog-date-cell';
             tdDate.textContent = log.cleanDate;
             const tdContent = document.createElement('td');
             tdContent.textContent = log.content;
             tr.appendChild(tdDate);
             tr.appendChild(tdContent);
-            tbody.appendChild(tr); 
+            tbody.appendChild(tr);
         });
-    } else { 
-        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding:40px; color:#999;">저장된 상품 수정 내역이 없습니다.</td></tr>'; 
+    } else {
+        const emptyMsg = (query || prodlogSelectedMonth) ? '조건에 맞는 수정 내역이 없습니다.' : '저장된 상품 수정 내역이 없습니다.';
+        tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; padding:40px; color:#999;">${emptyMsg}</td></tr>`;
     }
 }
 
