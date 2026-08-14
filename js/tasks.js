@@ -14,6 +14,25 @@ function getDayKor(dateStr) {
   return days[new Date(dateStr).getDay()];
 }
 
+// 구분(카테고리) 뱃지 색상 — 지금까지 전부 회색 하나로 통일돼 있어서 목록을 훑을 때
+// 유형별로 눈에 안 들어오던 문제를 색상 구분으로 해결한다(2026-08-14 레이아웃 정리).
+const TIMELINE_CATEGORY_COLORS = {
+  '데일리': { bg: '#f1f5f9', color: '#475569' },
+  '광고': { bg: '#fce7f3', color: '#db2777' },
+  '회의': { bg: '#ede9fe', color: '#7c3aed' },
+  '상품등록': { bg: '#e0e7ff', color: '#4f46e5' },
+  '상품수정': { bg: '#e0f2fe', color: '#0284c7' },
+  '디자인': { bg: '#ffe4e6', color: '#e11d48' },
+  '블로그': { bg: '#d1fae5', color: '#059669' },
+  '유튜브': { bg: '#fee2e2', color: '#dc2626' },
+  '과장님업무': { bg: '#fef3c7', color: '#b45309' },
+  '기타': { bg: '#e2e8f0', color: '#475569' },
+  '휴무': { bg: '#fee2e2', color: '#dc2626' },
+};
+function timelineCategoryColor(category) {
+  return TIMELINE_CATEGORY_COLORS[category] || TIMELINE_CATEGORY_COLORS['기타'];
+}
+
 window.updateDefaultStartTime = function() {
     if (editingItemIndex > -1) return; 
     const selectedDate = document.getElementById('tDate').value;
@@ -40,14 +59,6 @@ async function loadTimelineFromServer() {
   const now = new Date();
   const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
   document.getElementById('tDate').value = todayStr;
-
-  // Supabase 전환으로 인해 더 이상 '전체 저장' 버튼이 필요 없음 (UI 변경)
-  const saveBtn = document.querySelector('#page-timeline .btn-server');
-  if (saveBtn) {
-      saveBtn.innerHTML = '<i class="fa-solid fa-cloud-bolt"></i> 실시간 연동중';
-      saveBtn.style.background = '#3b82f6';
-      saveBtn.onclick = () => showToast('Supabase 적용 완료: 타임라인은 추가/수정/삭제 시 실시간으로 자동 저장됩니다!', 'info');
-  }
 
   if(isTimelineFetched) {
       document.getElementById('loader').style.display = 'none';
@@ -158,9 +169,9 @@ function renderTimeLog() {
     const headerRow = document.createElement('tr');
     headerRow.className = 'date-header-row' + (isHoliday ? ' holiday-header' : '');
     headerRow.onclick = () => { collapsedDates[date] = !collapsedDates[date]; renderTimeLog(); };
-    headerRow.innerHTML = `<td colspan="6"><div class="date-header-text" style="font-weight:700;color:#334155;font-size:15px;display:flex;align-items:center;gap:10px;padding:4px 8px;">
-      <i class="fa-solid fa-chevron-down date-arrow" style="transition:transform 0.2s;${isCollapsed ? 'transform:rotate(-90deg);' : ''}"></i>
-      <span>${date} <span style="font-weight:400;opacity:0.8;">(${getDayKor(date)})</span></span>
+    headerRow.innerHTML = `<td colspan="6"><div class="date-header-text">
+      <i class="fa-solid fa-chevron-down date-arrow" style="${isCollapsed ? 'transform:rotate(-90deg);' : ''}"></i>
+      <span>${date} <span class="date-header-weekday">(${getDayKor(date)})</span></span>
       ${isHoliday ? '<span class="badge badge-holiday">휴무</span>' : ''}</div></td>`;
     frag.appendChild(headerRow);
 
@@ -174,7 +185,10 @@ function renderTimeLog() {
 
         const tdCat = document.createElement('td');
         const catSpan = document.createElement('span');
-        catSpan.className = log.category === '휴무' ? 'badge badge-holiday' : 'badge';
+        catSpan.className = 'badge';
+        const catColor = timelineCategoryColor(log.category);
+        catSpan.style.background = catColor.bg;
+        catSpan.style.color = catColor.color;
         catSpan.textContent = log.category;
         tdCat.appendChild(catSpan);
 

@@ -265,6 +265,11 @@
   color: #fff;
 }
 
+.dash-lab-icon.timeline {
+  background: #0ea5e9;
+  color: #fff;
+}
+
 .dash-lab-refresh {
   width: 30px;
   height: 30px;

@@ -434,17 +434,23 @@
       <div id="page-timeline" class="page-section">
         <div class="card input-panel">
           <h3>
-            <span>업무 기록</span>
-            <div style="display:flex; align-items:center;">
-              <div class="search-box" style="position: relative; margin-right: 12px;">
-                <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 11px; color: #9ca3af;"></i>
-                <input type="text" id="taskSearch" placeholder="기록 검색..." oninput="renderTimeLog()" style="padding: 10px 16px 10px 40px; border: 1px solid var(--border); border-radius: 20px; font-size: 14px; width: 220px; background: #f9fafb;">
+            <span class="dash-lab-title" style="cursor:default;">
+              <span class="dash-lab-icon timeline"><i class="fa-solid fa-clock-rotate-left"></i></span>
+              <span><strong>업무 타임라인</strong></span>
+            </span>
+            <div class="timeline-toolbar">
+              <div class="timeline-search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="taskSearch" placeholder="기록 검색..." oninput="renderTimeLog()">
               </div>
-              <button onclick="shiftMonth(-1)" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:white;cursor:pointer;font-size:14px;font-weight:700;color:#475569;">‹</button>
-              <select id="monthFilter" onchange="renderTimeLog()" style="padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-weight: 600; margin: 0 4px; cursor: pointer; background: white; min-width:110px;">
-              </select>
-              <button onclick="shiftMonth(1)" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:white;cursor:pointer;font-size:14px;font-weight:700;color:#475569;">›</button>
-              <button class="btn-server" onclick="saveToServer()"><i class="fa-solid fa-cloud-arrow-up"></i> 전체 저장</button>
+              <span class="nt-toolbar-divider"></span>
+              <div class="timeline-month-nav">
+                <button type="button" onclick="shiftMonth(-1)" class="timeline-month-nav-btn" aria-label="이전 달">‹</button>
+                <select id="monthFilter" onchange="renderTimeLog()" class="timeline-month-select"></select>
+                <button type="button" onclick="shiftMonth(1)" class="timeline-month-nav-btn" aria-label="다음 달">›</button>
+              </div>
+              <span class="nt-toolbar-divider"></span>
+              <span class="timeline-sync-status"><i class="fa-solid fa-bell timeline-sync-icon"></i> 실시간 연동중</span>
             </div>
           </h3>
           <div id="editModeMsg" style="display:none; color: var(--primary); font-weight:bold; margin-bottom:10px; font-size:14px;">
