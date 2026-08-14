@@ -18,7 +18,9 @@ window.loadDashboardData = async function() {
             supabaseClient.from('monthly_memos').select('key, content').eq('type', 'ProductLog').neq('content', ''),
             supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', 'blog').order('saved_at', { ascending: false }).limit(10),
             supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', 'youtube').order('saved_at', { ascending: false }).limit(10),
-            loadLabOverviewData()
+            loadLabOverviewData(),
+            loadTrackedItemsOverview(),
+            loadCompetitorBlogOverview()
         ]);
 
         const tasks = taskRes.data ? {
@@ -31,7 +33,7 @@ window.loadDashboardData = async function() {
         renderDashProdLogs(memos);
         renderDashNotes(blogRes.data || [], 'dash-blog-list', 'blog');
         renderDashNotes(ytRes.data || [], 'dash-yt-list', 'youtube');
-        ['tasks', 'prodlogs', 'blog', 'youtube'].forEach(setRefreshTime);
+        ['worklog', 'content', 'competitor'].forEach(setRefreshTime);
         isDashboardLoaded = true;
     } catch (error) {
         console.error('대시보드 데이터 로드 오류:', error);
@@ -41,7 +43,30 @@ window.loadDashboardData = async function() {
     }
 };
 
-window.refreshDashData = async function(type) {
+async function fetchDashType(type) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    if (type === 'tasks') {
+        const { data } = await supabaseClient.from('monthly_tasks').select('*').eq('year', year).eq('month', month);
+        renderDashTasks({ status: 'success', tasks: (data || []).map(t => [t.year, t.month, t.week_id, t.date, t.type, t.row_index, t.category, t.task, t.priority, t.note_deadline, t.is_done]) });
+    } else if (type === 'prodlogs') {
+        const { data } = await supabaseClient.from('monthly_memos').select('key, content').eq('type', 'ProductLog').neq('content', '');
+        renderDashProdLogs((data || []).map(m => ({ date: m.key, content: m.content })));
+    } else if (type === 'blog' || type === 'youtube') {
+        const { data } = await supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', type).order('saved_at', { ascending: false }).limit(10);
+        renderDashNotes(data || [], type === 'blog' ? 'dash-blog-list' : 'dash-yt-list', type);
+    } else if (type === 'trackeditems') {
+        await loadTrackedItemsOverview();
+    } else if (type === 'competitorblog') {
+        await loadCompetitorBlogOverview();
+    }
+}
+
+// 카드당 새로고침 버튼 1개만 두기로 해서(2026-08-14), "업무 진행 상황"/"콘텐츠 진행 상황"처럼
+// 버튼 하나가 그 안의 여러 데이터 타입(예: tasks+prodlogs)을 한꺼번에 불러오는 경우를
+// groupTypes로 지원한다 — 안 넘기면 type 하나만 불러오던 기존 동작 그대로.
+window.refreshDashData = async function(type, groupTypes) {
     if (!supabaseClient) return;
     if (type.startsWith('lab-')) {
         const key = type.replace('lab-', '');
@@ -53,19 +78,7 @@ window.refreshDashData = async function(type) {
     if (iconEl) iconEl.classList.add('fa-spin');
 
     try {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth() + 1;
-        if (type === 'tasks') {
-            const { data } = await supabaseClient.from('monthly_tasks').select('*').eq('year', year).eq('month', month);
-            renderDashTasks({ status: 'success', tasks: (data || []).map(t => [t.year, t.month, t.week_id, t.date, t.type, t.row_index, t.category, t.task, t.priority, t.note_deadline, t.is_done]) });
-        } else if (type === 'prodlogs') {
-            const { data } = await supabaseClient.from('monthly_memos').select('key, content').eq('type', 'ProductLog').neq('content', '');
-            renderDashProdLogs((data || []).map(m => ({ date: m.key, content: m.content })));
-        } else if (type === 'blog' || type === 'youtube') {
-            const { data } = await supabaseClient.from('notes').select('id, title, status, saved_at').eq('type', type).order('saved_at', { ascending: false }).limit(10);
-            renderDashNotes(data || [], type === 'blog' ? 'dash-blog-list' : 'dash-yt-list', type);
-        }
+        await Promise.all((groupTypes || [type]).map(fetchDashType));
         setRefreshTime(type);
     } catch (error) {
         console.error('새로고침 오류:', error);
@@ -104,10 +117,10 @@ window.openEnerguardLabPage = function(path) {
     window.open(`${LAB_BASE_URL}${path || ''}`, '_blank', 'noopener');
 };
 
-// 매출 현황은 민감정보라 화면 진입 시 기본으로 접혀있게 한다(구버전과 동일).
-window.toggleDashLabSales = function() {
-    const el = document.getElementById('dash-sales-body');
-    const icon = document.getElementById('dash-sales-toggle-icon');
+// 카드 섹션 접기/펼치기 공용 토글. 매출 성과는 민감정보라 기본 접힘, 나머지는 기본 펼침.
+window.toggleDashCard = function(bodyId, iconId) {
+    const el = document.getElementById(bodyId);
+    const icon = document.getElementById(iconId);
     if (!el) return;
     const isHidden = el.style.display === 'none';
     el.style.display = isHidden ? '' : 'none';
@@ -307,6 +320,212 @@ async function loadCoupangSalesOverview() {
     renderCoupangSalesExtras(await loadCoupangItemCompareData());
 }
 
+// ==== 광고 성과 — 판매 성과와 같은 스마트스토어/쿠팡 채널 전환 + 전월·전년 이중비교 구조를
+// 그대로 재사용한다(2026-08-14). 네이버는 naver-ad-report의 campaignSummary(action:"summary")가
+// 캠페인 합계를 서버에서 이미 집계해 주고(naver_ad_campaign_daily, 매일 새벽 cron이 자동 수집),
+// 쿠팡은 coupangSummary가 일자×광고그룹 원본 행만 주므로 sales-analysis.html의
+// groupCoupangAdRows/finalizeCoupangAdMetrics와 동일한 방식으로 클라이언트에서 합산한다.
+const AD_SOURCES = ['naver', 'coupang'];
+let selectedAdSource = localStorage.getItem('dashAdSource') || AD_SOURCES[0];
+if (!AD_SOURCES.includes(selectedAdSource)) selectedAdSource = AD_SOURCES[0];
+
+window.switchAdSource = function(source) {
+    if (!AD_SOURCES.includes(source) || source === selectedAdSource) return;
+    selectedAdSource = source;
+    localStorage.setItem('dashAdSource', source);
+    setLabCardState('dash-ads-metrics', '<div class="dash-lab-loading">광고 데이터를 불러오고 있습니다.</div>');
+    lastAdTableSections = null;
+    renderAdTableSection();
+    loadAdsOverview();
+};
+
+async function fetchNaverAdSummary(dateFrom, dateTo) {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ action: 'summary', store: '한국 단열', dateFrom, dateTo }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.error) throw new Error(body.error || `광고 데이터 조회 실패 (${res.status})`);
+    return body;
+}
+
+async function fetchCoupangAdRows(dateFrom, dateTo) {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ action: 'coupangSummary', dateFrom, dateTo }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.error) throw new Error(body.error || `쿠팡 광고 조회 실패 (${res.status})`);
+    return Array.isArray(body.items) ? body.items : [];
+}
+
+function coupangAdTotals(items) {
+    return (items || []).reduce((acc, row) => {
+        acc.impressions += Number(row.impressions) || 0;
+        acc.clicks += Number(row.clicks) || 0;
+        acc.cost += Number(row.cost) || 0;
+        acc.purchaseConversions += Number(row.orders) || 0;
+        acc.purchaseSales += Number(row.sales) || 0;
+        return acc;
+    }, { impressions: 0, clicks: 0, cost: 0, purchaseConversions: 0, purchaseSales: 0 });
+}
+
+// 캠페인/광고그룹별 상세 표(sales-analysis.html의 adsTableHtml 이식) — 네이버 campaignSummary의
+// items(캠페인별 합계)와 쿠팡을 광고그룹 단위로 합산한 결과를 같은 컬럼 모양으로 맞춘다.
+const NAVER_AD_TYPE_LABELS = { WEB_SITE: '파워링크', SHOPPING: '쇼핑검색', POWER_CONTENTS: '파워컨텐츠', BRAND_SEARCH: '브랜드검색' };
+function naverAdTypeLabel(type) { return NAVER_AD_TYPE_LABELS[type] || type || '-'; }
+
+const AD_TABLE_COLUMNS = [
+    { label: '유형', render: r => r.type },
+    { label: '이름', render: r => `<span title="${r.name}">${r.name}</span>` },
+    { label: '노출', num: true, value: r => r.impressions || 0, fmt: v => v.toLocaleString('ko-KR') },
+    { label: '클릭', num: true, value: r => r.clicks || 0, fmt: v => v.toLocaleString('ko-KR') },
+    { label: '클릭률', num: true, rate: true, value: r => r.impressions ? r.clicks / r.impressions * 100 : 0, fmt: v => dashboardPercent(v) },
+    { label: '평균 클릭비', num: true, value: r => r.clicks ? r.cost / r.clicks : 0, fmt: v => dashboardMoney(v) },
+    { label: '전환수', num: true, value: r => r.purchaseConversions || 0, fmt: v => v.toLocaleString('ko-KR') },
+    { label: '전환율', num: true, rate: true, value: r => r.clicks ? (r.purchaseConversions || 0) / r.clicks * 100 : 0, fmt: v => dashboardPercent(v) },
+    { label: '광고비', num: true, strong: true, value: r => r.cost || 0, fmt: v => dashboardMoney(v) },
+    { label: '전환 매출액', num: true, value: r => r.purchaseSales || 0, fmt: v => dashboardMoney(v) },
+    { label: '광고수익률', num: true, strong: true, rate: true, value: r => r.cost ? (r.purchaseSales || 0) / r.cost * 100 : 0, fmt: v => dashboardPercent(v) },
+];
+
+// 광고성과 캠페인/광고그룹별 상세 표의 전월/전년 비교 토글 — 판매성과 movers에 이미 적용한
+// salesMoverPeriod와 같은 개념(에너가드랩 광고분석 탭의 adCmpPeriodToggleHtml과 동일)이지만,
+// 광고 요약 타일은 전월+전년을 한번에 다 보여주는 구조라 별도 상태로 둔다(2026-08-14).
+let adTablePeriod = 'prev';
+let lastAdTableSections = null; // { current, prev, year, matchKeyFn }
+
+window.setAdTablePeriod = function(key) {
+    if (adTablePeriod === key || !lastAdTableSections) return;
+    adTablePeriod = key;
+    renderAdTableSection();
+};
+function adTablePeriodToggleHtml() {
+    const opt = (key, label) => `<button type="button" class="dash-period-toggle-btn${adTablePeriod === key ? ' on' : ''}" onclick="setAdTablePeriod('${key}')">${label}</button>`;
+    return `<div class="dash-period-toggle">${opt('prev', '전월')}${opt('year', '전년')}</div>`;
+}
+function renderAdTableSection() {
+    const titleEl = document.getElementById('dash-ads-table-title');
+    if (titleEl) titleEl.innerHTML = `<span>캠페인·광고그룹별 상세</span>${lastAdTableSections ? adTablePeriodToggleHtml() : ''}`;
+    const wrap = document.getElementById('dash-ads-table-wrap');
+    if (!lastAdTableSections) {
+        if (wrap) wrap.innerHTML = '';
+        return;
+    }
+    const { current, prev, year, matchKeyFn } = lastAdTableSections;
+    renderReportTable('dash-ads-table-wrap', AD_TABLE_COLUMNS, current, adTablePeriod === 'year' ? year : prev, matchKeyFn);
+}
+
+function groupCoupangAdRowsForTable(items) {
+    const map = new Map();
+    (items || []).forEach(row => {
+        const key = row.adGroup || row.campaign || '(광고그룹 없음)';
+        if (!map.has(key)) {
+            map.set(key, { type: row.adType || '-', name: key, impressions: 0, clicks: 0, cost: 0, purchaseConversions: 0, purchaseSales: 0 });
+        }
+        const item = map.get(key);
+        item.impressions += Number(row.impressions) || 0;
+        item.clicks += Number(row.clicks) || 0;
+        item.cost += Number(row.cost) || 0;
+        item.purchaseConversions += Number(row.orders) || 0;
+        item.purchaseSales += Number(row.sales) || 0;
+    });
+    return [...map.values()].sort((a, b) => b.cost - a.cost);
+}
+
+async function loadAdsOverview() {
+    const sourceSelect = document.getElementById('dash-ads-source-select');
+    if (sourceSelect && sourceSelect.value !== selectedAdSource) sourceSelect.value = selectedAdSource;
+    if (selectedAdSource === 'coupang') await loadCoupangAdsOverview();
+    else await loadNaverAdsOverview();
+}
+
+// 네이버 광고는 매일 새벽 cron이 자동 수집하므로(어제까지) 쿠팡처럼 "데이터 있는 달 찾기" 없이
+// 바로 이번 달을 쓴다 — 수집 전이면 total이 전부 0으로 와서 아래 빈 상태 분기로 빠진다.
+async function loadNaverAdsOverview() {
+    const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const monthEnd = today;
+    const ranges = salesCompareRanges(monthStart, monthEnd);
+    const [current, prevRaw, yearRaw] = await Promise.all([
+        fetchNaverAdSummary(monthStart, monthEnd),
+        fetchNaverAdSummary(ranges.prev.from, ranges.prev.to).catch(() => null),
+        fetchNaverAdSummary(ranges.year.from, ranges.year.to).catch(() => null),
+    ]);
+    if (!current?.total || (!current.total.cost && !current.total.impressions && !current.count)) {
+        setLabCardState('dash-ads-metrics', '<div class="dash-lab-empty">에너가드랩에서 광고 데이터를 먼저 수집해 주세요.</div>');
+        lastAdTableSections = null;
+        renderAdTableSection();
+        return;
+    }
+    const prev = prevRaw?.total && prevRaw.count ? prevRaw.total : null;
+    const year = yearRaw?.total && yearRaw.count ? yearRaw.total : null;
+    renderAdMetrics(current.total, prev, year);
+    const naverAdItems = (current.items || []).map(item => ({ ...item, type: naverAdTypeLabel(item.type) }));
+    lastAdTableSections = {
+        current: naverAdItems,
+        prev: prevRaw?.items?.length ? prevRaw.items : null,
+        year: yearRaw?.items?.length ? yearRaw.items : null,
+        matchKeyFn: r => r.name,
+    };
+    renderAdTableSection();
+}
+
+// 쿠팡 광고는 Wing "광고 보고서" 수동 업로드라 이번 달 자료가 아직 없을 수 있음 — 쿠팡 매출
+// 카드(loadCoupangSalesOverview)와 같은 방식으로 실제 데이터가 있는 가장 최근 달을 찾는다.
+async function loadCoupangAdsOverview() {
+    const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    const probeFrom = dateDaysBefore(today, 119);
+    const probeItems = await fetchCoupangAdRows(probeFrom, today).catch(() => []);
+    const monthSet = new Set(probeItems.map(row => String(row.date || '').slice(0, 7)).filter(Boolean));
+    if (!monthSet.size) {
+        setLabCardState('dash-ads-metrics', '<div class="dash-lab-empty">매출분석에서 쿠팡 광고 자료를 먼저 업로드해 주세요.</div>');
+        lastAdTableSections = null;
+        renderAdTableSection();
+        return;
+    }
+    const currentMonth = [...monthSet].sort().reverse()[0];
+    const [cy, cm] = currentMonth.split('-').map(Number);
+    const monthStart = `${currentMonth}-01`;
+    const monthEndStr = new Date(Date.UTC(cy, cm, 0)).toISOString().slice(0, 10);
+    const monthEnd = monthEndStr < today ? monthEndStr : today;
+    const ranges = salesCompareRanges(monthStart, monthEnd);
+    const [curItems, prevItems, yearItems] = await Promise.all([
+        fetchCoupangAdRows(monthStart, monthEnd),
+        fetchCoupangAdRows(ranges.prev.from, ranges.prev.to).catch(() => []),
+        fetchCoupangAdRows(ranges.year.from, ranges.year.to).catch(() => []),
+    ]);
+    const cur = coupangAdTotals(curItems);
+    const prev = prevItems.length ? coupangAdTotals(prevItems) : null;
+    const year = yearItems.length ? coupangAdTotals(yearItems) : null;
+    renderAdMetrics(cur, prev, year);
+    lastAdTableSections = {
+        current: groupCoupangAdRowsForTable(curItems),
+        prev: prevItems.length ? groupCoupangAdRowsForTable(prevItems) : null,
+        year: yearItems.length ? groupCoupangAdRowsForTable(yearItems) : null,
+        matchKeyFn: r => r.name,
+    };
+    renderAdTableSection();
+}
+
+function renderAdMetrics(cur, prev, year) {
+    const convRate = t => t && t.clicks ? (t.purchaseConversions || 0) / t.clicks * 100 : 0;
+    const roas = t => t && t.cost ? (t.purchaseSales || 0) / t.cost * 100 : 0;
+    const cpa = t => t && t.purchaseConversions ? t.cost / t.purchaseConversions : 0;
+    const curConv = convRate(cur), prevConv = prev ? convRate(prev) : null, yearConv = year ? convRate(year) : null;
+    const curRoas = roas(cur), prevRoas = prev ? roas(prev) : null, yearRoas = year ? roas(year) : null;
+    const curCpa = cpa(cur), prevCpa = prev ? cpa(prev) : null, yearCpa = year ? cpa(year) : null;
+    setLabCardState('dash-ads-metrics', [
+        dashboardMetric('광고비', dashboardMoney(cur.cost), salesDualChip(cur.cost, prev?.cost, year?.cost), 'accent'),
+        dashboardMetric('클릭수', `${(cur.clicks || 0).toLocaleString('ko-KR')}회`, salesDualChip(cur.clicks, prev?.clicks, year?.clicks)),
+        dashboardMetric('전환율', dashboardPercent(curConv), salesDualChip(curConv, prevConv, yearConv, true)),
+        dashboardMetric('광고수익률', dashboardPercent(curRoas), salesDualChip(curRoas, prevRoas, yearRoas, true)),
+        dashboardMetric('전환당 비용', dashboardMoney(curCpa), salesDualChip(curCpa, prevCpa, yearCpa)),
+    ].join(''));
+}
+
 // ---- 판매 성과(쿠팡) 상품별 확장 — 에너가드랩의 coupangItemSummary(수동 업로드 스냅샷) 구조를
 // 그대로 옮긴다. 네이버(매일 자동 적재되는 일별 테이블)와 달리 쿠팡 상품별 실적은 Wing "셀러
 // 인사이트 상품별" 엑셀을 수동 업로드한 스냅샷 단위로만 존재해서, 날짜 범위 계산이 아니라
@@ -429,7 +648,10 @@ function renderCoupangSalesExtras(data) {
         ${moversHtml}
         <div class="dash-sales-section-title" style="margin-top:20px;">핵심 지표 TOP · 옵션</div>
         ${top3Html}
+        <div class="dash-sales-section-title" style="margin-top:20px;">옵션별 상세</div>
+        <div id="dash-sales-product-table-wrap"></div>
     `;
+    renderReportTable('dash-sales-product-table-wrap', coupangSalesTableColumns(productMap), latestItems, compareItems, r => r.optionId);
 }
 
 // ---- 판매 성과(네이버) 확장 — 에너가드랩 sales-analysis.html "요약분석" 탭 포팅 ----
@@ -517,6 +739,37 @@ const salesProductName = item => item.productName || item.productId || '-';
 const salesPathName = item => (item.path2 && item.path2 !== '-' ? `${item.path1} › ${item.path2}` : item.path1);
 const salesProductUrl = item => (/^\d+$/.test(String(item.productId || '')) ? `https://smartstore.naver.com/${NAVER_STORE_SLUG}/products/${item.productId}` : '');
 const salesSearchUrl = term => `${LAB_BASE_URL}naver-rank.html?keyword=${encodeURIComponent(term)}`;
+
+// 상품별 상세 데이터 표(에너가드랩 naverProductDataTableHtml/coupang 옵션별 표 이식) 컬럼 정의.
+// 네이버는 결제 기반(환불 추적 있음), 쿠팡은 조회·장바구니 퍼널(스냅샷이라 환불 없음)이라
+// 서로 필드가 달라 컬럼 구성도 채널별로 따로 둔다.
+function nameLinkCell(name, url) {
+    return url ? `<a href="${url}" target="_blank" rel="noopener" title="${name}">${name}</a>` : `<span title="${name}">${name}</span>`;
+}
+// value/fmt로 나눠둔 컬럼은 비교행(comparRow)에도 같은 value()를 적용해 셀 아래에 전월/전년
+// 비교 칩을 붙일 수 있다(dashReportTableHtml 참고) — 이름/링크처럼 비교가 의미없는 컬럼만 render 사용.
+const NAVER_SALES_TABLE_COLUMNS = [
+    { label: '상품명', render: r => nameLinkCell(salesProductName(r), salesProductUrl(r)) },
+    { label: '결제건수', num: true, value: r => r.payCount || 0, fmt: v => `${v.toLocaleString('ko-KR')}건` },
+    { label: '수량', num: true, value: r => r.qty || 0, fmt: v => `${v.toLocaleString('ko-KR')}개` },
+    { label: '판매금액(총)', num: true, value: r => r.salesTotal || 0, fmt: v => dashboardMoney(v) },
+    { label: '환불금액', num: true, value: r => r.refundAmount || 0, fmt: v => dashboardMoney(v) },
+    { label: '판매금액(순)', num: true, strong: true, value: r => r.salesNet || 0, fmt: v => dashboardMoney(v) },
+    { label: '방문수', num: true, value: r => r.visits || 0, fmt: v => `${v.toLocaleString('ko-KR')}회` },
+    { label: '구매전환율', num: true, rate: true, value: r => r.conversion || 0, fmt: v => dashboardPercent(v) },
+];
+function coupangSalesTableColumns(productMap) {
+    return [
+        { label: '옵션명', render: r => nameLinkCell(coupangMoverName(r), coupangProductUrl(r, productMap)) },
+        { label: '주문건수', num: true, value: r => r.orders || 0, fmt: v => `${v.toLocaleString('ko-KR')}건` },
+        { label: '수량', num: true, value: r => r.qty || 0, fmt: v => `${v.toLocaleString('ko-KR')}개` },
+        { label: '매출액', num: true, strong: true, value: r => r.sales || 0, fmt: v => dashboardMoney(v) },
+        { label: '방문자', num: true, value: r => r.visitors || 0, fmt: v => `${v.toLocaleString('ko-KR')}명` },
+        { label: '조회수', num: true, value: r => r.views || 0, fmt: v => `${v.toLocaleString('ko-KR')}회` },
+        { label: '장바구니', num: true, value: r => r.carts || 0, fmt: v => `${v.toLocaleString('ko-KR')}건` },
+        { label: '구매전환율', num: true, rate: true, value: r => r.views ? (r.orders || 0) / r.views * 100 : 0, fmt: v => dashboardPercent(v) },
+    ];
+}
 
 function dashSalesMoverRowHtml(m, rank, nameFn, valueFmt, urlFn) {
     const name = nameFn(m.item);
@@ -644,6 +897,7 @@ function renderSalesExtras(data) {
         ${dashTop3CardHtml('sales-top3-search', '방문 TOP · 검색어', current.searchTerms || [], r => r.term, r => r.visits, visitFmt, salesSearchUrl)}
     </div>`;
 
+    const naverProducts = current.products || [];
     wrap.innerHTML = `
         <div class="dash-sales-section-title">유입경로 비율</div>
         ${channelBar}
@@ -651,7 +905,10 @@ function renderSalesExtras(data) {
         ${moversHtml}
         <div class="dash-sales-section-title" style="margin-top:20px;">핵심 지표 TOP3</div>
         ${top3Html}
+        <div class="dash-sales-section-title" style="margin-top:20px;">상품별 상세</div>
+        <div id="dash-sales-product-table-wrap"></div>
     `;
+    renderReportTable('dash-sales-product-table-wrap', NAVER_SALES_TABLE_COLUMNS, naverProducts, comparePeriod?.products, r => r.productId);
 }
 
 async function loadNaverSalesOverview() {
@@ -959,6 +1216,50 @@ window.toggleMoverExpand = function(key) {
     if (key.startsWith('kw-') && lastKeywordRenderArgs) renderKeywordRankLists(...lastKeywordRenderArgs);
     else if (key.startsWith('blog-') && lastBlogRenderArgs) renderBlogMovers(...lastBlogRenderArgs);
 };
+
+// 상세 데이터 표(판매성과 상품별, 광고성과 캠페인/광고그룹별) 공용 렌더러 — 데이터가 많지
+// 않아 "더보기" 없이 전부 보여준다. sales-analysis.html의 ad-table처럼 행마다 전월/전년
+// 비교 칩을 셀 아래 붙인다 — compareRows/matchKeyFn을 주면 같은 이름(또는 id)의 비교 행을
+// 찾아 비교하고, 없으면 칩을 아예 안 그린다(source의 adCompareRowFor와 동일하게 빈 셀 대신
+// 조용히 생략 — 표 전체에 "이전 데이터 없음" 문구가 반복되면 너무 시끄러워짐, 2026-08-14).
+function dashboardComparisonPp(current, previous) {
+    if (previous == null) return '';
+    const diff = current - previous;
+    if (Math.abs(diff) < 0.05) return '<span class="dash-lab-compare muted">-</span>';
+    const up = diff > 0;
+    return `<span class="dash-lab-compare ${up ? 'up' : 'down'}">${up ? '▲' : '▼'}${Math.abs(diff).toFixed(1)}%p</span>`;
+}
+function dashboardComparisonQuiet(current, previous) {
+    if (previous == null) return '';
+    if (previous === 0) return current === 0 ? '<span class="dash-lab-compare muted">-</span>' : '<span class="dash-lab-compare up">신규</span>';
+    const change = ((current - previous) / previous) * 100;
+    if (Math.abs(change) < 0.05) return '<span class="dash-lab-compare muted">-</span>';
+    const up = change > 0;
+    return `<span class="dash-lab-compare ${up ? 'up' : 'down'}">${up ? '▲' : '▼'}${Math.abs(change).toFixed(1)}%</span>`;
+}
+
+function dashReportTableHtml(columns, rows, compareRows, matchKeyFn) {
+    const compareMap = compareRows && matchKeyFn ? new Map(compareRows.map(r => [matchKeyFn(r), r])) : null;
+    const theadHtml = columns.map(c => `<th class="${c.num ? 'num' : ''}">${c.label}</th>`).join('');
+    const bodyHtml = rows.length
+        ? rows.map(row => {
+            const compareRow = compareMap ? compareMap.get(matchKeyFn(row)) : null;
+            const cells = columns.map(c => {
+                if (!c.value) return `<td class="${c.num ? 'num' : ''}${c.strong ? ' strong' : ''}">${c.render(row)}</td>`;
+                const cur = c.value(row);
+                const chip = compareRow ? (c.rate ? dashboardComparisonPp(cur, c.value(compareRow)) : dashboardComparisonQuiet(cur, c.value(compareRow))) : '';
+                return `<td class="${c.num ? 'num' : ''}${c.strong ? ' strong' : ''}">${c.fmt(cur)}${chip ? `<div class="dash-report-table-cmp">${chip}</div>` : ''}</td>`;
+            }).join('');
+            return `<tr>${cells}</tr>`;
+        }).join('')
+        : `<tr><td colspan="${columns.length}" class="dash-mover-empty">데이터가 없습니다.</td></tr>`;
+    return `<div class="dash-report-table-wrap"><table class="dash-report-table"><thead><tr>${theadHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></div>`;
+}
+
+function renderReportTable(wrapId, columns, rows, compareRows, matchKeyFn) {
+    const wrap = document.getElementById(wrapId);
+    if (wrap) wrap.innerHTML = dashReportTableHtml(columns, rows, compareRows, matchKeyFn);
+}
 
 // 에너가드랩 rank-tracker.html의 renderCategoryDashboard() 구조를 그대로 옮긴다:
 // 키워드 상승/하락 TOP(키워드 단위 중복 제거), 급상승/급하락 상품(상품당 대표 키워드 1개,
@@ -1497,6 +1798,7 @@ async function loadBlogOverview() {
 async function loadLabOverviewData(section = 'all') {
     const loaders = {
         sales: { run: loadSalesOverview, target: 'dash-sales-metrics', label: '매출' },
+        ads: { run: loadAdsOverview, target: 'dash-ads-metrics', label: '광고' },
         keyword: { run: loadKeywordOverview, target: 'dash-keyword-metrics', label: '키워드' },
         blog: { run: loadBlogOverview, target: 'dash-blogrank-metrics', label: '블로그' }
     };
@@ -1636,6 +1938,159 @@ function renderDashNotes(data, elementId, type) {
         </li>`;
     }).join('');
     document.getElementById(elementId).innerHTML = listHTML;
+}
+
+// 경쟁사 현황 — 상품추적 현황: tracked_items/tracked_item_history(is_mine=false)에서 최신·직전
+// 수집일 사이 순위 변동이 가장 큰 경쟁사 상품을 뽑는다. 키워드 현황 카드의 무버 계산과 같은
+// prevRank - curRank 부호 규칙(양수 = 순위 상승)을 그대로 쓴다(2026-08-14).
+async function loadTrackedItemsOverview() {
+    const listEl = document.getElementById('dash-trackeditems-list');
+    if (!listEl) return;
+    try {
+        const { data: items, error: itemsErr } = await supabaseClient
+            .from('tracked_items')
+            .select('product_code,product_name,product_image,product_link,mall_name')
+            .eq('is_mine', false);
+        if (itemsErr) throw itemsErr;
+        if (!items || !items.length) {
+            listEl.innerHTML = '<li class="dash-mover-empty">등록된 경쟁사 상품이 없습니다.</li>';
+            return;
+        }
+        const codes = items.map(i => i.product_code);
+        const latest = await latestTableDate('tracked_item_history', 'collected_date', q => q.in('product_code', codes));
+        if (!latest) {
+            listEl.innerHTML = '<li class="dash-mover-empty">아직 수집된 이력이 없습니다.</li>';
+            return;
+        }
+        const previous = await latestTableDate('tracked_item_history', 'collected_date', q => q.in('product_code', codes).lt('collected_date', latest));
+        const [latestRows, previousRows] = await Promise.all([
+            fetchTrackedItemHistoryRows(codes, latest),
+            previous ? fetchTrackedItemHistoryRows(codes, previous) : Promise.resolve([])
+        ]);
+        renderTrackedItemsOverview(items, latestRows, previousRows);
+    } catch (error) {
+        console.error('상품추적 현황 로드 오류:', error);
+        listEl.innerHTML = '<li class="dash-mover-empty">데이터를 불러오지 못했습니다.</li>';
+    }
+}
+
+function fetchTrackedItemHistoryRows(codes, date) {
+    return fetchPagedRows((from, to) => supabaseClient
+        .from('tracked_item_history')
+        .select('product_code,keyword,rank,collected_date')
+        .in('product_code', codes)
+        .eq('collected_date', date)
+        .range(from, to));
+}
+
+// 키워드 현황 카드의 "급상승/급하락 상품"과 완전히 같은 행 모양(순위뱃지+썸네일+이름+델타,
+// 하단 상세줄)을 쓴다 — 다만 경쟁사 상품은 어느 업체 상품인지가 중요해서 mall_name을
+// 상세줄 맨 앞에 붙인다(2026-08-14, 사용자 피드백으로 통일).
+function renderTrackedItemsOverview(items, latestRows, previousRows) {
+    const listEl = document.getElementById('dash-trackeditems-list');
+    const itemMap = new Map(items.map(i => [i.product_code, i]));
+    const prevMap = new Map(previousRows.map(r => [`${r.product_code}|${r.keyword}`, r.rank]));
+    const movers = [];
+    latestRows.forEach(row => {
+        if (row.rank == null) return;
+        const prevRank = prevMap.get(`${row.product_code}|${row.keyword}`);
+        if (prevRank == null) return;
+        const delta = prevRank - row.rank;
+        if (delta === 0) return;
+        movers.push({ code: row.product_code, keyword: row.keyword, curRank: row.rank, delta });
+    });
+    // 상품당 가장 변동 폭이 큰 키워드 하나만 대표로 보여준다(작은 서브카드라 공간이 좁음).
+    const byCode = new Map();
+    movers.forEach(m => {
+        const existing = byCode.get(m.code);
+        if (!existing || Math.abs(m.delta) > Math.abs(existing.delta)) byCode.set(m.code, m);
+    });
+    const sorted = [...byCode.values()].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 8);
+    if (!sorted.length) {
+        listEl.innerHTML = '<li class="dash-mover-empty">순위 변동이 없습니다.</li>';
+        return;
+    }
+    listEl.innerHTML = sorted.map((m, idx) => {
+        const item = itemMap.get(m.code) || {};
+        const name = item.product_name || m.code;
+        const link = item.product_link || '';
+        const prevRank = m.curRank + m.delta;
+        const detailPrefix = item.mall_name ? `${item.mall_name} · ` : '';
+        return `<li class="dash-mover-row" ${link ? `onclick="window.open('${link}','_blank')"` : ''}>
+            <div class="dash-mover-row-main">
+                <span class="dash-mover-rank">${idx + 1}</span>
+                ${dashMoverThumbHtml(item.product_image)}
+                <span class="dash-mover-name" title="${name}">${name}</span>
+                ${dashMoverDeltaHtml(m.delta)}
+            </div>
+            <div class="dash-mover-detail" title="${m.keyword}">${detailPrefix}${m.keyword} · ${prevRank}위 → ${m.curRank}위</div>
+        </li>`;
+    }).join('');
+}
+
+// 경쟁사 현황 — 블로그 포스팅 현황: blog_rank_blogs/blog_rank_posts(is_mine=false)에서
+// 경쟁사 블로그가 최근에 새로 올린 포스팅을 시간순으로 보여준다(순위 추적은 안 붙임 — 그건
+// 내 콘텐츠 최적화용이라 blog-rank.html의 경쟁사 카드와 동일하게 "뭘 올렸는지"만 가볍게 확인).
+async function loadCompetitorBlogOverview() {
+    const listEl = document.getElementById('dash-competitorblog-list');
+    if (!listEl) return;
+    try {
+        const { data: blogs, error: blogErr } = await supabaseClient
+            .from('blog_rank_blogs')
+            .select('blog_id,blog_name')
+            .eq('is_mine', false)
+            .eq('active', true);
+        if (blogErr) throw blogErr;
+        if (!blogs || !blogs.length) {
+            listEl.innerHTML = '<li class="dash-mover-empty">등록된 경쟁사 블로그가 없습니다.</li>';
+            return;
+        }
+        const blogMap = new Map(blogs.map(b => [b.blog_id, b]));
+        // 업체별 안배 없이 그냥 전체 경쟁사 중 최신 포스팅 순으로 보여준다(2026-08-14, 사용자 요청).
+        // first_seen_at(우리가 RSS로 수집한 시각)이 아니라 published_at(실제 발행일) 기준으로 정렬해야
+        // 한다 — 전 경쟁사가 8/13 새벽 같은 배치로 한꺼번에 수집돼서 first_seen_at이 다 거의 같은 값이라
+        // "최신 8개"가 사실상 임의 순서로 뽑히고 있었다(2026-08-14, 블루인슈텍만 계속 나오던 원인).
+        const { data: posts, error: postErr } = await supabaseClient
+            .from('blog_rank_posts')
+            .select('blog_id,log_no,title,post_url,published_at,first_seen_at')
+            .in('blog_id', blogs.map(b => b.blog_id))
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .limit(8);
+        if (postErr) throw postErr;
+        renderCompetitorBlogList(posts || [], blogMap);
+    } catch (error) {
+        console.error('블로그 포스팅 현황 로드 오류:', error);
+        listEl.innerHTML = '<li class="dash-mover-empty">데이터를 불러오지 못했습니다.</li>';
+    }
+}
+
+// 한 줄짜리 행(블로그 최신글 카드와 동일한 밀도) — 업체명은 뱃지로, 날짜는 델타 자리에.
+// 이전엔 하단 상세줄(.dash-mover-detail)을 썼는데 그 줄의 padding-left:24px가 썸네일+순위뱃지가
+// 있는 다른 무버 행 기준이라, 점(dot)만 있는 이 행에서는 들여쓰기가 어긋나 보였다(2026-08-14).
+function renderCompetitorBlogList(posts, blogMap) {
+    const listEl = document.getElementById('dash-competitorblog-list');
+    if (!posts.length) {
+        listEl.innerHTML = '<li class="dash-mover-empty">최근 수집된 포스팅이 없습니다.</li>';
+        return;
+    }
+    const sorted = [...posts].sort((a, b) => {
+        const da = a.published_at || a.first_seen_at || '';
+        const db = b.published_at || b.first_seen_at || '';
+        return db.localeCompare(da);
+    });
+    listEl.innerHTML = sorted.map(p => {
+        const blog = blogMap.get(p.blog_id);
+        const blogName = blog ? (blog.blog_name || blog.blog_id) : p.blog_id;
+        const dateTxt = dashboardDate(p.published_at || p.first_seen_at);
+        return `<li class="dash-mover-row" onclick="window.open('${p.post_url || '#'}','_blank')">
+            <div class="dash-mover-row-main">
+                <span class="dash-legend-dot" style="background:#10b981;"></span>
+                <span class="dash-mover-name" title="${p.title || ''}">${p.title || '(제목 없음)'}</span>
+                <span class="dash-dropout-chip" style="background:#eef2ff;color:#4338ca;" title="${blogName}">${blogName}</span>
+                <span class="dash-mover-delta" style="color:var(--text-sub);">${dateTxt}</span>
+            </div>
+        </li>`;
+    }).join('');
 }
 
 window.goNoteFromDash = function(id, type) {
