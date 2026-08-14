@@ -50,7 +50,10 @@
 /* 퀵 메모 전용 설정 */
 .quick-memo-date { font-size: 14px; font-weight: 700; color: var(--primary); }
 .quick-panel-body .ql-toolbar { display: none !important; }
-.quick-panel-body .ql-container.ql-snow { border: none !important; font-size: 13px; font-family: 'Pretendard'; }
+/* 업무노트 본문 에디터와 같은 콘텐츠를 보여주는 패널이라, 기본 크기도 본문 기본값(15px)과
+   맞춘다 — 13px로 남아있으면 크기를 명시적으로 지정 안 한 글자만 이 패널에서 작아 보이는
+   불일치가 생긴다(2026-08-14). */
+.quick-panel-body .ql-container.ql-snow { border: none !important; font-size: 15px; font-family: 'Pretendard'; }
 .quick-panel-body .ql-editor { padding: 12px; }
 .quick-save-btn {
   background: #1e293b; color: white; border: none; padding: 14px; border-radius: 8px;

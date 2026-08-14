@@ -275,6 +275,21 @@
   color: #fff;
 }
 
+.dash-lab-icon.note {
+  background: #f43f5e;
+  color: #fff;
+}
+
+.dash-lab-icon.media {
+  background: #0891b2;
+  color: #fff;
+}
+
+.dash-lab-icon.project {
+  background: #ea580c;
+  color: #fff;
+}
+
 .dash-lab-refresh {
   width: 30px;
   height: 30px;

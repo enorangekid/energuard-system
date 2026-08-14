@@ -4,73 +4,41 @@
   background: transparent;
   display: flex; flex-direction: column;
   gap: 10px;
+  /* 마지막 카드(.nt-body)는 gap으로 생기는 여유 공간이 없어 바로 아래가 overflow:hidden 경계라,
+     box-shadow의 아래쪽이 그대로 잘려서 안 보이던 문제 — 바닥에 여유를 살짝 준다(2026-08-14). */
+  padding-bottom: 3px;
   overflow: hidden;
 }
 
-/* ① 타이틀 바 */
-.nt-title-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  padding: 14px 24px;
-  flex-shrink: 0;
-  gap: 20px;
-}
 .nt-left { display: flex; align-items: center; gap: 20px; }
 
-/* 탭 — 독립 라운드 버튼 */
-.nt-tabs {
-  display: flex;
-  gap: 6px;
-}
-.nt-tab {
-  padding: 10px 22px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 14px;
-  color: #64748b;
-  transition: 0.15s;
-}
-.nt-tab:hover { background: #e8edf5; color: #1e293b; border-color: #cbd5e1; }
-.nt-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 2px 8px rgba(79,70,229,0.25); }
+/* 일반 노트/프로젝트 각 모드가 채우는 패널 — .note-container와 같은 flex-column + gap 구조를
+   한 단 더 감싸면서 생기는 overflow:hidden 경계에서도 마지막 카드 그림자가 안 잘리게
+   padding-bottom을 똑같이 반복해준다(2026-08-14). */
+.nt-mode-panel { flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: hidden; padding-bottom: 3px; }
 
-/* 우측 컨트롤 */
-.note-controls { display: flex; align-items: center; gap: 12px; }
+/* 업무노트 헤더 — 업무 타임라인의 .card.input-panel/h3/.timeline-month-quick-section/
+   .timeline-section-divider를 그대로 재사용해 구조·간격을 통일한다(2026-08-14). .card는
+   기본 margin-bottom:24px인데, 여기선 .note-container의 flex gap(10px)이 이미 카드 사이
+   간격을 담당하므로 0으로 상쇄한다. */
+.nt-header-card { margin-bottom: 0; }
+/* .timeline-month-quick-section의 margin-bottom:20px는 원래 타임라인 페이지에서 그 아래
+   구분선/입력폼이 이어지는 걸 전제로 한 여백인데, 업무노트는 오늘/인쇄/취소/저장을 툴바·
+   플로팅 버튼으로 옮기면서 이게 카드의 마지막 요소가 돼 아래에 불필요한 여백만 남았다 —
+   #noteMonthQuickRow는 업무노트 전용 id라 여기만 상쇄해도 타임라인/상품수정내역에는
+   영향 없다(2026-08-14). */
+#noteMonthQuickRow { margin-bottom: 0; }
+/* 같은 이유로 미디어 콘텐츠는 h3 하나만 있고 그 아래에 더 이어지는 줄이 없어서 .input-panel h3의
+   margin-bottom:18px가 카드 맨 밑에 불필요한 여백으로 남는다 — h3가 카드의 마지막 자식일 때만
+   상쇄해서 업무노트(h3 다음에 월 달력이 이어짐)에는 영향 없게 한다(2026-08-14). */
+.nt-header-card h3:last-child { margin-bottom: 0; }
 
-/* 하위호환 */
-.note-header { display: none; }
-.note-left { display: flex; align-items: center; gap: 24px; }
-.note-tabs { display: none; }
-.tab-btn { display: none; }
+/* 최신상태 표시 — 뱃지(.status-indicator) 대신 업무 타임라인의 "실시간 연동중"(.timeline-sync-status)
+   처럼 배경/테두리 없이 점 + 텍스트만 쓰는 단순한 스타일로(2026-08-14). */
+.nt-status-simple { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: #475569; white-space: nowrap; }
+.nt-status-dot { width: 9px; height: 9px; border-radius: 50%; background: #10b981; flex-shrink: 0; }
 
-.status-indicator { 
-  font-size: 12px; padding: 6px 12px; border-radius: 20px; 
-  background: #f8fafc; color: #64748b; font-weight: 600; 
-  display: flex; align-items: center; gap: 6px;
-  border: 1px solid #e2e8f0;
-}
-
-.date-selector-wrapper { 
-  display: flex; align-items: center; 
-  background: #fff; border: 1px solid #e2e8f0; 
-  padding: 6px 12px; border-radius: 8px; 
-  transition: 0.2s;
-}
-.date-selector-wrapper:hover { border-color: #cbd5e1; }
-.date-selector-wrapper input { 
-  border: none; background: transparent; font-weight: 600; 
-  font-size: 13px; color: #333; outline: none; cursor: pointer; 
-  font-family: 'Pretendard';
-}
-
-.btn-icon-text { 
+.btn-icon-text {
   padding: 8px 16px; border-radius: 8px; border: none; 
   font-weight: 600; cursor: pointer; transition: 0.2s; 
   font-size: 13px; display: flex; align-items: center; gap: 6px; 
@@ -80,41 +48,29 @@
 .btn-primary { background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2); }
 .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
 
-/* 2. 검색 바 (Sub Header) */
-/* ② 검색 바 카드 */
-.nt-search-bar {
-  background: #fff;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  padding: 12px 24px;
-  flex-shrink: 0;
+.nt-save-btn {
+  height: 36px; padding: 0 18px; border-radius: 20px; flex-shrink: 0;
+  border: 1px solid var(--primary); background: var(--primary); color: #fff;
+  font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px;
+  cursor: pointer; transition: 0.15s; box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
 }
-/* 하위호환 */
-.note-sub-header { display: none; }
-.search-wrapper { position: relative; width: 100%; max-width: 500px; }
-.search-input { 
-  width: 100%; padding: 10px 12px 10px 38px; 
-  border-radius: 8px; border: 1px solid #e2e8f0; 
-  background: #f8fafc; font-size: 14px; outline: none; transition: 0.2s; 
-}
-.search-input:focus { background: #fff; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
-.search-icon { position: absolute; left: 14px; top: 12px; color: #94a3b8; font-size: 14px; }
-#noteSearchResults { 
-  position: absolute; top: 45px; left: 0; width: 100%; 
-  background: white; border: 1px solid var(--border); 
-  border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); 
-  max-height: 300px; overflow-y: auto; z-index: 100; display: none; 
+.nt-save-btn svg { width: 15px; height: 15px; }
+.nt-save-btn:hover { background: #4338ca; border-color: #4338ca; }
+.nt-save-btn:disabled { opacity: 0.7; cursor: default; }
+
+#noteSearchResults {
+  /* 검색창이 제목바 안의 .timeline-search-box(200px)로 옮겨오면서(2026-08-14) width:100%로는
+     결과 목록이 너무 좁아져서 고정폭으로 넓힌다. */
+  position: absolute; top: 45px; right: 0; width: 340px;
+  background: white; border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  max-height: 300px; overflow-y: auto; z-index: 100; display: none;
 }
 
 /* 3. 원고 목록 (List View) */
 #draftListContainer { 
   flex: 1; padding: 0; overflow-y: auto; display: none; 
   background-color: #fff;
-}
-.list-toolbar {
-  padding: 15px 24px; display: flex; justify-content: flex-end;
-  border-bottom: 1px solid #f1f5f9;
 }
 /* 테이블 스타일 (타임라인/상품로그와 통일) */
 .styled-table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -133,12 +89,12 @@
 .text-sub { color: #94a3b8; font-size: 13px; }
 
 /* 4. 원고 메타데이터 (Detail Header) */
-#draftMetadataArea { 
-  display: none; padding: 16px 24px; 
-  background: #fff; border-bottom: 1px solid #f1f5f9; 
-  align-items: center; gap: 16px; 
+#draftMetadataArea {
+  display: none; padding: 16px 24px;
+  background: #fff; border-bottom: 1px solid #f1f5f9;
+  align-items: center; gap: 16px;
 }
-.btn-back { 
+.btn-back {
   padding: 8px 14px; border: 1px solid #e2e8f0; background: white; 
   border-radius: 8px; cursor: pointer; font-size: 13px; color: #64748b; font-weight: 600;
   transition: 0.2s; display: flex; align-items: center; gap: 6px;
@@ -171,41 +127,78 @@
   min-height: 0;
 }
 
-/* 5. 에디터 영역 */
-#editor-wrapper { 
-  flex: 1; display: flex; flex-direction: column; 
-  padding: 0; overflow: hidden; position: relative; 
+/* 5. 에디터 영역 — #media-editor-wrapper(미디어 콘텐츠)/#project-editor-wrapper(프로젝트)도
+   동일한 레이아웃을 쓴다(2026-08-14). */
+#editor-wrapper, #media-editor-wrapper, #project-editor-wrapper {
+  flex: 1; display: flex; flex-direction: column;
+  padding: 0; overflow: hidden; position: relative;
 }
+
+/* 프로젝트 목록(책장) — .nt-body를 그대로 카드로 쓰고 내부 그리드만 스크롤되게(2026-08-14). */
+.proj-grid {
+  flex: 1; overflow-y: auto; align-content: start;
+  padding: 24px; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.proj-card {
+  position: relative; padding: 20px; border: 1px solid var(--border);
+  border-radius: 12px; background: #f8fafc; cursor: pointer; transition: 0.15s;
+}
+.proj-card:hover {
+  border-color: var(--primary); background: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px);
+}
+.proj-card-icon {
+  width: 40px; height: 40px; border-radius: 10px; background: #ea580c; color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 17px; margin-bottom: 14px;
+}
+.proj-card-title { font-weight: 700; font-size: 15px; color: var(--text-main); margin-bottom: 4px; }
+.proj-card-meta { font-size: 12px; color: #94a3b8; }
+.proj-card-del {
+  position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 50%;
+  border: none; background: transparent; color: #cbd5e1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; opacity: 0; transition: 0.15s;
+}
+.proj-card:hover .proj-card-del { opacity: 1; }
+.proj-card-del:hover { background: #fee2e2; color: #dc2626; }
+.proj-grid-empty { grid-column: 1 / -1; text-align: center; padding: 40px 0; color: #94a3b8; font-size: 13px; }
+
+/* 프로젝트 탭 스트립 — 엑셀 시트 탭처럼 프로젝트 하나 안의 여러 문서를 오간다(2026-08-14). */
+.proj-tab-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.proj-tab-chip {
+  display: flex; align-items: center; gap: 6px; padding: 7px 8px 7px 14px;
+  border-radius: 20px; background: #f1f5f9; color: #475569; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: 0.15s; border: 1px solid transparent;
+}
+.proj-tab-chip:hover { background: #e2e8f0; }
+.proj-tab-chip.active { background: #eef2ff; color: var(--primary); border-color: #c7d2fe; }
+.proj-tab-del {
+  width: 18px; height: 18px; border-radius: 50%; border: none; background: transparent;
+  color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.proj-tab-del:hover { background: rgba(0,0,0,0.08); color: #dc2626; }
+.proj-tab-add {
+  width: 32px; height: 32px; border-radius: 50%; border: 1px dashed #cbd5e1; background: #fff;
+  color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: 0.15s;
+}
+.proj-tab-add:hover { border-color: var(--primary); color: var(--primary); background: #f5f4ff; }
+.proj-tab-add svg { width: 16px; height: 16px; }
 .ql-toolbar.ql-snow { 
   border: none !important; border-bottom: 1px solid #f1f5f9 !important; 
   padding: 12px 24px !important; background: #fff; 
 }
 .ql-container.ql-snow {
-  border: none !important; font-size: 14px; line-height: 2; color: #334155;
+  /* 서식 툴바가 크기 미지정 텍스트를 "15px"로 표시하는 것과 실제 렌더링을 맞춘다 —
+     여기가 14px로 남아있어서 크기를 한 번도 안 건드린 글자는 실제로 14px인데 툴바엔
+     15로 뜨는 불일치가 있었다(2026-08-14). */
+  border: none !important; font-size: 15px; line-height: 2; color: #334155;
   flex: 1; overflow-y: auto; padding: 0;
 }
-.ql-editor { padding: 40px 60px; color: #000000 !important; font-family: 'Gmarket Sans', 'NanumSquare', 'Pretendard', sans-serif; line-height: 2 !important; }
+.ql-editor { padding: 40px 24px; color: #000000 !important; font-family: 'Pretendard', 'Gmarket Sans', 'NanumSquare', sans-serif; line-height: 2 !important; }
 .ql-editor p, .ql-editor li, .ql-editor h1, .ql-editor h2, .ql-editor h3 { line-height: 2 !important; }
 .ql-editor.ql-blank::before { color: #cbd5e1; font-style: normal; font-size: 16px; }
-
-/* 구분선 툴바 버튼 */
-.ql-divider {
-  display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  width: 28px !important;
-  height: 24px !important;
-}
-.ql-divider::before {
-  content: '';
-  display: block;
-  width: 16px;
-  height: 2px;
-  background: #444;
-  border-radius: 2px;
-  box-shadow: 0 3px 0 #444, 0 6px 0 #444;
-}
-.ql-divider:hover::before { background: #4f46e5; box-shadow: 0 3px 0 #4f46e5, 0 6px 0 #4f46e5; }
 
 /* 에디터 내 구분선(HR) 스타일 */
 .ql-editor hr {
@@ -222,6 +215,7 @@
 
 /* 글꼴/크기는 Quill 기본 드롭다운(.ql-picker) 대신 아래 .store-chips 커스텀 UI를 쓰므로
    본문에 실제로 적용되는 서식 클래스만 필요하다(피커 라벨 텍스트용 CSS는 불필요). */
+.ql-font-pretendard { font-family: 'Pretendard', sans-serif; }
 .ql-font-gmarket-sans { font-family: 'Gmarket Sans', 'Pretendard', sans-serif; }
 .ql-font-nanum-square { font-family: 'NanumSquare', 'Pretendard', sans-serif; }
 .ql-font-nanum-myeongjo { font-family: 'Nanum Myeongjo', serif; }
@@ -240,6 +234,9 @@
   cursor: pointer; display: inline-flex; align-items: center; justify-content: space-between; gap: 18px;
 }
 .store-select:hover, .store-chips.open .store-select { border-color: #c8cdd4; background: #fafbfc; }
+.store-select:disabled { opacity: 0.55; cursor: not-allowed; background: #f8fafc; }
+/* 원고 상태 선택 — 헤더 한 줄에 들어가는 보조 컨트롤이라 기본 크기(42px/190px)보다 작게(2026-08-14). */
+#draftStatusChips .store-select { height: 36px; min-width: 0; padding: 0 10px 0 14px; border-radius: 8px; font-size: 13px; }
 .store-caret { display: inline-flex; align-items: center; justify-content: center; color: #8a93a5; line-height: 1; }
 .store-caret svg { width: 14px; height: 14px; }
 .store-menu {
@@ -257,7 +254,7 @@
 .store-chip.active { background: var(--text-main); color: #fff; }
 
 .nt-toolbar.ql-toolbar.ql-snow {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 0; padding: 7px 14px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0; padding: 7px 24px;
   border-color: var(--border); border-radius: 8px 8px 0 0; background: #fff; overflow: visible;
 }
 .nt-toolbar .ql-formats { float: none !important; margin: 0 !important; width: auto; }
@@ -313,8 +310,11 @@
 .nt-tool-group--selects { align-items: center; flex-wrap: nowrap; gap: 2px; }
 .nt-select-chips { flex: 0 0 auto !important; width: auto !important; }
 .nt-toolbar.ql-snow .nt-select-chips button.store-select {
+  /* 이 버튼 자체의 왼쪽 padding(원래 10px)이 툴바 컨테이너의 24px 위에 또 얹혀서, 첫 항목인
+     "프리텐다드" 텍스트가 본문/다른 줄들보다 더 안쪽에서 시작해 보였다 — 0으로 없애서 툴바
+     자체 padding(24px)에 맞춘다(2026-08-14). */
   float: none !important; display: inline-flex !important; align-items: center !important;
-  width: auto !important; height: 34px !important; min-width: 0; padding: 0 8px 0 10px !important;
+  width: auto !important; height: 34px !important; min-width: 0; padding: 0 8px 0 0 !important;
   border: 1px solid transparent !important; background: transparent; color: #6f7788;
   font-size: 13px; font-weight: 600; gap: 5px; white-space: nowrap; flex-shrink: 0; border-radius: 6px;
 }
@@ -332,55 +332,77 @@
 }
 .nt-toolbar.ql-snow .nt-select-chips .store-menu button.store-chip:hover { background: #f4f6f9; color: var(--text-main); }
 .nt-toolbar.ql-snow .nt-select-chips .store-menu button.store-chip.active { background: var(--text-main); color: #fff; }
-/* ── AI 추천 버튼 ── */
-.btn-ai-suggest {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: white;
-    border: none;
-    box-shadow: 0 2px 8px rgba(99,102,241,0.3);
-}
-.btn-ai-suggest:hover {
-    background: linear-gradient(135deg, #4f46e5, #7c3aed);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(99,102,241,0.4);
-}
-.btn-ai-suggest:disabled {
-    background: #e2e8f0;
-    color: #94a3b8;
-    box-shadow: none;
-    transform: none;
-    cursor: not-allowed;
-}
-
-/* ── AI 추천 결과 영역 ── */
+/* ── AI 추천 결과 영역 — 원고 본문과 확실히 구분되도록 별도 카드처럼 띄운다(2026-08-14).
+   #media-editor(글 본문)와는 형제 요소라 여백/배경/그림자로 "여기서부터는 AI 결과"임을
+   분명히 한다. */
 #aiSuggestResult {
-    border-top: 1px solid #f1f5f9;
-    padding: 24px 60px;
-    background: #fafbff;
-    overflow-y: auto;
-    max-height: 400px;
-}
-#aiSuggestResult h3 {
-    font-size: 14px;
-    font-weight: 700;
-    color: #6366f1;
-    margin: 0 0 16px 0;
+    margin: 4px 24px 20px;
+    padding: 0;
+    border-radius: 14px;
+    border: 1px solid #ddd6fe;
+    background: #faf9ff;
+    box-shadow: 0 4px 16px -4px rgba(99, 102, 241, 0.18);
+    overflow: hidden;
+    max-height: 480px;
     display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
 }
+.ai-result-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #ede9fe, #f5f3ff);
+    border-bottom: 1px solid #e9d5ff;
+    flex-shrink: 0;
+}
+.ai-result-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ai-result-icon {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #6366f1, #a855f7); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.ai-result-title strong { font-size: 14px; font-weight: 800; color: #4c1d95; }
+.ai-result-title small { font-size: 12px; color: #7c3aed; font-weight: 600; margin-left: 4px; }
+.ai-result-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ai-save-status { font-size: 11px; color: #10b981; font-weight: 700; white-space: nowrap; }
+.ai-result-save-btn {
+    display: flex; align-items: center; gap: 5px;
+    padding: 6px 14px; border: none; border-radius: 20px;
+    background: #6366f1; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; transition: 0.15s;
+}
+.ai-result-save-btn:hover { background: #4f46e5; }
+.ai-result-del-btn {
+    width: 28px; height: 28px; border-radius: 50%; border: none;
+    background: transparent; color: #a78bfa; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: 0.15s;
+}
+.ai-result-del-btn:hover { background: #fee2e2; color: #dc2626; }
+.ai-result-toggle-btn {
+    width: 28px; height: 28px; border-radius: 50%; border: none;
+    background: transparent; color: #7c3aed; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: 0.15s;
+}
+.ai-result-toggle-btn:hover { background: #ede9fe; }
+.ai-result-toggle-btn i { transition: transform 0.2s ease; }
+#aiSuggestResult.collapsed .ai-result-toggle-btn i { transform: rotate(180deg); }
+.ai-result-body { flex: 1; min-height: 0; padding: 18px; overflow-y: auto; }
+#aiSuggestResult.collapsed { max-height: none; }
+#aiSuggestResult.collapsed .ai-result-body { display: none; }
+
 .ai-suggest-item {
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     padding: 14px 16px;
     background: #fff;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #ede9fe;
     border-radius: 10px;
-    border-left: 3px solid #6366f1;
+    border-left: 3px solid #8b5cf6;
 }
+.ai-suggest-item:last-child { margin-bottom: 0; }
+.ai-suggest-summary { background: #fefce8; border-color: #fde047; border-left-color: #eab308; }
+.ai-suggest-summary .ai-suggest-paragraph { color: #854d0e; }
 .ai-suggest-paragraph {
     font-size: 12px;
     color: #94a3b8;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     font-weight: 600;
     overflow: hidden;
     white-space: nowrap;
@@ -390,5 +412,11 @@
     font-size: 13px;
     color: #334155;
     line-height: 1.7;
-    white-space: pre-wrap;
+}
+.ai-pick-line { font-weight: 700; color: #5b21b6; margin-top: 10px; }
+.ai-pick-line:first-child { margin-top: 0; }
+.ai-keyword-line {
+    display: inline-block; font-size: 11.5px; color: #7c3aed; background: #f5f3ff;
+    padding: 3px 10px; border-radius: 6px; margin: 4px 0 8px;
+    font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
 }

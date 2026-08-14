@@ -454,6 +454,16 @@ body {
 .page-section { display: none; animation: fadeIn 0.4s ease; }
 .page-section.active { display: block; }
 
-/* notes 페이지만 height 100% 필요 (내부 flex 에디터 레이아웃) */
-#page-notes { height: 100%; }
+/* notes/media 페이지만 height 100% 필요 (내부 flex 에디터 레이아웃) */
+#page-notes, #page-media { height: 100%; }
+/* 업무노트·미디어 콘텐츠: content-body가 원래 height:auto라 내용이 길어지면 그냥 창(window)이
+   스크롤되고, 그러면 에디터 wrapper 안의 .ql-container overflow-y:auto가 한 번도 실제로 작동하지
+   않아서 스크롤 시 서식 툴바까지 같이 밀려 올라가버렸다. 두 페이지가 보일 때만 content-body
+   높이를 화면에 고정하고 넘치는 부분은 잘라서, 에디터 본문 내부에서만 스크롤되고 툴바는
+   고정되게 한다(2026-08-14, 사용자 피드백). 다른 페이지는 그대로 자연스럽게 페이지 스크롤. */
+.content-body:has(#page-notes.active),
+.content-body:has(#page-media.active) {
+  height: calc(100dvh - 70px);
+  overflow: hidden;
+}
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

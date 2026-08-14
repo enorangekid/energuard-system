@@ -38,7 +38,9 @@
             visibility: hidden;
         }
         body:not(.print-mode-wrap) #editor-wrapper,
-        body:not(.print-mode-wrap) #editor-wrapper * {
+        body:not(.print-mode-wrap) #editor-wrapper *,
+        body:not(.print-mode-wrap) #media-editor-wrapper,
+        body:not(.print-mode-wrap) #media-editor-wrapper * {
             visibility: visible;
         }
 
@@ -53,6 +55,7 @@
         body:not(.print-mode-wrap) .main-content,
         body:not(.print-mode-wrap) .content-body,
         body:not(.print-mode-wrap) #page-notes,
+        body:not(.print-mode-wrap) #page-media,
         body:not(.print-mode-wrap) .note-container,
         body:not(.print-mode-wrap) .nt-body {
             display: block !important;
@@ -72,16 +75,13 @@
         body:not(.print-mode-wrap) .sidebar,
         body:not(.print-mode-wrap) .header,
         body:not(.print-mode-wrap) .right-quickbar,
-        body:not(.print-mode-wrap) .nt-title-bar,
-        body:not(.print-mode-wrap) .nt-search-bar,
-        body:not(.print-mode-wrap) .note-header,
-        body:not(.print-mode-wrap) .note-sub-header,
         body:not(.print-mode-wrap) .ql-toolbar {
             display: none !important;
         }
 
         /* ── 에디터 wrapper ── */
-        body:not(.print-mode-wrap) #editor-wrapper {
+        body:not(.print-mode-wrap) #editor-wrapper,
+        body:not(.print-mode-wrap) #media-editor-wrapper {
             position: static !important;
             display: block !important;
             height: auto !important;
@@ -195,6 +195,10 @@
           <li class="menu-item" onclick="showPage('notes', this)" title="업무 노트">
               <div class="icon-circle"><i class="fa-solid fa-note-sticky"></i></div>
               <span class="menu-text">업무 노트</span>
+          </li>
+          <li class="menu-item" onclick="showPage('media', this)" title="미디어 콘텐츠">
+              <div class="icon-circle"><i class="fa-solid fa-photo-film"></i></div>
+              <span class="menu-text">미디어 콘텐츠</span>
           </li>
           <li class="menu-item" onclick="openEnerguardLab()" title="에너가드 연구소 열기">
               <div class="icon-circle"><i class="fa-solid fa-flask"></i></div>
@@ -389,11 +393,11 @@
             <div id="dash-content-body" style="margin-top:20px;">
                 <div class="dash-mover-grid dash-mover-grid-2">
                     <div class="dash-mover-card">
-                        <div class="dash-mover-title dash-progress-item-title" onclick="navigateFromDash('notes', 'blog')">블로그 최신글</div>
+                        <div class="dash-mover-title dash-progress-item-title" onclick="navigateFromDash('media', 'blog')">블로그 최신글</div>
                         <ul class="dash-list" id="dash-blog-list"></ul>
                     </div>
                     <div class="dash-mover-card">
-                        <div class="dash-mover-title dash-progress-item-title" onclick="navigateFromDash('notes', 'youtube')">유튜브 최신영상</div>
+                        <div class="dash-mover-title dash-progress-item-title" onclick="navigateFromDash('media', 'youtube')">유튜브 최신영상</div>
                         <ul class="dash-list" id="dash-yt-list"></ul>
                     </div>
                 </div>
@@ -550,97 +554,70 @@
       <div id="page-notes" class="page-section">
           <div class="note-container">
 
-            <!-- ① 타이틀 바: 제목 + 탭 + 컨트롤 -->
-            <div class="nt-title-bar">
-                <div class="nt-left">
-                    <h2 style="margin:0; font-size:16px; font-weight:700;">업무 노트</h2>
-                    <div class="nt-tabs">
-                        <button class="nt-tab active" onclick="setNoteTab('general')">일반 노트</button>
-                        <button class="nt-tab" onclick="setNoteTab('blog')">블로그 원고</button>
-                        <button class="nt-tab" onclick="setNoteTab('youtube')">유튜브 원고</button>
-                    </div>
-                </div>
-                <div class="note-controls">
-                    <div class="status-indicator">
-                        <i class="fa-solid fa-circle-check" style="font-size:10px; color:#10b981;"></i>
-                        <span id="noteSaveStatus">대기</span>
-                    </div>
-                    <div class="date-selector-wrapper">
-                        <input type="month" id="noteMonthPicker" onchange="handleNoteMonthChange()">
-                    </div>
-                    <button class="btn-icon-text btn-secondary" onclick="insertTodayHeader()" title="오늘 날짜 추가">
-                        <i class="fa-solid fa-calendar-day"></i> 오늘
-                    </button>
-                    <input type="date" id="noteDate" style="display:none;">
-                    <button class="btn-icon-text btn-secondary" onclick="printNote()" title="인쇄">
-                        <i class="fa-solid fa-print"></i>
-                    </button>
-                    <button class="btn-icon-text btn-secondary" onclick="cancelNoteChanges()">
-                        <i class="fa-solid fa-rotate-left"></i> 취소
-                    </button>
-                    <button class="btn-icon-text btn-primary" onclick="saveNoteManual()">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> 저장
-                    </button>
-                </div>
-            </div>
+          <div id="noteModeGeneral" class="nt-mode-panel">
 
-            <!-- ② 검색 바 -->
-            <div class="nt-search-bar">
-                <div class="search-wrapper">
-                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                    <input type="text" id="noteSearchInput" class="search-input" placeholder="노트 제목 또는 내용 검색..." oninput="searchNotes()">
-                    <div id="noteSearchResults"></div>
+            <!-- ① 헤더 — 업무 타임라인 헤더와 같은 구조/간격으로 통일(2026-08-14):
+                 제목+검색+상태 한 줄 → 월 선택 달력 → 구분선 → 우측 정렬 버튼 줄 -->
+            <div class="card input-panel nt-header-card">
+                <h3>
+                    <div class="nt-left">
+                        <span class="dash-lab-title" style="cursor:default;">
+                            <span class="dash-lab-icon note"><i class="fa-solid fa-pen-nib"></i></span>
+                            <span><strong>업무 노트</strong></span>
+                        </span>
+                        <!-- 일반 노트 / 프로젝트 전환 — 미디어 콘텐츠의 블로그/유튜브 선택과 같은
+                             .store-chips 드롭박스, 제목 바로 옆에 배치(2026-08-14). -->
+                        <div class="store-chips note-mode-chips">
+                            <button type="button" class="store-select" data-action="toggle-note-mode-menu" aria-label="노트 종류 선택">
+                                <span class="note-mode-label">일반 노트</span>
+                                <span class="store-caret" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </span>
+                            </button>
+                            <div class="store-menu" role="menu">
+                                <button type="button" class="store-chip active" data-note-mode="general" role="menuitem">일반 노트</button>
+                                <button type="button" class="store-chip" data-note-mode="project" role="menuitem">프로젝트</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="timeline-toolbar">
+                        <div class="timeline-search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="noteSearchInput" placeholder="노트 제목 또는 내용 검색..." oninput="searchNotes()">
+                            <div id="noteSearchResults"></div>
+                        </div>
+                        <span class="nt-toolbar-divider"></span>
+                        <div class="nt-status-simple">
+                            <span class="nt-status-dot"></span>
+                            <span id="noteSaveStatus">대기</span>
+                        </div>
+                    </div>
+                </h3>
+                <div class="timeline-month-quick-section" id="noteMonthQuickRow">
+                    <div class="worklog-month-quick-year-wrap">
+                        <select class="worklog-month-quick-year" id="noteYearSelect" onchange="handleNoteYearChange()"></select>
+                        <svg class="worklog-month-quick-year-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                    <div class="worklog-month-quick-grid" id="noteMonthQuick" style="grid-auto-flow:column; grid-template-columns:none;"></div>
+                    <input type="month" id="noteMonthPicker" style="display:none;">
                 </div>
             </div>
 
             <!-- ③ 내용 영역 -->
             <div class="nt-body">
-                <div id="draftListContainer">
-                    <div class="list-toolbar">
-                        <button class="btn-icon-text btn-primary" onclick="createNewDraft()">
-                            <i class="fa-solid fa-plus"></i> 새 원고 작성
-                        </button>
-                    </div>
-                    <table class="styled-table">
-                        <thead>
-                            <tr>
-                                <th width="120">작성일</th>
-                                <th>제목</th>
-                                <th width="100">상태</th>
-                                <th width="150">최근 저장</th>
-                            </tr>
-                        </thead>
-                        <tbody id="draftListBody"></tbody>
-                    </table>
-                </div>
-
-                <div id="draftMetadataArea">
-                    <button class="btn-back" onclick="backToList()">
-                        <i class="fa-solid fa-arrow-left"></i> 목록으로
-                    </button>
-                    <input type="text" id="draftTitle" placeholder="제목을 입력하세요...">
-                    <select id="draftStatus">
-                        <option value="saving">💾 작성중</option>
-                        <option value="uploaded">🚀 업로드됨</option>
-                    </select>
-                    <button class="btn-icon-text btn-ai-suggest" id="aiSuggestBtn" onclick="runAiSuggest()" style="display:none;">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i> AI 추천
-                    </button>
-                    <span id="draftLastSaved" style="font-size:12px; color:#94a3b8; min-width:120px; text-align:right;"></span>
-                </div>
-
                 <div id="editor-wrapper">
                     <div id="nt-toolbar" class="ql-toolbar ql-snow nt-toolbar">
                         <span class="ql-formats nt-tool-group nt-tool-group--selects">
                             <div class="store-chips nt-select-chips" id="wnFontChips">
                                 <button type="button" class="store-select" data-action="toggle-wn-font-menu" aria-label="글꼴 선택">
-                                    <span id="wnFontLabel">지마켓 산스</span>
+                                    <span id="wnFontLabel">프리텐다드</span>
                                     <span class="store-caret" aria-hidden="true">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                     </span>
                                 </button>
                                 <div class="store-menu" role="menu">
-                                    <button type="button" class="store-chip active" data-wn-font="gmarket-sans" role="menuitem">지마켓 산스</button>
+                                    <button type="button" class="store-chip active" data-wn-font="pretendard" role="menuitem">프리텐다드</button>
+                                    <button type="button" class="store-chip" data-wn-font="gmarket-sans" role="menuitem">지마켓 산스</button>
                                     <button type="button" class="store-chip" data-wn-font="nanum-square" role="menuitem">나눔스퀘어</button>
                                     <button type="button" class="store-chip" data-wn-font="nanum-myeongjo" role="menuitem">나눔명조</button>
                                     <button type="button" class="store-chip" data-wn-font="gowun-dodum" role="menuitem">고운돋움</button>
@@ -687,11 +664,335 @@
                         <span class="ql-formats nt-tool-group">
                             <button class="ql-clean nt-tb-btn nt-format-btn" type="button" title="초기화" data-label="초기화" data-icon="clean"></button>
                         </span>
+                        <span class="nt-toolbar-divider"></span>
+                        <span class="ql-formats nt-tool-group">
+                            <button type="button" class="nt-tb-btn" onclick="insertTodayHeader()" title="오늘 날짜 추가" data-label="오늘" data-icon="today"></button>
+                            <button type="button" class="nt-tb-btn" onclick="printNote()" title="인쇄" data-label="인쇄" data-icon="print"></button>
+                        </span>
                     </div>
                     <div id="editor"></div>
+                </div>
+            </div>
+
+          <!-- 저장/취소 플로팅 버튼 — 헤더에 있던 저장/취소 버튼을 대신한다. 월간 업무일지의
+               위로가기/저장 플로팅 버튼과 같은 컴포넌트를 재사용(2026-08-14). -->
+          <div class="worklog-fab-group">
+              <button type="button" class="worklog-fab-top" onclick="cancelNoteChanges()" aria-label="취소" title="마지막 저장 시점으로 되돌리기">
+                  <i class="fa-solid fa-rotate-left"></i>
+              </button>
+              <button type="button" class="worklog-fab-save" id="noteHeaderSaveBtn" onclick="saveNoteManual()" aria-label="저장하기">
+                  <i class="fa-solid fa-cloud-arrow-up worklog-fab-icon"></i>
+                  <span class="worklog-fab-label">저장<br>하기</span>
+              </button>
+          </div>
+
+          </div>
+
+          <!-- 프로젝트 모드 — 특정 테마/목적을 정리해두는 장기 참고 문서(책). 여러 개의 "탭"(엑셀
+               시트처럼)으로 구성되며, 각 탭이 하나의 Quill 문서다(2026-08-14). -->
+          <div id="noteModeProject" class="nt-mode-panel" style="display:none;">
+
+            <!-- 프로젝트 목록 (책장) -->
+            <div id="projectListView" class="nt-mode-panel">
+                <div class="card input-panel nt-header-card">
+                    <h3>
+                        <div class="nt-left">
+                            <span class="dash-lab-title" style="cursor:default;">
+                                <span class="dash-lab-icon project"><i class="fa-solid fa-book"></i></span>
+                                <span><strong>프로젝트</strong></span>
+                            </span>
+                            <div class="store-chips note-mode-chips">
+                                <button type="button" class="store-select" data-action="toggle-note-mode-menu" aria-label="노트 종류 선택">
+                                    <span class="note-mode-label">프로젝트</span>
+                                    <span class="store-caret" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                    </span>
+                                </button>
+                                <div class="store-menu" role="menu">
+                                    <button type="button" class="store-chip" data-note-mode="general" role="menuitem">일반 노트</button>
+                                    <button type="button" class="store-chip active" data-note-mode="project" role="menuitem">프로젝트</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="timeline-toolbar">
+                            <div class="timeline-search-box">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="projectSearchInput" placeholder="프로젝트 검색..." oninput="renderProjectGrid()">
+                            </div>
+                            <span class="nt-toolbar-divider"></span>
+                            <button type="button" class="nt-save-btn" onclick="createNewProject()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l0 14"/><path d="M5 12l14 0"/></svg>
+                                새 프로젝트
+                            </button>
+                        </div>
+                    </h3>
+                </div>
+                <div class="nt-body">
+                    <div class="proj-grid" id="projectGrid"></div>
+                </div>
+            </div>
+
+            <!-- 프로젝트 상세 (탭 스트립 + 에디터) -->
+            <div id="projectDetailView" class="nt-mode-panel" style="display:none;">
+                <div class="card input-panel nt-header-card">
+                    <h3>
+                        <span class="dash-lab-title" style="cursor:default;">
+                            <button type="button" class="btn-back" onclick="backToProjectList()" title="목록으로">
+                                <i class="fa-solid fa-arrow-left"></i>
+                            </button>
+                            <span class="dash-lab-icon project"><i class="fa-solid fa-book"></i></span>
+                            <span id="projectDetailTitle"><strong>프로젝트</strong></span>
+                        </span>
+                        <div class="timeline-toolbar">
+                            <div class="nt-status-simple">
+                                <span class="nt-status-dot"></span>
+                                <span id="projectSaveStatus">대기</span>
+                            </div>
+                            <span class="nt-toolbar-divider"></span>
+                            <button type="button" class="nt-save-btn" id="projectHeaderSaveBtn" onclick="saveProjectTabManual()" title="저장하기">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 18a3.5 3.5 0 0 0 0 -7h-1a5 4.5 0 0 0 -11 -2a4.6 4.4 0 0 0 -2.1 8.4"/><path d="M9 15l3 -3l3 3"/><path d="M12 12l0 9"/></svg>
+                                저장
+                            </button>
+                        </div>
+                    </h3>
+                    <div class="proj-tab-strip" id="projectTabStrip"></div>
+                </div>
+                <div class="nt-body">
+                    <div id="project-editor-wrapper">
+                        <div id="project-toolbar" class="ql-toolbar ql-snow nt-toolbar">
+                            <span class="ql-formats nt-tool-group nt-tool-group--selects">
+                                <div class="store-chips nt-select-chips" id="pjFontChips">
+                                    <button type="button" class="store-select" data-action="toggle-pj-font-menu" aria-label="글꼴 선택">
+                                        <span id="pjFontLabel">프리텐다드</span>
+                                        <span class="store-caret" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                        </span>
+                                    </button>
+                                    <div class="store-menu" role="menu">
+                                        <button type="button" class="store-chip active" data-pj-font="pretendard" role="menuitem">프리텐다드</button>
+                                        <button type="button" class="store-chip" data-pj-font="gmarket-sans" role="menuitem">지마켓 산스</button>
+                                        <button type="button" class="store-chip" data-pj-font="nanum-square" role="menuitem">나눔스퀘어</button>
+                                        <button type="button" class="store-chip" data-pj-font="nanum-myeongjo" role="menuitem">나눔명조</button>
+                                        <button type="button" class="store-chip" data-pj-font="gowun-dodum" role="menuitem">고운돋움</button>
+                                    </div>
+                                </div>
+                                <div class="store-chips nt-select-chips nt-select-chips--size" id="pjSizeChips">
+                                    <button type="button" class="store-select" data-action="toggle-pj-size-menu" aria-label="글자 크기 선택">
+                                        <span id="pjSizeLabel">15</span>
+                                        <span class="store-caret" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                        </span>
+                                    </button>
+                                    <div class="store-menu" role="menu">
+                                        <button type="button" class="store-chip" data-pj-size="14px" role="menuitem">14</button>
+                                        <button type="button" class="store-chip active" data-pj-size="15px" role="menuitem">15</button>
+                                        <button type="button" class="store-chip" data-pj-size="16px" role="menuitem">16</button>
+                                        <button type="button" class="store-chip" data-pj-size="18px" role="menuitem">18</button>
+                                    </div>
+                                </div>
+                            </span>
+                            <span class="nt-toolbar-divider"></span>
+                            <span class="ql-formats nt-tool-group">
+                                <button class="ql-bold nt-tb-btn nt-format-btn" type="button" title="굵게" data-label="굵게" data-icon="bold"></button>
+                                <button class="ql-italic nt-tb-btn nt-format-btn" type="button" title="기울임" data-label="기울임" data-icon="italic"></button>
+                                <button class="ql-underline nt-tb-btn nt-format-btn" type="button" title="밑줄" data-label="밑줄" data-icon="underline"></button>
+                                <button class="ql-strike nt-tb-btn nt-format-btn" type="button" title="취소선" data-label="취소선" data-icon="strike"></button>
+                                <span class="nt-picker-tool">
+                                    <select class="ql-color" title="글자색"></select>
+                                </span>
+                                <span class="nt-picker-tool">
+                                    <select class="ql-background" title="배경색"></select>
+                                </span>
+                            </span>
+                            <span class="nt-toolbar-divider"></span>
+                            <span class="ql-formats nt-tool-group">
+                                <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="ordered" title="번호 목록" data-label="번호" data-icon="ordered-list"></button>
+                                <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="bullet" title="글머리 목록" data-label="목록" data-icon="bullet-list"></button>
+                                <button class="ql-blockquote nt-tb-btn" type="button" title="인용구" data-label="인용구"></button>
+                                <button class="ql-divider nt-tb-btn" type="button" title="구분선" data-label="구분선"></button>
+                                <button class="ql-image nt-tb-btn nt-tb-accent" type="button" title="사진" data-label="사진"></button>
+                                <button class="ql-table-insert nt-tb-btn" type="button" title="표" data-label="표"></button>
+                            </span>
+                            <span class="nt-toolbar-divider"></span>
+                            <span class="ql-formats nt-tool-group">
+                                <button class="ql-clean nt-tb-btn nt-format-btn" type="button" title="초기화" data-label="초기화" data-icon="clean"></button>
+                            </span>
+                        </div>
+                        <div id="project-editor"></div>
+                    </div>
+                </div>
+            </div>
+
+          </div>
+
+          </div>
+      </div>
+
+      <div id="page-media" class="page-section">
+          <div class="note-container">
+
+            <!-- 헤더 — 업무노트 헤더와 같은 구조로 통일(2026-08-14): 제목+탭+검색+상태 한 줄. -->
+            <div class="card input-panel nt-header-card">
+                <h3>
+                    <div class="nt-left">
+                        <span class="dash-lab-title" style="cursor:default;">
+                            <span class="dash-lab-icon media"><i class="fa-solid fa-photo-film"></i></span>
+                            <span><strong>미디어 콘텐츠</strong></span>
+                        </span>
+                        <div class="store-chips" id="mediaTabChips">
+                            <button type="button" class="store-select" data-action="toggle-media-tab-menu" aria-label="콘텐츠 종류 선택">
+                                <span id="mediaTabLabel">블로그 원고</span>
+                                <span class="store-caret" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </span>
+                            </button>
+                            <div class="store-menu" role="menu">
+                                <button type="button" class="store-chip active" data-media-tab="blog" role="menuitem">블로그 원고</button>
+                                <button type="button" class="store-chip" data-media-tab="youtube" role="menuitem">유튜브 원고</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="timeline-toolbar">
+                        <div class="timeline-search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="mediaSearchInput" placeholder="원고 제목 또는 내용 검색..." oninput="searchMediaNotes()">
+                            <div id="mediaSearchResults"></div>
+                        </div>
+                        <span class="nt-toolbar-divider"></span>
+                        <div class="nt-status-simple">
+                            <span class="nt-status-dot"></span>
+                            <span id="mediaSaveStatus">대기</span>
+                        </div>
+                        <input type="date" id="noteDate" style="display:none;">
+                    </div>
+                </h3>
+            </div>
+
+            <!-- ③ 내용 영역 -->
+            <div class="nt-body">
+                <div id="draftListContainer">
+                    <table class="styled-table">
+                        <thead>
+                            <tr>
+                                <th width="120">작성일</th>
+                                <th>제목</th>
+                                <th width="100">상태</th>
+                                <th width="150">최근 저장</th>
+                            </tr>
+                        </thead>
+                        <tbody id="draftListBody"></tbody>
+                    </table>
+                </div>
+
+                <div id="draftMetadataArea">
+                    <button class="btn-back" onclick="backToList()">
+                        <i class="fa-solid fa-arrow-left"></i> 목록으로
+                    </button>
+                    <input type="text" id="draftTitle" placeholder="제목을 입력하세요...">
+                    <select id="draftStatus" style="display:none;">
+                        <option value="saving">작성중</option>
+                        <option value="uploaded">업로드됨</option>
+                    </select>
+                    <div class="store-chips" id="draftStatusChips">
+                        <button type="button" class="store-select" data-action="toggle-draft-status-menu" aria-label="상태 선택">
+                            <span id="draftStatusLabel">작성중</span>
+                            <span class="store-caret" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </span>
+                        </button>
+                        <div class="store-menu" role="menu">
+                            <button type="button" class="store-chip active" data-draft-status="saving" role="menuitem">작성중</button>
+                            <button type="button" class="store-chip" data-draft-status="uploaded" role="menuitem">업로드됨</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="media-editor-wrapper">
+                    <div id="media-toolbar" class="ql-toolbar ql-snow nt-toolbar">
+                        <span class="ql-formats nt-tool-group nt-tool-group--selects">
+                            <div class="store-chips nt-select-chips" id="mdFontChips">
+                                <button type="button" class="store-select" data-action="toggle-md-font-menu" aria-label="글꼴 선택">
+                                    <span id="mdFontLabel">프리텐다드</span>
+                                    <span class="store-caret" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                    </span>
+                                </button>
+                                <div class="store-menu" role="menu">
+                                    <button type="button" class="store-chip active" data-md-font="pretendard" role="menuitem">프리텐다드</button>
+                                    <button type="button" class="store-chip" data-md-font="gmarket-sans" role="menuitem">지마켓 산스</button>
+                                    <button type="button" class="store-chip" data-md-font="nanum-square" role="menuitem">나눔스퀘어</button>
+                                    <button type="button" class="store-chip" data-md-font="nanum-myeongjo" role="menuitem">나눔명조</button>
+                                    <button type="button" class="store-chip" data-md-font="gowun-dodum" role="menuitem">고운돋움</button>
+                                </div>
+                            </div>
+                            <div class="store-chips nt-select-chips nt-select-chips--size" id="mdSizeChips">
+                                <button type="button" class="store-select" data-action="toggle-md-size-menu" aria-label="글자 크기 선택">
+                                    <span id="mdSizeLabel">15</span>
+                                    <span class="store-caret" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                    </span>
+                                </button>
+                                <div class="store-menu" role="menu">
+                                    <button type="button" class="store-chip" data-md-size="14px" role="menuitem">14</button>
+                                    <button type="button" class="store-chip active" data-md-size="15px" role="menuitem">15</button>
+                                    <button type="button" class="store-chip" data-md-size="16px" role="menuitem">16</button>
+                                    <button type="button" class="store-chip" data-md-size="18px" role="menuitem">18</button>
+                                </div>
+                            </div>
+                        </span>
+                        <span class="nt-toolbar-divider"></span>
+                        <span class="ql-formats nt-tool-group">
+                            <button class="ql-bold nt-tb-btn nt-format-btn" type="button" title="굵게" data-label="굵게" data-icon="bold"></button>
+                            <button class="ql-italic nt-tb-btn nt-format-btn" type="button" title="기울임" data-label="기울임" data-icon="italic"></button>
+                            <button class="ql-underline nt-tb-btn nt-format-btn" type="button" title="밑줄" data-label="밑줄" data-icon="underline"></button>
+                            <button class="ql-strike nt-tb-btn nt-format-btn" type="button" title="취소선" data-label="취소선" data-icon="strike"></button>
+                            <span class="nt-picker-tool">
+                                <select class="ql-color" title="글자색"></select>
+                            </span>
+                            <span class="nt-picker-tool">
+                                <select class="ql-background" title="배경색"></select>
+                            </span>
+                        </span>
+                        <span class="nt-toolbar-divider"></span>
+                        <span class="ql-formats nt-tool-group">
+                            <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="ordered" title="번호 목록" data-label="번호" data-icon="ordered-list"></button>
+                            <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="bullet" title="글머리 목록" data-label="목록" data-icon="bullet-list"></button>
+                            <button class="ql-blockquote nt-tb-btn" type="button" title="인용구" data-label="인용구"></button>
+                            <button class="ql-divider nt-tb-btn" type="button" title="구분선" data-label="구분선"></button>
+                            <button class="ql-image nt-tb-btn nt-tb-accent" type="button" title="사진" data-label="사진"></button>
+                            <button class="ql-table-insert nt-tb-btn" type="button" title="표" data-label="표"></button>
+                        </span>
+                        <span class="nt-toolbar-divider"></span>
+                        <span class="ql-formats nt-tool-group">
+                            <button class="ql-clean nt-tb-btn nt-format-btn" type="button" title="초기화" data-label="초기화" data-icon="clean"></button>
+                        </span>
+                        <span class="nt-toolbar-divider"></span>
+                        <span class="ql-formats nt-tool-group">
+                            <button type="button" class="nt-tb-btn" id="mediaTodayBtn" onclick="insertMediaTodayHeader()" title="오늘 날짜 추가" data-label="오늘" data-icon="today"></button>
+                            <button type="button" class="nt-tb-btn" onclick="printNote()" title="인쇄" data-label="인쇄" data-icon="print"></button>
+                        </span>
+                    </div>
+                    <div id="media-editor"></div>
                     <div id="aiSuggestResult" style="display:none;"></div>
                 </div>
             </div>
+
+          <!-- 새 원고/AI 추천/저장 플로팅 버튼 — 목록 보기에선 "새 원고"만, 원고 본문에
+               들어가면 AI 추천(원형 아이콘)과 "저장"이 나온다(취소 버튼은 자동저장이 없는
+               페이지라 실효성이 낮아 제거, 2026-08-14). -->
+          <div class="worklog-fab-group">
+              <button type="button" class="worklog-fab-save" id="mediaNewDraftFabBtn" onclick="createNewDraft()" aria-label="새 원고 작성">
+                  <i class="fa-solid fa-plus worklog-fab-icon"></i>
+                  <span class="worklog-fab-label">새 원고<br>작성</span>
+              </button>
+              <button type="button" class="worklog-fab-top" id="aiSuggestBtn" onclick="runAiSuggest()" aria-label="AI 추천" title="AI 추천" style="display:none;">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+              </button>
+              <button type="button" class="worklog-fab-save" id="mediaHeaderSaveBtn" onclick="saveMediaManual()" aria-label="저장하기" style="display:none;">
+                  <i class="fa-solid fa-cloud-arrow-up worklog-fab-icon"></i>
+                  <span class="worklog-fab-label">저장<br>하기</span>
+              </button>
+          </div>
 
           </div>
       </div>
@@ -1340,6 +1641,8 @@
 <script src="js/widget-sports.js"></script>
 <script src="js/estimate.js"></script>
 <script src="js/notes.js"></script>
+<script src="js/media.js"></script>
+<script src="js/projects.js"></script>
 <script src="js/tasks.js"></script>
 <script src="js/pricing.js"></script>
 <script src="js/pricing-competitor.js"></script>

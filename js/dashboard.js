@@ -1829,7 +1829,10 @@ function setRefreshTime(type) {
 window.navigateFromDash = function(pageId, tabId) {
     const menuEl = document.querySelector(`.menu-item[onclick*="${pageId}"]`);
     if (menuEl) showPage(pageId, menuEl);
-    if (tabId && typeof setNoteTab === 'function') setTimeout(() => setNoteTab(tabId), 100);
+    if (tabId) {
+        const setTab = pageId === 'media' ? window.setMediaTab : window.setNoteTab;
+        if (typeof setTab === 'function') setTimeout(() => setTab(tabId), 100);
+    }
 };
 
 function getWeekIdForDate(year, month, targetDate) {
@@ -1929,7 +1932,7 @@ function renderDashNotes(data, elementId, type) {
         let dotColor = type === 'blog' ? '#10b981' : '#ef4444';
         let statusBadge = `<span class="dash-dropout-chip" style="background:${uploaded ? '#dcfce7' : '#f1f5f9'};color:${uploaded ? '#166534' : '#64748b'};">${statusTxt}</span>`;
         return `
-        <li onclick="goNoteFromDash('${item.id}', '${type}')" class="dash-mover-row">
+        <li onclick="goMediaFromDash('${item.id}', '${type}')" class="dash-mover-row">
             <div class="dash-mover-row-main">
                 <span class="dash-legend-dot" style="background:${dotColor};"></span>
                 <span class="dash-mover-name">${item.title}</span>
@@ -2093,8 +2096,12 @@ function renderCompetitorBlogList(posts, blogMap) {
     }).join('');
 }
 
-window.goNoteFromDash = function(id, type) {
-    showPage('notes', document.querySelector('.menu-item[onclick*="notes"]'));
-    if (typeof setNoteTab === 'function') setNoteTab(type);
+window.goMediaFromDash = function(id, type) {
+    showPage('media', document.querySelector('.menu-item[onclick*="media"]'));
+    // common.js의 showPage()가 initMediaQuill()을 300ms 뒤에 예약해두지만, 아래
+    // loadDraftContent가 그보다 먼저 실행되면 window.mediaQuill이 아직 없어 실패할 수
+    // 있다 — 여기서 먼저 동기 호출해 둔다(idempotent라 중복 호출은 안전).
+    if (typeof initMediaQuill === 'function') initMediaQuill();
+    if (typeof setMediaTab === 'function') setMediaTab(type);
     setTimeout(() => { if (typeof loadDraftContent === 'function') loadDraftContent(id); }, 200);
 }

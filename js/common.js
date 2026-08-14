@@ -421,6 +421,12 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
             }
         }, 300);
     }
+    // 블로그/유튜브 원고 — '미디어 콘텐츠' 페이지(2026-08-14, 업무노트에서 분리됨)
+    if(pageId === 'media') {
+        pageTransitionTimer = setTimeout(() => {
+            if(typeof initMediaQuill === 'function') initMediaQuill();
+        }, 300);
+    }
 };
 
 // 🚀 브라우저 [뒤로 가기] / [앞으로 가기] 버튼 감지 이벤트
