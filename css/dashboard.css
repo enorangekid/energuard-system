@@ -4,10 +4,16 @@
   box-shadow: var(--shadow-sm); border: 1px solid var(--border); margin-bottom: 24px; 
 }
 .card h2 { margin-top: 0; font-size: 18px; margin-bottom: 20px; color: var(--text-main); }
-.input-panel h3 { 
-  margin-top: 0; margin-bottom: 20px; font-size: 18px; font-weight: 700; color: var(--text-main); 
-  display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 1px solid var(--border);
+/* 대시보드 카드(.dash-lab-card)와 상하좌우 여백을 맞춘다(2026-08-14). */
+.input-panel { padding: 24px; }
+.input-panel h3 {
+  margin-top: 0; margin-bottom: 18px; font-size: 18px; font-weight: 700; color: var(--text-main);
+  display: flex; justify-content: space-between; align-items: flex-start;
 }
+/* 제목/검색/연동상태 줄 → 월간 선택 달력 줄 → 구분선 → 입력폼 순서로 재정리
+   (2026-08-14, 한 줄에 다 몰려있던 걸 분리). */
+.timeline-month-quick-section { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.timeline-section-divider { border-bottom: 1px solid var(--border); margin-bottom: 20px; }
 .input-group-row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
 .input-wrap { display: flex; flex-direction: column; gap: 6px; }
 .input-wrap label { font-size: 13px; font-weight: 600; color: var(--text-sub); margin-left: 2px; text-align: center; width: 100%; }
@@ -30,16 +36,11 @@
 .timeline-search-box i { position: absolute; left: 14px; color: #9ca3af; font-size: 13px; pointer-events: none; }
 .timeline-search-box input { padding: 9px 14px 9px 38px; border: 1px solid var(--border); border-radius: 20px; font-size: 14px; width: 200px; background: #f9fafb; transition: 0.2s; }
 .timeline-search-box input:focus { border-color: var(--primary); background: white; outline: none; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
-.timeline-month-nav { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; background: #f9fafb; overflow: hidden; }
-.timeline-month-nav-btn { border: none; background: transparent; width: 32px; height: 38px; display: flex; align-items: center; justify-content: center; line-height: 1; padding: 0; cursor: pointer; font-size: 15px; font-weight: 700; color: #475569; transition: 0.15s; }
-.timeline-month-nav-btn:hover { background: #eef2ff; color: var(--primary); }
-.timeline-month-select { border: none; background: transparent; height: 38px; padding: 0 6px; font-weight: 600; font-size: 14px; cursor: pointer; outline: none; min-width: 100px; color: var(--text-main); }
-
 /* "전체 저장" 버튼은 Supabase 전환 후 실제로는 저장 동작이 없어(클릭해도 안내 토스트만 뜸)
    실질적으로 상태 표시일 뿐이었다 — 큰 버튼 대신 작은 텍스트+애니메이션 아이콘으로
    간략화한다(2026-08-14, 사용자 피드백). */
-.timeline-sync-status { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: #2563eb; white-space: nowrap; }
-.timeline-sync-icon { animation: timelineSyncPulse 1.6s ease-in-out infinite; }
+.timeline-sync-status { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: #2563eb; white-space: nowrap; }
+.timeline-sync-dot { width: 9px; height: 9px; border-radius: 50%; background: #ef4444; flex-shrink: 0; animation: timelineSyncPulse 1.6s ease-in-out infinite; }
 @keyframes timelineSyncPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 .timeline-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }

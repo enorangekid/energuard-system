@@ -444,15 +444,17 @@
                 <input type="text" id="taskSearch" placeholder="기록 검색..." oninput="renderTimeLog()">
               </div>
               <span class="nt-toolbar-divider"></span>
-              <div class="timeline-month-nav">
-                <button type="button" onclick="shiftMonth(-1)" class="timeline-month-nav-btn" aria-label="이전 달">‹</button>
-                <select id="monthFilter" onchange="renderTimeLog()" class="timeline-month-select"></select>
-                <button type="button" onclick="shiftMonth(1)" class="timeline-month-nav-btn" aria-label="다음 달">›</button>
-              </div>
-              <span class="nt-toolbar-divider"></span>
-              <span class="timeline-sync-status"><i class="fa-solid fa-bell timeline-sync-icon"></i> 실시간 연동중</span>
+              <span class="timeline-sync-status"><span class="timeline-sync-dot"></span> 실시간 연동중</span>
             </div>
           </h3>
+          <div class="timeline-month-quick-section">
+            <div class="worklog-month-quick-year-wrap">
+              <select class="worklog-month-quick-year" id="timelineYearSelect" onchange="handleTimelineYearChange()"></select>
+              <svg class="worklog-month-quick-year-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <div class="worklog-month-quick-grid" id="timelineMonthQuick" style="grid-auto-flow:column; grid-template-columns:none;"></div>
+          </div>
+          <div class="timeline-section-divider"></div>
           <div id="editModeMsg" style="display:none; color: var(--primary); font-weight:bold; margin-bottom:10px; font-size:14px;">
              📝 기존 항목 수정 중... <button onclick="cancelEditMode()" style="font-size:12px; padding:3px 8px; border:1px solid #ccc; background:white; cursor:pointer; margin-left:10px; border-radius:4px;">취소</button>
           </div>
@@ -482,20 +484,34 @@
       </div>
 
       <div id="page-worklog" class="page-section">
-        <!-- sticky 헤더 -->
+        <!-- 상단 헤더 -->
         <div class="worklog-sticky-header">
-          <div style="display:flex; align-items:center; gap:16px;">
-            <span class="worklog-sticky-title">월간 업무일지</span>
-            <input type="month" id="worklogPicker" onchange="handleMonthChange(this)"
-              style="font-family:'Pretendard'; padding:5px 11px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; outline:none; color:#1e293b; background:#fff;">
+          <span class="dash-lab-title" style="cursor:default;">
+            <span class="dash-lab-icon worklog"><i class="fa-solid fa-table-list"></i></span>
+            <span><strong>월간 업무일지</strong></span>
+          </span>
+          <div class="worklog-month-quick-row">
+            <div class="worklog-month-quick-year-wrap">
+              <select class="worklog-month-quick-year" id="worklogYearSelect" onchange="handleWorklogYearChange(this)"></select>
+              <svg class="worklog-month-quick-year-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <div class="worklog-month-quick-grid" id="worklogMonthQuick"></div>
           </div>
-          <button class="btn-server worklog-save-btn" onclick="collectAndSaveWorklog()">
-            <i class="fa-solid fa-cloud-arrow-up"></i> 저장하기
-          </button>
         </div>
         <!-- 본문 카드 -->
         <div class="card worklog-body-card">
           <div class="monthly-wrapper" id="monthlyContainer"></div>
+        </div>
+        <!-- 스크롤 상단이동/저장 플로팅 버튼 — 월말처럼 아래쪽에서 작업하다가 헤더까지
+             다시 올라갈 필요 없이 어디서든 저장할 수 있게 한다(2026-08-14). -->
+        <div class="worklog-fab-group">
+          <button type="button" class="worklog-fab-top" onclick="scrollWorklogToTop()" aria-label="맨 위로">
+            <i class="fa-solid fa-arrow-up"></i>
+          </button>
+          <button type="button" class="worklog-fab-save worklog-save-btn" onclick="collectAndSaveWorklog()" aria-label="저장하기">
+            <i class="fa-solid fa-cloud-arrow-up worklog-fab-icon"></i>
+            <span class="worklog-fab-label">저장<br>하기</span>
+          </button>
         </div>
       </div>
 

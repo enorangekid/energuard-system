@@ -270,6 +270,11 @@
   color: #fff;
 }
 
+.dash-lab-icon.worklog {
+  background: #14b8a6;
+  color: #fff;
+}
+
 .dash-lab-refresh {
   width: 30px;
   height: 30px;

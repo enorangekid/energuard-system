@@ -108,41 +108,57 @@ async function loadTimelineFromServer() {
   }
 }
 
+// 연도 드롭박스 + 월 버튼(월간 업무일지와 같은 month-quick 스타일). 다만 업무일지는 12개월이
+// 항상 다 열려있는 반면, 타임라인은 실제 기록이 있는 달만 클릭 가능하고 나머지는 비활성화한다
+// — 기록도 없는 빈 달을 굳이 열어볼 이유가 없어서(2026-08-14).
+let selectedTimelineMonth = null; // "YYYY-MM"
+let timelineMonthSet = new Set();
+
 function updateMonthFilterOptions() {
-  const monthSet = new Set();
-  timeLogs.forEach(log => { if(log.date) monthSet.add(log.date.substring(0, 7)); }); // "YYYY-MM"
+  timelineMonthSet = new Set();
+  timeLogs.forEach(log => { if(log.date) timelineMonthSet.add(log.date.substring(0, 7)); }); // "YYYY-MM"
   const now = new Date();
   const thisMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  monthSet.add(thisMonth);
-  const select = document.getElementById('monthFilter');
-  const cur = select.value;
-  select.innerHTML = '';
-  Array.from(monthSet).sort().reverse().forEach(ym => {
-    const opt = document.createElement('option');
-    opt.value = ym;
-    const [y, m] = ym.split('-');
-    opt.innerText = `${y}년 ${parseInt(m)}월`;
-    select.appendChild(opt);
-  });
-  // 이전 선택값 유지, 없으면 현재 월
-  select.value = Array.from(monthSet).includes(cur) ? cur : thisMonth;
+  timelineMonthSet.add(thisMonth);
+  if (!selectedTimelineMonth || !timelineMonthSet.has(selectedTimelineMonth)) selectedTimelineMonth = thisMonth;
+  renderTimelineMonthQuick();
 }
 
-// 이전/다음 달 이동 버튼
-window.shiftMonth = function(dir) {
-  const select = document.getElementById('monthFilter');
-  const opts = Array.from(select.options).map(o => o.value);
-  const curIdx = opts.indexOf(select.value);
-  const newIdx = curIdx + dir;
-  if (newIdx >= 0 && newIdx < opts.length) {
-    select.value = opts[newIdx];
-    renderTimeLog();
-  }
+function renderTimelineMonthQuick() {
+  const yearSel = document.getElementById('timelineYearSelect');
+  if (!yearSel) return;
+  const years = Array.from(new Set(Array.from(timelineMonthSet).map(ym => ym.split('-')[0]))).sort().reverse();
+  const selectedYear = selectedTimelineMonth ? selectedTimelineMonth.split('-')[0] : years[0];
+  yearSel.innerHTML = years.map(y => `<option value="${y}"${y === selectedYear ? ' selected' : ''}>${y}년</option>`).join('');
+  renderTimelineMonthGrid();
+}
+
+function renderTimelineMonthGrid() {
+  const grid = document.getElementById('timelineMonthQuick');
+  const yearSel = document.getElementById('timelineYearSelect');
+  if (!grid || !yearSel) return;
+  const year = yearSel.value;
+  grid.innerHTML = Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
+    const ym = `${year}-${String(month).padStart(2, '0')}`;
+    if (!timelineMonthSet.has(ym)) return `<button type="button" class="worklog-month-card" disabled>${month}월</button>`;
+    const active = ym === selectedTimelineMonth;
+    return `<button type="button" class="worklog-month-card${active ? ' active' : ''}" onclick="selectTimelineMonth('${ym}')">${month}월</button>`;
+  }).join('');
+}
+
+window.handleTimelineYearChange = function() {
+  renderTimelineMonthGrid();
+};
+
+window.selectTimelineMonth = function(ym) {
+  selectedTimelineMonth = ym;
+  renderTimelineMonthGrid();
+  renderTimeLog();
 };
 
 function renderTimeLog() {
   const tbody = document.getElementById('timelineList');
-  const selectedMonth = document.getElementById('monthFilter').value; // "YYYY-MM"
+  const selectedMonth = selectedTimelineMonth; // "YYYY-MM"
   const searchQuery = document.getElementById('taskSearch').value.toLowerCase();
 
   // 선택된 월만 필터링 — 데이터 양이 1/12로 줄어 렉 해소
@@ -396,11 +412,12 @@ window.addEventListener('DOMContentLoaded', () => {
    initMonthlyLog(); 
 });
 
-async function handleMonthChange(input) {
-  if(!input.value) return;
-  const parts = input.value.split('-');
-  currentWorkYear = parseInt(parts[0]);
-  currentWorkMonth = parseInt(parts[1]);
+// 연도 드롭박스 + 1~12월 버튼(에너가드랩 sales-analysis.html의 month-quick UI 이식).
+// year를 안 넘기면(월 버튼 클릭) currentWorkYear를 그대로 쓰고, year를 넘기면(연도 드롭박스
+// 변경) 그 해로 바꾸면서 같은 달을 유지한다.
+async function selectWorklogMonth(month, year) {
+  currentWorkYear = year || currentWorkYear;
+  currentWorkMonth = month;
   updateDateDisplay();
   initMonthlyLog();
 
@@ -410,14 +427,41 @@ async function handleMonthChange(input) {
 
   await loadWorklogFromServer();
 
-  if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; saveBtn.title = ''; }
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; saveBtn.title = '저장하기'; }
+}
+window.selectWorklogMonth = selectWorklogMonth;
+
+window.handleWorklogYearChange = function(sel) {
+  selectWorklogMonth(currentWorkMonth, Number(sel.value));
+};
+
+function renderWorklogYearSelect() {
+  const sel = document.getElementById('worklogYearSelect');
+  if (!sel) return;
+  const curYear = new Date().getFullYear();
+  const years = [];
+  for (let y = curYear; y >= curYear - 3; y--) years.push(y);
+  sel.innerHTML = years.map(y => `<option value="${y}"${y === currentWorkYear ? ' selected' : ''}>${y}년</option>`).join('');
+}
+
+function renderWorklogMonthQuick() {
+  const grid = document.getElementById('worklogMonthQuick');
+  if (!grid) return;
+  grid.innerHTML = Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
+    const active = month === currentWorkMonth;
+    return `<button type="button" class="worklog-month-card${active ? ' active' : ''}" onclick="selectWorklogMonth(${month})">${month}월</button>`;
+  }).join('');
 }
 
 function updateDateDisplay() {
-  const val = `${currentWorkYear}-${String(currentWorkMonth).padStart(2, '0')}`;
-  const picker = document.getElementById('worklogPicker');
-  if(picker) picker.value = val;
+  renderWorklogYearSelect();
+  renderWorklogMonthQuick();
 }
+
+// 우하단 "맨 위로" 플로팅 버튼 — 실제 스크롤이 일어나는 요소는 body(overflow-y:auto)다.
+window.scrollWorklogToTop = function() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
 function generateWeeksData(year, month) {
   const weeks = [];
@@ -494,7 +538,8 @@ function initMonthlyLog() {
     let dailyHtml = `<div class="week-daily-section">`;
     week.days.forEach(d => {
       const blankClass = d.isBlank ? ' blank' : '';
-      const dayDisplay = d.isBlank ? '' : `${d.day} <span style="font-weight:700; color:#a5b4fc; margin-left:4px;">${d.num}</span>`;
+      const weekendClass = d.day === '토' ? ' is-sat' : d.day === '일' ? ' is-sun' : '';
+      const dayDisplay = d.isBlank ? '' : `${d.day} <span class="day-num">${d.num}</span>`;
       let dayRows = '';
       for(let j=0; j<20; j++) { 
         dayRows += `
@@ -508,7 +553,7 @@ function initMonthlyLog() {
           </div>`;
       }
       dailyHtml += `
-        <div class="day-column${blankClass}" data-date="${d.date}">
+        <div class="day-column${blankClass}${weekendClass}" data-date="${d.date}">
           <div class="day-header">${dayDisplay}</div>
           <div class="header-row"><div class="h-cell c-no">NO</div><div class="h-cell c-cat">구분</div><div class="h-cell c-task">업무</div><div class="h-cell c-prio">우선순위</div><div class="h-cell c-chk">완료</div><div class="h-cell c-note">비고</div></div>
           <div class="wp-list">${dayRows}</div>
@@ -622,20 +667,6 @@ function setupDragSelection() {
 }
 
 // ✅ Supabase 연동 월간 업무일지 로드
-// sticky 헤더 스크롤 감지 — 그림자 토글
-function initStickyHeader() {
-  const contentBody = document.querySelector('.content-body');
-  const header = document.querySelector('.worklog-sticky-header');
-  if (!contentBody || !header) return;
-  contentBody.addEventListener('scroll', function onScroll() {
-    // page-worklog가 비활성화되면 리스너 제거
-    if (!document.getElementById('page-worklog').classList.contains('active')) {
-      contentBody.removeEventListener('scroll', onScroll);
-      return;
-    }
-    header.classList.toggle('is-stuck', contentBody.scrollTop > 10);
-  }, { passive: true });
-}
 
 async function loadWorklogFromServer() {
   if(!supabaseClient) return;

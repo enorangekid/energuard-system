@@ -405,7 +405,6 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
     if(pageId === 'worklog' && typeof loadWorklogFromServer === 'function') {
         if(typeof updateDateDisplay === 'function') updateDateDisplay();
         if(typeof initMonthlyLog === 'function') initMonthlyLog();
-        if(typeof initStickyHeader === 'function') initStickyHeader();
         loadWorklogFromServer();
     }
     if(pageId === 'productlogs' && typeof renderProductLogPage === 'function') renderProductLogPage();
