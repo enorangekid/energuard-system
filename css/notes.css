@@ -193,11 +193,15 @@
   /* 서식 툴바가 크기 미지정 텍스트를 "15px"로 표시하는 것과 실제 렌더링을 맞춘다 —
      여기가 14px로 남아있어서 크기를 한 번도 안 건드린 글자는 실제로 14px인데 툴바엔
      15로 뜨는 불일치가 있었다(2026-08-14). */
-  border: none !important; font-size: 15px; line-height: 2; color: #334155;
+  border: none !important; font-size: 15px; line-height: 1.8; color: #334155;
   flex: 1; overflow-y: auto; padding: 0;
+  /* 스크롤바 위에 마우스를 올려도 .ql-editor의 cursor:text가 그대로 남아있던 문제 —
+     컨테이너 자체는 기본 화살표로 두고, 실제 편집 영역(.ql-editor)에서만 text 커서가
+     뜨게 한다(2026-08-14). */
+  cursor: default !important;
 }
-.ql-editor { padding: 40px 24px; color: #000000 !important; font-family: 'Pretendard', 'Gmarket Sans', 'NanumSquare', sans-serif; line-height: 2 !important; }
-.ql-editor p, .ql-editor li, .ql-editor h1, .ql-editor h2, .ql-editor h3 { line-height: 2 !important; }
+.ql-editor { padding: 40px 24px; color: #000000 !important; font-family: 'Pretendard', 'Gmarket Sans', 'NanumSquare', sans-serif; line-height: 1.8 !important; cursor: text; }
+.ql-editor p, .ql-editor li, .ql-editor h1, .ql-editor h2, .ql-editor h3 { line-height: 1.8 !important; }
 .ql-editor.ql-blank::before { color: #cbd5e1; font-style: normal; font-size: 16px; }
 
 /* 에디터 내 구분선(HR) 스타일 */

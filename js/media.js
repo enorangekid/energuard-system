@@ -341,8 +341,6 @@ window.saveMediaToServer = async function(isManual = false) {
     if (content === "<p><br></p>" || !content) { showToast('내용을 입력해주세요.', 'warning'); return; }
 
     const saveBtn = document.getElementById('mediaHeaderSaveBtn');
-    const originalText = saveBtn.innerHTML;
-    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 저장중...';
     saveBtn.disabled = true;
 
     try {
@@ -369,7 +367,6 @@ window.saveMediaToServer = async function(isManual = false) {
         console.error("저장 오류:", e);
         showToast("저장 중 오류가 발생했습니다.", "error");
     } finally {
-        saveBtn.innerHTML = originalText;
         saveBtn.disabled = false;
     }
 }

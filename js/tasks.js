@@ -572,7 +572,18 @@ function initMonthlyLog() {
 
 function setupDragSelection() {
   let isSelecting = false; let startInput = null; let selectedInputs = []; let undoStack = []; let cellFocusVal = null; 
-  document.addEventListener('focusin', (e) => { if (e.target.classList && e.target.classList.contains('clean-input')) cellFocusVal = e.target.type === 'checkbox' ? e.target.checked : e.target.value; });
+  document.addEventListener('focusin', (e) => {
+    if (!e.target.classList || !e.target.classList.contains('clean-input')) return;
+    cellFocusVal = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    // Tab으로 다른 칸에 포커스가 옮겨왔는데 이전 드래그 선택(selectedInputs)이 안 지워져
+    // 있으면, 지금 칸에서 백스페이스를 눌러도 이전에 선택돼 있던 칸이 지워지는 버그가
+    // 있었다 — 드래그 중이 아닐 때는 포커스가 옮겨올 때마다 선택 상태를 지금 칸 하나로
+    // 맞춰준다(2026-08-14).
+    if (!isSelecting && !(selectedInputs.length === 1 && selectedInputs[0] === e.target)) {
+      clearSelection();
+      selectInput(e.target);
+    }
+  });
   document.addEventListener('focusout', (e) => { if (e.target.classList && e.target.classList.contains('clean-input')) { let currentVal = e.target.type === 'checkbox' ? e.target.checked : e.target.value; if (cellFocusVal !== null && cellFocusVal !== currentVal) { undoStack.push([{ el: e.target, oldVal: cellFocusVal }]); } cellFocusVal = null; } });
   document.addEventListener('change', (e) => { if (e.target.type === 'checkbox' && e.target.classList && e.target.classList.contains('clean-input') && e.isTrusted) undoStack.push([{ el: e.target, oldVal: !e.target.checked }]); });
 

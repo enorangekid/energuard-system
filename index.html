@@ -181,19 +181,19 @@
               <span class="menu-text">지표 요약</span>
           </li>
           <li class="menu-item" onclick="showPage('timeline', this)" title="업무 타임라인">
-              <div class="icon-circle"><i class="fa-solid fa-clock"></i></div>
+              <div class="icon-circle"><i class="fa-solid fa-clock-rotate-left"></i></div>
               <span class="menu-text">업무 타임라인</span>
           </li>
           <li class="menu-item" onclick="showPage('worklog', this)" title="월간 업무일지">
-              <div class="icon-circle"><i class="fa-solid fa-calendar-check"></i></div>
+              <div class="icon-circle"><i class="fa-solid fa-table-list"></i></div>
               <span class="menu-text">월간 업무일지</span>
           </li>
           <li class="menu-item" onclick="showPage('productlogs', this)" title="상품 수정 내역">
-              <div class="icon-circle"><i class="fa-solid fa-boxes-packing"></i></div>
+              <div class="icon-circle"><i class="fa-solid fa-pen-to-square"></i></div>
               <span class="menu-text">상품 수정 내역</span>
           </li>
           <li class="menu-item" onclick="showPage('notes', this)" title="업무 노트">
-              <div class="icon-circle"><i class="fa-solid fa-note-sticky"></i></div>
+              <div class="icon-circle"><i class="fa-solid fa-pen-nib"></i></div>
               <span class="menu-text">업무 노트</span>
           </li>
           <li class="menu-item" onclick="showPage('media', this)" title="미디어 콘텐츠">
@@ -680,9 +680,8 @@
               <button type="button" class="worklog-fab-top" onclick="cancelNoteChanges()" aria-label="취소" title="마지막 저장 시점으로 되돌리기">
                   <i class="fa-solid fa-rotate-left"></i>
               </button>
-              <button type="button" class="worklog-fab-save" id="noteHeaderSaveBtn" onclick="saveNoteManual()" aria-label="저장하기">
+              <button type="button" class="worklog-fab-save worklog-fab-save-plain" id="noteHeaderSaveBtn" onclick="saveNoteManual()" aria-label="저장하기" title="저장하기">
                   <i class="fa-solid fa-cloud-arrow-up worklog-fab-icon"></i>
-                  <span class="worklog-fab-label">저장<br>하기</span>
               </button>
           </div>
 
@@ -981,16 +980,14 @@
                들어가면 AI 추천(원형 아이콘)과 "저장"이 나온다(취소 버튼은 자동저장이 없는
                페이지라 실효성이 낮아 제거, 2026-08-14). -->
           <div class="worklog-fab-group">
-              <button type="button" class="worklog-fab-save" id="mediaNewDraftFabBtn" onclick="createNewDraft()" aria-label="새 원고 작성">
+              <button type="button" class="worklog-fab-save worklog-fab-save-plain" id="mediaNewDraftFabBtn" onclick="createNewDraft()" aria-label="새 원고 작성" title="새 원고 작성">
                   <i class="fa-solid fa-plus worklog-fab-icon"></i>
-                  <span class="worklog-fab-label">새 원고<br>작성</span>
               </button>
               <button type="button" class="worklog-fab-top" id="aiSuggestBtn" onclick="runAiSuggest()" aria-label="AI 추천" title="AI 추천" style="display:none;">
                   <i class="fa-solid fa-wand-magic-sparkles"></i>
               </button>
-              <button type="button" class="worklog-fab-save" id="mediaHeaderSaveBtn" onclick="saveMediaManual()" aria-label="저장하기" style="display:none;">
+              <button type="button" class="worklog-fab-save worklog-fab-save-plain" id="mediaHeaderSaveBtn" onclick="saveMediaManual()" aria-label="저장하기" title="저장하기" style="display:none;">
                   <i class="fa-solid fa-cloud-arrow-up worklog-fab-icon"></i>
-                  <span class="worklog-fab-label">저장<br>하기</span>
               </button>
           </div>
 
