@@ -557,16 +557,8 @@ function openPanel(targetId, onOpen) {
 
 
 function toggleCalcPanel() {
-    openPanel('calcPanel', () => {
-        const frame = document.getElementById('calcFrame');
-        const targetUrl = document.getElementById('calcSelector').value;
-        if (frame.src !== targetUrl) {
-            frame.src = targetUrl;
-        }
-    });
+    openPanel('calcPanel');
 }
-function changeCalculator(url) { document.getElementById('calcFrame').src = url; }
-
 /* ================================================================
    자료실 (Archive Panel) — Supabase Storage 'archives' 버킷 사용
    폴더 구조: 공용(company/cert): archives/{cat}/{file} / 개인(quote/image/etc): archives/{cat}/{username}/{file}

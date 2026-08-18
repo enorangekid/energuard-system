@@ -15,7 +15,11 @@
   background: #fff; border: 1px solid var(--border); border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: 14px 24px; margin-bottom: 16px;
 }
-.pricing-tabs { display: flex; gap: 6px; }
+/* h3가 헤드 카드의 유일한/마지막 자식이라 .input-panel h3의 margin-bottom:18px가
+   카드 맨 밑에 빈 여백으로 남는다 — 업무노트/미디어콘텐츠에서 이미 겪은 것과 같은
+   문제(2026-08-18). */
+#page-pricing .card.input-panel h3:last-child { margin-bottom: 0; }
+.pricing-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .pricing-tab {
   padding: 8px 18px; border-radius: 8px;
   border: 1px solid var(--border); background: #f8fafc;

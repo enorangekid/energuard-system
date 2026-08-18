@@ -55,19 +55,14 @@
 .worklog-fab-top:disabled { opacity: 0.4; cursor: not-allowed; color: #475569; }
 .worklog-fab-save { position: relative; width: 64px; height: 64px; border-radius: 50%; border: none; background: var(--primary); color: #fff; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.18); transition: background 0.15s ease; }
 .worklog-fab-save:hover { background: var(--primary-hover); }
-.worklog-fab-icon, .worklog-fab-label { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); transition: opacity 0.15s ease; }
-.worklog-fab-icon { font-size: 20px; opacity: 1; }
-.worklog-fab-label { font-size: 13px; font-weight: 700; line-height: 1.3; text-align: center; white-space: nowrap; opacity: 0; }
-.worklog-fab-save:hover .worklog-fab-icon { opacity: 0; }
-.worklog-fab-save:hover .worklog-fab-label { opacity: 1; }
+.worklog-fab-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); transition: opacity 0.15s ease; font-size: 20px; opacity: 1; }
 .worklog-fab-save:disabled { opacity: 0.4; cursor: not-allowed; }
-/* 업무노트/미디어콘텐츠의 저장하기 버튼 — 월간 업무일지처럼 호버 시 아이콘이 글자로
+/* 업무노트/미디어콘텐츠/월간업무일지의 저장하기 버튼 — 호버 시 아이콘이 글자로
    바뀌지 않고, 위로가기 버튼처럼 아이콘 색만 바뀌게 한다(2026-08-14). */
 .worklog-fab-save-plain:hover .worklog-fab-icon { opacity: 1; color: #e0e7ff; }
 /* 저장 처리 중 disabled가 켜졌다 꺼지는 순간 opacity 0.4→1로 튀는 게 깜빡임처럼 보여서,
    이 버튼은 disabled여도 밝기를 그대로 유지한다(클릭만 막히고 화면은 안 변함, 2026-08-14). */
 .worklog-fab-save-plain:disabled { opacity: 1; cursor: pointer; }
-.worklog-fab-save:disabled:hover .worklog-fab-label { max-width: 0; margin-left: 0; opacity: 0; }
 
 .header-left-simple { display: flex; gap: 15px; align-items: center; }
 .monthly-wrapper { display: flex; flex-direction: column; gap: 40px; }

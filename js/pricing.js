@@ -1585,24 +1585,29 @@ window.setPricingCompany = function(company) {
     const comingSoon = document.getElementById('pricingComingSoon');
     const bodyWrap   = document.getElementById('pricingBodyWrap');
     const headerRight = document.getElementById('pricingHeaderRight');
+    const appHeaderRight = document.getElementById('pricingAppHeaderRight');
 
     if (company === 'hkd') {
         tabsBar.style.display = 'none';
         bodyWrap.style.display = 'none';
         headerRight.style.display = 'none';
+        appHeaderRight.style.display = 'none';
         comingSoon.style.display = 'flex';
         return;
     }
 
     comingSoon.style.display = 'none';
     bodyWrap.style.display = '';
-    headerRight.style.display = '';
 
     if (company === 'app') {
         tabsBar.style.display = 'none';
+        headerRight.style.display = 'none';
+        appHeaderRight.style.display = 'flex';
         setPricingTab('app', null);
     } else {
         tabsBar.style.display = '';
+        headerRight.style.display = '';
+        appHeaderRight.style.display = 'none';
         setPricingTab(_lastEnerguardTab, document.querySelector(`.pricing-tab[onclick*="'${_lastEnerguardTab}'"]`));
     }
 };
@@ -2248,9 +2253,9 @@ async function initAppPriceTab() {
     if (data) data.forEach(r => { manualPrices[r.id] = r.price; });
   }
 
-  // 서브탭 버튼
+  // 서브탭 버튼 — 에너가드탭의 단열재 종류 탭(.pricing-tab)과 같은 스타일로 통일(2026-08-18)
   const tabBtns = APP_PRICE_SUBTABS.map(t =>
-    `<button class="bead-subtab${t.id === _appPriceSubTab ? ' active' : ''}"
+    `<button class="pricing-tab${t.id === _appPriceSubTab ? ' active' : ''}"
       onclick="switchAppPriceSubTab('${t.id}',this)">${t.label}</button>`
   ).join('');
 
@@ -2266,17 +2271,16 @@ async function initAppPriceTab() {
   window._appNotices = existingNotices;
 
   wrap.innerHTML = `
+    <!-- 카테고리 탭 — 에너가드탭의 .pricing-tabs-bar와 같은 별도 카드로 분리(2026-08-18,
+         이전엔 앱 판매가 현황 카드 안에 붙어있었음) -->
+    <div class="pricing-tabs-bar">
+      <div class="pricing-tabs" id="appPriceSubtabBar">${tabBtns}</div>
+    </div>
+
     <div class="card pricing-result-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">앱 판매가 현황<span class="pricing-spec-badge">단가표 자동 연동</span></div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span class="pricing-result-hint" id="appPriceSaveStatus"></span>
-          <button class="btn-app-save" onclick="saveAppManualPrices()">
-            <i class="fa-solid fa-cloud-arrow-up"></i> 앱에 저장
-          </button>
-        </div>
       </div>
-      <div class="bead-subtab-bar" id="appPriceSubtabBar">${tabBtns}</div>
       <div class="pricing-table-scroll" id="app-price-content"></div>
     </div>
 
@@ -2326,7 +2330,7 @@ async function initAppPriceTab() {
 /* 서브탭 전환 */
 window.switchAppPriceSubTab = function(tabId, el) {
   _appPriceSubTab = tabId;
-  document.querySelectorAll('#appPriceSubtabBar .bead-subtab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#appPriceSubtabBar .pricing-tab').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
   renderAppPriceSubTab(tabId);
 };

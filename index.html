@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>에너가드컴퍼니 통합 관리 시스템</title> 
+<title>에너가드컴퍼니 통합 관리 시스템</title>
+<link rel="icon" type="image/png" href="img/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/quill-table-better/dist/quill-table-better.css" rel="stylesheet">
@@ -243,6 +244,13 @@
 
   <div class="main-content">
     <div class="header">
+      <div class="header-brand-links">
+        <a href="https://smartstore.naver.com/energuardcompany" target="_blank" rel="noopener">에너가드컴퍼니</a>
+        <span class="header-brand-sep">|</span>
+        <a href="https://smartstore.naver.com/hkdy" target="_blank" rel="noopener">한국단열</a>
+        <span class="header-brand-sep">|</span>
+        <a href="https://smartstore.naver.com/hkdylife" target="_blank" rel="noopener">한국단열라이프</a>
+      </div>
       <div class="header-controls">
         <span id="weather-info" title="포천시 가산면 실시간 날씨" style="display:flex; align-items:center; gap:6px;">
             <i class="fa-solid fa-cloud-sun"></i> 날씨 로딩중...
@@ -513,9 +521,8 @@
           <button type="button" class="worklog-fab-top" onclick="scrollWorklogToTop()" aria-label="맨 위로">
             <i class="fa-solid fa-arrow-up"></i>
           </button>
-          <button type="button" class="worklog-fab-save worklog-save-btn" onclick="collectAndSaveWorklog()" aria-label="저장하기">
+          <button type="button" class="worklog-fab-save worklog-fab-save-plain worklog-save-btn" onclick="collectAndSaveWorklog()" aria-label="저장하기" title="저장하기">
             <i class="fa-solid fa-cloud-arrow-up worklog-fab-icon"></i>
-            <span class="worklog-fab-label">저장<br>하기</span>
           </button>
         </div>
       </div>
@@ -703,7 +710,7 @@
                 <h3>
                     <div class="nt-left">
                         <span class="dash-lab-title" style="cursor:default;">
-                            <span class="dash-lab-icon project"><i class="fa-solid fa-book"></i></span>
+                            <span class="dash-lab-icon project"><i class="fa-solid fa-book-open"></i></span>
                             <span><strong>프로젝트</strong></span>
                         </span>
                         <div class="store-chips note-mode-chips">
@@ -1089,6 +1096,13 @@
                 <i class="fa-solid fa-store"></i> 모음전 옵션
               </button>
             </div>
+            <!-- 앱가격 전용 — "앱에 저장" 버튼을 카드 안 제목줄에서 헤드 우측으로 이동(2026-08-18) -->
+            <div class="pricing-header-right" id="pricingAppHeaderRight" style="display:none;">
+              <span class="pricing-last-saved" id="appPriceSaveStatus"></span>
+              <button class="btn-server" onclick="saveAppManualPrices()">
+                <i class="fa-solid fa-cloud-arrow-up"></i> 앱에 저장
+              </button>
+            </div>
           </h3>
         </div>
 
@@ -1412,18 +1426,6 @@
     </div>
     <div class="quick-panel-body" style="padding: 0; background: #f8fafc; display:flex; flex-direction:column;">
 
-        <!-- 탭 전환 -->
-        <div style="display:flex; border-bottom:1px solid #e5e7eb; flex-shrink:0;">
-            <button id="calcTabBasic" onclick="switchCalcTab('basic')"
-                style="flex:1; padding:11px 0; font-size:13px; font-weight:700; border:none; background:#4f46e5; color:white; cursor:pointer; font-family:'Pretendard',sans-serif; transition:all 0.2s;">
-                기본 계산기
-            </button>
-            <button id="calcTabCustom" onclick="switchCalcTab('custom')"
-                style="flex:1; padding:11px 0; font-size:13px; font-weight:700; border:none; background:#f1f5f9; color:#64748b; cursor:pointer; font-family:'Pretendard',sans-serif; transition:all 0.2s;">
-                단열재 계산기
-            </button>
-        </div>
-
         <!-- 기본 계산기 -->
         <div id="calcBasicView" style="flex:1; display:flex; flex-direction:column; padding:16px; gap:12px;">
 
@@ -1468,26 +1470,6 @@
             </div>
         </div>
 
-        <!-- 단열재 계산기 (iframe) -->
-        <div id="calcCustomView" style="flex:1; display:none; flex-direction:column;">
-            <div style="padding:12px 15px; border-bottom:1px solid #e5e7eb; flex-shrink:0;">
-                <select id="calcSelector" onchange="changeCalculator(this.value)"
-                    style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-family:'Pretendard',sans-serif; font-size:13px; outline:none; font-weight:600; cursor:pointer; background:#fff;">
-                    <option value="">계산기를 선택하세요</option>
-                    <option value="https://gi.esmplus.com/0804bear/window_insulation/new/window_estimate_new_v2.html">창문형 단열재 계산기</option>
-                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-hkdy.html">판상형 단열재 계산기</option>
-                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-roll-hkdy.html">열반사 단열재 계산기</option>
-                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-calc-wall.html">단열벽지 계산기</option>
-                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-camp.html">캠핑단열재 계산기</option>
-                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-t.html">단열재 두께 계산기</option>
-                    <option value="https://gi.esmplus.com/0804bear/calculate/insulation-board-bundle.html">단열재 단수 계산기</option>
-                </select>
-            </div>
-            <div style="flex:1; position:relative;">
-                <iframe id="calcFrame" src="" style="width:100%; height:100%; border:none; position:absolute; top:0; left:0;"></iframe>
-            </div>
-        </div>
-
     </div>
   </div>
 
@@ -1515,16 +1497,6 @@
   let _calcResult = '0';
   let _calcJustEvaled = false;
   let _calcLastOp = null;
-
-  function switchCalcTab(tab) {
-      const isBasic = tab === 'basic';
-      document.getElementById('calcBasicView').style.display  = isBasic ? 'flex' : 'none';
-      document.getElementById('calcCustomView').style.display = isBasic ? 'none' : 'flex';
-      document.getElementById('calcTabBasic').style.background  = isBasic ? '#4f46e5' : '#f1f5f9';
-      document.getElementById('calcTabBasic').style.color       = isBasic ? 'white'   : '#64748b';
-      document.getElementById('calcTabCustom').style.background = isBasic ? '#f1f5f9' : '#4f46e5';
-      document.getElementById('calcTabCustom').style.color      = isBasic ? '#64748b' : 'white';
-  }
 
   function _calcRender() {
       document.getElementById('calcDisplay').textContent = _calcResult;
@@ -1588,7 +1560,6 @@
   // 키보드 지원
   document.addEventListener('keydown', function(e) {
       if (!document.getElementById('calcPanel')?.classList.contains('open')) return;
-      if (!document.getElementById('calcBasicView') || document.getElementById('calcBasicView').style.display === 'none') return;
       const map = {
           '0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9',
           '.':'.','Enter':'=','=':'=','Backspace':'⌫','Escape':'AC',
