@@ -7,17 +7,13 @@
 }
 .pricing-body-wrap { padding-bottom: 80px; }
 
-/* ── sticky 헤더: top을 0으로 (padding 조작 없이 동작) ── */
-.pricing-sticky-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  padding: 14px 24px;
-  margin-bottom: 16px;
+/* 예전엔 이 페이지만 헤더가 카드 형태 없이 따로 떠 있었는데, 다른 탭들처럼
+   .card.input-panel + h3 구조로 통일했다(2026-08-18). 단열재 종류 탭(.pricing-tabs)은
+   헤드 카드와 분리된 별도 바로 유지 — 헤드 카드 안에 붙여놨더니 답답하다는 피드백으로
+   다시 떼어냄(2026-08-18). */
+.pricing-tabs-bar {
+  background: #fff; border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: 14px 24px; margin-bottom: 16px;
 }
 .pricing-tabs { display: flex; gap: 6px; }
 .pricing-tab {
@@ -37,6 +33,15 @@
 /* ── 탭 패널 ── */
 .pricing-tab-pane { display: none; }
 .pricing-tab-pane.active { display: block; }
+
+/* 한국단열 — 아직 자체 단가 데이터가 없어 준비중 안내만 표시(2026-08-18) */
+.pricing-coming-soon {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 80px 0; color: #94a3b8;
+  background: #fff; border: 1px solid var(--border); border-radius: 12px;
+}
+.pricing-coming-soon i { font-size: 32px; color: #cbd5e1; }
+.pricing-coming-soon p { font-size: 14px; font-weight: 600; margin: 0; }
 
 /* ═══════════════════════════════════
    원가 입력 카드

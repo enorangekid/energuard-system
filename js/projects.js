@@ -15,6 +15,7 @@ let projectTabsCache = [];
 let currentProjectTabId = null;
 let projectTabOriginalContent = '';
 let projectAutoSaveTimer = null;
+let currentProjectThumbnailUrl = null;
 
 /* ================= [일반 노트 ↔ 프로젝트 전환] =================
    드롭박스가 업무노트 헤더/프로젝트 헤더 두 곳에 각각 하나씩(같은 제목 옆에 있어야 해서)
@@ -60,21 +61,43 @@ async function loadProjectsFromServer() {
 
     try {
         const [{ data: projects, error: pErr }, { data: tabs, error: tErr }] = await Promise.all([
-            supabaseClient.from('projects').select('id, title, updated_at').order('updated_at', { ascending: false }),
-            supabaseClient.from('project_tabs').select('id, project_id')
+            supabaseClient.from('projects').select('id, title, updated_at, thumbnail_url, subtitle, category').order('updated_at', { ascending: false }),
+            supabaseClient.from('project_tabs').select('id, project_id, content, sort_order')
         ]);
         if (pErr) throw pErr;
         if (tErr) throw tErr;
 
+        // 카드의 "내용"(요약)은 첫 번째 탭(sort_order 최솟값)의 본문에서 뽑아온다.
+        // "소제목"/"말머리"는 이제 subtitle/category 컬럼에 직접 입력받는다(2026-08-14,
+        // 예전엔 첫 탭 제목을 재활용했는데 항상 "개요"로 뜨거나 프로젝트 제목과 중복돼서 분리함).
         const tabCountMap = {};
-        (tabs || []).forEach((t) => { tabCountMap[t.project_id] = (tabCountMap[t.project_id] || 0) + 1; });
+        const firstTabByProject = {};
+        (tabs || []).forEach((t) => {
+            tabCountMap[t.project_id] = (tabCountMap[t.project_id] || 0) + 1;
+            const cur = firstTabByProject[t.project_id];
+            if (!cur || t.sort_order < cur.sort_order) firstTabByProject[t.project_id] = t;
+        });
 
-        projectsCache = (projects || []).map((p) => ({ ...p, tabCount: tabCountMap[p.id] || 0 }));
+        projectsCache = (projects || []).map((p) => {
+            const firstTab = firstTabByProject[p.id];
+            return {
+                ...p,
+                tabCount: tabCountMap[p.id] || 0,
+                excerptText: firstTab ? stripHtmlToText(firstTab.content) : '아직 작성된 내용이 없습니다.',
+            };
+        });
         renderProjectGrid();
     } catch (e) {
         console.error('프로젝트 목록 로드 실패:', e);
         if (grid) grid.innerHTML = '<div class="proj-grid-empty">프로젝트 목록을 불러오지 못했습니다.</div>';
     }
+}
+
+function stripHtmlToText(html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html || '';
+    const text = (tmp.textContent || tmp.innerText || '').trim();
+    return text ? (text.length > 90 ? text.slice(0, 90) + '…' : text) : '아직 작성된 내용이 없습니다.';
 }
 
 window.renderProjectGrid = function() {
@@ -91,15 +114,31 @@ window.renderProjectGrid = function() {
     grid.innerHTML = list.map((p) => {
         const d = new Date(p.updated_at);
         const dateStr = `${d.getMonth() + 1}/${d.getDate()} 수정`;
+        const categoryColor = PROJECT_CATEGORY_COLORS[p.category] || '#ea580c';
         return `<div class="proj-card" onclick="openProject(${p.id})">
             <button type="button" class="proj-card-del" onclick="event.stopPropagation(); deleteProject(${p.id})" title="프로젝트 삭제">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg>
+                <i class="fa-solid fa-trash-can"></i>
             </button>
-            <div class="proj-card-icon"><i class="fa-solid fa-book"></i></div>
-            <div class="proj-card-title">${escapeHtml(p.title)}</div>
-            <div class="proj-card-meta">탭 ${p.tabCount}개 · ${dateStr}</div>
+            <div class="proj-card-thumb">
+                ${p.category ? `<span class="proj-card-tag-badge" style="background:${categoryColor};">${escapeHtml(p.category)}</span>` : ''}
+                ${p.thumbnail_url ? `<img src="${p.thumbnail_url}" alt="">` : '<i class="fa-solid fa-book"></i>'}
+            </div>
+            <div class="proj-card-body">
+                ${p.subtitle ? `<div class="proj-card-badge">${escapeHtml(p.subtitle)}</div>` : ''}
+                <div class="proj-card-title">${escapeHtml(p.title)}</div>
+                <div class="proj-card-excerpt">${escapeHtml(p.excerptText)}</div>
+                <div class="proj-card-meta">${dateStr} | 탭 ${p.tabCount}개</div>
+            </div>
         </div>`;
     }).join('');
+};
+
+const PROJECT_CATEGORY_COLORS = {
+    '인증·서류': '#3b82f6',
+    '인사·노무': '#8b5cf6',
+    '거래·계약': '#f59e0b',
+    '쇼핑몰 운영': '#10b981',
+    '기타': '#64748b',
 };
 
 function escapeHtml(str) {
@@ -158,11 +197,18 @@ window.openProject = async function(id) {
 
         currentProjectId = proj.id;
         currentProjectTitle = proj.title;
+        currentProjectThumbnailUrl = proj.thumbnail_url || null;
         projectTabsCache = tabs || [];
 
-        document.getElementById('projectDetailTitle').innerHTML = `<strong>${escapeHtml(proj.title)}</strong>`;
+        document.getElementById('projectDetailTitle').value = proj.title;
+        updateProjectThumbBtnState();
+        document.getElementById('projectSubtitleInput').value = proj.subtitle || '';
+        syncProjectCategoryChips(proj.category || '');
         document.getElementById('projectListView').style.display = 'none';
         document.getElementById('projectDetailView').style.display = 'flex';
+        document.getElementById('projectTabStrip').style.display = 'flex';
+        document.getElementById('projectNewFabBtn').style.display = 'none';
+        document.getElementById('projectHeaderSaveBtn').style.display = 'flex';
 
         // Quill을 항상 "보이는 상태"에서 초기화하려고 여기서 부른다(display:none 컨테이너에
         // 초기화하면 레이아웃 계산이 깨질 수 있다) — initProjectQuill()은 멱등이라 반복 호출 안전.
@@ -187,9 +233,132 @@ window.openProject = async function(id) {
 window.backToProjectList = function() {
     document.getElementById('projectDetailView').style.display = 'none';
     document.getElementById('projectListView').style.display = 'flex';
+    document.getElementById('projectTabStrip').style.display = 'none';
+    document.getElementById('projectNewFabBtn').style.display = 'flex';
+    document.getElementById('projectHeaderSaveBtn').style.display = 'none';
     currentProjectId = null;
     currentProjectTabId = null;
     loadProjectsFromServer();
+};
+
+// 제목 입력칸에서 포커스가 빠질 때(blur) 바뀐 값이 있으면 바로 이름을 바꾼다
+// (블로그 원고 제목칸처럼 별도 저장 버튼 없이 즉시 반영, 2026-08-14).
+window.renameCurrentProject = async function(inputEl) {
+    if (!currentProjectId) return;
+    const newTitle = inputEl.value.trim();
+    if (!newTitle) { inputEl.value = currentProjectTitle; return; }
+    if (newTitle === currentProjectTitle) return;
+
+    try {
+        const { error } = await supabaseClient.from('projects').update({ title: newTitle }).eq('id', currentProjectId);
+        if (error) throw error;
+        currentProjectTitle = newTitle;
+        const cached = projectsCache.find((p) => p.id === currentProjectId);
+        if (cached) cached.title = newTitle;
+        showToast('프로젝트 이름이 변경되었습니다.', 'success');
+    } catch (e) {
+        console.error('프로젝트 이름 변경 실패:', e);
+        showToast('이름 변경에 실패했습니다.', 'error');
+        inputEl.value = currentProjectTitle;
+    }
+};
+
+// 소제목 — 목록 카드의 부제 배지에 그대로 표시된다(blur 시 저장, 2026-08-14).
+window.updateProjectSubtitle = async function(inputEl) {
+    if (!currentProjectId) return;
+    const subtitle = inputEl.value.trim();
+    try {
+        const { error } = await supabaseClient.from('projects').update({ subtitle: subtitle || null }).eq('id', currentProjectId);
+        if (error) throw error;
+        const cached = projectsCache.find((p) => p.id === currentProjectId);
+        if (cached) cached.subtitle = subtitle || null;
+    } catch (e) {
+        console.error('소제목 저장 실패:', e);
+        showToast('소제목 저장에 실패했습니다.', 'error');
+    }
+};
+
+// 말머리(카테고리) — 목록 카드 썸네일 좌상단에 색깔 배지로 표시된다. 업무노트/미디어콘텐츠의
+// .store-chips 드롭박스와 같은 패턴(2026-08-14).
+const PROJECT_CATEGORY_LABELS = { '': '말머리 없음', '인증·서류': '인증·서류', '인사·노무': '인사·노무', '거래·계약': '거래·계약', '쇼핑몰 운영': '쇼핑몰 운영', '기타': '기타' };
+document.addEventListener('click', (e) => {
+    const chips = document.getElementById('projectCategoryChips');
+    if (!chips) return;
+    if (e.target.closest('[data-action="toggle-project-category-menu"]')) {
+        chips.classList.toggle('open');
+        return;
+    }
+    const option = e.target.closest('[data-project-category]');
+    if (option) {
+        const value = option.dataset.projectCategory;
+        syncProjectCategoryChips(value);
+        chips.classList.remove('open');
+        saveProjectCategory(value);
+        return;
+    }
+    if (!e.target.closest('#projectCategoryChips')) chips.classList.remove('open');
+});
+function syncProjectCategoryChips(value) {
+    const label = document.getElementById('projectCategoryLabel');
+    if (label) label.textContent = PROJECT_CATEGORY_LABELS[value] || value || '말머리 없음';
+    document.querySelectorAll('#projectCategoryChips [data-project-category]').forEach((chip) => {
+        chip.classList.toggle('active', chip.dataset.projectCategory === value);
+    });
+}
+async function saveProjectCategory(value) {
+    if (!currentProjectId) return;
+    try {
+        const { error } = await supabaseClient.from('projects').update({ category: value || null }).eq('id', currentProjectId);
+        if (error) throw error;
+        const cached = projectsCache.find((p) => p.id === currentProjectId);
+        if (cached) cached.category = value || null;
+    } catch (e) {
+        console.error('말머리 저장 실패:', e);
+        showToast('말머리 저장에 실패했습니다.', 'error');
+    }
+}
+
+/* ================= [프로젝트 대표 이미지] ================= */
+function updateProjectThumbBtnState() {
+    const btn = document.getElementById('projectThumbBtn');
+    const label = document.getElementById('projectThumbBtnLabel');
+    if (!btn || !label) return;
+    const hasThumb = !!currentProjectThumbnailUrl;
+    btn.classList.toggle('has-thumb', hasThumb);
+    label.textContent = hasThumb ? '이미지 저장됨' : '대표 이미지';
+}
+
+window.handleProjectThumbnailSelect = async function(inputEl) {
+    const file = inputEl.files && inputEl.files[0];
+    inputEl.value = ''; // 같은 파일 다시 선택해도 change가 또 발생하게 초기화
+    if (!file || !currentProjectId || !supabaseClient) return;
+
+    document.getElementById('loader').style.display = 'flex';
+    try {
+        const fileExt = file.name.split('.').pop() || 'png';
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `project-thumbs/${fileName}`;
+        const { error: uploadError } = await supabaseClient.storage
+            .from('images')
+            .upload(filePath, file, { cacheControl: '3600', upsert: false });
+        if (uploadError) throw uploadError;
+        const { data } = supabaseClient.storage.from('images').getPublicUrl(filePath);
+
+        const { error: updateError } = await supabaseClient.from('projects')
+            .update({ thumbnail_url: data.publicUrl }).eq('id', currentProjectId);
+        if (updateError) throw updateError;
+
+        currentProjectThumbnailUrl = data.publicUrl;
+        updateProjectThumbBtnState();
+        const cached = projectsCache.find((p) => p.id === currentProjectId);
+        if (cached) cached.thumbnail_url = data.publicUrl;
+        showToast('대표 이미지가 저장되었습니다.', 'success');
+    } catch (e) {
+        console.error('대표 이미지 업로드 실패:', e);
+        showToast('대표 이미지 저장에 실패했습니다.', 'error');
+    } finally {
+        document.getElementById('loader').style.display = 'none';
+    }
 };
 
 function renderProjectTabStrip() {
@@ -309,8 +478,6 @@ window.saveProjectTabManual = async function() {
     clearTimeout(projectAutoSaveTimer);
 
     const saveBtn = document.getElementById('projectHeaderSaveBtn');
-    const originalText = saveBtn.innerHTML;
-    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 저장중...';
     saveBtn.disabled = true;
 
     const content = window.projectQuill.root.innerHTML;
@@ -327,7 +494,6 @@ window.saveProjectTabManual = async function() {
         console.error('프로젝트 저장 실패:', e);
         showToast('저장 중 오류가 발생했습니다.', 'error');
     } finally {
-        saveBtn.innerHTML = originalText;
         saveBtn.disabled = false;
     }
 };
@@ -365,6 +531,9 @@ window.initProjectQuill = function() {
     }
 
     const modules = {
+        clipboard: {
+            matchers: [[Node.ELEMENT_NODE, window.stripHeaderClipboardMatcher]]
+        },
         toolbar: {
             container: '#project-toolbar',
             handlers: {
@@ -503,6 +672,9 @@ function applyProjectToolbarUi() {
         strike: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l14 0"/><path d="M16 6.5a4 2 0 0 0 -4 -1.5h-1a3.5 3.5 0 0 0 0 7h2a3.5 3.5 0 0 1 0 7h-1.5a4 2 0 0 1 -4 -1.5"/></svg>',
         'ordered-list': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6h9"/><path d="M11 12h9"/><path d="M12 18h8"/><path d="M4 16a2 2 0 1 1 4 0c0 .591 -.5 1 -1 1.5l-3 2.5h4"/><path d="M6 10v-6l-2 2"/></svg>',
         'bullet-list': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l11 0"/><path d="M9 12l11 0"/><path d="M9 18l11 0"/><path d="M5 6l0 .01"/><path d="M5 12l0 .01"/><path d="M5 18l0 .01"/></svg>',
+        'align-left': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l16 0"/><path d="M4 12l10 0"/><path d="M4 18l14 0"/></svg>',
+        'align-center': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l16 0"/><path d="M8 12l8 0"/><path d="M6 18l12 0"/></svg>',
+        'align-right': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l16 0"/><path d="M10 12l10 0"/><path d="M6 18l14 0"/></svg>',
         clean: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 15l4 4m0 -4l-4 4"/><path d="M7 6v-1h11v1"/><path d="M7 19l4 0"/><path d="M13 5l-4 14"/></svg>',
     };
 

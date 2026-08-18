@@ -1549,6 +1549,71 @@ function initPricingTabs() {
   buildFrTab();
 }
 document.addEventListener('DOMContentLoaded', initPricingTabs);
+
+/* ═══════════════════════════════════════
+   회사 선택 (에너가드컴퍼니 / 한국단열 / 앱가격)
+   업무노트의 일반노트/프로젝트 .store-chips 드롭박스와 같은 패턴(2026-08-18).
+   한국단열은 아직 자체 단가 데이터가 없어 "준비중" 안내만 보여준다.
+═══════════════════════════════════════ */
+const PRICING_COMPANY_LABELS = { energuard: '에너가드컴퍼니', hkd: '한국단열', app: '앱가격' };
+let _lastEnerguardTab = 'isopink';
+
+document.addEventListener('click', (e) => {
+    const chips = document.getElementById('pricingCompanyChips');
+    if (!chips) return;
+    if (e.target.closest('[data-action="toggle-pricing-company-menu"]')) {
+        chips.classList.toggle('open');
+        return;
+    }
+    const option = e.target.closest('[data-pricing-company]');
+    if (option) {
+        chips.classList.remove('open');
+        setPricingCompany(option.dataset.pricingCompany);
+        return;
+    }
+    if (!e.target.closest('#pricingCompanyChips')) chips.classList.remove('open');
+});
+
+window.setPricingCompany = function(company) {
+    const label = document.getElementById('pricingCompanyLabel');
+    if (label) label.textContent = PRICING_COMPANY_LABELS[company] || company;
+    document.querySelectorAll('#pricingCompanyChips [data-pricing-company]').forEach((chip) => {
+        chip.classList.toggle('active', chip.dataset.pricingCompany === company);
+    });
+
+    const tabsBar    = document.getElementById('pricingTabsBar');
+    const comingSoon = document.getElementById('pricingComingSoon');
+    const bodyWrap   = document.getElementById('pricingBodyWrap');
+    const headerRight = document.getElementById('pricingHeaderRight');
+
+    if (company === 'hkd') {
+        tabsBar.style.display = 'none';
+        bodyWrap.style.display = 'none';
+        headerRight.style.display = 'none';
+        comingSoon.style.display = 'flex';
+        return;
+    }
+
+    comingSoon.style.display = 'none';
+    bodyWrap.style.display = '';
+    headerRight.style.display = '';
+
+    if (company === 'app') {
+        tabsBar.style.display = 'none';
+        setPricingTab('app', null);
+    } else {
+        tabsBar.style.display = '';
+        setPricingTab(_lastEnerguardTab, document.querySelector(`.pricing-tab[onclick*="'${_lastEnerguardTab}'"]`));
+    }
+};
+
+// setPricingTab이 material 탭(아이소핑크 등)으로 이동할 때마다 "마지막 선택"을 기억해둔다 —
+// 앱가격에서 에너가드컴퍼니로 돌아올 때 그 탭으로 복귀시키기 위함.
+const _origSetPricingTab = window.setPricingTab;
+window.setPricingTab = function(tabId, el) {
+    _origSetPricingTab(tabId, el);
+    if (tabId !== 'app') _lastEnerguardTab = tabId;
+};
 /* ═══════════════════════════════════════
    엑셀 저장 — 모든 탭 전체 데이터
    SheetJS(XLSX) CDN 사용

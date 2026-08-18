@@ -458,6 +458,18 @@ function formatCurrency(num) {
     return Number(num).toLocaleString();
 }
 function parseCurrency(str) { return Number(String(str).replace(/,/g, '')); }
+
+// 📌 외부(챗GPT/워드 등)에서 복사해 붙여넣을 때 딸려오는 <h1>~<h6> 제목 태그를
+// 일반 문단으로 강제 변환한다. 태그 자체가 남아있으면 글자 크기를 15px로 맞춰도
+// 브라우저 기본 굵기/여백이 남아 줄 간격이 달라 보이는 문제가 있었다(2026-08-18).
+window.stripHeaderClipboardMatcher = function(node, delta) {
+    if (node.nodeType === 1 && /^H[1-6]$/.test(node.tagName)) {
+        delta.ops.forEach(function(op) {
+            if (op.attributes && op.attributes.header) delete op.attributes.header;
+        });
+    }
+    return delta;
+};
 function formatDate(dateStr) {
     if(!dateStr) return "";
     var d = new Date(dateStr);

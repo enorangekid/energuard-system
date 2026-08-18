@@ -653,6 +653,12 @@
                         </span>
                         <span class="nt-toolbar-divider"></span>
                         <span class="ql-formats nt-tool-group">
+                            <button class="ql-align nt-tb-btn nt-format-btn" type="button" value="" title="왼쪽 정렬" data-label="왼쪽" data-icon="align-left"></button>
+                            <button class="ql-align nt-tb-btn nt-format-btn" type="button" value="center" title="가운데 정렬" data-label="가운데" data-icon="align-center"></button>
+                            <button class="ql-align nt-tb-btn nt-format-btn" type="button" value="right" title="오른쪽 정렬" data-label="오른쪽" data-icon="align-right"></button>
+                        </span>
+                        <span class="nt-toolbar-divider"></span>
+                        <span class="ql-formats nt-tool-group">
                             <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="ordered" title="번호 목록" data-label="번호" data-icon="ordered-list"></button>
                             <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="bullet" title="글머리 목록" data-label="목록" data-icon="bullet-list"></button>
                             <button class="ql-blockquote nt-tb-btn" type="button" title="인용구" data-label="인용구"></button>
@@ -688,75 +694,86 @@
           </div>
 
           <!-- 프로젝트 모드 — 특정 테마/목적을 정리해두는 장기 참고 문서(책). 여러 개의 "탭"(엑셀
-               시트처럼)으로 구성되며, 각 탭이 하나의 Quill 문서다(2026-08-14). -->
+               시트처럼)으로 구성되며, 각 탭이 하나의 Quill 문서다. 미디어 콘텐츠 페이지와 같은
+               구조: 헤드 카드 하나 + 본문 카드 하나, 본문 카드 안에서 목록↔상세만 토글된다(2026-08-14). -->
           <div id="noteModeProject" class="nt-mode-panel" style="display:none;">
 
-            <!-- 프로젝트 목록 (책장) -->
-            <div id="projectListView" class="nt-mode-panel">
-                <div class="card input-panel nt-header-card">
-                    <h3>
-                        <div class="nt-left">
-                            <span class="dash-lab-title" style="cursor:default;">
-                                <span class="dash-lab-icon project"><i class="fa-solid fa-book"></i></span>
-                                <span><strong>프로젝트</strong></span>
-                            </span>
-                            <div class="store-chips note-mode-chips">
-                                <button type="button" class="store-select" data-action="toggle-note-mode-menu" aria-label="노트 종류 선택">
-                                    <span class="note-mode-label">프로젝트</span>
+            <!-- ① 헤드 카드 (목록/상세 공통으로 항상 보임) -->
+            <div class="card input-panel nt-header-card">
+                <h3>
+                    <div class="nt-left">
+                        <span class="dash-lab-title" style="cursor:default;">
+                            <span class="dash-lab-icon project"><i class="fa-solid fa-book"></i></span>
+                            <span><strong>프로젝트</strong></span>
+                        </span>
+                        <div class="store-chips note-mode-chips">
+                            <button type="button" class="store-select" data-action="toggle-note-mode-menu" aria-label="노트 종류 선택">
+                                <span class="note-mode-label">프로젝트</span>
+                                <span class="store-caret" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </span>
+                            </button>
+                            <div class="store-menu" role="menu">
+                                <button type="button" class="store-chip" data-note-mode="general" role="menuitem">일반 노트</button>
+                                <button type="button" class="store-chip active" data-note-mode="project" role="menuitem">프로젝트</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="timeline-toolbar">
+                        <div class="timeline-search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="projectSearchInput" placeholder="프로젝트 검색..." oninput="renderProjectGrid()">
+                        </div>
+                        <span class="nt-toolbar-divider"></span>
+                        <div class="nt-status-simple">
+                            <span class="nt-status-dot"></span>
+                            <span id="projectSaveStatus">대기</span>
+                        </div>
+                    </div>
+                </h3>
+            </div>
+
+            <!-- ② 본문 카드 하나 — 안에서 목록(책장)↔상세(메타+에디터)만 바뀐다 -->
+            <div class="nt-body">
+                <!-- 프로젝트 목록 (책장) -->
+                <div id="projectListView">
+                    <div class="proj-grid" id="projectGrid"></div>
+                </div>
+
+                <!-- 프로젝트 상세 -->
+                <div id="projectDetailView" style="display:none;">
+                    <div id="projectDetailMetaArea">
+                        <div class="proj-meta-row">
+                            <button type="button" class="btn-back" onclick="backToProjectList()">
+                                <i class="fa-solid fa-arrow-left"></i> 목록으로
+                            </button>
+                            <input type="text" id="projectDetailTitle" class="proj-detail-title" placeholder="프로젝트 이름을 입력하세요" onblur="renameCurrentProject(this)">
+                            <input type="file" id="projectThumbInput" accept="image/*" style="display:none;" onchange="handleProjectThumbnailSelect(this)">
+                            <button type="button" class="proj-thumb-btn" id="projectThumbBtn" onclick="document.getElementById('projectThumbInput').click()">
+                                <i class="fa-solid fa-image"></i>
+                                <span id="projectThumbBtnLabel">대표 이미지</span>
+                            </button>
+                        </div>
+                        <div class="proj-meta-row proj-meta-row--sub">
+                            <div class="store-chips" id="projectCategoryChips">
+                                <button type="button" class="store-select" data-action="toggle-project-category-menu" aria-label="말머리 선택">
+                                    <span id="projectCategoryLabel">말머리 없음</span>
                                     <span class="store-caret" aria-hidden="true">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                     </span>
                                 </button>
                                 <div class="store-menu" role="menu">
-                                    <button type="button" class="store-chip" data-note-mode="general" role="menuitem">일반 노트</button>
-                                    <button type="button" class="store-chip active" data-note-mode="project" role="menuitem">프로젝트</button>
+                                    <button type="button" class="store-chip active" data-project-category="" role="menuitem">말머리 없음</button>
+                                    <button type="button" class="store-chip" data-project-category="인증·서류" role="menuitem">인증·서류</button>
+                                    <button type="button" class="store-chip" data-project-category="인사·노무" role="menuitem">인사·노무</button>
+                                    <button type="button" class="store-chip" data-project-category="거래·계약" role="menuitem">거래·계약</button>
+                                    <button type="button" class="store-chip" data-project-category="쇼핑몰 운영" role="menuitem">쇼핑몰 운영</button>
+                                    <button type="button" class="store-chip" data-project-category="기타" role="menuitem">기타</button>
                                 </div>
                             </div>
+                            <input type="text" id="projectSubtitleInput" class="proj-subtitle-input" placeholder="소제목을 입력하세요 (목록 카드에 표시됩니다)" onblur="updateProjectSubtitle(this)">
                         </div>
-                        <div class="timeline-toolbar">
-                            <div class="timeline-search-box">
-                                <i class="fa-solid fa-magnifying-glass"></i>
-                                <input type="text" id="projectSearchInput" placeholder="프로젝트 검색..." oninput="renderProjectGrid()">
-                            </div>
-                            <span class="nt-toolbar-divider"></span>
-                            <button type="button" class="nt-save-btn" onclick="createNewProject()">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l0 14"/><path d="M5 12l14 0"/></svg>
-                                새 프로젝트
-                            </button>
-                        </div>
-                    </h3>
-                </div>
-                <div class="nt-body">
-                    <div class="proj-grid" id="projectGrid"></div>
-                </div>
-            </div>
-
-            <!-- 프로젝트 상세 (탭 스트립 + 에디터) -->
-            <div id="projectDetailView" class="nt-mode-panel" style="display:none;">
-                <div class="card input-panel nt-header-card">
-                    <h3>
-                        <span class="dash-lab-title" style="cursor:default;">
-                            <button type="button" class="btn-back" onclick="backToProjectList()" title="목록으로">
-                                <i class="fa-solid fa-arrow-left"></i>
-                            </button>
-                            <span class="dash-lab-icon project"><i class="fa-solid fa-book"></i></span>
-                            <span id="projectDetailTitle"><strong>프로젝트</strong></span>
-                        </span>
-                        <div class="timeline-toolbar">
-                            <div class="nt-status-simple">
-                                <span class="nt-status-dot"></span>
-                                <span id="projectSaveStatus">대기</span>
-                            </div>
-                            <span class="nt-toolbar-divider"></span>
-                            <button type="button" class="nt-save-btn" id="projectHeaderSaveBtn" onclick="saveProjectTabManual()" title="저장하기">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 18a3.5 3.5 0 0 0 0 -7h-1a5 4.5 0 0 0 -11 -2a4.6 4.4 0 0 0 -2.1 8.4"/><path d="M9 15l3 -3l3 3"/><path d="M12 12l0 9"/></svg>
-                                저장
-                            </button>
-                        </div>
-                    </h3>
-                    <div class="proj-tab-strip" id="projectTabStrip"></div>
-                </div>
-                <div class="nt-body">
+                    </div>
                     <div id="project-editor-wrapper">
                         <div id="project-toolbar" class="ql-toolbar ql-snow nt-toolbar">
                             <span class="ql-formats nt-tool-group nt-tool-group--selects">
@@ -805,6 +822,12 @@
                             </span>
                             <span class="nt-toolbar-divider"></span>
                             <span class="ql-formats nt-tool-group">
+                                <button class="ql-align nt-tb-btn nt-format-btn" type="button" value="" title="왼쪽 정렬" data-label="왼쪽" data-icon="align-left"></button>
+                                <button class="ql-align nt-tb-btn nt-format-btn" type="button" value="center" title="가운데 정렬" data-label="가운데" data-icon="align-center"></button>
+                                <button class="ql-align nt-tb-btn nt-format-btn" type="button" value="right" title="오른쪽 정렬" data-label="오른쪽" data-icon="align-right"></button>
+                            </span>
+                            <span class="nt-toolbar-divider"></span>
+                            <span class="ql-formats nt-tool-group">
                                 <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="ordered" title="번호 목록" data-label="번호" data-icon="ordered-list"></button>
                                 <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="bullet" title="글머리 목록" data-label="목록" data-icon="bullet-list"></button>
                                 <button class="ql-blockquote nt-tb-btn" type="button" title="인용구" data-label="인용구"></button>
@@ -820,6 +843,20 @@
                         <div id="project-editor"></div>
                     </div>
                 </div>
+            </div>
+
+            <!-- 탭 스트립 — 엑셀 시트탭처럼 본문 카드 밖, 맨 아래 별도 바. 목록 보기일 땐 숨김(2026-08-14). -->
+            <div class="proj-tab-strip" id="projectTabStrip" style="display:none;"></div>
+
+            <!-- 새 프로젝트 플로팅 버튼 — 미디어 콘텐츠의 "새 원고"와 같은 컴포넌트. 목록
+                 보기일 때만 보이고 상세 화면에서는 숨김(2026-08-14). -->
+            <div class="worklog-fab-group">
+                <button type="button" class="worklog-fab-save worklog-fab-save-plain" id="projectNewFabBtn" onclick="createNewProject()" aria-label="새 프로젝트" title="새 프로젝트">
+                    <i class="fa-solid fa-plus worklog-fab-icon"></i>
+                </button>
+                <button type="button" class="worklog-fab-save worklog-fab-save-plain" id="projectHeaderSaveBtn" onclick="saveProjectTabManual()" aria-label="저장하기" title="저장하기" style="display:none;">
+                    <i class="fa-solid fa-cloud-arrow-up worklog-fab-icon"></i>
+                </button>
             </div>
 
           </div>
@@ -877,6 +914,7 @@
                                 <th>제목</th>
                                 <th width="100">상태</th>
                                 <th width="150">최근 저장</th>
+                                <th width="50"></th>
                             </tr>
                         </thead>
                         <tbody id="draftListBody"></tbody>
@@ -954,6 +992,12 @@
                         </span>
                         <span class="nt-toolbar-divider"></span>
                         <span class="ql-formats nt-tool-group">
+                            <button class="ql-align nt-tb-btn nt-format-btn" type="button" value="" title="왼쪽 정렬" data-label="왼쪽" data-icon="align-left"></button>
+                            <button class="ql-align nt-tb-btn nt-format-btn" type="button" value="center" title="가운데 정렬" data-label="가운데" data-icon="align-center"></button>
+                            <button class="ql-align nt-tb-btn nt-format-btn" type="button" value="right" title="오른쪽 정렬" data-label="오른쪽" data-icon="align-right"></button>
+                        </span>
+                        <span class="nt-toolbar-divider"></span>
+                        <span class="ql-formats nt-tool-group">
                             <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="ordered" title="번호 목록" data-label="번호" data-icon="ordered-list"></button>
                             <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="bullet" title="글머리 목록" data-label="목록" data-icon="bullet-list"></button>
                             <button class="ql-blockquote nt-tb-btn" type="button" title="인용구" data-label="인용구"></button>
@@ -996,45 +1040,77 @@
 
       <div id="page-pricing" class="page-section">
 
-        <!-- 탭 헤더 (non-sticky) -->
-        <div class="pricing-sticky-header">
+        <div class="card input-panel">
+          <h3>
+            <div class="nt-left">
+              <span class="dash-lab-title" style="cursor:default;">
+                <span class="dash-lab-icon pricing"><i class="fa-solid fa-tags"></i></span>
+                <span><strong>단가표</strong></span>
+              </span>
+              <!-- 회사별 단가 전환 — 업무노트의 일반노트/프로젝트 선택과 같은 .store-chips
+                   드롭박스, 제목 바로 옆에 배치(2026-08-18). 한국단열은 아직 준비중. -->
+              <div class="store-chips" id="pricingCompanyChips">
+                <button type="button" class="store-select" data-action="toggle-pricing-company-menu" aria-label="회사 선택">
+                  <span id="pricingCompanyLabel">에너가드컴퍼니</span>
+                  <span class="store-caret" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  </span>
+                </button>
+                <div class="store-menu" role="menu">
+                  <button type="button" class="store-chip active" data-pricing-company="energuard" role="menuitem">에너가드컴퍼니</button>
+                  <button type="button" class="store-chip" data-pricing-company="hkd" role="menuitem">한국단열</button>
+                  <button type="button" class="store-chip" data-pricing-company="app" role="menuitem">앱가격</button>
+                </div>
+              </div>
+            </div>
+            <div class="pricing-header-right" id="pricingHeaderRight">
+              <span class="pricing-last-saved" id="pricingLastUpdated">원가 미입력</span>
+              <!-- 이력 조회 드롭다운 -->
+              <div class="pricing-history-wrap" id="pricingHistoryWrap">
+                <button class="pricing-history-btn" id="pricingHistoryBtn" onclick="toggleHistoryDropdown()">
+                  <i class="fa-solid fa-clock-rotate-left"></i> 이력
+                  <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:2px;"></i>
+                </button>
+                <div class="pricing-history-dropdown" id="pricingHistoryDropdown">
+                  <div class="pricing-history-header">저장된 단가 이력</div>
+                  <div id="pricingHistoryList" class="pricing-history-list">
+                    <div class="pricing-history-empty">저장된 이력이 없습니다</div>
+                  </div>
+
+                </div>
+              </div>
+              <button class="btn-server" onclick="savePricingCosts()">
+                <i class="fa-solid fa-cloud-arrow-up"></i> 원가 저장
+              </button>
+              <button class="btn-server" onclick="exportPricingExcel()" style="background:#10b981;">
+                <i class="fa-solid fa-file-excel"></i> 엑셀 저장
+              </button>
+              <button class="btn-server" onclick="exportCurrentTabOption()" style="background:#03c75a;">
+                <i class="fa-solid fa-store"></i> 모음전 옵션
+              </button>
+            </div>
+          </h3>
+        </div>
+
+        <!-- 단열재 종류 탭 — 헤드 카드와 분리된 별도 바(2026-08-18, 이전처럼). 한국단열/앱가격
+             선택 시에는 숨긴다. -->
+        <div class="pricing-tabs-bar" id="pricingTabsBar">
           <div class="pricing-tabs">
             <button class="pricing-tab active" onclick="setPricingTab('isopink',this)">아이소핑크</button>
             <button class="pricing-tab" onclick="setPricingTab('bead',this)">비드법단열재</button>
             <button class="pricing-tab" onclick="setPricingTab('pu',this)">경질우레탄보드</button>
             <button class="pricing-tab" onclick="setPricingTab('pf',this)">PF 보드</button>
             <button class="pricing-tab" onclick="setPricingTab('fr',this)">불연단열재</button>
-            <button class="pricing-tab pricing-tab-app" onclick="setPricingTab('app',this)">앱 가격</button>
-          </div>
-          <div class="pricing-header-right">
-            <span class="pricing-last-saved" id="pricingLastUpdated">원가 미입력</span>
-            <!-- 이력 조회 드롭다운 -->
-            <div class="pricing-history-wrap" id="pricingHistoryWrap">
-              <button class="pricing-history-btn" id="pricingHistoryBtn" onclick="toggleHistoryDropdown()">
-                <i class="fa-solid fa-clock-rotate-left"></i> 이력
-                <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:2px;"></i>
-              </button>
-              <div class="pricing-history-dropdown" id="pricingHistoryDropdown">
-                <div class="pricing-history-header">저장된 단가 이력</div>
-                <div id="pricingHistoryList" class="pricing-history-list">
-                  <div class="pricing-history-empty">저장된 이력이 없습니다</div>
-                </div>
-
-              </div>
-            </div>
-            <button class="btn-server" onclick="savePricingCosts()">
-              <i class="fa-solid fa-cloud-arrow-up"></i> 원가 저장
-            </button>
-            <button class="btn-server" onclick="exportPricingExcel()" style="background:#10b981;">
-              <i class="fa-solid fa-file-excel"></i> 엑셀 저장
-            </button>
-            <button class="btn-server" onclick="exportCurrentTabOption()" style="background:#03c75a;">
-              <i class="fa-solid fa-store"></i> 모음전 옵션
-            </button>
           </div>
         </div>
 
-        <div class="pricing-body-wrap">
+        <!-- 한국단열 — 아직 준비중 -->
+        <div class="pricing-coming-soon" id="pricingComingSoon" style="display:none;">
+          <i class="fa-solid fa-hammer"></i>
+          <p>한국단열 단가표는 준비중입니다.</p>
+        </div>
+
+        <div class="pricing-body-wrap" id="pricingBodyWrap">
 
           <!-- 각 탭 콘텐츠는 pricing.js의 initPricingTabs()가 동적으로 생성합니다 -->
           <div id="pricing-tab-isopink" class="pricing-tab-pane active"></div>

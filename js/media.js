@@ -163,6 +163,9 @@ window.initMediaQuill = function() {
     }
 
     const modules = {
+        clipboard: {
+            matchers: [[Node.ELEMENT_NODE, window.stripHeaderClipboardMatcher]]
+        },
         toolbar: {
             container: '#media-toolbar',
             handlers: {
@@ -305,6 +308,9 @@ function applyMediaToolbarUi() {
         strike: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l14 0"/><path d="M16 6.5a4 2 0 0 0 -4 -1.5h-1a3.5 3.5 0 0 0 0 7h2a3.5 3.5 0 0 1 0 7h-1.5a4 2 0 0 1 -4 -1.5"/></svg>',
         'ordered-list': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6h9"/><path d="M11 12h9"/><path d="M12 18h8"/><path d="M4 16a2 2 0 1 1 4 0c0 .591 -.5 1 -1 1.5l-3 2.5h4"/><path d="M6 10v-6l-2 2"/></svg>',
         'bullet-list': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l11 0"/><path d="M9 12l11 0"/><path d="M9 18l11 0"/><path d="M5 6l0 .01"/><path d="M5 12l0 .01"/><path d="M5 18l0 .01"/></svg>',
+        'align-left': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l16 0"/><path d="M4 12l10 0"/><path d="M4 18l14 0"/></svg>',
+        'align-center': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l16 0"/><path d="M8 12l8 0"/><path d="M6 18l12 0"/></svg>',
+        'align-right': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l16 0"/><path d="M10 12l10 0"/><path d="M6 18l14 0"/></svg>',
         clean: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 15l4 4m0 -4l-4 4"/><path d="M7 6v-1h11v1"/><path d="M7 19l4 0"/><path d="M13 5l-4 14"/></svg>',
         today: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M11 15h1v3"/></svg>',
         print: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 17h2a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2h-14a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h2"/><path d="M17 9v-4a2 2 0 0 0 -2 -2h-6a2 2 0 0 0 -2 2v4"/><path d="M7 13m0 2a2 2 0 0 1 2 -2h6a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-6a2 2 0 0 1 -2 -2z"/></svg>',
@@ -442,7 +448,8 @@ async function uploadMediaFileToSupabase(file, dropIndex = null) {
 async function loadDraftList(type) {
     if (!supabaseClient) return;
     const listEl = document.getElementById('draftListBody'); if (!listEl) return;
-    listEl.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> 로딩중...</td></tr>';
+    const readonly = typeof window.isNoteTabReadonly === 'function' && window.isNoteTabReadonly(type);
+    listEl.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> 로딩중...</td></tr>';
     try {
         const { data, error } = await supabaseClient.from('notes').select('id, date, title, status, saved_at').eq('type', type).order('saved_at', { ascending: false });
         if (error) throw error;
@@ -454,11 +461,24 @@ async function loadDraftList(type) {
                 let statusBadge = `<span style="background:${statusBg}; color:${statusColor}; padding:4px 8px; border-radius:12px; font-size:11px; font-weight:700;">${statusTxt}</span>`;
                 let savedTime = new Date(item.saved_at);
                 let timeStr = `${savedTime.getMonth()+1}/${savedTime.getDate()} ${String(savedTime.getHours()).padStart(2,'0')}:${String(savedTime.getMinutes()).padStart(2,'0')}`;
-                return `<tr onclick="loadDraftContent('${item.id}')"><td class="text-sub">${item.date}</td><td class="text-left font-bold">${item.title || '(제목 없음)'}</td><td>${statusBadge}</td><td class="text-sub">${timeStr}</td></tr>`;
+                const delBtn = readonly ? '' : `<button type="button" class="media-draft-del" onclick="event.stopPropagation(); deleteMediaDraft('${item.id}', '${type}')" title="원고 삭제"><i class="fa-solid fa-trash-can"></i></button>`;
+                return `<tr onclick="loadDraftContent('${item.id}')"><td class="text-sub">${item.date}</td><td class="text-left font-bold">${item.title || '(제목 없음)'}</td><td>${statusBadge}</td><td class="text-sub">${timeStr}</td><td>${delBtn}</td></tr>`;
             }).join('');
-        } else { listEl.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:30px; color:#94a3b8; font-size:13px;">등록된 원고가 없습니다.</td></tr>'; }
-    } catch (e) { console.error("리스트 오류:", e); listEl.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#ef4444;">리스트 로드 실패</td></tr>'; }
+        } else { listEl.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8; font-size:13px;">등록된 원고가 없습니다.</td></tr>'; }
+    } catch (e) { console.error("리스트 오류:", e); listEl.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#ef4444;">리스트 로드 실패</td></tr>'; }
 }
+window.deleteMediaDraft = async function(noteId, type) {
+    if (!confirm('이 원고를 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+    try {
+        const { error } = await supabaseClient.from('notes').delete().eq('id', noteId);
+        if (error) throw error;
+        showToast('원고가 삭제되었습니다.', 'success');
+        loadDraftList(type);
+    } catch (e) {
+        console.error('원고 삭제 실패:', e);
+        showToast('원고 삭제에 실패했습니다.', 'error');
+    }
+};
 window.loadDraftContent = async function(noteId) {
     if (!supabaseClient) return;
     document.getElementById('loader').style.display = 'flex';

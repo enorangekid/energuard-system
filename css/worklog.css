@@ -109,6 +109,12 @@
 .prio-select:has(option[value="3"]:checked) { color: #d97706; }
 .prio-select:has(option[value="2"]:checked) { color: #2563eb; }
 .prio-select:has(option[value="1"]:checked) { color: #94a3b8; }
+/* 드롭박스를 펼쳤을 때 목록의 각 옵션도 같은 색으로 보이도록(2026-08-18, 펼치면 전부
+   검정으로 똑같이 보이던 문제) — 위 :has() 규칙은 접혀있는 select 자체만 물들인다. */
+.prio-select option[value="4"] { color: #dc2626; }
+.prio-select option[value="3"] { color: #d97706; }
+.prio-select option[value="2"] { color: #2563eb; }
+.prio-select option[value="1"] { color: #94a3b8; }
 .b-cell { display: flex; align-items: center; justify-content: center; border-right: 1px solid var(--wl-border-light); height: 100%; }
 .b-cell:last-child { border-right: none; }
 .c-no { width: var(--w-no); background: #f8fafc; font-size: 11px; font-weight: bold; color: #64748b; }

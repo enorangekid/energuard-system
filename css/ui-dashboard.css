@@ -290,6 +290,11 @@
   color: #fff;
 }
 
+.dash-lab-icon.pricing {
+  background: #ca8a04;
+  color: #fff;
+}
+
 .dash-lab-refresh {
   width: 30px;
   height: 30px;

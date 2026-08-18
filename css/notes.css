@@ -48,16 +48,6 @@
 .btn-primary { background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2); }
 .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
 
-.nt-save-btn {
-  height: 36px; padding: 0 18px; border-radius: 20px; flex-shrink: 0;
-  border: 1px solid var(--primary); background: var(--primary); color: #fff;
-  font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px;
-  cursor: pointer; transition: 0.15s; box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
-}
-.nt-save-btn svg { width: 15px; height: 15px; }
-.nt-save-btn:hover { background: #4338ca; border-color: #4338ca; }
-.nt-save-btn:disabled { opacity: 0.7; cursor: default; }
-
 #noteSearchResults {
   /* 검색창이 제목바 안의 .timeline-search-box(200px)로 옮겨오면서(2026-08-14) width:100%로는
      결과 목록이 너무 좁아져서 고정폭으로 넓힌다. */
@@ -87,6 +77,12 @@
 .text-left { text-align: left !important; }
 .font-bold { font-weight: 600; color: #334155; }
 .text-sub { color: #94a3b8; font-size: 13px; }
+.media-draft-del {
+  width: 26px; height: 26px; border-radius: 50%; border: none; background: transparent;
+  color: #cbd5e1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  transition: 0.15s;
+}
+.media-draft-del:hover { background: #fee2e2; color: #dc2626; }
 
 /* 4. 원고 메타데이터 (Detail Header) */
 #draftMetadataArea {
@@ -94,12 +90,55 @@
   background: #fff; border-bottom: 1px solid #f1f5f9;
   align-items: center; gap: 16px;
 }
+/* 프로젝트 상세의 "목록으로+제목+상태/저장" 줄 — 미디어 콘텐츠의 #draftMetadataArea와
+   완전히 같은 자리·모양(.nt-body 안쪽 첫 줄)이다(2026-08-14, 블로그 원고 쪽 구조를
+   그대로 따라감: 헤드 카드 하나 + 본문 카드 하나, 본문 카드 안에서 목록↔상세 토글). */
+#projectDetailMetaArea {
+  display: flex; flex-direction: column; padding: 16px 24px; flex-shrink: 0;
+  background: #fff; border-bottom: 1px solid #f1f5f9; gap: 10px;
+}
+.proj-meta-row { display: flex; align-items: center; gap: 16px; }
+.proj-meta-row--sub { gap: 12px; }
+.proj-subtitle-input {
+  flex: 1; height: 36px; font-size: 13px; font-weight: 500;
+  border: 1px solid #e2e8f0; background: #f8fafc;
+  border-radius: 8px; padding: 0 12px; color: #334155;
+  transition: 0.2s;
+}
+.proj-subtitle-input:focus { background: #fff; border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+#projectCategoryChips .store-select { height: 36px; min-width: 130px; padding: 0 10px 0 14px; font-size: 13px; }
+/* #draftTitle(블로그 원고 제목 입력칸)과 똑같은 박스로 맞춘다 — 클릭해서 바로 이름을
+   바꿀 수 있는 실제 입력칸이다(2026-08-14). */
+.proj-detail-title {
+  flex: 1; height: 44px; font-size: 18px; font-weight: 700;
+  border: 1px solid transparent; background: transparent;
+  border-radius: 6px; padding: 0 10px; color: #1e293b;
+  transition: 0.2s;
+}
+.proj-detail-title:hover { background: #f8fafc; }
+.proj-detail-title:focus { background: #fff; border-color: #e2e8f0; outline: none; }
+/* 본문 카드(.nt-body) 안에서 목록(책장)/상세가 서로 자리를 대체한다 — 미디어 콘텐츠의
+   #draftListContainer/#media-editor-wrapper와 같은 역할(2026-08-14). */
+#projectListView, #projectDetailView {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0;
+}
 .btn-back {
   padding: 8px 14px; border: 1px solid #e2e8f0; background: white; 
   border-radius: 8px; cursor: pointer; font-size: 13px; color: #64748b; font-weight: 600;
   transition: 0.2s; display: flex; align-items: center; gap: 6px;
 }
 .btn-back:hover { background: #f8fafc; color: #334155; border-color: #cbd5e1; }
+/* 프로젝트 대표 이미지 버튼 — 블로그 원고의 상태 드롭박스와 같은 자리(제목 우측).
+   이미지가 저장돼 있으면 초록 톤으로 바뀌어 "이미 저장됨"이 한눈에 보이게 한다(2026-08-14). */
+.proj-thumb-btn {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  height: 36px; padding: 0 14px; border-radius: 20px;
+  border: 1px solid #e2e8f0; background: #fff; color: #64748b;
+  font-weight: 700; font-size: 13px; cursor: pointer; transition: 0.15s;
+}
+.proj-thumb-btn:hover { border-color: var(--primary); color: var(--primary); background: #f5f4ff; }
+.proj-thumb-btn.has-thumb { border-color: #10b981; color: #059669; background: #ecfdf5; }
+.proj-thumb-btn.has-thumb:hover { border-color: #059669; background: #d1fae5; }
 #draftTitle { 
   flex: 1; height: 44px; font-size: 18px; font-weight: 700; 
   border: 1px solid transparent; background: transparent; 
@@ -135,37 +174,74 @@
 }
 
 /* 프로젝트 목록(책장) — .nt-body를 그대로 카드로 쓰고 내부 그리드만 스크롤되게(2026-08-14). */
+/* 폭 제한(max-width:1400px)을 걸었더니 이 페이지의 실제 카드 영역(그보다 훨씬 넓음)
+   기준으로는 오른쪽에 빈 공간이 크게 남았다 — 폭 제한을 없애고 대신 4열로 채워서,
+   카드 한 장의 폭이 ★계산기모음\calculator\blog.css의 3열(~420px) 카드와 비슷한 폭이
+   되도록 맞췄다(2026-08-14). */
 .proj-grid {
   flex: 1; overflow-y: auto; align-content: start;
   padding: 24px; display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
 }
+@media (max-width: 1700px) { .proj-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 1200px) { .proj-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 700px) { .proj-grid { grid-template-columns: 1fr; } }
 .proj-card {
-  position: relative; padding: 20px; border: 1px solid var(--border);
-  border-radius: 12px; background: #f8fafc; cursor: pointer; transition: 0.15s;
+  position: relative; border: 1px solid var(--border); border-radius: 4px;
+  background: #fff; cursor: pointer; transition: border-color 0.18s; overflow: hidden;
 }
-.proj-card:hover {
-  border-color: var(--primary); background: #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px);
+.proj-card:hover { border-color: #8a9ab0; }
+/* 말머리(카테고리) 배지 — 썸네일 좌상단, blog.css의 .blog-card-tag-badge와 같은 자리(2026-08-14). */
+.proj-card-tag-badge {
+  position: absolute; top: 10px; left: 10px; z-index: 1;
+  padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;
+  color: #fff; letter-spacing: 0.2px;
 }
-.proj-card-icon {
-  width: 40px; height: 40px; border-radius: 10px; background: #ea580c; color: #fff;
-  display: flex; align-items: center; justify-content: center; font-size: 17px; margin-bottom: 14px;
+.proj-card-thumb {
+  position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden;
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  display: flex; align-items: center; justify-content: center;
 }
-.proj-card-title { font-weight: 700; font-size: 15px; color: var(--text-main); margin-bottom: 4px; }
-.proj-card-meta { font-size: 12px; color: #94a3b8; }
+.proj-card-thumb i { font-size: 32px; color: #ea580c; opacity: 0.55; transition: transform 0.35s ease; }
+.proj-card:hover .proj-card-thumb i { transform: scale(1.07); }
+.proj-card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.35s ease; }
+.proj-card:hover .proj-card-thumb img { transform: scale(1.07); }
+.proj-card-body { padding: 14px 15px 13px; }
+/* "심플제목" — 블로그 카드의 부제 뱃지(.blog-card-body-badge)와 같은 자리. 첫 번째 탭의
+   제목을 그대로 가져다 쓴다(2026-08-14). */
+.proj-card-badge {
+  display: inline-block; margin-bottom: 7px; padding: 3px 8px; border-radius: 3px;
+  font-size: 11px; font-weight: 600; background: rgba(234, 88, 12, 0.1); color: #ea580c;
+  letter-spacing: 0.2px;
+}
+.proj-card-title {
+  font-size: 13.5px; font-weight: 700; line-height: 1.55; color: var(--text-main);
+  margin: 0 0 6px; letter-spacing: -0.2px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.proj-card-excerpt {
+  font-size: 12px; line-height: 1.65; color: #64748b; margin: 0 0 11px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.proj-card-meta { font-size: 11px; color: #94a3b8; opacity: 0.75; }
 .proj-card-del {
-  position: absolute; top: 12px; right: 12px; width: 26px; height: 26px; border-radius: 50%;
-  border: none; background: transparent; color: #cbd5e1; cursor: pointer;
+  position: absolute; top: 10px; right: 10px; z-index: 2; width: 26px; height: 26px; border-radius: 50%;
+  border: none; background: rgba(255,255,255,0.9); color: #64748b; cursor: pointer;
   display: flex; align-items: center; justify-content: center; opacity: 0; transition: 0.15s;
+  backdrop-filter: blur(4px);
 }
 .proj-card:hover .proj-card-del { opacity: 1; }
 .proj-card-del:hover { background: #fee2e2; color: #dc2626; }
 .proj-grid-empty { grid-column: 1 / -1; text-align: center; padding: 40px 0; color: #94a3b8; font-size: 13px; }
 
-/* 프로젝트 탭 스트립 — 엑셀 시트 탭처럼 프로젝트 하나 안의 여러 문서를 오간다(2026-08-14). */
-.proj-tab-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+/* 프로젝트 탭 스트립 — 엑셀 시트 탭처럼 프로젝트 하나 안의 여러 문서를 오간다. 헤더가
+   아니라 편집창 맨 아래에 별도 바(엑셀 시트탭 느낌)로 붙는다(2026-08-14). */
+.proj-tab-strip {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+  padding: 10px 20px; background: #fff; border-radius: 12px;
+  border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
 .proj-tab-chip {
   display: flex; align-items: center; gap: 6px; padding: 7px 8px 7px 14px;
   border-radius: 20px; background: #f1f5f9; color: #475569; font-size: 13px; font-weight: 600;
