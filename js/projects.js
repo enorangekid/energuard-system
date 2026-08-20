@@ -95,7 +95,7 @@ async function loadProjectsFromServer() {
 
 function stripHtmlToText(html) {
     const tmp = document.createElement('div');
-    tmp.innerHTML = html || '';
+    tmp.innerHTML = sanitizeAdminHtml(html || '');
     const text = (tmp.textContent || tmp.innerText || '').trim();
     return text ? (text.length > 90 ? text.slice(0, 90) + '…' : text) : '아직 작성된 내용이 없습니다.';
 }
@@ -121,7 +121,7 @@ window.renderProjectGrid = function() {
             </button>
             <div class="proj-card-thumb">
                 ${p.category ? `<span class="proj-card-tag-badge" style="background:${categoryColor};">${escapeHtml(p.category)}</span>` : ''}
-                ${p.thumbnail_url ? `<img src="${p.thumbnail_url}" alt="">` : '<i class="fa-solid fa-book"></i>'}
+                ${safeAdminUrl(p.thumbnail_url) ? `<img src="${escapeAdminHtml(safeAdminUrl(p.thumbnail_url))}" alt="">` : '<i class="fa-solid fa-book"></i>'}
             </div>
             <div class="proj-card-body">
                 ${p.subtitle ? `<div class="proj-card-badge">${escapeHtml(p.subtitle)}</div>` : ''}
@@ -457,7 +457,8 @@ async function autoSaveProjectTab() {
 
     const statusLabel = document.getElementById('projectSaveStatus');
     try {
-        await supabaseClient.from('project_tabs').update({ content: content, updated_at: new Date() }).eq('id', currentProjectTabId);
+        const { error } = await supabaseClient.from('project_tabs').update({ content: content, updated_at: new Date() }).eq('id', currentProjectTabId);
+        if (error) throw error;
         if (statusLabel) {
             const now = new Date();
             statusLabel.innerHTML = '자동 저장됨 (' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ')';

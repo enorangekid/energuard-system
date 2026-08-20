@@ -27,59 +27,52 @@ function _hlKey(tabId, gradeId, t) {
   return `${tabId}|${gradeId}|${t}`;
 }
 
-/* ═══════════════════════════════════════
-   Supabase 유틸
-═══════════════════════════════════════ */
-function _hlHeaders() {
-  const key = supabaseClient?.supabaseKey || '';
-  return {
-    'apikey':        key,
-    'Authorization': 'Bearer ' + key,
-    'Content-Type':  'application/json',
-  };
-}
-
 /* 전체 하이라이트 로드 */
 async function _loadHighlights() {
   if (typeof supabaseClient === 'undefined') return;
   try {
-    const res = await fetch(
-      `${supabaseClient.supabaseUrl}/rest/v1/pricing_highlights?select=tab_id,grade_id,thickness`,
-      { headers: _hlHeaders() }
-    );
-    const rows = await res.json();
-    if (!Array.isArray(rows)) return;
+    const { data: rows, error } = await supabaseClient
+      .from('pricing_highlights')
+      .select('tab_id,grade_id,thickness');
+    if (error) throw error;
     _hlCache.clear();
-    rows.forEach(r => _hlCache.add(_hlKey(r.tab_id, r.grade_id, r.thickness)));
+    (rows || []).forEach(r => _hlCache.add(_hlKey(r.tab_id, r.grade_id, r.thickness)));
   } catch(e) { console.warn('[Highlight] 로드 실패', e); }
 }
 
 /* 하이라이트 추가 */
 async function _addHighlight(tabId, gradeId, t) {
   if (typeof supabaseClient === 'undefined') return;
-  _hlCache.add(_hlKey(tabId, gradeId, t));
   try {
-    await fetch(
-      `${supabaseClient.supabaseUrl}/rest/v1/pricing_highlights?on_conflict=tab_id,grade_id,thickness`,
-      {
-        method: 'POST',
-        headers: { ..._hlHeaders(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ tab_id: tabId, grade_id: gradeId, thickness: Number(t) }),
-      }
+    const { error } = await supabaseClient.from('pricing_highlights').upsert(
+      { tab_id: tabId, grade_id: gradeId, thickness: Number(t) },
+      { onConflict: 'tab_id,grade_id,thickness' }
     );
-  } catch(e) { console.warn('[Highlight] 추가 실패', e); }
+    if (error) throw error;
+    _hlCache.add(_hlKey(tabId, gradeId, t));
+    window._applyHighlights();
+  } catch(e) {
+    console.warn('[Highlight] 추가 실패', e);
+    if (typeof showToast === 'function') showToast('하이라이트 저장 실패', 'error');
+  }
 }
 
 /* 하이라이트 제거 */
 async function _removeHighlight(tabId, gradeId, t) {
   if (typeof supabaseClient === 'undefined') return;
-  _hlCache.delete(_hlKey(tabId, gradeId, t));
   try {
-    await fetch(
-      `${supabaseClient.supabaseUrl}/rest/v1/pricing_highlights?tab_id=eq.${tabId}&grade_id=eq.${gradeId}&thickness=eq.${t}`,
-      { method: 'DELETE', headers: _hlHeaders() }
-    );
-  } catch(e) { console.warn('[Highlight] 제거 실패', e); }
+    const { error } = await supabaseClient.from('pricing_highlights')
+      .delete()
+      .eq('tab_id', tabId)
+      .eq('grade_id', gradeId)
+      .eq('thickness', Number(t));
+    if (error) throw error;
+    _hlCache.delete(_hlKey(tabId, gradeId, t));
+    window._applyHighlights();
+  } catch(e) {
+    console.warn('[Highlight] 제거 실패', e);
+    if (typeof showToast === 'function') showToast('하이라이트 제거 실패', 'error');
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -126,10 +119,8 @@ function _onThickClick(e) {
   const key     = _hlKey(tabId, gradeId, t);
 
   if (_hlCache.has(key)) {
-    tr.classList.remove('hl-row');
     _removeHighlight(tabId, gradeId, t);
   } else {
-    tr.classList.add('hl-row');
     _addHighlight(tabId, gradeId, t);
   }
 }

@@ -118,7 +118,7 @@ window.insertTodayHeader = function() {
 function setQuillContent(quillInstance, html) {
     if (!quillInstance) return;
     if (!html) { quillInstance.setContents([], 'silent'); return; }
-    const delta = quillInstance.clipboard.convert({ html: html });
+    const delta = quillInstance.clipboard.convert({ html: sanitizeAdminHtml(html) });
     quillInstance.setContents(delta, 'silent');
 }
 
@@ -341,11 +341,14 @@ async function autoSaveNote() {
 
     try {
         if (currentNoteId) {
-            await supabaseClient.from('notes').update({ content: noteContent, saved_at: new Date() }).eq('id', currentNoteId);
+            const { error } = await supabaseClient.from('notes').update({ content: noteContent, saved_at: new Date() }).eq('id', currentNoteId);
+            if (error) throw error;
         } else {
             const _uid2 = window.currentUser?.username || 'admin';
-            const { data } = await supabaseClient.from('notes').insert([{ date: monthStr + '-01', type: 'general', title: '일반 노트', content: noteContent, status: 'saving', user_id: _uid2 }]).select();
-            if (data && data.length > 0) currentNoteId = data[0].id;
+            const { data, error } = await supabaseClient.from('notes').insert([{ date: monthStr + '-01', type: 'general', title: '일반 노트', content: noteContent, status: 'saving', user_id: _uid2 }]).select();
+            if (error) throw error;
+            if (!data?.length) throw new Error('저장된 노트 ID를 확인할 수 없습니다.');
+            currentNoteId = data[0].id;
         }
 
         if (statusLabel) {
@@ -388,7 +391,8 @@ window.saveNoteToServer = async function(isManual = false) {
             const _uid3 = window.currentUser?.username || 'admin';
             const { data, error } = await supabaseClient.from('notes').insert([{ date: date, type: 'general', title: '일반 노트', content: content, status: 'saving', user_id: _uid3 }]).select();
             if (error) throw error;
-            if (data && data.length > 0) currentNoteId = data[0].id;
+            if (!data?.length) throw new Error('저장된 노트 ID를 확인할 수 없습니다.');
+            currentNoteId = data[0].id;
         }
 
         // ✅ 수동 저장 성공 시에만 원본 갱신
@@ -423,7 +427,8 @@ window.cancelNoteChanges = async function() {
     // 2. 서버 데이터도 원본으로 덮어씌우기 (자동 저장된 내용 무효화)
     if(currentNoteId) {
         try {
-            await supabaseClient.from('notes').update({ content: noteOriginalContent, saved_at: new Date() }).eq('id', currentNoteId);
+            const { error } = await supabaseClient.from('notes').update({ content: noteOriginalContent, saved_at: new Date() }).eq('id', currentNoteId);
+            if (error) throw error;
             if(statusLabel) statusLabel.innerHTML = '복구 완료';
         } catch(e) {
             console.error("롤백 실패:", e);
@@ -560,7 +565,7 @@ async function doSearchNotes(query) {
         // HTML 태그 제거 유틸
         function stripHtml(html) {
             const tmp = document.createElement('div');
-            tmp.innerHTML = html || '';
+            tmp.innerHTML = sanitizeAdminHtml(html || '');
             return tmp.textContent || tmp.innerText || '';
         }
 
@@ -568,7 +573,15 @@ async function doSearchNotes(query) {
         function highlight(text, q) {
             if (!text) return '';
             const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            return text.replace(new RegExp(escaped, 'gi'), m => `<mark style="background:#fef08a; color:#1e293b; border-radius:2px; padding:0 2px;">${m}</mark>`);
+            const regex = new RegExp(escaped, 'gi');
+            let result = '';
+            let lastIndex = 0;
+            for (const match of text.matchAll(regex)) {
+                result += escapeAdminHtml(text.slice(lastIndex, match.index));
+                result += `<mark style="background:#fef08a; color:#1e293b; border-radius:2px; padding:0 2px;">${escapeAdminHtml(match[0])}</mark>`;
+                lastIndex = match.index + match[0].length;
+            }
+            return result + escapeAdminHtml(text.slice(lastIndex));
         }
 
         resultsEl.innerHTML = data.map(item => {
@@ -587,7 +600,7 @@ async function doSearchNotes(query) {
 
             const titleHl   = highlight(item.title || '(제목 없음)', query);
             const snippetHl = highlight(snippet, query);
-            const dateStr   = item.date ? item.date.slice(0, 7) : '';
+            const dateStr   = escapeAdminHtml(item.date ? item.date.slice(0, 7) : '');
 
             return `<div class="note-search-item" onclick="openSearchResult('${item.id}')"
                 style="padding:10px 16px; cursor:pointer; border-bottom:1px solid #f1f5f9; transition:background 0.15s;"
@@ -740,7 +753,8 @@ window.saveQuickMemo = async function() {
                 .insert([{ date: monthStr + '-01', type: 'general', title: '일반 노트', content: quickContent, status: 'saving', user_id: window.currentUser?.username || 'admin' }])
                 .select();
             if(error) throw error;
-            if (data && data.length > 0) currentQuickNoteId = data[0].id;
+            if (!data?.length) throw new Error('저장된 노트 ID를 확인할 수 없습니다.');
+            currentQuickNoteId = data[0].id;
         }
 
         statusMsg.innerText = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ' 저장됨!';

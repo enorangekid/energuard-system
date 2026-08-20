@@ -229,7 +229,7 @@ window.switchSalesSource = function(source) {
 async function fetchNaverStatSummaryFull(dateFrom, dateTo) {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: await getAuthenticatedFunctionHeaders(),
         body: JSON.stringify({ action: 'naverStatSummary', dateFrom, dateTo }),
     });
     const body = await res.json().catch(() => ({}));
@@ -240,7 +240,7 @@ async function fetchNaverStatSummaryFull(dateFrom, dateTo) {
 async function fetchCoupangSalesRows(dateFrom, dateTo) {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: await getAuthenticatedFunctionHeaders(),
         body: JSON.stringify({ action: 'coupangSalesSummary', dateFrom, dateTo }),
     });
     const body = await res.json().catch(() => ({}));
@@ -342,7 +342,7 @@ window.switchAdSource = function(source) {
 async function fetchNaverAdSummary(dateFrom, dateTo) {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: await getAuthenticatedFunctionHeaders(),
         body: JSON.stringify({ action: 'summary', store: '한국 단열', dateFrom, dateTo }),
     });
     const body = await res.json().catch(() => ({}));
@@ -353,7 +353,7 @@ async function fetchNaverAdSummary(dateFrom, dateTo) {
 async function fetchCoupangAdRows(dateFrom, dateTo) {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: await getAuthenticatedFunctionHeaders(),
         body: JSON.stringify({ action: 'coupangSummary', dateFrom, dateTo }),
     });
     const body = await res.json().catch(() => ({}));
@@ -378,8 +378,8 @@ const NAVER_AD_TYPE_LABELS = { WEB_SITE: '파워링크', SHOPPING: '쇼핑검색
 function naverAdTypeLabel(type) { return NAVER_AD_TYPE_LABELS[type] || type || '-'; }
 
 const AD_TABLE_COLUMNS = [
-    { label: '유형', render: r => r.type },
-    { label: '이름', render: r => `<span title="${r.name}">${r.name}</span>` },
+    { label: '유형', render: r => escapeAdminHtml(r.type) },
+    { label: '이름', render: r => `<span title="${escapeAdminHtml(r.name)}">${escapeAdminHtml(r.name)}</span>` },
     { label: '노출', num: true, value: r => r.impressions || 0, fmt: v => v.toLocaleString('ko-KR') },
     { label: '클릭', num: true, value: r => r.clicks || 0, fmt: v => v.toLocaleString('ko-KR') },
     { label: '클릭률', num: true, rate: true, value: r => r.impressions ? r.clicks / r.impressions * 100 : 0, fmt: v => dashboardPercent(v) },
@@ -533,7 +533,7 @@ function renderAdMetrics(cur, prev, year) {
 async function fetchCoupangItemPeriods() {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: await getAuthenticatedFunctionHeaders(),
         body: JSON.stringify({ action: 'coupangItemPeriods' }),
     });
     const body = await res.json().catch(() => ({}));
@@ -543,7 +543,7 @@ async function fetchCoupangItemPeriods() {
 async function fetchCoupangItemSummary(periodFrom, periodTo) {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: await getAuthenticatedFunctionHeaders(),
         body: JSON.stringify({ action: 'coupangItemSummary', periodFrom, periodTo }),
     });
     const body = await res.json().catch(() => ({}));
@@ -553,7 +553,7 @@ async function fetchCoupangItemSummary(periodFrom, periodTo) {
 async function fetchCoupangProductMap() {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-ad-report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        headers: await getAuthenticatedFunctionHeaders(),
         body: JSON.stringify({ action: 'coupangProductMapAll' }),
     });
     const body = await res.json().catch(() => ({}));
@@ -846,8 +846,8 @@ function dashChannelBarHtml(visitPaths) {
     const segs = list.filter(c => c.visits > 0).sort((a, b) => b.visits - a.visits);
     return `
       <div class="dash-bar-wrap">
-        <div class="dash-bar">${segs.map(c => `<span class="dash-bar-seg" style="flex:${c.visits};background:${c.color};" title="${c.name} ${c.visits.toLocaleString('ko-KR')}회 (${pct(c.visits)}%)"></span>`).join('')}</div>
-        <div class="dash-legend">${segs.map(c => `<span class="dash-legend-item"><span class="dash-legend-dot" style="background:${c.color};"></span>${c.name} <b>${c.visits.toLocaleString('ko-KR')}회</b> · ${pct(c.visits)}%</span>`).join('')}</div>
+        <div class="dash-bar">${segs.map(c => `<span class="dash-bar-seg" style="flex:${c.visits};background:${c.color};" title="${escapeAdminHtml(c.name)} ${c.visits.toLocaleString('ko-KR')}회 (${pct(c.visits)}%)"></span>`).join('')}</div>
+        <div class="dash-legend">${segs.map(c => `<span class="dash-legend-item"><span class="dash-legend-dot" style="background:${c.color};"></span>${escapeAdminHtml(c.name)} <b>${c.visits.toLocaleString('ko-KR')}회</b> · ${pct(c.visits)}%</span>`).join('')}</div>
       </div>`;
 }
 
@@ -1091,13 +1091,14 @@ function dashInterestRowHtml(product, rank) {
     // 이탈 상품의 알약 칩(.dash-dropout-chip)과 같은 스타일 — 다만 붉은 부분(주 텍스트)엔
     // 날짜를, 흐린 부분(<b>)엔 메모 내용을 넣어 "날짜만 빨간 글씨"로 보이게 한다.
     const detail = product.memoText
-        ? `<span class="dash-dropout-chip" title="${product.memoText}">${product.memoDate || '메모'} <b>${product.memoText}</b></span>`
+        ? `<span class="dash-dropout-chip" title="${escapeAdminHtml(product.memoText)}">${escapeAdminHtml(product.memoDate || '메모')} <b>${escapeAdminHtml(product.memoText)}</b></span>`
         : '<span class="dash-lab-compare muted">메모 없음</span>';
-    return `<a href="${product.link || '#'}" target="_blank" rel="noopener" class="dash-mover-row">
+    const safeLink = safeAdminUrl(product.link) || '#';
+    return `<a href="${escapeAdminHtml(safeLink)}" target="_blank" rel="noopener" class="dash-mover-row">
         <div class="dash-mover-row-main">
             <span class="dash-mover-rank">${rank}</span>
             ${dashMoverThumbHtml(product.image)}
-            <span class="dash-mover-name" title="${product.name}">${product.name}</span>
+            <span class="dash-mover-name" title="${escapeAdminHtml(product.name)}">${escapeAdminHtml(product.name)}</span>
         </div>
         <div class="dash-dropout-detail">${detail}</div>
     </a>`;
@@ -1397,7 +1398,7 @@ function dashMoverKeywordRowHtml(entry, rank) {
     return `<a href="${href}" target="_blank" rel="noopener" class="dash-mover-row">
         <div class="dash-mover-row-main">
             <span class="dash-mover-rank">${rank}</span>
-            <span class="dash-mover-name" title="${entry.keyword}">${entry.keyword}</span>
+            <span class="dash-mover-name" title="${escapeAdminHtml(entry.keyword)}">${escapeAdminHtml(entry.keyword)}</span>
             ${dashMoverDeltaHtml(entry.delta)}
         </div>
         <div class="dash-mover-detail">${prevRank}위 → ${entry.curRank}위</div>
@@ -1409,31 +1410,34 @@ function dashMoverKeywordRowHtml(entry, rank) {
 // <img referrerpolicy="no-referrer">로 리퍼러를 아예 안 보내야 로드된다(에너가드랩의
 // chip-thumb/post-thumb와 동일한 방식).
 function dashMoverThumbHtml(image) {
-    return image
-        ? `<img class="dash-mover-thumb" src="${image}" loading="lazy" alt="" referrerpolicy="no-referrer">`
+    const safeImage = safeAdminUrl(image);
+    return safeImage
+        ? `<img class="dash-mover-thumb" src="${escapeAdminHtml(safeImage)}" loading="lazy" alt="" referrerpolicy="no-referrer">`
         : `<div class="dash-mover-thumb"></div>`;
 }
 
 function dashMoverProductRowHtml(entry, rank) {
     const prevRank = entry.curRank + entry.delta;
-    return `<a href="${entry.link || '#'}" target="_blank" rel="noopener" class="dash-mover-row">
+    const safeLink = safeAdminUrl(entry.link) || '#';
+    return `<a href="${escapeAdminHtml(safeLink)}" target="_blank" rel="noopener" class="dash-mover-row">
         <div class="dash-mover-row-main">
             <span class="dash-mover-rank">${rank}</span>
             ${dashMoverThumbHtml(entry.image)}
-            <span class="dash-mover-name" title="${entry.name}">${entry.name}</span>
+            <span class="dash-mover-name" title="${escapeAdminHtml(entry.name)}">${escapeAdminHtml(entry.name)}</span>
             ${dashMoverDeltaHtml(entry.delta)}
         </div>
-        <div class="dash-mover-detail" title="${entry.keyword}">${entry.keyword} · ${prevRank}위 → ${entry.curRank}위</div>
+        <div class="dash-mover-detail" title="${escapeAdminHtml(entry.keyword)}">${escapeAdminHtml(entry.keyword)} · ${prevRank}위 → ${entry.curRank}위</div>
     </a>`;
 }
 
 function dashDropoutRowHtml(product, rank) {
-    const chips = product.keywords.map(k => `<span class="dash-dropout-chip">${k.keyword} <b>최근 ${k.prevRank}위 · ${dashboardDate(k.prevDate)} 이후</b></span>`).join('');
-    return `<a href="${product.link || '#'}" target="_blank" rel="noopener" class="dash-mover-row">
+    const chips = product.keywords.map(k => `<span class="dash-dropout-chip">${escapeAdminHtml(k.keyword)} <b>최근 ${k.prevRank}위 · ${escapeAdminHtml(dashboardDate(k.prevDate))} 이후</b></span>`).join('');
+    const safeLink = safeAdminUrl(product.link) || '#';
+    return `<a href="${escapeAdminHtml(safeLink)}" target="_blank" rel="noopener" class="dash-mover-row">
         <div class="dash-mover-row-main">
             <span class="dash-mover-rank">${rank}</span>
             ${dashMoverThumbHtml(product.image)}
-            <span class="dash-mover-name" title="${product.name}">${product.name}</span>
+            <span class="dash-mover-name" title="${escapeAdminHtml(product.name)}">${escapeAdminHtml(product.name)}</span>
         </div>
         <div class="dash-dropout-detail">${chips}</div>
     </a>`;
@@ -1442,12 +1446,13 @@ function dashDropoutRowHtml(product, rank) {
 // 블로그 "이탈 포스팅" — rank-tracker.html 쪽 "이탈 상품"과 데이터 모양이 달라(entry가 아니라
 // {name,link,keywords}) 함수는 분리하되, 썸네일은 에너가드랩이 2026-08-13에 추가한 것과 동일하게 붙인다.
 function dashBlogDropoutRowHtml(product, rank) {
-    const chips = product.keywords.map(k => `<span class="dash-dropout-chip">${k.keyword} <b>최근 ${k.prevRank}위</b></span>`).join('');
-    return `<a href="${product.link || '#'}" target="_blank" rel="noopener" class="dash-mover-row">
+    const chips = product.keywords.map(k => `<span class="dash-dropout-chip">${escapeAdminHtml(k.keyword)} <b>최근 ${k.prevRank}위</b></span>`).join('');
+    const safeLink = safeAdminUrl(product.link) || '#';
+    return `<a href="${escapeAdminHtml(safeLink)}" target="_blank" rel="noopener" class="dash-mover-row">
         <div class="dash-mover-row-main">
             <span class="dash-mover-rank">${rank}</span>
             ${dashMoverThumbHtml(product.image)}
-            <span class="dash-mover-name" title="${product.name}">${product.name}</span>
+            <span class="dash-mover-name" title="${escapeAdminHtml(product.name)}">${escapeAdminHtml(product.name)}</span>
             <span class="dash-mover-delta down">이탈 ${product.keywords.length}건</span>
         </div>
         <div class="dash-dropout-detail">${chips}</div>
@@ -1714,11 +1719,13 @@ function dashBlogDropoutEntry(p, thumbMap) {
 function dashMissingRowHtml(post, rank, thumbMap) {
     const dateLabel = post.missingSince ? `${blogKstDateOnly(post.missingSince)}부터` : (post.checkedAt ? `${blogKstDateOnly(post.checkedAt)} 확인` : '-');
     const image = blogThumbUrl(post.blogId, post.logNo, thumbMap);
-    return `<a href="${post.url || '#'}" target="_blank" rel="noopener" class="dash-mover-row">
+    const safeUrl = safeAdminUrl(post.url) || '#';
+    const safeTitle = escapeAdminHtml(post.title || post.logNo || '포스팅 확인 필요');
+    return `<a href="${escapeAdminHtml(safeUrl)}" target="_blank" rel="noopener" class="dash-mover-row">
         <div class="dash-mover-row-main">
             <span class="dash-mover-rank">${rank}</span>
             ${dashMoverThumbHtml(image)}
-            <span class="dash-mover-name" title="${post.title || post.logNo || ''}">${post.title || post.logNo || '포스팅 확인 필요'}</span>
+            <span class="dash-mover-name" title="${safeTitle}">${safeTitle}</span>
             <span class="dash-mover-delta down">누락</span>
         </div>
         <div class="dash-dropout-detail"><span class="dash-dropout-chip">제목 검색 <b>${dateLabel}</b></span></div>
@@ -1867,11 +1874,11 @@ function renderDashTasks(wlData) {
         let isDone = (r[10] === true || r[10] === "TRUE");
         let dotColor = isDone ? '#94a3b8' : 'var(--primary)';
         let nameStyle = isDone ? 'text-decoration:line-through;color:#9ca3af;' : '';
-        let badge = r[6] ? `<span class="dash-mover-delta" style="color:var(--text-sub);">${r[6]}</span>` : '';
+        let badge = r[6] ? `<span class="dash-mover-delta" style="color:var(--text-sub);">${escapeAdminHtml(r[6])}</span>` : '';
         listHTML += `<li onclick="navigateFromDash('worklog')" class="dash-mover-row">
             <div class="dash-mover-row-main">
                 <span class="dash-legend-dot" style="background:${dotColor};"></span>
-                <span class="dash-mover-name" style="${nameStyle}">${r[7]}</span>
+                <span class="dash-mover-name" style="${nameStyle}">${escapeAdminHtml(r[7])}</span>
                 ${badge}
             </div>
         </li>`;
@@ -1912,8 +1919,8 @@ function renderDashProdLogs(data) {
     <li onclick="navigateFromDash('productlogs')" class="dash-mover-row">
         <div class="dash-mover-row-main">
             <span class="dash-legend-dot" style="background:#94a3b8;"></span>
-            <span class="dash-mover-name">${item.content}</span>
-            <span class="dash-mover-delta" style="color:var(--text-sub);">${item.displayDate}</span>
+            <span class="dash-mover-name">${escapeAdminHtml(item.content)}</span>
+            <span class="dash-mover-delta" style="color:var(--text-sub);">${escapeAdminHtml(item.displayDate)}</span>
         </div>
     </li>`).join('');
 
@@ -1935,7 +1942,7 @@ function renderDashNotes(data, elementId, type) {
         <li onclick="goMediaFromDash('${item.id}', '${type}')" class="dash-mover-row">
             <div class="dash-mover-row-main">
                 <span class="dash-legend-dot" style="background:${dotColor};"></span>
-                <span class="dash-mover-name">${item.title}</span>
+                <span class="dash-mover-name">${escapeAdminHtml(item.title || '(제목 없음)')}</span>
                 ${statusBadge}
             </div>
         </li>`;
@@ -2016,17 +2023,17 @@ function renderTrackedItemsOverview(items, latestRows, previousRows) {
     listEl.innerHTML = sorted.map((m, idx) => {
         const item = itemMap.get(m.code) || {};
         const name = item.product_name || m.code;
-        const link = item.product_link || '';
+        const link = safeAdminUrl(item.product_link);
         const prevRank = m.curRank + m.delta;
         const detailPrefix = item.mall_name ? `${item.mall_name} · ` : '';
-        return `<li class="dash-mover-row" ${link ? `onclick="window.open('${link}','_blank')"` : ''}>
+        return `<li class="dash-mover-row" ${link ? `data-url="${escapeAdminHtml(link)}" onclick="window.open(this.dataset.url,'_blank')"` : ''}>
             <div class="dash-mover-row-main">
                 <span class="dash-mover-rank">${idx + 1}</span>
                 ${dashMoverThumbHtml(item.product_image)}
-                <span class="dash-mover-name" title="${name}">${name}</span>
+                <span class="dash-mover-name" title="${escapeAdminHtml(name)}">${escapeAdminHtml(name)}</span>
                 ${dashMoverDeltaHtml(m.delta)}
             </div>
-            <div class="dash-mover-detail" title="${m.keyword}">${detailPrefix}${m.keyword} · ${prevRank}위 → ${m.curRank}위</div>
+            <div class="dash-mover-detail" title="${escapeAdminHtml(m.keyword)}">${escapeAdminHtml(detailPrefix)}${escapeAdminHtml(m.keyword)} · ${prevRank}위 → ${m.curRank}위</div>
         </li>`;
     }).join('');
 }
@@ -2085,12 +2092,15 @@ function renderCompetitorBlogList(posts, blogMap) {
         const blog = blogMap.get(p.blog_id);
         const blogName = blog ? (blog.blog_name || blog.blog_id) : p.blog_id;
         const dateTxt = dashboardDate(p.published_at || p.first_seen_at);
-        return `<li class="dash-mover-row" onclick="window.open('${p.post_url || '#'}','_blank')">
+        const safePostUrl = safeAdminUrl(p.post_url) || '#';
+        const safeTitle = escapeAdminHtml(p.title || '(제목 없음)');
+        const safeBlogName = escapeAdminHtml(blogName);
+        return `<li class="dash-mover-row" data-url="${escapeAdminHtml(safePostUrl)}" onclick="window.open(this.dataset.url,'_blank')">
             <div class="dash-mover-row-main">
                 <span class="dash-legend-dot" style="background:#10b981;"></span>
-                <span class="dash-mover-name" title="${p.title || ''}">${p.title || '(제목 없음)'}</span>
-                <span class="dash-dropout-chip" style="background:#eef2ff;color:#4338ca;" title="${blogName}">${blogName}</span>
-                <span class="dash-mover-delta" style="color:var(--text-sub);">${dateTxt}</span>
+                <span class="dash-mover-name" title="${safeTitle}">${safeTitle}</span>
+                <span class="dash-dropout-chip" style="background:#eef2ff;color:#4338ca;" title="${safeBlogName}">${safeBlogName}</span>
+                <span class="dash-mover-delta" style="color:var(--text-sub);">${escapeAdminHtml(dateTxt)}</span>
             </div>
         </li>`;
     }).join('');

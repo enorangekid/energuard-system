@@ -866,8 +866,13 @@ let _viewingIdx = null;
 
 async function loadHistoryList() {
   if (typeof supabaseClient==='undefined'||!supabaseClient) return;
-  const { data } = await supabaseClient.from('pricing_costs_history').select('*')
+  const { data, error } = await supabaseClient.from('pricing_costs_history').select('*')
     .eq('product_type','all').order('label',{ascending:false}).limit(30);
+  if (error) {
+    console.error('단가 이력 조회 실패:', error);
+    if (typeof showToast === 'function') showToast('단가 이력을 불러오지 못했습니다.', 'error');
+    return;
+  }
   /* listEl 존재 여부와 관계없이 캐시는 항상 갱신 */
   window._historyCache = (data && data.length > 0) ? data : [];
   const listEl = document.getElementById('pricingHistoryList');
@@ -882,7 +887,7 @@ function renderHistoryList() {
   if (!listEl||!data) return;
   listEl.innerHTML = data.map((row,idx) => `
     <div class="pricing-history-item${_viewingIdx===idx?' selected':''}" onclick="viewHistory(${idx})">
-      <span class="phi-label">${row.label||'-'}</span>
+      <span class="phi-label">${escapeAdminHtml(row.label || '-')}</span>
       ${idx===0?'<span class="phi-badge phi-badge-latest">최신</span>':''}
       ${_viewingIdx===idx?'<span class="phi-badge phi-badge-viewing">조회중</span>':''}
     </div>`).join('');
@@ -911,7 +916,7 @@ window.viewHistory = function(idx) {
       btn.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> 이력 <i class="fa-solid fa-chevron-down" style="font-size:10px;margin-left:2px;"></i>`;
       btn.classList.remove('active');
     } else {
-      btn.innerHTML = `<i class="fa-solid fa-calendar-days"></i> ${row.label} <i class="fa-solid fa-chevron-down" style="font-size:10px;margin-left:2px;"></i>`;
+      btn.innerHTML = `<i class="fa-solid fa-calendar-days"></i> ${escapeAdminHtml(row.label || '-')} <i class="fa-solid fa-chevron-down" style="font-size:10px;margin-left:2px;"></i>`;
       btn.classList.add('active');
     }
   }
@@ -2600,7 +2605,7 @@ function renderAppNoticeList() {
         <div class="app-notice-item-header">
           <span class="app-notice-item-badge${isActive ? '' : ' off'}">${isActive ? '게시중' : '비활성'}</span>
           ${isImportant ? '<span style="font-size:11px;font-weight:700;color:#e85d2f;background:#fff1ec;padding:2px 7px;border-radius:4px;margin-right:4px;">📌 중요</span>' : ''}
-          <span class="app-notice-item-title">${n.title}</span>
+          <span class="app-notice-item-title">${escapeAdminHtml(n.title)}</span>
           <div class="app-notice-item-actions">
             <button class="btn-notice-toggle" onclick="toggleImportantNotice(${n.id}, ${isImportant})" title="${isImportant ? '중요 해제' : '중요 설정'}" style="color:${isImportant ? '#e85d2f' : '#94a3b8'};">
               <i class="fa-solid fa-thumbtack"></i>
@@ -2613,8 +2618,8 @@ function renderAppNoticeList() {
             </button>
           </div>
         </div>
-        <div class="app-notice-item-content">${n.content}</div>
-        <div class="app-notice-item-meta">${date} ${expires}</div>
+        <div class="app-notice-item-content">${escapeAdminHtml(n.content)}</div>
+        <div class="app-notice-item-meta">${escapeAdminHtml(date)} ${escapeAdminHtml(expires)}</div>
       </div>`;
   }).join('');
 }

@@ -24,6 +24,44 @@ window.currentUser = null;  // Supabase Auth 사용자 프로필
 // 🚀 [추가] 페이지 전환 중복 방지 타이머
 let pageTransitionTimer = null;
 
+async function getAuthenticatedFunctionHeaders() {
+    if (!supabaseClient) throw new Error('인증 시스템이 초기화되지 않았습니다.');
+
+    const { data, error } = await supabaseClient.auth.getSession();
+    const accessToken = data?.session?.access_token || '';
+    if (error || !accessToken) throw new Error('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.');
+
+    return {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+    };
+}
+
+function escapeAdminHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[char]);
+}
+
+function sanitizeAdminHtml(value) {
+    const html = String(value ?? '');
+    return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(html) : escapeAdminHtml(html);
+}
+
+function safeAdminUrl(value) {
+    try {
+        const url = new URL(String(value ?? ''), window.location.origin);
+        return ['http:', 'https:', 'blob:'].includes(url.protocol) ? url.href : '';
+    } catch {
+        return '';
+    }
+}
+
 // 통합관리자와 에너가드랩은 하나의 로그인 계정으로 모든 기능을 사용합니다.
 const ROLE_RESTRICTIONS = {};
 
@@ -106,7 +144,7 @@ async function loadWeather() {
             if ([95,96,99].includes(code)) { icon = '<i class="fa-solid fa-cloud-bolt" style="color:#64748b;"></i>'; desc = '뇌우'; }
 
             const weatherEl = document.getElementById('weather-info');
-            if (weatherEl) weatherEl.innerHTML = `${icon} <span style="font-weight:700; color:#1e293b;">${temp}°C</span> <span style="font-size:12px; color:#9ca3af;">(${desc})</span>`;
+            if (weatherEl) weatherEl.innerHTML = `${icon} <span style="font-weight:700; color:#1e293b;">${escapeAdminHtml(temp)}°C</span> <span style="font-size:12px; color:#9ca3af;">(${escapeAdminHtml(desc)})</span>`;
         }
     } catch (e) {
         const weatherEl = document.getElementById('weather-info');
@@ -499,9 +537,13 @@ function showToast(message, type = 'info', duration = 3500) {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-        <span class="toast-icon">${TOAST_ICONS[type] || TOAST_ICONS.info}</span>
-        <span class="toast-msg">${message}</span>`;
+    const icon = document.createElement('span');
+    icon.className = 'toast-icon';
+    icon.innerHTML = TOAST_ICONS[type] || TOAST_ICONS.info;
+    const messageEl = document.createElement('span');
+    messageEl.className = 'toast-msg';
+    messageEl.textContent = String(message ?? '');
+    toast.append(icon, messageEl);
 
     container.appendChild(toast);
 
@@ -674,18 +716,22 @@ async function arcLoadFiles() {
 
         listEl.innerHTML = allFiles.map(f => {
             const { icon, color } = extIcon(f.name);
+            const safeCategory = escapeAdminHtml(f.category);
+            const safeStoredName = escapeAdminHtml(f.name);
+            const originalName = decodeArcName(f.name);
+            const safeOriginalName = escapeAdminHtml(originalName);
             const catBadge = arcCurrentCategory === 'all'
-                ? `<span style="font-size:10px; background:#f1f5f9; color:#64748b; padding:1px 6px; border-radius:4px; font-weight:600;">${catLabel[f.category] || f.category}</span>`
+                ? `<span style="font-size:10px; background:#f1f5f9; color:#64748b; padding:1px 6px; border-radius:4px; font-weight:600;">${escapeAdminHtml(catLabel[f.category] || f.category)}</span>`
                 : '';
             const ext = f.name.split('.').pop().toLowerCase();
             const canPreview = ['jpg','jpeg','png','gif','webp','svg','pdf'].includes(ext);
             return `
-            <div class="arc-file-item" data-category="${f.category}" data-name="${f.name}" data-original="${decodeArcName(f.name)}">
+            <div class="arc-file-item" data-category="${safeCategory}" data-name="${safeStoredName}" data-original="${safeOriginalName}">
                 <i class="fa-solid ${icon}" style="color:${color}; font-size:18px; flex-shrink:0; cursor:${canPreview ? 'pointer' : 'default'};"
                    ${canPreview ? `onclick="arcPreviewItem(this)" title="미리보기"` : ''}></i>
                 <div style="flex:1; min-width:0; cursor:${canPreview ? 'pointer' : 'default'};"
                      ${canPreview ? `onclick="arcPreviewItem(this)"` : ''}>
-                    <div style="font-size:12px; font-weight:600; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${decodeArcName(f.name)}">${decodeArcName(f.name)}</div>
+                    <div style="font-size:12px; font-weight:600; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safeOriginalName}">${safeOriginalName}</div>
                     <div style="font-size:11px; color:#94a3b8; margin-top:2px; display:flex; align-items:center; gap:6px;">
                         ${catBadge}
                         <span>${fmtSize(f.metadata?.size)}</span>
@@ -792,9 +838,9 @@ async function arcShowPreview(category, fileName, originalName) {
             <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 20px;
                         border-bottom:1px solid #f1f5f9; background:#f8fafc; flex-shrink:0;">
                 <span style="font-size:13px; font-weight:700; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60vw;"
-                      title="${originalName}">${originalName}</span>
+                      title="${escapeAdminHtml(originalName)}">${escapeAdminHtml(originalName)}</span>
                 <div style="display:flex; gap:8px; flex-shrink:0;">
-                    <button onclick="arcDownload('${category}','${fileName}','${originalName}')"
+                    <button id="arcPreviewDownloadBtn"
                         style="padding:6px 14px; border-radius:7px; border:1px solid #e2e8f0; background:#fff;
                                font-size:12px; font-weight:600; color:#475569; cursor:pointer; display:flex; align-items:center; gap:5px;">
                         <i class="fa-solid fa-download"></i> 다운로드
@@ -814,6 +860,8 @@ async function arcShowPreview(category, fileName, originalName) {
         </div>
     `;
     document.body.appendChild(modal);
+    const downloadBtn = document.getElementById('arcPreviewDownloadBtn');
+    if (downloadBtn) downloadBtn.onclick = () => arcDownload(category, fileName, originalName);
 
     // ESC 키로 닫기
     modal._keyHandler = (e) => { if (e.key === 'Escape') arcClosePreview(); };
@@ -836,7 +884,8 @@ async function arcShowPreview(category, fileName, originalName) {
             return;
         }
 
-        const url = data.signedUrl;
+        const url = safeAdminUrl(data.signedUrl);
+        if (!url) throw new Error('허용되지 않은 미리보기 URL입니다.');
 
         if (isImage) {
             // 이미지 preload 후 삽입 (alt/onerror 잔상 방지)
@@ -859,7 +908,7 @@ async function arcShowPreview(category, fileName, originalName) {
         } else if (isPdf) {
             contentEl.style.padding = '0';
             contentEl.style.minHeight = '70vh';
-            contentEl.innerHTML = `<iframe src="${url}#toolbar=1" style="width:80vw; height:75vh; border:none; display:block;"></iframe>`;
+            contentEl.innerHTML = `<iframe src="${escapeAdminHtml(url)}#toolbar=1" style="width:80vw; height:75vh; border:none; display:block;"></iframe>`;
         } else {
             contentEl.innerHTML = `<div style="padding:40px; color:#64748b; font-size:13px; text-align:center;">
                 <i class="fa-solid fa-file" style="font-size:28px; display:block; margin-bottom:10px;"></i>

@@ -462,7 +462,7 @@ async function loadDraftList(type) {
                 let savedTime = new Date(item.saved_at);
                 let timeStr = `${savedTime.getMonth()+1}/${savedTime.getDate()} ${String(savedTime.getHours()).padStart(2,'0')}:${String(savedTime.getMinutes()).padStart(2,'0')}`;
                 const delBtn = readonly ? '' : `<button type="button" class="media-draft-del" onclick="event.stopPropagation(); deleteMediaDraft('${item.id}', '${type}')" title="원고 삭제"><i class="fa-solid fa-trash-can"></i></button>`;
-                return `<tr onclick="loadDraftContent('${item.id}')"><td class="text-sub">${item.date}</td><td class="text-left font-bold">${item.title || '(제목 없음)'}</td><td>${statusBadge}</td><td class="text-sub">${timeStr}</td><td>${delBtn}</td></tr>`;
+                return `<tr onclick="loadDraftContent('${item.id}')"><td class="text-sub">${escapeAdminHtml(item.date)}</td><td class="text-left font-bold">${escapeAdminHtml(item.title || '(제목 없음)')}</td><td>${statusBadge}</td><td class="text-sub">${escapeAdminHtml(timeStr)}</td><td>${delBtn}</td></tr>`;
             }).join('');
         } else { listEl.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#94a3b8; font-size:13px;">등록된 원고가 없습니다.</td></tr>'; }
     } catch (e) { console.error("리스트 오류:", e); listEl.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#ef4444;">리스트 로드 실패</td></tr>'; }
@@ -507,12 +507,13 @@ window.loadDraftContent = async function(noteId) {
                 // data.ai_suggestion은 카드 본문(.ai-result-body 안쪽)만 저장돼 있다 — 헤더는
                 // 매번 새로 그린다(2026-08-14, 리디자인하면서 본문/헤더 분리). 리디자인 이전에
                 // 저장된 기록은 예전 헤더가 그대로 몸통에 섞여 나올 수 있음 — 다시 저장하면 정리됨.
-                aiResultEl.innerHTML = buildAiResultHeader(_isYoutube, true) + `<div class="ai-result-body">${_savedAi}</div>`;
+                const safeSavedAi = sanitizeAdminHtml(_savedAi);
+                aiResultEl.innerHTML = buildAiResultHeader(_isYoutube, true) + `<div class="ai-result-body">${safeSavedAi}</div>`;
                 aiResultEl.style.display = 'flex';
-                aiSuggestCache[_tab] = _savedAi;
+                aiSuggestCache[_tab] = safeSavedAi;
                 aiSuggestCacheDraftId[_tab] = noteId;
             } else if (!readonly && noteId == aiSuggestCacheDraftId[_tab] && aiSuggestCache[_tab]) {
-                aiResultEl.innerHTML = buildAiResultHeader(_isYoutube, false) + `<div class="ai-result-body">${aiSuggestCache[_tab]}</div>`;
+                aiResultEl.innerHTML = buildAiResultHeader(_isYoutube, false) + `<div class="ai-result-body">${sanitizeAdminHtml(aiSuggestCache[_tab])}</div>`;
                 aiResultEl.style.display = 'flex';
             } else {
                 aiSuggestCache[_tab] = '';
@@ -607,14 +608,22 @@ async function doSearchMediaNotes(query) {
 
         function stripHtml(html) {
             const tmp = document.createElement('div');
-            tmp.innerHTML = html || '';
+            tmp.innerHTML = sanitizeAdminHtml(html || '');
             return tmp.textContent || tmp.innerText || '';
         }
 
         function highlight(text, q) {
             if (!text) return '';
             const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            return text.replace(new RegExp(escaped, 'gi'), m => `<mark style="background:#fef08a; color:#1e293b; border-radius:2px; padding:0 2px;">${m}</mark>`);
+            const regex = new RegExp(escaped, 'gi');
+            let result = '';
+            let lastIndex = 0;
+            for (const match of text.matchAll(regex)) {
+                result += escapeAdminHtml(text.slice(lastIndex, match.index));
+                result += `<mark style="background:#fef08a; color:#1e293b; border-radius:2px; padding:0 2px;">${escapeAdminHtml(match[0])}</mark>`;
+                lastIndex = match.index + match[0].length;
+            }
+            return result + escapeAdminHtml(text.slice(lastIndex));
         }
 
         const typeLabel = { blog: '블로그', youtube: '유튜브' };
@@ -635,8 +644,8 @@ async function doSearchMediaNotes(query) {
 
             const titleHl   = highlight(item.title || '(제목 없음)', query);
             const snippetHl = highlight(snippet, query);
-            const dateStr   = item.date ? item.date.slice(0, 7) : '';
-            const label     = typeLabel[item.type] || item.type;
+            const dateStr   = escapeAdminHtml(item.date ? item.date.slice(0, 7) : '');
+            const label     = escapeAdminHtml(typeLabel[item.type] || item.type);
             const color     = typeColor[item.type] || '#64748b';
 
             return `<div class="note-search-item" onclick="openMediaSearchResult('${item.id}', '${item.type}')"
@@ -719,9 +728,10 @@ function formatAiSuggestionText(text) {
     return text.split('\n').map((line) => {
         const t = line.trim();
         if (!t) return '';
-        if (/^[①②]/.test(t)) return `<div class="ai-pick-line">${t}</div>`;
-        if (/^🔍/.test(t)) return `<div class="ai-keyword-line">${t}</div>`;
-        return `<div>${t}</div>`;
+        const safeText = escapeAdminHtml(t);
+        if (/^[①②]/.test(t)) return `<div class="ai-pick-line">${safeText}</div>`;
+        if (/^🔍/.test(t)) return `<div class="ai-keyword-line">${safeText}</div>`;
+        return `<div>${safeText}</div>`;
     }).join('');
 }
 
@@ -768,7 +778,7 @@ window.runAiSuggest = async function() {
     // 에디터 HTML → 문단 추출
     const html = window.mediaQuill.root.innerHTML;
     const tmp = document.createElement('div');
-    tmp.innerHTML = html;
+    tmp.innerHTML = sanitizeAdminHtml(html);
 
     // HR(구분선) 기준으로 섹션 분리, 없으면 <p> 기준
     const paragraphs = [];
@@ -835,10 +845,7 @@ ${paragraphs.map((p, i) => `[문단 ${i+1}]\n${p}`).join('\n\n')}`;
             `${SUPABASE_URL}/functions/v1/gemini-chat`,
             {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-                },
+                headers: await getAuthenticatedFunctionHeaders(),
                 body: JSON.stringify({ chatHistory: [{ role: 'user', parts: [{ text: prompt }] }] })
             }
         );
@@ -857,7 +864,7 @@ ${paragraphs.map((p, i) => `[문단 ${i+1}]\n${p}`).join('\n\n')}`;
             const suggestion = sectionMap[i + 1] || '-';
             const preview = p.length > 60 ? p.slice(0, 60) + '…' : p;
             return `<div class="ai-suggest-item">
-                <div class="ai-suggest-paragraph">문단 ${i+1}: ${preview}</div>
+                <div class="ai-suggest-paragraph">문단 ${i+1}: ${escapeAdminHtml(preview)}</div>
                 <div class="ai-suggest-content">${formatAiSuggestionText(suggestion)}</div>
             </div>`;
         }).join('');

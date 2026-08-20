@@ -33,13 +33,13 @@ let _compNamesCache = {};
 async function _compNames(tabId) {
   if (_compNamesCache[tabId]) return _compNamesCache[tabId];
   try {
-    const res = await fetch(
-      `${supabaseClient.supabaseUrl}/rest/v1/competitor_names?tab_id=eq.${tabId}&select=comp1_name,comp2_name,comp3_name`,
-      { headers: _sbHeaders() }
-    );
-    const rows = await res.json();
-    if (Array.isArray(rows) && rows.length > 0) {
-      const r = rows[0];
+    const { data: r, error } = await supabaseClient
+      .from('competitor_names')
+      .select('comp1_name,comp2_name,comp3_name')
+      .eq('tab_id', tabId)
+      .maybeSingle();
+    if (error) throw error;
+    if (r) {
       const names = [
         r.comp1_name || COMP_DEFAULT_NAMES[0],
         r.comp2_name || COMP_DEFAULT_NAMES[1],
@@ -54,20 +54,14 @@ async function _compNames(tabId) {
 
 async function _saveCompNames(names, tabId) {
   try {
-    await fetch(
-      `${supabaseClient.supabaseUrl}/rest/v1/competitor_names?on_conflict=tab_id`,
-      {
-        method: 'POST',
-        headers: { ..._sbHeaders(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({
-          tab_id: tabId,
-          comp1_name: names[0],
-          comp2_name: names[1],
-          comp3_name: names[2],
-          updated_at: new Date().toISOString(),
-        }),
-      }
-    );
+    const { error } = await supabaseClient.from('competitor_names').upsert({
+      tab_id: tabId,
+      comp1_name: names[0],
+      comp2_name: names[1],
+      comp3_name: names[2],
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'tab_id' });
+    if (error) throw error;
     _compNamesCache[tabId] = names;
   } catch(e) {
     console.warn('[Comp] 이름 저장 실패', e);
@@ -93,30 +87,18 @@ function _cacheSet(tabId, gradeId, t, compIdx, price, link) {
   if (link !== undefined) c[`comp${compIdx + 1}_link`] = (link === '' || link === null) ? null : link;
 }
 
-/* ═══════════════════════════════════════
-   Supabase 유틸
-═══════════════════════════════════════ */
-function _sbHeaders() {
-  const key = supabaseClient?.supabaseKey || '';
-  return {
-    'apikey':        key,
-    'Authorization': 'Bearer ' + key,
-    'Content-Type':  'application/json',
-  };
-}
-
 async function loadCompPrices(tabId, gradeId) {
   if (typeof supabaseClient === 'undefined') return;
   try {
-    const res = await fetch(
-      `${supabaseClient.supabaseUrl}/rest/v1/competitor_prices?tab_id=eq.${tabId}&grade_id=eq.${gradeId}&select=thickness,comp1_price,comp1_link,comp2_price,comp2_link,comp3_price,comp3_link`,
-      { headers: _sbHeaders() }
-    );
-    const rows = await res.json();
-    if (!Array.isArray(rows)) return;
+    const { data: rows, error } = await supabaseClient
+      .from('competitor_prices')
+      .select('thickness,comp1_price,comp1_link,comp2_price,comp2_link,comp3_price,comp3_link')
+      .eq('tab_id', tabId)
+      .eq('grade_id', gradeId);
+    if (error) throw error;
     window._compCache[tabId]          = window._compCache[tabId] || {};
     window._compCache[tabId][gradeId] = {};
-    rows.forEach(r => {
+    (rows || []).forEach(r => {
       window._compCache[tabId][gradeId][r.thickness] = {
         comp1_price: r.comp1_price, comp1_link: r.comp1_link,
         comp2_price: r.comp2_price, comp2_link: r.comp2_link,
@@ -146,11 +128,10 @@ async function saveCompPrice(tabId, gradeId, thickness, compIdx, rawVal, rawLink
   };
 
   try {
-    await fetch(`${supabaseClient.supabaseUrl}/rest/v1/competitor_prices?on_conflict=tab_id,grade_id,thickness`, {
-      method: 'POST',
-      headers: { ..._sbHeaders(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(payload),
-    });
+    const { error } = await supabaseClient
+      .from('competitor_prices')
+      .upsert(payload, { onConflict: 'tab_id,grade_id,thickness' });
+    if (error) throw error;
     _refreshCompCells(tabId, gradeId, thickness);
     if (typeof showToast === 'function') showToast('저장됨', 'success');
   } catch(e) {

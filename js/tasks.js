@@ -1139,10 +1139,7 @@ async function sendChatMessage() {
     try {
         const response = await fetch(`${SUPABASE_URL}/functions/v1/gemini-chat`, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${SUPABASE_ANON_KEY}` 
-            },
+            headers: await getAuthenticatedFunctionHeaders(),
             body: JSON.stringify({ chatHistory: chatHistory }) 
         });
         
