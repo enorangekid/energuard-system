@@ -328,6 +328,7 @@ window.isNoteTabReadonly = function(tab) {
 
 async function handleLogout() {
     if (confirm("로그아웃 하시겠습니까?")) {
+        window._isLoggingOut = true;
         if (supabaseClient) await supabaseClient.auth.signOut().catch(() => {});
         activeSession = null;
         currentUser   = null;

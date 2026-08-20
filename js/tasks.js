@@ -54,7 +54,7 @@ window.updateDefaultStartTime = function() {
 };
 
 async function loadTimelineFromServer() {
-  if(!supabaseClient) return; 
+  if(!supabaseClient || !activeSession || window._isLoggingOut) return;
   
   const now = new Date();
   const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
@@ -102,7 +102,9 @@ async function loadTimelineFromServer() {
       
   } catch (e) {
       console.error("타임라인 데이터 로드 오류:", e);
-      showToast('타임라인 데이터를 불러오지 못했습니다.', 'error');
+      if (activeSession && !window._isLoggingOut) {
+          showToast('타임라인 데이터를 불러오지 못했습니다.', 'error');
+      }
   } finally {
       if(loader) loader.style.display = 'none';
   }
