@@ -1819,7 +1819,8 @@ async function loadLabOverviewData(section = 'all') {
             if (timeEl) timeEl.textContent = `최근 ${new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
         } catch (error) {
             console.error(`${item.label} 현황 로드 실패:`, error);
-            setLabCardState(item.target, `<div class="dash-lab-empty error">${item.label} 데이터를 불러오지 못했습니다.</div>`);
+            const message = escapeAdminHtml(error?.message || String(error) || '알 수 없는 오류');
+            setLabCardState(item.target, `<div class="dash-lab-empty error">${item.label} 데이터를 불러오지 못했습니다.<br><span class="dash-lab-error-detail">${message}</span></div>`);
         } finally {
             if (icon) icon.classList.remove('fa-spin');
         }
