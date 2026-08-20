@@ -170,21 +170,26 @@ const EST_PRODUCT_META = {
 };
 
 // pricing.js 계산 함수로 실제 장당판매가 계산
-// DOM input 값보다 _cachedCosts(Supabase에서 로드된 캐시)를 우선 참조
+// 반드시 _cachedLiveCosts(단가표에서 "실제 적용"으로 지정한 이력)만 참조한다 — 화면에
+// 지금 입력 중이거나 저장만 해둔 값(draft)은 절대 보지 않는다. 아직 실제로 웹/앱에
+// 반영 안 한 값이 견적서로 새는 걸 막기 위함(2026-08-20).
 function _estGetCostVal(fieldId) {
-  const cached = window._cachedCosts?.costs?.[fieldId];
-  if (cached != null && cached !== 0) return cached;
-  return parseFloat(document.getElementById(fieldId)?.value) || 0;
+  const cached = window._cachedLiveCosts?.costs?.[fieldId];
+  return (cached != null) ? cached : 0;
 }
 
 function _estGetRealPrice(productId, t) {
   try {
-    const marginSrc = window._cachedCosts?.margins || null;
+    const liveCosts   = window._cachedLiveCosts?.costs || {};
+    const marginSrc   = window._cachedLiveCosts?.margins || null;
 
     // ── 아이소핑크 ──
     if (productId.startsWith('iso_')) {
-      const r = _isoCalcRow(t);
-      return r ? r.realPrice : null;
+      const cost = _isoGetCost_fromData(liveCosts, t);
+      if (!cost) return null;
+      const margin = _isoGetMargin(t, marginSrc);
+      const sellPerSheet = Math.round(t * (cost + margin) * 1.1);
+      return Math.ceil(sellPerSheet / 100) * 100;
     }
 
     // ── 비드법 ──
@@ -235,7 +240,7 @@ function _estGetRealPrice(productId, t) {
       const grade = FR_GRADES.find(g => g.id === gidMap[productId]);
       if (!grade) { console.warn('[fr] grade 없음', productId); return null; }
       const costId = `fr_cost_${grade.id}_t${t}`;
-      // 캐시/DOM 우선, 없으면 FR_COST_DEFAULTS 기본값 폴백
+      // 실제 적용가 캐시 우선, 없으면 FR_COST_DEFAULTS 기본값 폴백
       let costPerM2 = _estGetCostVal(costId);
       if (!costPerM2) costPerM2 = FR_COST_DEFAULTS?.[grade.costId]?.[t] ?? 0;
       const marginPerSheet = _getMargin('fr', grade, t, marginSrc);
@@ -412,8 +417,8 @@ function toggleEstimatePanel() {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const date = String(now.getDate()).padStart(2, '0');
         document.getElementById('estDateStr').value = `${year} 년 ${month} 월 ${date} 일`;
-        // 단가표 방문 전이면 Supabase에서 원가 데이터 로드
-        if (!window._cachedCosts && typeof loadPricingCosts === 'function') {
+        // 단가표 방문 전이면 Supabase에서 원가 데이터(실제 적용가 캐시 포함) 로드
+        if (!window._cachedLiveCosts && typeof loadPricingCosts === 'function') {
             loadPricingCosts();
         }
     });

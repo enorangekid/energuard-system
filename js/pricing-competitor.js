@@ -325,7 +325,7 @@ function _setEditBtnState(compIdx, isEditing) {
       btn.title = '저장';
       btn.classList.add('saving');
     } else {
-      btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+      btn.innerHTML = '<i class="fa-solid fa-tag"></i>';
       btn.title = '단가 편집';
       btn.classList.remove('saving');
     }
@@ -367,9 +367,9 @@ async function _injectCompColumns(tabId, gradeId) {
         <div class="cp-th-inner">
           <span class="cp-th-name" data-ci="${i}" data-tab="${tabId}">${name}</span>
           <div class="cp-th-actions">
-            <button class="cp-name-btn" title="이름 변경" onclick="editCompName(${i}, '${tabId}')"><i class="fa-solid fa-pen-to-square" style="font-size:9px"></i></button>
+            <button class="cp-name-btn" title="이름 변경" onclick="editCompName(${i}, '${tabId}')"><i class="fa-solid fa-pen-to-square"></i></button>
             <button class="cp-edit-btn" data-ci="${i}" title="단가 편집"
-              onclick="toggleCompEdit(${i})"><i class="fa-solid fa-pen-to-square"></i></button>
+              onclick="toggleCompEdit(${i})"><i class="fa-solid fa-tag"></i></button>
           </div>
         </div>`;
       theadTrs[0].appendChild(th);

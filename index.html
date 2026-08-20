@@ -1072,6 +1072,9 @@
             </div>
             <div class="pricing-header-right" id="pricingHeaderRight">
               <span class="pricing-last-saved" id="pricingLastUpdated">원가 미입력</span>
+              <!-- 실제 적용가(is_live) 표시 — 지금 보는 값이 저장만 됐을 뿐 아직 실제 웹/앱에
+                   반영 안 됐을 수 있다는 걸 알려준다(2026-08-20). -->
+              <span class="pricing-live-badge" id="pricingLiveBadge"></span>
               <!-- 이력 조회 드롭다운 -->
               <div class="pricing-history-wrap" id="pricingHistoryWrap">
                 <button class="pricing-history-btn" id="pricingHistoryBtn" onclick="toggleHistoryDropdown()">

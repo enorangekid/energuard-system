@@ -635,10 +635,16 @@ window.savePricingCosts = async function() {
 
   /* 같은 label이 이미 있으면 update, 없으면 insert — saved_at 확실히 갱신 */
   const { data: existingHist } = await supabaseClient
-    .from('pricing_costs_history').select('id')
+    .from('pricing_costs_history').select('id, is_live')
     .eq('product_type','all').eq('label', histLabel).maybeSingle();
   if (existingHist?.id) {
-    await supabaseClient.from('pricing_costs_history').update(histPayload).eq('id', existingHist.id);
+    /* 이 라벨이 "실제 적용중"이었어도, 값이 바뀐 이상 지금부터는 실제 적용가와
+       다른 draft가 된다 — is_live를 내려서 다시 헷갈리지 않게 한다. 실제 적용된
+       값(app_product_prices/_cachedLiveCosts) 자체는 재적용 전까지 그대로 유지됨(2026-08-20). */
+    await supabaseClient.from('pricing_costs_history').update({ ...histPayload, is_live: false }).eq('id', existingHist.id);
+    if (existingHist.is_live && typeof showToast === 'function') {
+      showToast(`"${histLabel}"은 실제 적용 중이던 값이었는데, 수정해서 적용 상태가 해제됐습니다. 다시 반영하려면 이력에서 "실제 적용"을 눌러주세요.`, 'warning');
+    }
   } else {
     await supabaseClient.from('pricing_costs_history').insert(histPayload);
   }
@@ -657,16 +663,23 @@ window.savePricingCosts = async function() {
   }
   renderAllInputDiff();
 
-  /* 앱 가격 자동 동기화 */
-  syncAppProductPrices();
+  /* 여기서는 이력에 스냅샷만 남긴다 — 앱가격/견적서에 실제로 반영하려면
+     이력 목록에서 "실제 적용"을 별도로 눌러야 한다(2026-08-20, applyLivePrice 참고).
+     저장 즉시 자동 반영하던 걸 없애서 "조정만 해봄"과 "실제 웹에 반영함"을 분리했다. */
 };
 
 /* ═══════════════════════════════════════
    앱 가격 동기화 — app_product_prices 테이블 업데이트
    단가표 저장 시 realPrice → 앱 가격 자동 반영
 ═══════════════════════════════════════ */
-async function syncAppProductPrices() {
+/* source = { costs: {...}, margins: {...} } — 실제 적용(applyLivePrice)으로 지정된
+   이력 스냅샷의 값만 사용한다. 화면(DOM)에 지금 입력 중인 값은 절대 참조하지 않는다
+   — "조정만 해보는 중"인 값이 저장 없이도 앱/견적서에 새는 것을 막기 위함(2026-08-20). */
+async function syncAppProductPrices(source) {
   if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
+  const costsData   = source?.costs || {};
+  const marginsData = source?.margins || {};
+  const cval = (id) => (id && costsData[id] != null) ? (parseFloat(costsData[id]) || 0) : 0;
 
   const updates = [];
 
@@ -677,9 +690,12 @@ async function syncAppProductPrices() {
 
   /* 1. 아이소핑크 */
   ISOPINK_ROWS.forEach(t => {
-    const r = _isoCalcRow(t);
-    if (!r) return;
-    push(`Iso_900_1800_${t}_E`, r.realPrice);
+    const cost = _isoGetCost_fromData(costsData, t);
+    if (!cost) return;
+    const margin = _isoGetMargin(t, marginsData);
+    const sellPerSheet = Math.round(t * (cost + margin) * 1.1);
+    const realPrice = Math.ceil(sellPerSheet / 100) * 100;
+    push(`Iso_900_1800_${t}_E`, realPrice);
   });
 
   /* 2. 비드법단열재 */
@@ -696,8 +712,8 @@ async function syncAppProductPrices() {
     if (!prefix) return;
     BEAD_ROWS.forEach(t => {
       const costId = _getCostId('bead', grade, t);
-      const cost = costId ? fieldVal(costId) : 0;
-      const margin = _getMargin('bead', grade, t);
+      const cost = costId ? cval(costId) : 0;
+      const margin = _getMargin('bead', grade, t, marginsData);
       const r = cost ? calcSheetRow(cost, margin, t, grade.area) : null;
       if (!r) return;
       push(`${prefix}_900_1800_${t}_E`, r.realPrice);
@@ -709,8 +725,8 @@ async function syncAppProductPrices() {
   if (beadJun) {
     BEAD_ROWS.forEach(t => {
       const costId = _getCostId('bead', beadJun, t);
-      const cost = costId ? fieldVal(costId) : 0;
-      const margin = _getMargin('bead', beadJun, t);
+      const cost = costId ? cval(costId) : 0;
+      const margin = _getMargin('bead', beadJun, t, marginsData);
       const r = cost ? calcSheetRow(cost, margin, t, beadJun.area) : null;
       if (!r) return;
       push(`NeoQF_900_1800_${t}_E`, r.realPrice);
@@ -730,8 +746,8 @@ async function syncAppProductPrices() {
     if (!prefix) return;
     grade.rows.forEach(t => {
       const costId = _getCostId('pu', grade, t);
-      const cost = costId ? fieldVal(costId) : 0;
-      const margin = _getMargin('pu', grade, t);
+      const cost = costId ? cval(costId) : 0;
+      const margin = _getMargin('pu', grade, t, marginsData);
       const tEff = grade.tFactor ?? t;
       const r = cost ? calcSheetRow(cost, margin, tEff, grade.area) : null;
       if (!r) return;
@@ -756,8 +772,8 @@ async function syncAppProductPrices() {
     const prefix = PF_CODE_MAP[grade.id];
     if (!prefix) return;
     PF_ROWS.forEach(t => {
-      const cost = fieldVal(grade.costId);
-      const margin = _getMargin('pf', grade, t);
+      const cost = cval(grade.costId);
+      const margin = _getMargin('pf', grade, t, marginsData);
       const r = cost ? calcSheetRow(cost, margin, t, grade.area) : null;
       if (!r) return;
       push(`${prefix}_${t}_E`, r.realPrice);
@@ -769,8 +785,8 @@ async function syncAppProductPrices() {
   if (frBul) {
     frBul.rows.forEach(t => {
       const costId = _getCostId('fr', frBul, t);
-      const cost = costId ? fieldVal(costId) : 0;
-      const margin = _getMargin('fr', frBul, t);
+      const cost = costId ? cval(costId) : 0;
+      const margin = _getMargin('fr', frBul, t, marginsData);
       const r = cost ? calcFrSheetRow(cost, margin, frBul.area) : null;
       if (!r) return;
       push(`HR_F_1000_1200_${t}_E`, r.realPrice);
@@ -837,11 +853,14 @@ async function loadPricingCosts() {
     const el = document.getElementById('pricingLastUpdated');
     if (el) el.textContent = '최근 저장: ' + timeLabel;
   }
-  /* 견적서 등 외부에서 원가 참조할 수 있도록 메모리 캐시 저장 */
+  /* 견적서 등 외부에서 원가 참조할 수 있도록 메모리 캐시 저장 — 이건 화면에 보이는
+     "작업중(draft)" 값이라 견적서가 직접 참조하면 안 된다(2026-08-20). 견적서는
+     반드시 _cachedLiveCosts(실제 적용가)만 봐야 하므로 별도로 갱신한다. */
   window._cachedCosts = {
     costs: Object.fromEntries(ALL_COST_FIELDS.map(f => [f, parseFloat(displayData[f] ?? data[f]) || 0])),
     margins: { ...(displayData.margins || data.margins || {}) }
   };
+  _refreshLiveCostsCache();
   recalcPricing();
   Object.keys(_subtabState).forEach(tabId => _recalcTab(tabId));
   _viewingIdx = null;
@@ -875,10 +894,42 @@ async function loadHistoryList() {
   }
   /* listEl 존재 여부와 관계없이 캐시는 항상 갱신 */
   window._historyCache = (data && data.length > 0) ? data : [];
+  _refreshLiveCostsCache();
   const listEl = document.getElementById('pricingHistoryList');
   if (!listEl) return;
   if (!data||data.length===0) { listEl.innerHTML = '<div class="pricing-history-empty">저장된 이력이 없습니다</div>'; return; }
   renderHistoryList();
+}
+
+/* ── 실제 적용가(is_live) 캐시/배지 ─────────────────────────
+   견적서(estimate.js)는 이 캐시(_cachedLiveCosts)만 참조해야 한다 — 화면에 지금
+   입력 중인 값이나 저장만 해둔 값(_cachedCosts, 즉 draft)은 절대 보면 안 된다.
+   "실제 적용"으로 지정된 이력 하나만 여기 반영된다(2026-08-20). */
+function _refreshLiveCostsCache() {
+  const liveRow = (window._historyCache || []).find(h => h.is_live);
+  window._cachedLiveCosts = liveRow ? {
+    label: liveRow.label,
+    costs: Object.fromEntries(ALL_COST_FIELDS.map(f => [f, parseFloat(liveRow[f]) || 0])),
+    margins: { ...(liveRow.margins || {}) }
+  } : null;
+  _updateLiveBadge();
+}
+
+function _updateLiveBadge() {
+  const badge = document.getElementById('pricingLiveBadge');
+  if (!badge) return;
+  const liveLabel  = window._cachedLiveCosts?.label;
+  const shownLabel = document.getElementById('cost_base_month')?.value || '';
+  if (!liveLabel) {
+    badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> 실제 적용가 미지정';
+    badge.className = 'pricing-live-badge warn';
+  } else if (shownLabel && shownLabel !== liveLabel) {
+    badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 실제 적용가: ${escapeAdminHtml(liveLabel)} (지금 화면과 다름)`;
+    badge.className = 'pricing-live-badge warn';
+  } else {
+    badge.innerHTML = `<i class="fa-solid fa-check"></i> 실제 적용가: ${escapeAdminHtml(liveLabel)}`;
+    badge.className = 'pricing-live-badge ok';
+  }
 }
 
 function renderHistoryList() {
@@ -886,10 +937,15 @@ function renderHistoryList() {
   const data = window._historyCache;
   if (!listEl||!data) return;
   listEl.innerHTML = data.map((row,idx) => `
-    <div class="pricing-history-item${_viewingIdx===idx?' selected':''}" onclick="viewHistory(${idx})">
-      <span class="phi-label">${escapeAdminHtml(row.label || '-')}</span>
-      ${idx===0?'<span class="phi-badge phi-badge-latest">최신</span>':''}
-      ${_viewingIdx===idx?'<span class="phi-badge phi-badge-viewing">조회중</span>':''}
+    <div class="pricing-history-item${_viewingIdx===idx?' selected':''}">
+      <div class="phi-left" onclick="viewHistory(${idx})">
+        <span class="phi-label">${escapeAdminHtml(row.label || '-')}</span>
+        ${idx===0?'<span class="phi-badge phi-badge-latest">최신</span>':''}
+        ${_viewingIdx===idx?'<span class="phi-badge phi-badge-viewing">조회중</span>':''}
+      </div>
+      ${row.is_live
+        ? '<span class="phi-badge phi-badge-live"><i class="fa-solid fa-check"></i> 적용중</span>'
+        : `<button type="button" class="phi-apply-btn" onclick="event.stopPropagation(); applyLivePrice(${idx})">실제 적용</button>`}
     </div>`).join('');
 }
 
@@ -925,6 +981,29 @@ window.viewHistory = function(idx) {
   recalcPricing();
   Object.keys(_subtabState).forEach(tabId => _recalcTab(tabId));
   renderAllInputDiff();
+  _updateLiveBadge();
+};
+
+/* ── 실제 적용 지정 — 이력 스냅샷 하나를 "웹/앱에 실제 반영된 값"으로 확정한다.
+   저장(savePricingCosts)만으로는 여기까지 안 오므로, 조정만 해보고 아직 실제로는
+   반영 안 한 값이 견적서로 새는 문제를 막는다(2026-08-20). ── */
+window.applyLivePrice = async function(idx) {
+  const data = window._historyCache;
+  if (!data || !data[idx]) return;
+  const row = data[idx];
+  if (row.is_live) return;
+  if (!confirm(`"${row.label}" 단가를 실제 적용가로 지정하시겠습니까?\n앱 가격과 견적서에 이 값이 바로 반영됩니다.`)) return;
+
+  const { error: e1 } = await supabaseClient.from('pricing_costs_history')
+    .update({ is_live: false }).eq('product_type', 'all').eq('is_live', true);
+  if (e1) { if (typeof showToast==='function') showToast('적용 실패: '+e1.message, 'error'); return; }
+  const { error: e2 } = await supabaseClient.from('pricing_costs_history')
+    .update({ is_live: true }).eq('id', row.id);
+  if (e2) { if (typeof showToast==='function') showToast('적용 실패: '+e2.message, 'error'); return; }
+
+  await syncAppProductPrices({ costs: row, margins: row.margins || {} });
+  await loadHistoryList();
+  if (typeof showToast==='function') showToast(`"${row.label}" 단가가 실제 적용가로 지정되었습니다.`, 'success');
 };
 
 window.toggleHistoryDropdown = function() {
