@@ -1024,12 +1024,18 @@ function keywordSummary(rows) {
     };
 }
 
+// keyword_rank_history는 source 컬럼으로 여러 수집 방식이 한 테이블에 같이 쌓인다
+// (curated=메인 크롤링, naver_diagnosis=폐기된 옛 기능, nplus_store=네이버플러스 스토어
+// 테스트). source 필터 없이 조회하면 이 값들이 다 섞여서 같은 상품+키워드+날짜에 여러
+// 행이 잡히고, "급상승/급하락" 계산이 서로 다른 수집 방식의 순위를 비교하게 돼서
+// 틀어진다(2026-08-26 확인). 대시보드는 원래 curated 하나만 보던 로직이라 그것만 남긴다.
 async function fetchKeywordDateRows(date) {
     return fetchPagedRows((from, to) => supabaseClient
         .from('keyword_rank_history')
         .select('product_code,keyword,rank,product_name,product_image,product_link,search_volume_total')
         .eq('store_name', selectedKeywordStore)
         .eq('collected_date', date)
+        .eq('source', 'curated')
         .range(from, to));
 }
 
@@ -1041,6 +1047,7 @@ async function fetchKeywordFullHistory() {
         .from('keyword_rank_history')
         .select('product_code,keyword,rank,product_name,product_image,product_link,collected_date,max_rank')
         .eq('store_name', selectedKeywordStore)
+        .eq('source', 'curated')
         .range(from, to));
 }
 
@@ -1487,14 +1494,17 @@ function renderKeywordRankLists(latestRows, previousRows, fullHistoryRows, inter
 async function loadKeywordOverview() {
     const storeSelect = document.getElementById('dash-keyword-store-select');
     if (storeSelect && storeSelect.value !== selectedKeywordStore) storeSelect.value = selectedKeywordStore;
-    const latest = await latestTableDate('keyword_rank_history', 'collected_date', query => query.eq('store_name', selectedKeywordStore));
+    // source 필터 필수 — 안 걸면 nplus_store 테스트 수집일이 curated보다 최신이어서
+    // "최신 날짜"로 잘못 잡히고, 그 날짜엔 curated 행이 없어서 대시보드가 텅 비게 된다
+    // (fetchKeywordDateRows 주석 참고, 2026-08-26).
+    const latest = await latestTableDate('keyword_rank_history', 'collected_date', query => query.eq('store_name', selectedKeywordStore).eq('source', 'curated'));
     if (!latest) {
         setLabPeriod('dash-keyword-period', '저장 데이터 없음');
         setLabCardState('dash-keyword-metrics', '<div class="dash-lab-empty">에너가드랩에서 키워드 순위를 먼저 수집해 주세요.</div>');
         renderKeywordRankLists([], [], [], []);
         return;
     }
-    const previous = await latestTableDate('keyword_rank_history', 'collected_date', query => query.eq('store_name', selectedKeywordStore).lt('collected_date', latest));
+    const previous = await latestTableDate('keyword_rank_history', 'collected_date', query => query.eq('store_name', selectedKeywordStore).eq('source', 'curated').lt('collected_date', latest));
     const [latestRows, previousRows, masterMap, fullHistoryRows, interestRows] = await Promise.all([
         fetchKeywordDateRows(latest),
         previous ? fetchKeywordDateRows(previous) : Promise.resolve([]),

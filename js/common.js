@@ -604,29 +604,57 @@ function toggleCalcPanel() {
 }
 /* ================================================================
    자료실 (Archive Panel) — Supabase Storage 'archives' 버킷 사용
-   폴더 구조: 공용(company/cert): archives/{cat}/{file} / 개인(quote/image/etc): archives/{cat}/{username}/{file}
+   폴더 구조: archives/{cat}/{file} — 카테고리 폴더 바로 아래, 사람별 폴더 없음
    ================================================================ */
 
 
 /* ── 자료실 경로 헬퍼 ──────────────────────────────────────────
-   공용: company, cert       → archives/{cat}/{filename}
-   개인: quote, image, etc  → archives/{cat}/{username}/{filename}
+   예전엔 quote/image/etc가 로그인한 사람별로 폴더가 또 나뉘어 있었는데(직원별
+   구분용), 1인 운영으로 정리되면서 의미가 없어져 전부 공용 방식(폴더 없이
+   카테고리 바로 아래)으로 통일했다(2026-08-25).
 ────────────────────────────────────────────────────────────── */
-const ARC_PUBLIC_CATS = ['company', 'cert'];
+const ARC_PUBLIC_CATS = ['company', 'cert', 'quote', 'image', 'etc'];
 
 function arcIsPublic(cat) {
     return ARC_PUBLIC_CATS.includes(cat);
 }
 
+/* profileFromAuthUser()가 username을 로그인 이메일 그대로 쓰게 되면서(보안 리팩터링
+   이후), 이메일의 @가 Storage 경로에 그대로 들어가 "Invalid key"로 업로드가 거부되는
+   문제가 있었다(2026-08-25, 견적서 자료실 저장에서 발견). */
+function arcSafeUsername(username) {
+    return String(username || 'unknown')
+        .replace(/@/g, '_at_')
+        .replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+/* 한글 등 비ASCII 파일명을 평문으로 그대로 Storage 키에 넣으면 "Invalid key"로
+   거부된다(2026-08-25, @ 수정 후에도 한글 파일명에서 재발 확인). 처음엔 %를 -로
+   치환하는 방식을 썼는데, "010-7181-7224"처럼 이름에 원래 하이픈이 있는 경우
+   디코딩 시 진짜 하이픈과 구분이 안 돼서 이름이 깨지는 문제가 있었다 — 그래서
+   ASCII-safe한 이름은 아예 손대지 않고 그대로 두고, 진짜 인코딩이 필요한
+   경우(한글 등)만 "b64-" 마커 + base64url로 확실히 구분되게 바꿨다. 확장자는
+   디코딩 없이 그대로 유지해서 자료실의 파일 아이콘/미리보기 판별이 안 깨지게 한다. */
+function arcEncodeFileName(name) {
+    const str = String(name || '');
+    if (/^[a-zA-Z0-9._-]*$/.test(str)) return str; // 이미 안전하면 그대로
+    const dotIdx = str.lastIndexOf('.');
+    const base = dotIdx > 0 ? str.slice(0, dotIdx) : str;
+    const ext = dotIdx > 0 ? str.slice(dotIdx) : '';
+    const b64 = btoa(unescape(encodeURIComponent(base)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return `b64-${b64}${ext}`;
+}
+
 function arcStoragePath(cat, fileName) {
-    const username = currentUser?.username || 'unknown';
+    const username = arcSafeUsername(currentUser?.username);
     return arcIsPublic(cat)
         ? `${cat}/${fileName}`
         : `${cat}/${username}/${fileName}`;
 }
 
 function arcListPath(cat) {
-    const username = currentUser?.username || 'unknown';
+    const username = arcSafeUsername(currentUser?.username);
     return arcIsPublic(cat) ? cat : `${cat}/${username}`;
 }
 
@@ -679,19 +707,32 @@ async function arcLoadFiles() {
         }
 
         // 저장된 파일명에서 원본명 추출: {timestamp}___{원본명}
-        // 구버전: encodeURIComponent 후 %를 -로 치환 → 항상 -XX로 시작 (예: -ED-95-9C...)
-        // 신버전: 평문 그대로 저장 → 날짜/영문/숫자로 시작
+        // 세 가지 저장 방식이 섞여 있다:
+        //  1) 예전 회사자료/인증서 등 — encodeURIComponent 전체를 %→- 치환, 그래서 한글이
+        //     껴있으면 항상 "-XX-XX..."(16진수)로 시작한다.
+        //  2) 오늘 새로 만든 방식 — "b64-" 마커 + base64url (진짜 인코딩이 필요할 때만).
+        //  3) 그 외(전화번호/영문 등 원래 ASCII-safe한 이름) — 손대지 않고 그대로.
+        // "010-7181-7224"처럼 원래부터 하이픈이 있는 이름 전체를 무조건 디코딩 대상으로
+        // 취급했다가 깨지는 문제가 있었다(2026-08-25) — 맨 앞 패턴으로만 판단해야 안전하다.
         const decodeArcName = (name) => {
             const idx = name.indexOf('___');
             if (idx === -1) return name;
             const raw = name.substring(idx + 3);
-            try {
-                // 구버전 감지: -로 시작하고 바로 뒤 2자리가 16진수
-                if (/^-[0-9A-Fa-f]{2}/.test(raw)) {
-                    return decodeURIComponent(raw.replace(/-/g, '%'));
-                }
-                return raw;
-            } catch { return raw; }
+            const dotIdx = raw.lastIndexOf('.');
+            const base = dotIdx > 0 ? raw.slice(0, dotIdx) : raw;
+            const ext = dotIdx > 0 ? raw.slice(dotIdx) : '';
+            if (base.startsWith('b64-')) {
+                try {
+                    const b64 = base.slice(4).replace(/-/g, '+').replace(/_/g, '/');
+                    const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+                    return decodeURIComponent(escape(atob(padded))) + ext;
+                } catch { return raw; }
+            }
+            if (/^-[0-9A-Fa-f]{2}/.test(raw)) {
+                try { return decodeURIComponent(raw.replace(/-/g, '%')); }
+                catch { return raw; }
+            }
+            return raw; // ASCII-safe한 원래 이름 — 그대로
         };
 
         const extIcon = (name) => {
@@ -768,8 +809,9 @@ async function arcUploadFiles(files) {
     dropZone.style.pointerEvents = 'none';
 
     for (const file of files) {
-        // 파일명: 타임스탬프___원본명 구조로 저장
-        const safeName = `${Date.now()}___${file.name}`;
+        // 파일명: 타임스탬프___원본명(인코딩) 구조로 저장 — 한글 파일명 그대로 저장하면
+        // Storage가 거부한다(arcEncodeFileName 참고).
+        const safeName = `${Date.now()}___${arcEncodeFileName(file.name)}`;
         const path = arcStoragePath(cat, safeName);
         const { error } = await supabaseClient.storage
             .from('archives')
@@ -952,7 +994,7 @@ async function arcDownload(category, fileName, originalName) {
     const url = URL.createObjectURL(data);
     const a = document.createElement('a');
     a.href = url;
-    a.download = fileName;
+    a.download = originalName || fileName; // 인코딩된 저장 키 대신 원래(한글) 이름으로 저장
     a.click();
     URL.revokeObjectURL(url);
 }

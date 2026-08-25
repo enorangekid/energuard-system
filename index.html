@@ -1587,6 +1587,20 @@
         </div>
         <div class="sp-meta-bar">
             <span class="sp-update-time" id="sp-updateTime">업데이트 대기</span>
+            <select id="sp-season-select" class="sp-season-select" onchange="changeWidgetSeason(this.value)" style="display:none;">
+                <option value="">현재 시즌</option>
+                <option value="2025">2025-26 시즌</option>
+                <option value="2024">2024-25 시즌</option>
+                <option value="2023">2023-24 시즌</option>
+                <option value="2022">2022-23 시즌</option>
+                <option value="2021">2021-22 시즌</option>
+                <option value="2020">2020-21 시즌</option>
+                <option value="2019">2019-20 시즌</option>
+                <option value="2018">2018-19 시즌</option>
+                <option value="2017">2017-18 시즌</option>
+                <option value="2016">2016-17 시즌</option>
+                <option value="2015">2015-16 시즌</option>
+            </select>
             <button class="sp-refresh-btn" onclick="reloadWidget()">
                 <i class="fa-solid fa-rotate-right" id="sp-refreshIcon"></i> 새로고침
             </button>

@@ -203,6 +203,7 @@
 .sp-update-time { font-size: 11px; color: #64748b; font-weight: 600; }
 .sp-refresh-btn { background: #ffffff; border: 1px solid #cbd5e1; color: #475569; font-size: 11px; font-family: 'Pretendard', sans-serif; padding: 5px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 5px; font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 .sp-refresh-btn:hover { border-color: #e11d48; color: #e11d48; background: #fff1f2; }
+.sp-season-select { background: #ffffff; border: 1px solid #cbd5e1; color: #475569; font-size: 11px; font-family: 'Pretendard', sans-serif; padding: 5px 10px; border-radius: 20px; cursor: pointer; font-weight: 700; }
 
 .sp-content { flex: 1; overflow-y: auto; padding: 14px; background: #f1f5f9; color: #334155; font-family: 'Pretendard', sans-serif; }
 .sp-content::-webkit-scrollbar { width: 6px; }
@@ -238,6 +239,16 @@
 .sp-score-vs { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 900; color: #94a3b8; }
 .sp-time-info { font-size: 11px; color: #64748b; font-weight: 700; }
 .sp-time-info.live { color: #e11d48; }
+
+/* 득점/퇴장 목록 — 홈팀 이벤트는 왼쪽, 원정팀 이벤트는 오른쪽 정렬로 어느 팀 소속인지
+   한눈에 구분되게 한다(2026-08-25). */
+.sp-match-events { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0; display: flex; flex-direction: column; gap: 4px; }
+.sp-match-event { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #475569; }
+.sp-match-event.away { flex-direction: row-reverse; text-align: right; }
+.sp-event-minute { font-weight: 800; color: #94a3b8; min-width: 30px; flex-shrink: 0; }
+.sp-match-event.away .sp-event-minute { text-align: right; }
+.sp-event-icon { flex-shrink: 0; font-size: 11px; }
+.sp-event-player { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .sp-standings-wrap { margin-top: 16px; background: #fff; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);}
 .sp-standings-table { width: 100%; border-collapse: collapse; font-size: 12px; }

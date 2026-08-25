@@ -50,19 +50,32 @@ const TEAM_KO_MAP = {
     "Aston Villa": "아스톤 빌라",
     "Brighton & Hove Albion": "브라이튼", "Brighton": "브라이튼",
     "West Ham United": "웨스트햄", "West Ham": "웨스트햄",
-    "Bournemouth": "본머스",
+    "Bournemouth": "본머스", "AFC Bournemouth": "본머스",
     "Wolverhampton Wanderers": "울버햄튼", "Wolves": "울버햄튼",
     "Crystal Palace": "크리스탈 팰리스", "C Palace": "크리스탈 팰리스",
     "Brentford": "브렌트포드",
     "Fulham": "풀럼",
     "Everton": "에버턴",
     "Nottingham Forest": "노팅엄", "Nottm Forest": "노팅엄",
-    "Leicester City": "레스터",
-    "Ipswich Town": "입스위치",
+    "Leicester City": "레스터", "Leicester": "레스터",
+    "Ipswich Town": "입스위치", "Ipswich": "입스위치",
     "Southampton": "사우샘프턴",
     "Sunderland": "선덜랜드",
     "Leeds United": "리즈", "Leeds": "리즈",
     "Burnley": "번리",
+    "Hull City": "헐 시티", "Hull": "헐 시티",
+    "Coventry City": "코번트리", "Coventry": "코번트리",
+    // 과거 시즌 강등/승격 등으로 나오는 팀들(2026-08-25, 2015-16 시즌 조회하며 추가)
+    "Stoke City": "스토크시티", "Stoke": "스토크시티",
+    "Swansea City": "스완지시티", "Swansea": "스완지시티",
+    "Watford": "왓포드",
+    "West Bromwich Albion": "웨스트브롬위치", "West Brom": "웨스트브롬위치", "West Bromwich": "웨스트브롬위치",
+    "Norwich City": "노리치시티", "Norwich": "노리치시티",
+    "Middlesbrough": "미들즈브러", "Boro": "미들즈브러",
+    "Huddersfield Town": "허더스필드", "Huddersfield": "허더스필드",
+    "Cardiff City": "카디프시티", "Cardiff": "카디프시티",
+    "Sheffield United": "셰필드 유나이티드", "Sheffield Utd": "셰필드 유나이티드",
+    "Queens Park Rangers": "QPR", "QPR": "QPR",
 
     // MLB
     "Dodgers": "LA 다저스", "Los Angeles Dodgers": "LA 다저스",
@@ -264,11 +277,41 @@ const WIDGET_STAND_EP = {
     wc:  'https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings',
     mlb: 'https://site.api.espn.com/apis/v2/sports/baseball/mlb/standings',
 };
+// 리그 스탯 순위(득점왕 등) — EPL은 이 ESPN 엔드포인트로. MLB용 ESPN 히든 API
+// (.../mlb/statistics)는 시즌 33경기 시점에서 멈춘 채 갱신이 안 되는 게 확인돼서
+// (2026-08-25, 20분 뒤 재조회·season 파라미터 다 시도해도 똑같음) 버리고, MLB는
+// MLB 공식 API(statsapi.mlb.com)로 따로 가져온다 — 아래 WIDGET_MLB_LEADERS_EP 참고.
+const WIDGET_STATS_EP = {
+    epl: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/statistics',
+};
+
+function widgetStatCategories(statsRes, tab) {
+    if (!statsRes) return null;
+    return statsRes.stats || null;
+}
+
+// MLB 공식 API — leaderCategories를 콤마로 여러 개 한 번에 요청 가능. statGroup을 지정 안
+// 하면 타격/포수/투수 기록이 뒤섞여서 나오므로(2026-08-25 확인) hitting/pitching 두 번
+// 나눠서 부른다. season은 MLB가 한 해 안에 시작·종료라 그냥 올해 연도를 쓰면 된다.
+const WIDGET_MLB_LEADERS_URL = (year) => ({
+    hitting: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=homeRuns,battingAverage,runsBattedIn,stolenBases&sportId=1&statGroup=hitting&season=${year}`,
+    pitching: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=earnedRunAverage,wins,strikeOuts,saves&sportId=1&statGroup=pitching&season=${year}`,
+});
+
+// 과거 시즌 선택 — EPL만 지원(2026-08-25). 탭별로 따로 기억한다(다른 탭 갔다와도 유지).
+const widgetSeason = {};
 
 function setWidgetTab(tab, el) {
     currentWidgetTab = tab;
     document.querySelectorAll('.sp-tab-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
+
+    const seasonSel = document.getElementById('sp-season-select');
+    if (seasonSel) {
+        seasonSel.style.display = (tab === 'epl') ? '' : 'none';
+        seasonSel.value = widgetSeason[tab] || '';
+    }
+
     if (widgetCache[tab]) renderWidget(tab, widgetCache[tab]);
     else loadWidgetData(tab);
 }
@@ -278,6 +321,22 @@ function reloadWidget() {
     loadWidgetData(currentWidgetTab);
 }
 
+window.changeWidgetSeason = function(value) {
+    widgetSeason[currentWidgetTab] = value || null;
+    delete widgetCache[currentWidgetTab];
+    loadWidgetData(currentWidgetTab);
+};
+
+// EPL/UCL/WC는 경기가 매일 열리지 않아서, ESPN scoreboard API의 기본값(그날 하루치만)만
+// 받아오면 최근 며칠 새 끝난 경기가 "최근 결과"에 아예 안 잡히는 문제가 있었다
+// (2026-08-25). dates 범위를 넉넉히 지정해서 최근 결과/예정 경기를 같이 잡히게 한다.
+function widgetDateRange() {
+    const fmt = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    const start = new Date(); start.setDate(start.getDate() - 6);
+    const end = new Date(); end.setDate(end.getDate() + 7);
+    return `${fmt(start)}-${fmt(end)}`;
+}
+
 async function loadWidgetData(tab) {
     const content = document.getElementById('sp-content');
     const icon = document.getElementById('sp-refreshIcon');
@@ -285,12 +344,31 @@ async function loadWidgetData(tab) {
     icon.classList.add('fa-spin');
 
     try {
-        const [scoreRes, standRes] = await Promise.all([
-            fetch(WIDGET_SCORE_EP[tab]).then(r => r.json()),
-            WIDGET_STAND_EP[tab] ? fetch(WIDGET_STAND_EP[tab]).then(r => r.json()).catch(()=>null) : Promise.resolve(null)
+        const season = widgetSeason[tab]; // 과거 시즌 선택 시(EPL만) — 표/득점왕만 그 시즌 기준으로
+        const seasonQS = season ? `?season=${season}` : '';
+
+        // 과거 시즌을 볼 땐 "지금 진행중/예정" 경기 목록은 의미가 없으니 스코어보드는 안 부른다.
+        const scoreUrl = WIDGET_CFG[tab]?.soccer
+            ? `${WIDGET_SCORE_EP[tab]}?dates=${widgetDateRange()}`
+            : WIDGET_SCORE_EP[tab];
+        const mlbLeadersPromise = (tab === 'mlb')
+            ? (() => {
+                const urls = WIDGET_MLB_LEADERS_URL(new Date().getFullYear());
+                return Promise.all([
+                    fetch(urls.hitting).then(r => r.json()).catch(() => null),
+                    fetch(urls.pitching).then(r => r.json()).catch(() => null),
+                ]).then(([h, p]) => [...(h?.leagueLeaders || []), ...(p?.leagueLeaders || [])]);
+            })()
+            : Promise.resolve(null);
+
+        const [scoreRes, standRes, statsRes, mlbLeaders] = await Promise.all([
+            season ? Promise.resolve(null) : fetch(scoreUrl).then(r => r.json()),
+            WIDGET_STAND_EP[tab] ? fetch(`${WIDGET_STAND_EP[tab]}${seasonQS}`).then(r => r.json()).catch(()=>null) : Promise.resolve(null),
+            WIDGET_STATS_EP[tab] ? fetch(`${WIDGET_STATS_EP[tab]}${seasonQS}`).then(r => r.json()).catch(()=>null) : Promise.resolve(null),
+            mlbLeadersPromise
         ]);
 
-        widgetCache[tab] = { scores: scoreRes, standings: standRes };
+        widgetCache[tab] = { scores: scoreRes, standings: standRes, stats: statsRes, mlbLeaders, season };
         renderWidget(tab, widgetCache[tab]);
 
         const now = new Date();
@@ -305,9 +383,22 @@ async function loadWidgetData(tab) {
 }
 
 function renderWidget(tab, data) {
+    // 과거 시즌 선택 중이면 경기 일정/LIVE는 의미가 없으니 표·득점왕만 보여준다(2026-08-25).
+    if (data.season) {
+        let html = `<div class="sp-state-box" style="padding:14px 0;"><i class="fa-solid fa-clock-rotate-left" style="color:#94a3b8;"></i><span>${data.season}-${String(Number(data.season)+1).slice(2)} 시즌 최종 기록</span></div>`;
+        if (data.standings) html += widgetStandings(data.standings, tab);
+        const catsSeason = widgetStatCategories(data.stats, tab);
+        if (catsSeason) html += widgetStatLeaders(catsSeason, tab);
+        document.getElementById('sp-content').innerHTML = html;
+        return;
+    }
+
     const events = data.scores?.events || [];
     const live  = events.filter(e => e.status?.type?.state === 'in');
-    const post  = events.filter(e => e.status?.type?.state === 'post').slice(0,8);
+    // 날짜 범위를 넓게 받아오게 되면서(위 widgetDateRange), "최근 결과"는 최신순으로
+    // 정렬해서 오래된 경기가 아니라 진짜 최근 경기가 먼저 보이게 한다(2026-08-25).
+    const post  = events.filter(e => e.status?.type?.state === 'post')
+        .sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0,8);
     const pre   = events.filter(e => e.status?.type?.state === 'pre').slice(0,8);
 
     let html = '';
@@ -315,12 +406,124 @@ function renderWidget(tab, data) {
     if (pre.length)   html += widgetSection('예정 경기',  pre.map(e=>widgetCard(e,'sched',tab)).join(''));
     if (post.length)  html += widgetSection('최근 결과',  post.map(e=>widgetCard(e,'final',tab)).join(''));
     if (!html)        html  = `<div class="sp-state-box"><i class="fa-regular fa-calendar-xmark"></i><span>경기 정보가 없습니다</span></div>`;
-    
+
     if (data.standings) {
         html += widgetStandings(data.standings, tab);
     }
+    const cats = widgetStatCategories(data.stats, tab);
+    if (cats) {
+        html += widgetStatLeaders(cats, tab);
+    }
+    if (data.mlbLeaders?.length) {
+        html += widgetMlbStatLeaders(data.mlbLeaders);
+    }
 
     document.getElementById('sp-content').innerHTML = html;
+}
+
+// "N개까지만 보이고 눌러야 펼쳐지는" 더보기 버튼 — dashboard.js의 moverSlice/
+// moverMoreBtnHtml/toggleMoverExpand과 같은 패턴(2026-08-25). 스포츠 위젯은 탭이 바뀔
+// 때마다 다시 그려지므로 widgetCache[currentWidgetTab]로 재렌더링한다.
+const SPORTS_STAT_EXPANDED = new Set();
+const SPORTS_STAT_COLLAPSED_LIMIT = 5;
+
+function sportsStatMoreBtnHtml(key, totalCount, label) {
+    if (totalCount <= SPORTS_STAT_COLLAPSED_LIMIT) return '';
+    const expanded = SPORTS_STAT_EXPANDED.has(key);
+    return `<button type="button" class="dash-mover-more" onclick="toggleSportsStatExpand('${key}')">${expanded ? '간략히 보기' : label} <span>${expanded ? '−' : '+'}</span></button>`;
+}
+
+window.toggleSportsStatExpand = function(key) {
+    if (SPORTS_STAT_EXPANDED.has(key)) SPORTS_STAT_EXPANDED.delete(key); else SPORTS_STAT_EXPANDED.add(key);
+    if (widgetCache[currentWidgetTab]) renderWidget(currentWidgetTab, widgetCache[currentWidgetTab]);
+};
+
+// 리그 득점/도움 순위 — ESPN statistics 엔드포인트의 stats[] 배열에서 득점(goalsLeaders)과
+// 도움(assistsLeaders) 항목만 뽑아 상위 5명을 보여준다(2026-08-25). 선수명은 번역 목록이
+// 없어 영문 그대로 표시하고, 팀명만 기존 TEAM_KO_MAP으로 한글화한다.
+// MLB 타자/투수 순위는 뺐다 — WIDGET_STATS_EP 주석 참고(데이터 소스가 갱신 안 됨, 2026-08-25).
+function widgetStatLeaders(stats, tab) {
+    if (!stats?.length) return '';
+    const WANTED = { goalsLeaders: '득점 순위', assistsLeaders: '도움 순위' };
+
+    let html = '';
+    stats.forEach(cat => {
+        const title = WANTED[cat.name];
+        if (!title) return;
+        const all = cat.leaders || [];
+        if (!all.length) return;
+        const key = `sp-stat-${tab}-${cat.name}`;
+        const top = SPORTS_STAT_EXPANDED.has(key) ? all : all.slice(0, SPORTS_STAT_COLLAPSED_LIMIT);
+
+        const rows = top.map((l, i) => {
+            const a = l.athlete || {};
+            const teamData = a.team;
+            // 이 API의 team 객체는 abbreviation(BHA, MNC 등) 위주라 TEAM_KO_MAP(전체/짧은
+            // 영문명 기준)과 안 맞았다 — name/displayName을 우선 조회한다(2026-08-25).
+            const teamName = getKoName(teamData?.name || teamData?.displayName || teamData?.shortDisplayName || teamData?.abbreviation, tab);
+            const logoUrl = teamData?.logos?.[0]?.href;
+            const logoImg = logoUrl ? `<img src="${logoUrl}" style="width:14px; height:14px; object-fit:contain; vertical-align:middle; margin-right:4px;">` : '';
+            return `<tr>
+                <td>${i + 1}</td>
+                <td style="text-align:left; font-weight:600; color:#0f172a;">${a.shortName || a.displayName || '-'}</td>
+                <td style="text-align:left;"><div style="display:flex; align-items:center;">${logoImg}${teamName}</div></td>
+                <td style="font-weight:700; color:#0f172a;">${l.value ?? ''}</td>
+            </tr>`;
+        }).join('');
+
+        html += `
+        <div class="sp-standings-wrap">
+            <div class="sp-section-title" style="margin-top:6px;">${title}</div>
+            <table class="sp-standings-table">
+                <thead><tr><th>#</th><th>선수</th><th>팀</th><th>${cat.abbreviation || ''}</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+            ${sportsStatMoreBtnHtml(key, all.length, '더보기')}
+        </div>`;
+    });
+    return html;
+}
+
+// MLB 공식 API(statsapi.mlb.com) 응답 전용 렌더러 — ESPN 쪽(widgetStatLeaders)과 필드
+// 이름이 아예 달라서(athlete→person, team.logos 없음 등) 따로 만들었다(2026-08-25).
+function widgetMlbStatLeaders(mlbLeaders) {
+    const WANTED_MLB = {
+        homeRuns: '홈런 순위', battingAverage: '타율 순위', runsBattedIn: '타점 순위', stolenBases: '도루 순위',
+        earnedRunAverage: '평균자책점 순위', wins: '다승 순위', strikeOuts: '탈삼진 순위', saves: '세이브 순위',
+    };
+
+    let html = '';
+    mlbLeaders.forEach(cat => {
+        const title = WANTED_MLB[cat.leaderCategory];
+        if (!title) return;
+        const all = cat.leaders || [];
+        if (!all.length) return;
+        const key = `sp-stat-mlb-${cat.leaderCategory}`;
+        const top = SPORTS_STAT_EXPANDED.has(key) ? all : all.slice(0, SPORTS_STAT_COLLAPSED_LIMIT);
+
+        const rows = top.map((l, i) => {
+            const p = l.person || {};
+            const shortName = p.firstName ? `${p.firstName[0]}. ${p.lastName}` : (p.fullName || '-');
+            const teamName = getKoName(l.team?.name, 'mlb');
+            return `<tr>
+                <td>${i + 1}</td>
+                <td style="text-align:left; font-weight:600; color:#0f172a;">${shortName}</td>
+                <td style="text-align:left;">${teamName}</td>
+                <td style="font-weight:700; color:#0f172a;">${l.value ?? ''}</td>
+            </tr>`;
+        }).join('');
+
+        html += `
+        <div class="sp-standings-wrap">
+            <div class="sp-section-title" style="margin-top:6px;">${title}</div>
+            <table class="sp-standings-table">
+                <thead><tr><th>#</th><th>선수</th><th>팀</th><th></th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+            ${sportsStatMoreBtnHtml(key, all.length, '더보기')}
+        </div>`;
+    });
+    return html;
 }
 
 function widgetSection(title, body) {
@@ -382,6 +585,13 @@ function widgetCard(ev, type, tab) {
         </div>`;
     };
 
+    // 득점/퇴장 — ESPN 스코어보드가 competitions[0].details에 이미 담아서 준다(경기별
+    // 별도 호출 불필요). 라이브·종료 경기에서만, 골(scoringPlay)과 레드카드만 뽑아서
+    // 시간순으로 보여준다(2026-08-25).
+    const eventsHtml = (isSoccer && (type==='live' || type==='final'))
+        ? widgetMatchEvents(comp, home, away)
+        : '';
+
     return `
     <div class="sp-score-card ${type==='live'?'live':''}">
         <div class="sp-card-meta">
@@ -393,7 +603,42 @@ function widgetCard(ev, type, tab) {
             <div class="sp-score-center">${scoreEl}${tinfo}</div>
             ${teamEl(R, rWin, true)}
         </div>
+        ${eventsHtml}
     </div>`;
+}
+
+// 득점/퇴장 목록 — 홈/원정 어느 팀인지는 details의 team.id를 competitors의 team.id와
+// 비교해서 판정한다(ESPN이 홈/원정 구분자를 따로 안 주는 경우가 있어서).
+function widgetMatchEvents(comp, home, away) {
+    const details = comp.details || [];
+    const homeId = home.team?.id;
+
+    const rows = details
+        .filter(d => d.scoringPlay || d.redCard)
+        .map(d => ({
+            minute: d.clock?.displayValue || '',
+            minuteVal: d.clock?.value ?? 0,
+            isHome: d.team?.id === homeId,
+            player: d.athletesInvolved?.[0]?.displayName || d.athletesInvolved?.[0]?.shortName || '',
+            isRed: !!d.redCard,
+            isOwnGoal: !!d.ownGoal,
+            isPenalty: !!d.penaltyKick,
+        }))
+        .sort((a, b) => a.minuteVal - b.minuteVal);
+
+    if (!rows.length) return '';
+
+    const rowHtml = rows.map(r => {
+        const icon = r.isRed ? '🟥' : (r.isOwnGoal ? '⚽️(자책)' : '⚽');
+        const pk = r.isPenalty ? ' (PK)' : '';
+        return `<div class="sp-match-event ${r.isHome ? 'home' : 'away'}">
+            <span class="sp-event-minute">${r.minute}</span>
+            <span class="sp-event-icon">${icon}</span>
+            <span class="sp-event-player">${r.player}${pk}</span>
+        </div>`;
+    }).join('');
+
+    return `<div class="sp-match-events">${rowHtml}</div>`;
 }
 
 // 순위별 배경색 반환 (EPL: UCL/UEL/UECL/강등, NBA: 플레이오프/플레이인)
@@ -434,26 +679,28 @@ function buildStandingsRows(entries, tab) {
             : `<span class="sp-rank-num">${rank}</span>`;
 
         if (tab === 'epl' || tab === 'wc') {
+            const gp = getStat('gamesPlayed');
             const w = getStat('wins');
             const d = getStat('ties');
             const l = getStat('losses');
             const pts = getStat('points');
             const gd = getStat('pointDifferential');
-            
+
             rows += `<tr style="${rowBg}">
                 <td>${rankEl}</td>
                 <td><div style="display:flex; align-items:center;">${logoImg}${teamName}</div></td>
-                <td>${w}</td><td>${d}</td><td>${l}</td><td style="font-weight:700; color:#0f172a;">${pts}</td><td>${gd}</td>
+                <td>${gp}</td><td>${w}</td><td>${d}</td><td>${l}</td><td style="font-weight:700; color:#0f172a;">${pts}</td><td>${gd}</td>
             </tr>`;
         } else {
+            const gp = getStat('gamesPlayed');
             const w = getStat('wins');
             const l = getStat('losses');
             const pct = getStat('winPercent') || getStat('pointDifferential') || '-';
-            
+
             rows += `<tr style="${rowBg}">
                 <td>${rankEl}</td>
                 <td><div style="display:flex; align-items:center;">${logoImg}${teamName}</div></td>
-                <td>${w}</td><td>${l}</td><td>${pct}</td>
+                <td>${gp}</td><td>${w}</td><td>${l}</td><td>${pct}</td>
             </tr>`;
         }
     });
@@ -487,7 +734,7 @@ function widgetStandings(data, tab) {
             <div class="sp-standings-wrap">
                 <div class="sp-section-title" style="margin-top:6px;">순위표 - ${confName}</div>
                 <table class="sp-standings-table">
-                    <thead><tr><th>#</th><th>팀</th><th>승</th><th>패</th><th>승률</th></tr></thead>
+                    <thead><tr><th>#</th><th>팀</th><th>경기</th><th>승</th><th>패</th><th>승률</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
                 ${isLast ? `<div style="display:flex;gap:10px;flex-wrap:wrap;padding:6px 4px 2px;font-size:10px;color:#64748b;">
@@ -535,7 +782,7 @@ function widgetStandings(data, tab) {
             <div class="sp-standings-wrap">
                 <div class="sp-section-title" style="margin-top:6px; padding-left:4px; font-size:11.5px; color:#64748b;">${title}</div>
                 <table class="sp-standings-table">
-                    <thead><tr><th>#</th><th>팀</th><th>승</th><th>패</th><th>승률</th></tr></thead>
+                    <thead><tr><th>#</th><th>팀</th><th>경기</th><th>승</th><th>패</th><th>승률</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
             </div>`;
@@ -598,7 +845,7 @@ function widgetStandings(data, tab) {
             <div class="sp-standings-wrap">
                 <div class="sp-section-title" style="margin-top:6px;">${groupName}</div>
                 <table class="sp-standings-table">
-                    <thead><tr><th>#</th><th>팀</th><th>승</th><th>무</th><th>패</th><th>승점</th><th>득실</th></tr></thead>
+                    <thead><tr><th>#</th><th>팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>승점</th><th>득실</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
             </div>`;
@@ -646,9 +893,9 @@ function widgetStandings(data, tab) {
         let rows = buildStandingsRows(entries, tab);
         
         // ✅ EPL 열 순서: 승, 무, 패, 승점, 득실
-        let headHtml = tab === 'epl' 
-            ? `<tr><th>#</th><th>팀</th><th>승</th><th>무</th><th>패</th><th>승점</th><th>득실</th></tr>`
-            : `<tr><th>#</th><th>팀</th><th>승</th><th>패</th><th>승률</th></tr>`;
+        let headHtml = tab === 'epl'
+            ? `<tr><th>#</th><th>팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>승점</th><th>득실</th></tr>`
+            : `<tr><th>#</th><th>팀</th><th>경기</th><th>승</th><th>패</th><th>승률</th></tr>`;
 
         const legendStyle = 'display:flex;gap:10px;flex-wrap:wrap;padding:6px 4px 2px;font-size:10px;color:#64748b;';
         const legendSpanStyle = 'padding-left:6px;';

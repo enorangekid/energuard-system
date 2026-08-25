@@ -313,7 +313,14 @@ function _makeEstItemRow() {
   </td>
   <td><input type="text" class="est-spec-input align-center"></td>
   <td><input type="text" class="est-qty align-right" oninput="calcEst()"></td>
-  <td><input type="text" class="est-price align-right" oninput="calcEst()"></td>
+  <td class="est-td-price">
+    <div class="est-price-wrap">
+      <input type="text" class="est-price align-right" oninput="calcEst()">
+      <button class="est-vat-toggle est-screen-ui" onclick="toggleVatMode(this)" title="현재: 일반 단가 입력 중&#10;클릭 시 VAT포함가 역산 모드로 전환">
+        <span class="vat-label">VAT제외</span>
+      </button>
+    </div>
+  </td>
   <td><input type="text" class="est-supply align-right" readonly></td>
   <td><input type="text" class="est-tax align-right" readonly></td>
   <td><input type="text" class="est-remark"></td>`;
@@ -474,8 +481,10 @@ async function saveEstimateToArchive() {
         const receiver = (receiverEl?.value?.trim() || '').replace(/[^a-zA-Z0-9가-힣_-]/g, '') || '거래처';
         const originalName = `${yy}${mm}${dd}_${receiver}.pdf`;
 
-        // 스토리지용 파일명
-        const safeName = `${Date.now()}___${originalName}`;
+        // 스토리지용 파일명 — 한글이 그대로 들어가면 Storage가 "Invalid key"로 거부하므로
+        // common.js의 arcEncodeFileName으로 ASCII-safe하게 인코딩한다(자료실 목록에서는
+        // decodeArcName이 다시 원래 한글 이름으로 복원해서 보여줌).
+        const safeName = `${Date.now()}___${arcEncodeFileName(originalName)}`;
 
         const source = document.getElementById('estimatePrintArea');
 
@@ -516,10 +525,11 @@ async function saveEstimateToArchive() {
         });
         inputs.forEach(el => { el.style.border = el.dataset.origBorder || ''; el.style.background = el.dataset.origBg || ''; });
 
-        // Supabase Storage 업로드
+        // Supabase Storage 업로드 — 자료실 공용 경로 헬퍼(common.js) 재사용해서
+        // 자료실 목록(arcLoadFiles)이 찾는 경로와 항상 일치하게 한다.
         const { error } = await supabaseClient.storage
             .from('archives')
-            .upload(`quote/${window.currentUser?.username || 'unknown'}/${safeName}`, pdfBlob, {
+            .upload(arcStoragePath('quote', safeName), pdfBlob, {
                 contentType: 'application/pdf',
                 cacheControl: '3600',
                 upsert: false
