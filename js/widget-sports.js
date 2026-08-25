@@ -294,8 +294,8 @@ function widgetStatCategories(statsRes, tab) {
 // 하면 타격/포수/투수 기록이 뒤섞여서 나오므로(2026-08-25 확인) hitting/pitching 두 번
 // 나눠서 부른다. season은 MLB가 한 해 안에 시작·종료라 그냥 올해 연도를 쓰면 된다.
 const WIDGET_MLB_LEADERS_URL = (year) => ({
-    hitting: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=homeRuns,battingAverage,runsBattedIn,stolenBases&sportId=1&statGroup=hitting&season=${year}`,
-    pitching: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=earnedRunAverage,wins,strikeOuts,saves&sportId=1&statGroup=pitching&season=${year}`,
+    hitting: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=homeRuns,battingAverage,runsBattedIn,stolenBases&sportId=1&statGroup=hitting&season=${year}&limit=10`,
+    pitching: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=earnedRunAverage,wins,strikeouts,saves&sportId=1&statGroup=pitching&season=${year}&limit=10`,
 });
 
 // 과거 시즌 선택 — EPL만 지원(2026-08-25). 탭별로 따로 기억한다(다른 탭 갔다와도 유지).
@@ -488,14 +488,20 @@ function widgetStatLeaders(stats, tab) {
 // 이름이 아예 달라서(athlete→person, team.logos 없음 등) 따로 만들었다(2026-08-25).
 function widgetMlbStatLeaders(mlbLeaders) {
     const WANTED_MLB = {
-        homeRuns: '홈런 순위', battingAverage: '타율 순위', runsBattedIn: '타점 순위', stolenBases: '도루 순위',
-        earnedRunAverage: '평균자책점 순위', wins: '다승 순위', strikeOuts: '탈삼진 순위', saves: '세이브 순위',
+        homeRuns: { title: '홈런 순위', label: 'HR' },
+        battingAverage: { title: '타율 순위', label: 'AVG' },
+        runsBattedIn: { title: '타점 순위', label: 'RBI' },
+        stolenBases: { title: '도루 순위', label: 'SB' },
+        earnedRunAverage: { title: '평균자책점 순위', label: 'ERA' },
+        wins: { title: '다승 순위', label: 'W' },
+        strikeouts: { title: '탈삼진 순위', label: 'SO' },
+        saves: { title: '세이브 순위', label: 'SV' },
     };
 
     let html = '';
     mlbLeaders.forEach(cat => {
-        const title = WANTED_MLB[cat.leaderCategory];
-        if (!title) return;
+        const config = WANTED_MLB[cat.leaderCategory];
+        if (!config) return;
         const all = cat.leaders || [];
         if (!all.length) return;
         const key = `sp-stat-mlb-${cat.leaderCategory}`;
@@ -506,7 +512,7 @@ function widgetMlbStatLeaders(mlbLeaders) {
             const shortName = p.firstName ? `${p.firstName[0]}. ${p.lastName}` : (p.fullName || '-');
             const teamName = getKoName(l.team?.name, 'mlb');
             return `<tr>
-                <td>${i + 1}</td>
+                <td>${l.rank ?? i + 1}</td>
                 <td style="text-align:left; font-weight:600; color:#0f172a;">${shortName}</td>
                 <td style="text-align:left;">${teamName}</td>
                 <td style="font-weight:700; color:#0f172a;">${l.value ?? ''}</td>
@@ -515,9 +521,9 @@ function widgetMlbStatLeaders(mlbLeaders) {
 
         html += `
         <div class="sp-standings-wrap">
-            <div class="sp-section-title" style="margin-top:6px;">${title}</div>
+            <div class="sp-section-title" style="margin-top:6px;">${config.title}</div>
             <table class="sp-standings-table">
-                <thead><tr><th>#</th><th>선수</th><th>팀</th><th></th></tr></thead>
+                <thead><tr><th>#</th><th>선수</th><th>팀</th><th>${config.label}</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>
             ${sportsStatMoreBtnHtml(key, all.length, '더보기')}
@@ -750,15 +756,15 @@ function widgetStandings(data, tab) {
         // 팀 약어 기반 하드코딩 지구 편성 (API 구조에 무관하게 동작)
         const MLB_DIVS = [
             {
-                lg: '🔵 AL 아메리칸리그',
+                lg: 'AL 아메리칸리그',
                 divs: [
                     { name: '▸ 동부지구', abbs: ['NYY','BOS','TOR','BAL','TB'] },
-                    { name: '▸ 중부지구', abbs: ['CWS','CLE','DET','KC','MIN'] },
+                    { name: '▸ 중부지구', abbs: ['CHW','CWS','CLE','DET','KC','MIN'] },
                     { name: '▸ 서부지구', abbs: ['HOU','LAA','ATH','OAK','SEA','TEX'] },
                 ]
             },
             {
-                lg: '🔴 NL 내셔널리그',
+                lg: 'NL 내셔널리그',
                 divs: [
                     { name: '▸ 동부지구', abbs: ['ATL','MIA','NYM','PHI','WSH'] },
                     { name: '▸ 중부지구', abbs: ['CHC','CIN','MIL','PIT','STL'] },
