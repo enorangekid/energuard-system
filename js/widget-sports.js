@@ -293,13 +293,14 @@ function widgetStatCategories(statsRes, tab) {
 // MLB 공식 API — leaderCategories를 콤마로 여러 개 한 번에 요청 가능. statGroup을 지정 안
 // 하면 타격/포수/투수 기록이 뒤섞여서 나오므로(2026-08-25 확인) hitting/pitching 두 번
 // 나눠서 부른다. season은 MLB가 한 해 안에 시작·종료라 그냥 올해 연도를 쓰면 된다.
-const WIDGET_MLB_LEADERS_URL = (year) => ({
-    hitting: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=homeRuns,battingAverage,runsBattedIn,stolenBases&sportId=1&statGroup=hitting&season=${year}&limit=10`,
-    pitching: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=earnedRunAverage,wins,strikeouts,saves&sportId=1&statGroup=pitching&season=${year}&limit=10`,
+const WIDGET_MLB_LEADERS_URL = (year, leagueId) => ({
+    hitting: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=homeRuns,battingAverage,runsBattedIn,stolenBases&sportId=1&statGroup=hitting&season=${year}&leagueId=${leagueId}&limit=10`,
+    pitching: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=earnedRunAverage,wins,strikeouts,saves&sportId=1&statGroup=pitching&season=${year}&leagueId=${leagueId}&limit=10`,
 });
 
 // 과거 시즌 선택 — EPL만 지원(2026-08-25). 탭별로 따로 기억한다(다른 탭 갔다와도 유지).
 const widgetSeason = {};
+let widgetMlbLeague = 'al';
 
 function setWidgetTab(tab, el) {
     currentWidgetTab = tab;
@@ -353,11 +354,18 @@ async function loadWidgetData(tab) {
             : WIDGET_SCORE_EP[tab];
         const mlbLeadersPromise = (tab === 'mlb')
             ? (() => {
-                const urls = WIDGET_MLB_LEADERS_URL(new Date().getFullYear());
+                const year = new Date().getFullYear();
+                const fetchLeagueLeaders = (leagueId) => {
+                    const urls = WIDGET_MLB_LEADERS_URL(year, leagueId);
+                    return Promise.all([
+                        fetch(urls.hitting).then(r => r.json()).catch(() => null),
+                        fetch(urls.pitching).then(r => r.json()).catch(() => null),
+                    ]).then(([h, p]) => [...(h?.leagueLeaders || []), ...(p?.leagueLeaders || [])]);
+                };
                 return Promise.all([
-                    fetch(urls.hitting).then(r => r.json()).catch(() => null),
-                    fetch(urls.pitching).then(r => r.json()).catch(() => null),
-                ]).then(([h, p]) => [...(h?.leagueLeaders || []), ...(p?.leagueLeaders || [])]);
+                    fetchLeagueLeaders(103),
+                    fetchLeagueLeaders(104),
+                ]).then(([al, nl]) => ({ al, nl }));
             })()
             : Promise.resolve(null);
 
@@ -414,7 +422,7 @@ function renderWidget(tab, data) {
     if (cats) {
         html += widgetStatLeaders(cats, tab);
     }
-    if (data.mlbLeaders?.length) {
+    if (data.mlbLeaders?.al?.length || data.mlbLeaders?.nl?.length) {
         html += widgetMlbStatLeaders(data.mlbLeaders);
     }
 
@@ -436,6 +444,12 @@ function sportsStatMoreBtnHtml(key, totalCount, label) {
 window.toggleSportsStatExpand = function(key) {
     if (SPORTS_STAT_EXPANDED.has(key)) SPORTS_STAT_EXPANDED.delete(key); else SPORTS_STAT_EXPANDED.add(key);
     if (widgetCache[currentWidgetTab]) renderWidget(currentWidgetTab, widgetCache[currentWidgetTab]);
+};
+
+window.setWidgetMlbLeague = function(league) {
+    if (league !== 'al' && league !== 'nl') return;
+    widgetMlbLeague = league;
+    if (widgetCache.mlb) renderWidget('mlb', widgetCache.mlb);
 };
 
 // 리그 득점/도움 순위 — ESPN statistics 엔드포인트의 stats[] 배열에서 득점(goalsLeaders)과
@@ -488,23 +502,27 @@ function widgetStatLeaders(stats, tab) {
 // 이름이 아예 달라서(athlete→person, team.logos 없음 등) 따로 만들었다(2026-08-25).
 function widgetMlbStatLeaders(mlbLeaders) {
     const WANTED_MLB = {
-        homeRuns: { title: '홈런 순위', label: 'HR' },
         battingAverage: { title: '타율 순위', label: 'AVG' },
+        homeRuns: { title: '홈런 순위', label: 'HR' },
         runsBattedIn: { title: '타점 순위', label: 'RBI' },
         stolenBases: { title: '도루 순위', label: 'SB' },
-        earnedRunAverage: { title: '평균자책점 순위', label: 'ERA' },
+        earnedRunAverage: { title: '평균자책 순위', label: 'ERA' },
         wins: { title: '다승 순위', label: 'W' },
         strikeouts: { title: '탈삼진 순위', label: 'SO' },
         saves: { title: '세이브 순위', label: 'SV' },
     };
+    const HITTING_ORDER = ['battingAverage', 'homeRuns', 'runsBattedIn', 'stolenBases'];
+    const PITCHING_ORDER = ['earnedRunAverage', 'wins', 'strikeouts', 'saves'];
+    const leagueLeaders = mlbLeaders?.[widgetMlbLeague] || [];
+    const categories = new Map(leagueLeaders.map(cat => [cat.leaderCategory, cat]));
 
-    let html = '';
-    mlbLeaders.forEach(cat => {
-        const config = WANTED_MLB[cat.leaderCategory];
-        if (!config) return;
+    const renderCategory = (category) => {
+        const cat = categories.get(category);
+        const config = WANTED_MLB[category];
+        if (!cat || !config) return '';
         const all = cat.leaders || [];
-        if (!all.length) return;
-        const key = `sp-stat-mlb-${cat.leaderCategory}`;
+        if (!all.length) return '';
+        const key = `sp-stat-mlb-${widgetMlbLeague}-${cat.leaderCategory}`;
         const top = SPORTS_STAT_EXPANDED.has(key) ? all : all.slice(0, SPORTS_STAT_COLLAPSED_LIMIT);
 
         const rows = top.map((l, i) => {
@@ -519,7 +537,7 @@ function widgetMlbStatLeaders(mlbLeaders) {
             </tr>`;
         }).join('');
 
-        html += `
+        return `
         <div class="sp-standings-wrap">
             <div class="sp-section-title" style="margin-top:6px;">${config.title}</div>
             <table class="sp-standings-table">
@@ -528,7 +546,17 @@ function widgetMlbStatLeaders(mlbLeaders) {
             </table>
             ${sportsStatMoreBtnHtml(key, all.length, '더보기')}
         </div>`;
-    });
+    };
+
+    let html = `
+        <div class="sp-mlb-league-tabs" role="tablist" aria-label="MLB 리그 선택">
+            <button type="button" class="sp-mlb-league-tab ${widgetMlbLeague === 'al' ? 'active' : ''}" role="tab" aria-selected="${widgetMlbLeague === 'al'}" onclick="setWidgetMlbLeague('al')">아메리칸리그</button>
+            <button type="button" class="sp-mlb-league-tab ${widgetMlbLeague === 'nl' ? 'active' : ''}" role="tab" aria-selected="${widgetMlbLeague === 'nl'}" onclick="setWidgetMlbLeague('nl')">내셔널리그</button>
+        </div>
+        <div class="sp-mlb-stat-group">타자</div>`;
+    html += HITTING_ORDER.map(renderCategory).join('');
+    html += '<div class="sp-mlb-stat-group">투수</div>';
+    html += PITCHING_ORDER.map(renderCategory).join('');
     return html;
 }
 
