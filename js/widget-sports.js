@@ -405,7 +405,17 @@ async function loadWidgetData(tab) {
 function renderWidget(tab, data) {
     // 과거 시즌 선택 중이면 경기 일정/LIVE는 의미가 없으니 표·득점왕만 보여준다(2026-08-25).
     if (data.season) {
-        let html = `<div class="sp-state-box" style="padding:14px 0;"><i class="fa-solid fa-clock-rotate-left" style="color:#94a3b8;"></i><span>${data.season}-${String(Number(data.season)+1).slice(2)} 시즌 최종 기록</span></div>`;
+        const seasonLabel = tab === 'mlb'
+            ? `${data.season} 시즌 최종 기록`
+            : `${data.season}-${String(Number(data.season)+1).slice(2)} 시즌 최종 기록`;
+        let html = `<div class="sp-state-box" style="padding:14px 0;"><i class="fa-solid fa-clock-rotate-left" style="color:#94a3b8;"></i><span>${seasonLabel}</span></div>`;
+        if (tab === 'mlb') {
+            if (data.mlbLeaders?.al?.length || data.mlbLeaders?.nl?.length) {
+                html += widgetMlbStatLeaders(data.mlbLeaders);
+            } else {
+                html += `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해주세요.</span></div>`;
+            }
+        }
         if (data.standings) html += widgetStandings(data.standings, tab);
         const catsSeason = widgetStatCategories(data.stats, tab);
         if (catsSeason) html += widgetStatLeaders(catsSeason, tab);
