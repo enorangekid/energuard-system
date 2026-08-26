@@ -425,17 +425,21 @@ function renderWidget(tab, data) {
     if (live.length)  html += widgetSection(`LIVE (${live.length}경기)`, live.map(e=>widgetCard(e,'live',tab)).join(''));
     if (pre.length)   html += widgetSection('예정 경기',  pre.map(e=>widgetCard(e,'sched',tab)).join(''));
     if (post.length)  html += widgetSection('최근 결과',  post.map(e=>widgetCard(e,'final',tab)).join(''));
-    if (!html)        html  = `<div class="sp-state-box"><i class="fa-regular fa-calendar-xmark"></i><span>경기 정보가 없습니다</span></div>`;
+    if (!html && !data.season) html = `<div class="sp-state-box"><i class="fa-regular fa-calendar-xmark"></i><span>경기 정보가 없습니다</span></div>`;
 
+    if (tab === 'mlb') {
+        if (data.mlbLeaders?.al?.length || data.mlbLeaders?.nl?.length) {
+            html += widgetMlbStatLeaders(data.mlbLeaders);
+        } else {
+            html += `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해주세요.</span></div>`;
+        }
+    }
     if (data.standings) {
         html += widgetStandings(data.standings, tab);
     }
     const cats = widgetStatCategories(data.stats, tab);
     if (cats) {
         html += widgetStatLeaders(cats, tab);
-    }
-    if (data.mlbLeaders?.al?.length || data.mlbLeaders?.nl?.length) {
-        html += widgetMlbStatLeaders(data.mlbLeaders);
     }
 
     document.getElementById('sp-content').innerHTML = html;
