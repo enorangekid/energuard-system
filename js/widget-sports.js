@@ -488,7 +488,8 @@ function widgetStatLeaders(stats, tab) {
         html += `
         <div class="sp-standings-wrap">
             <div class="sp-section-title" style="margin-top:6px;">${title}</div>
-            <table class="sp-standings-table">
+            <table class="sp-standings-table sp-stat-table">
+                <colgroup><col class="sp-stat-col-rank"><col class="sp-stat-col-player"><col class="sp-stat-col-team"><col class="sp-stat-col-value"></colgroup>
                 <thead><tr><th>#</th><th>선수</th><th>팀</th><th>${cat.abbreviation || ''}</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>
@@ -540,7 +541,8 @@ function widgetMlbStatLeaders(mlbLeaders) {
         return `
         <div class="sp-standings-wrap">
             <div class="sp-section-title" style="margin-top:6px;">${config.title}</div>
-            <table class="sp-standings-table">
+            <table class="sp-standings-table sp-stat-table">
+                <colgroup><col class="sp-stat-col-rank"><col class="sp-stat-col-player"><col class="sp-stat-col-team"><col class="sp-stat-col-value"></colgroup>
                 <thead><tr><th>#</th><th>선수</th><th>팀</th><th>${config.label}</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>
