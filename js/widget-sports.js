@@ -298,9 +298,19 @@ const WIDGET_MLB_LEADERS_URL = (year, leagueId) => ({
     pitching: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=earnedRunAverage,wins,strikeouts,saves&sportId=1&statGroup=pitching&season=${year}&leagueId=${leagueId}&limit=10`,
 });
 
-// 과거 시즌 선택 — EPL만 지원(2026-08-25). 탭별로 따로 기억한다(다른 탭 갔다와도 유지).
+// 과거 시즌 선택 — EPL과 MLB에서 지원한다. 탭별로 따로 기억해 다른 종목을 보고
+// 돌아와도 마지막 선택 시즌을 유지한다.
 const widgetSeason = {};
+const WIDGET_SEASON_YEARS = Array.from({ length: 11 }, (_, index) => 2025 - index);
 let widgetMlbLeague = 'al';
+
+function updateWidgetSeasonOptions(tab, select) {
+    const isMlb = tab === 'mlb';
+    select.innerHTML = '<option value="">현재 시즌</option>' + WIDGET_SEASON_YEARS.map(year => {
+        const label = isMlb ? `${year} 시즌` : `${year}-${String(year + 1).slice(-2)} 시즌`;
+        return `<option value="${year}">${label}</option>`;
+    }).join('');
+}
 
 function setWidgetTab(tab, el) {
     currentWidgetTab = tab;
@@ -309,7 +319,9 @@ function setWidgetTab(tab, el) {
 
     const seasonSel = document.getElementById('sp-season-select');
     if (seasonSel) {
-        seasonSel.style.display = (tab === 'epl') ? '' : 'none';
+        const supportsSeason = tab === 'epl' || tab === 'mlb';
+        seasonSel.style.display = supportsSeason ? '' : 'none';
+        if (supportsSeason) updateWidgetSeasonOptions(tab, seasonSel);
         seasonSel.value = widgetSeason[tab] || '';
     }
 
@@ -345,7 +357,7 @@ async function loadWidgetData(tab) {
     icon.classList.add('fa-spin');
 
     try {
-        const season = widgetSeason[tab]; // 과거 시즌 선택 시(EPL만) — 표/득점왕만 그 시즌 기준으로
+        const season = widgetSeason[tab]; // 과거 시즌은 경기 목록 없이 순위표와 선수 스탯만 표시한다.
         const seasonQS = season ? `?season=${season}` : '';
 
         // 과거 시즌을 볼 땐 "지금 진행중/예정" 경기 목록은 의미가 없으니 스코어보드는 안 부른다.
@@ -354,7 +366,7 @@ async function loadWidgetData(tab) {
             : WIDGET_SCORE_EP[tab];
         const mlbLeadersPromise = (tab === 'mlb')
             ? (() => {
-                const year = new Date().getFullYear();
+                const year = Number(season) || new Date().getFullYear();
                 const fetchLeagueLeaders = (leagueId) => {
                     const urls = WIDGET_MLB_LEADERS_URL(year, leagueId);
                     return Promise.all([
