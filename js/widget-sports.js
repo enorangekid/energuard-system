@@ -269,13 +269,11 @@ const WIDGET_SCORE_EP = {
     epl: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard',
     ucl: 'https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard',
     wc:  'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard',
-    mlb: 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard',
 };
 const WIDGET_STAND_EP = {
     nba: 'https://site.api.espn.com/apis/v2/sports/basketball/nba/standings',
     epl: 'https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings',
     wc:  'https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings',
-    mlb: 'https://site.api.espn.com/apis/v2/sports/baseball/mlb/standings',
 };
 // 리그 스탯 순위(득점왕 등) — EPL은 이 ESPN 엔드포인트로. MLB용 ESPN 히든 API
 // (.../mlb/statistics)는 시즌 33경기 시점에서 멈춘 채 갱신이 안 되는 게 확인돼서
@@ -303,6 +301,8 @@ const WIDGET_MLB_LEADERS_URL = (year, leagueId) => ({
 const widgetSeason = {};
 const WIDGET_SEASON_YEARS = Array.from({ length: 11 }, (_, index) => 2025 - index);
 let widgetMlbLeague = 'al';
+let widgetMlbView = 'stats';
+let widgetLoadRequestId = 0;
 
 function updateWidgetSeasonOptions(tab, select) {
     const isMlb = tab === 'mlb';
@@ -350,7 +350,96 @@ function widgetDateRange() {
     return `${fmt(start)}-${fmt(end)}`;
 }
 
+function widgetMlbDateRange() {
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const start = new Date(); start.setDate(start.getDate() - 6);
+    const end = new Date(); end.setDate(end.getDate() + 7);
+    return { start: fmt(start), end: fmt(end) };
+}
+
+async function fetchWidgetJson(url, timeoutMs = 12000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        console.warn('Widget API request failed:', url, error?.name || error);
+        return null;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+function adaptMlbSchedule(data) {
+    const games = (data?.dates || []).flatMap(date => date.games || []);
+    return {
+        events: games.map(game => {
+            const state = game.status?.abstractGameState === 'Live'
+                ? 'in'
+                : game.status?.abstractGameState === 'Final' ? 'post' : 'pre';
+            const competitor = homeAway => {
+                const side = game.teams?.[homeAway] || {};
+                const team = side.team || {};
+                return {
+                    homeAway,
+                    score: side.score ?? '0',
+                    winner: Boolean(side.isWinner),
+                    records: [{ summary: side.leagueRecord ? `${side.leagueRecord.wins}-${side.leagueRecord.losses}` : '' }],
+                    team: {
+                        id: team.id,
+                        name: team.name,
+                        shortDisplayName: team.teamName || team.shortName || team.name,
+                        abbreviation: team.abbreviation,
+                        logo: team.id ? `https://www.mlbstatic.com/team-logos/${team.id}.svg` : '',
+                    },
+                };
+            };
+            return {
+                id: game.gamePk,
+                date: game.gameDate,
+                status: {
+                    type: {
+                        state,
+                        detail: game.status?.detailedState || '',
+                    },
+                    displayClock: game.linescore?.currentInningOrdinal || '',
+                    period: game.linescore?.currentInning || '',
+                },
+                competitions: [{ competitors: [competitor('home'), competitor('away')] }],
+            };
+        }),
+    };
+}
+
+function adaptMlbStandings(data) {
+    const children = (data?.records || []).map(record => ({
+        standings: {
+            entries: (record.teamRecords || []).map(item => ({
+                team: {
+                    id: item.team?.id,
+                    name: item.team?.name,
+                    displayName: item.team?.name,
+                    shortDisplayName: item.team?.teamName || item.team?.shortName || item.team?.name,
+                    abbreviation: item.team?.abbreviation,
+                    logo: item.team?.id ? `https://www.mlbstatic.com/team-logos/${item.team.id}.svg` : '',
+                    logos: item.team?.id ? [{ href: `https://www.mlbstatic.com/team-logos/${item.team.id}.svg` }] : [],
+                },
+                stats: [
+                    { name: 'gamesPlayed', displayValue: String(item.gamesPlayed ?? '') },
+                    { name: 'wins', displayValue: String(item.wins ?? item.leagueRecord?.wins ?? '') },
+                    { name: 'losses', displayValue: String(item.losses ?? item.leagueRecord?.losses ?? '') },
+                    { name: 'winPercent', displayValue: item.winningPercentage ?? item.leagueRecord?.pct ?? '' },
+                ],
+            })),
+        },
+    }));
+    return children.length ? { children } : null;
+}
+
 async function loadWidgetData(tab) {
+    const requestId = ++widgetLoadRequestId;
     const content = document.getElementById('sp-content');
     const icon = document.getElementById('sp-refreshIcon');
     content.innerHTML = `<div class="sp-state-box sp-loading"><i class="fa-solid fa-spinner fa-spin"></i><span>데이터를 불러오는 중입니다...</span></div>`;
@@ -364,14 +453,23 @@ async function loadWidgetData(tab) {
         const scoreUrl = WIDGET_CFG[tab]?.soccer
             ? `${WIDGET_SCORE_EP[tab]}?dates=${widgetDateRange()}`
             : WIDGET_SCORE_EP[tab];
+        const mlbYear = Number(season) || new Date().getFullYear();
+        const mlbDates = widgetMlbDateRange();
+        const mlbSchedulePromise = tab === 'mlb' && !season
+            ? fetchWidgetJson(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&startDate=${mlbDates.start}&endDate=${mlbDates.end}&hydrate=linescore,team`)
+                .then(adaptMlbSchedule)
+            : Promise.resolve(null);
+        const mlbStandingsPromise = tab === 'mlb'
+            ? fetchWidgetJson(`https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${mlbYear}&standingsTypes=regularSeason&hydrate=team`)
+                .then(adaptMlbStandings)
+            : Promise.resolve(null);
         const mlbLeadersPromise = (tab === 'mlb')
             ? (() => {
-                const year = Number(season) || new Date().getFullYear();
                 const fetchLeagueLeaders = (leagueId) => {
-                    const urls = WIDGET_MLB_LEADERS_URL(year, leagueId);
+                    const urls = WIDGET_MLB_LEADERS_URL(mlbYear, leagueId);
                     return Promise.all([
-                        fetch(urls.hitting).then(r => r.json()).catch(() => null),
-                        fetch(urls.pitching).then(r => r.json()).catch(() => null),
+                        fetchWidgetJson(urls.hitting),
+                        fetchWidgetJson(urls.pitching),
                     ]).then(([h, p]) => [...(h?.leagueLeaders || []), ...(p?.leagueLeaders || [])]);
                 };
                 return Promise.all([
@@ -382,12 +480,17 @@ async function loadWidgetData(tab) {
             : Promise.resolve(null);
 
         const [scoreRes, standRes, statsRes, mlbLeaders] = await Promise.all([
-            season ? Promise.resolve(null) : fetch(scoreUrl).then(r => r.json()),
-            WIDGET_STAND_EP[tab] ? fetch(`${WIDGET_STAND_EP[tab]}${seasonQS}`).then(r => r.json()).catch(()=>null) : Promise.resolve(null),
-            WIDGET_STATS_EP[tab] ? fetch(`${WIDGET_STATS_EP[tab]}${seasonQS}`).then(r => r.json()).catch(()=>null) : Promise.resolve(null),
+            tab === 'mlb'
+                ? mlbSchedulePromise
+                : season ? Promise.resolve(null) : fetchWidgetJson(scoreUrl),
+            tab === 'mlb'
+                ? mlbStandingsPromise
+                : WIDGET_STAND_EP[tab] ? fetchWidgetJson(`${WIDGET_STAND_EP[tab]}${seasonQS}`) : Promise.resolve(null),
+            WIDGET_STATS_EP[tab] ? fetchWidgetJson(`${WIDGET_STATS_EP[tab]}${seasonQS}`) : Promise.resolve(null),
             mlbLeadersPromise
         ]);
 
+        if (requestId !== widgetLoadRequestId || tab !== currentWidgetTab) return;
         widgetCache[tab] = { scores: scoreRes, standings: standRes, stats: statsRes, mlbLeaders, season };
         renderWidget(tab, widgetCache[tab]);
 
@@ -395,10 +498,11 @@ async function loadWidgetData(tab) {
         document.getElementById('sp-updateTime').innerText =
             `업데이트 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     } catch(e) {
+        if (requestId !== widgetLoadRequestId || tab !== currentWidgetTab) return;
         content.innerHTML = `<div class="sp-state-box"><i class="fa-solid fa-satellite-dish" style="color:#ef4444; font-size:32px;"></i><span style="margin-top:10px;">데이터를 불러오지 못했습니다.</span><span style="font-size:11px; color:#94a3b8; font-weight:normal;">잠시 후 다시 시도해주세요.</span></div>`;
         console.error("Widget API Error:", e);
     } finally {
-        icon.classList.remove('fa-spin');
+        if (requestId === widgetLoadRequestId) icon.classList.remove('fa-spin');
     }
 }
 
@@ -410,15 +514,23 @@ function renderWidget(tab, data) {
             : `${data.season}-${String(Number(data.season)+1).slice(2)} 시즌 최종 기록`;
         let html = `<div class="sp-state-box" style="padding:14px 0;"><i class="fa-solid fa-clock-rotate-left" style="color:#94a3b8;"></i><span>${seasonLabel}</span></div>`;
         if (tab === 'mlb') {
-            if (data.mlbLeaders?.al?.length || data.mlbLeaders?.nl?.length) {
-                html += widgetMlbStatLeaders(data.mlbLeaders);
+            html += widgetMlbViewTabs();
+            if (widgetMlbView === 'stats') {
+                if (data.mlbLeaders?.al?.length || data.mlbLeaders?.nl?.length) {
+                    html += widgetMlbStatLeaders(data.mlbLeaders);
+                } else {
+                    html += `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해주세요.</span></div>`;
+                }
             } else {
-                html += `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해주세요.</span></div>`;
+                html += data.standings
+                    ? widgetStandings(data.standings, tab)
+                    : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해주세요.</span></div>`;
             }
+        } else {
+            if (data.standings) html += widgetStandings(data.standings, tab);
+            const catsSeason = widgetStatCategories(data.stats, tab);
+            if (catsSeason) html += widgetStatLeaders(catsSeason, tab);
         }
-        if (data.standings) html += widgetStandings(data.standings, tab);
-        const catsSeason = widgetStatCategories(data.stats, tab);
-        if (catsSeason) html += widgetStatLeaders(catsSeason, tab);
         document.getElementById('sp-content').innerHTML = html;
         return;
     }
@@ -438,13 +550,19 @@ function renderWidget(tab, data) {
     if (!html && !data.season) html = `<div class="sp-state-box"><i class="fa-regular fa-calendar-xmark"></i><span>경기 정보가 없습니다</span></div>`;
 
     if (tab === 'mlb') {
-        if (data.mlbLeaders?.al?.length || data.mlbLeaders?.nl?.length) {
-            html += widgetMlbStatLeaders(data.mlbLeaders);
+        html += widgetMlbViewTabs();
+        if (widgetMlbView === 'stats') {
+            if (data.mlbLeaders?.al?.length || data.mlbLeaders?.nl?.length) {
+                html += widgetMlbStatLeaders(data.mlbLeaders);
+            } else {
+                html += `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해주세요.</span></div>`;
+            }
         } else {
-            html += `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해주세요.</span></div>`;
+            html += data.standings
+                ? widgetStandings(data.standings, tab)
+                : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해주세요.</span></div>`;
         }
-    }
-    if (data.standings) {
+    } else if (data.standings) {
         html += widgetStandings(data.standings, tab);
     }
     const cats = widgetStatCategories(data.stats, tab);
@@ -477,6 +595,20 @@ window.setWidgetMlbLeague = function(league) {
     widgetMlbLeague = league;
     if (widgetCache.mlb) renderWidget('mlb', widgetCache.mlb);
 };
+
+window.setWidgetMlbView = function(view) {
+    if (view !== 'stats' && view !== 'standings') return;
+    widgetMlbView = view;
+    if (widgetCache.mlb) renderWidget('mlb', widgetCache.mlb);
+};
+
+function widgetMlbViewTabs() {
+    return `
+        <div class="sp-mlb-league-tabs sp-mlb-view-tabs" role="tablist" aria-label="MLB 데이터 선택">
+            <button type="button" class="sp-mlb-league-tab ${widgetMlbView === 'stats' ? 'active' : ''}" role="tab" aria-selected="${widgetMlbView === 'stats'}" onclick="setWidgetMlbView('stats')">선수 스탯</button>
+            <button type="button" class="sp-mlb-league-tab ${widgetMlbView === 'standings' ? 'active' : ''}" role="tab" aria-selected="${widgetMlbView === 'standings'}" onclick="setWidgetMlbView('standings')">팀 순위</button>
+        </div>`;
+}
 
 // 리그 득점/도움 순위 — ESPN statistics 엔드포인트의 stats[] 배열에서 득점(goalsLeaders)과
 // 도움(assistsLeaders) 항목만 뽑아 상위 5명을 보여준다(2026-08-25). 선수명은 번역 목록이
@@ -612,7 +744,10 @@ function widgetCard(ev, type, tab) {
     let badge='', tinfo='';
     if (type==='live') {
         badge = `<span class="sp-status-badge live">LIVE</span>`;
-        tinfo = `<span class="sp-time-info live">${ev.status?.displayClock||''} ${ev.status?.period?`Q${ev.status.period}`:''}</span>`;
+        const liveDetail = tab === 'mlb'
+            ? (ev.status?.displayClock || (ev.status?.period ? `${ev.status.period}회` : ''))
+            : `${ev.status?.displayClock||''} ${ev.status?.period?`Q${ev.status.period}`:''}`;
+        tinfo = `<span class="sp-time-info live">${liveDetail}</span>`;
     } else if (type==='final') {
         badge = `<span class="sp-status-badge final">종료</span>`;
         tinfo = `<span class="sp-time-info">Final</span>`;
