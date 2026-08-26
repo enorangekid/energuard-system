@@ -301,7 +301,7 @@ const WIDGET_MLB_LEADERS_URL = (year, leagueId) => ({
 const widgetSeason = {};
 const WIDGET_SEASON_YEARS = Array.from({ length: 11 }, (_, index) => 2025 - index);
 let widgetMlbLeague = 'al';
-let widgetMlbView = 'stats';
+let widgetMlbView = 'standings';
 let widgetLoadRequestId = 0;
 
 function updateWidgetSeasonOptions(tab, select) {
@@ -605,8 +605,8 @@ window.setWidgetMlbView = function(view) {
 function widgetMlbViewTabs() {
     return `
         <div class="sp-mlb-league-tabs sp-mlb-view-tabs" role="tablist" aria-label="MLB 데이터 선택">
-            <button type="button" class="sp-mlb-league-tab ${widgetMlbView === 'stats' ? 'active' : ''}" role="tab" aria-selected="${widgetMlbView === 'stats'}" onclick="setWidgetMlbView('stats')">선수 스탯</button>
             <button type="button" class="sp-mlb-league-tab ${widgetMlbView === 'standings' ? 'active' : ''}" role="tab" aria-selected="${widgetMlbView === 'standings'}" onclick="setWidgetMlbView('standings')">팀 순위</button>
+            <button type="button" class="sp-mlb-league-tab ${widgetMlbView === 'stats' ? 'active' : ''}" role="tab" aria-selected="${widgetMlbView === 'stats'}" onclick="setWidgetMlbView('stats')">선수 스탯</button>
         </div>`;
 }
 
