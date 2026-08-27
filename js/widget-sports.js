@@ -315,6 +315,7 @@ const WIDGET_SEASON_YEARS = Array.from({ length: 11 }, (_, index) => 2025 - inde
 let widgetMlbLeague = 'al';
 let widgetMlbView = 'standings';
 let widgetNbaView = 'standings';
+let widgetEplView = 'standings';
 let widgetLoadRequestId = 0;
 
 function currentNbaSeasonStartYear() {
@@ -577,10 +578,20 @@ function renderWidget(tab, data) {
                     ? widgetStandings(data.standings, tab)
                     : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
             }
+        } else if (tab === 'epl') {
+            html += widgetEplViewTabs();
+            if (widgetEplView === 'stats') {
+                const catsSeason = widgetStatCategories(data.stats, tab);
+                html += catsSeason
+                    ? widgetStatLeaders(catsSeason, tab)
+                    : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
+            } else {
+                html += data.standings
+                    ? widgetStandings(data.standings, tab)
+                    : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
+            }
         } else {
             if (data.standings) html += widgetStandings(data.standings, tab);
-            const catsSeason = widgetStatCategories(data.stats, tab);
-            if (catsSeason) html += widgetStatLeaders(catsSeason, tab);
         }
         document.getElementById('sp-content').innerHTML = html;
         return;
@@ -626,12 +637,20 @@ function renderWidget(tab, data) {
                 ? widgetStandings(data.standings, tab)
                 : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
         }
+    } else if (tab === 'epl') {
+        html += widgetEplViewTabs();
+        if (widgetEplView === 'stats') {
+            const cats = widgetStatCategories(data.stats, tab);
+            html += cats
+                ? widgetStatLeaders(cats, tab)
+                : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
+        } else {
+            html += data.standings
+                ? widgetStandings(data.standings, tab)
+                : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
+        }
     } else if (data.standings) {
         html += widgetStandings(data.standings, tab);
-    }
-    const cats = widgetStatCategories(data.stats, tab);
-    if (cats) {
-        html += widgetStatLeaders(cats, tab);
     }
 
     document.getElementById('sp-content').innerHTML = html;
@@ -671,6 +690,20 @@ window.setWidgetNbaView = function(view) {
     widgetNbaView = view;
     if (widgetCache.nba) renderWidget('nba', widgetCache.nba);
 };
+
+window.setWidgetEplView = function(view) {
+    if (view !== 'stats' && view !== 'standings') return;
+    widgetEplView = view;
+    if (widgetCache.epl) renderWidget('epl', widgetCache.epl);
+};
+
+function widgetEplViewTabs() {
+    return `
+        <div class="sp-mlb-league-tabs sp-mlb-view-tabs" role="tablist" aria-label="EPL 데이터 선택">
+            <button type="button" class="sp-mlb-league-tab ${widgetEplView === 'standings' ? 'active' : ''}" role="tab" aria-selected="${widgetEplView === 'standings'}" onclick="setWidgetEplView('standings')">팀 순위</button>
+            <button type="button" class="sp-mlb-league-tab ${widgetEplView === 'stats' ? 'active' : ''}" role="tab" aria-selected="${widgetEplView === 'stats'}" onclick="setWidgetEplView('stats')">선수 스탯</button>
+        </div>`;
+}
 
 function widgetNbaViewTabs() {
     return `
