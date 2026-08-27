@@ -268,7 +268,8 @@ const WIDGET_CFG = {
 const WIDGET_SCORE_EP = {
     nba: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard',
     epl: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard',
-    ucl: 'https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard',
+    ucl: ['https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard',
+          'https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions_qual/scoreboard'],
     wc:  'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard',
 };
 const WIDGET_STAND_EP = {
@@ -368,10 +369,10 @@ window.changeWidgetSeason = function(value) {
 // EPL/UCL/WC는 경기가 매일 열리지 않아서, ESPN scoreboard API의 기본값(그날 하루치만)만
 // 받아오면 최근 며칠 새 끝난 경기가 "최근 결과"에 아예 안 잡히는 문제가 있었다
 // (2026-08-25). dates 범위를 넉넉히 지정해서 최근 결과/예정 경기를 같이 잡히게 한다.
-function widgetDateRange() {
+function widgetDateRange(tab) {
     const fmt = (d) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
     const start = new Date(); start.setDate(start.getDate() - 6);
-    const end = new Date(); end.setDate(end.getDate() + 7);
+    const end = new Date(); end.setDate(end.getDate() + (tab === 'ucl' ? 14 : 7));
     return `${fmt(start)}-${fmt(end)}`;
 }
 
@@ -475,9 +476,23 @@ async function loadWidgetData(tab) {
         const seasonQS = season ? `?season=${season}` : '';
 
         // 과거 시즌을 볼 땐 "지금 진행중/예정" 경기 목록은 의미가 없으니 스코어보드는 안 부른다.
-        const scoreUrl = WIDGET_CFG[tab]?.soccer
-            ? `${WIDGET_SCORE_EP[tab]}?dates=${widgetDateRange()}`
-            : WIDGET_SCORE_EP[tab];
+        const scoreEndpoints = Array.isArray(WIDGET_SCORE_EP[tab])
+            ? WIDGET_SCORE_EP[tab]
+            : [WIDGET_SCORE_EP[tab]].filter(Boolean);
+        const scoreUrls = WIDGET_CFG[tab]?.soccer
+            ? scoreEndpoints.map(endpoint => `${endpoint}?dates=${widgetDateRange(tab)}`)
+            : scoreEndpoints;
+        const scorePromise = tab === 'mlb' || season
+            ? Promise.resolve(null)
+            : Promise.all(scoreUrls.map(fetchWidgetJson)).then(responses => {
+                const valid = responses.filter(Boolean);
+                if (!valid.length) return null;
+                const eventMap = new Map();
+                valid.forEach(response => (response.events || []).forEach(event => {
+                    eventMap.set(String(event.id), event);
+                }));
+                return { ...valid[0], events: [...eventMap.values()] };
+            });
         const mlbYear = Number(season) || new Date().getFullYear();
         const mlbDates = widgetMlbDateRange();
         const mlbSchedulePromise = tab === 'mlb' && !season
@@ -518,7 +533,7 @@ async function loadWidgetData(tab) {
         const [scoreRes, standRes, statsRes, mlbLeaders, nbaLeaders] = await Promise.all([
             tab === 'mlb'
                 ? mlbSchedulePromise
-                : season ? Promise.resolve(null) : fetchWidgetJson(scoreUrl),
+                : scorePromise,
             tab === 'mlb'
                 ? mlbStandingsPromise
                 : tab === 'nba'
