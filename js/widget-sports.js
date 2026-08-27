@@ -247,6 +247,7 @@ function getKoName(engName, tab) {
 function toggleWidgetPanel() {
     openPanel('widgetPanel', () => {
         if (!window.widgetInitialized) {
+            syncWidgetSeasonSelect('nba');
             loadWidgetData('nba');
             window.widgetInitialized = true;
         }
@@ -296,20 +297,49 @@ const WIDGET_MLB_LEADERS_URL = (year, leagueId) => ({
     pitching: `https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=earnedRunAverage,wins,strikeouts,saves&sportId=1&statGroup=pitching&season=${year}&leagueId=${leagueId}&limit=10`,
 });
 
-// 과거 시즌 선택 — EPL과 MLB에서 지원한다. 탭별로 따로 기억해 다른 종목을 보고
+const WIDGET_NBA_LEADERS = [
+    { key: 'points', title: '득점 순위', label: 'PTS', group: 'offensive', stat: 'avgPoints', sort: 'offensive.avgPoints' },
+    { key: 'rebounds', title: '리바운드 순위', label: 'REB', group: 'general', stat: 'avgRebounds', sort: 'general.avgRebounds' },
+    { key: 'assists', title: '어시스트 순위', label: 'AST', group: 'offensive', stat: 'avgAssists', sort: 'offensive.avgAssists' },
+    { key: 'steals', title: '스틸 순위', label: 'STL', group: 'defensive', stat: 'avgSteals', sort: 'defensive.avgSteals' },
+    { key: 'blocks', title: '블록 순위', label: 'BLK', group: 'defensive', stat: 'avgBlocks', sort: 'defensive.avgBlocks' },
+];
+
+const WIDGET_NBA_LEADERS_URL = (seasonEndYear, sort) =>
+    `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=true&page=1&limit=10&sort=${encodeURIComponent(sort + ':desc')}&season=${seasonEndYear}&seasontype=2`;
+
+// 과거 시즌 선택 — NBA, EPL과 MLB에서 지원한다. 탭별로 따로 기억해 다른 종목을 보고
 // 돌아와도 마지막 선택 시즌을 유지한다.
 const widgetSeason = {};
 const WIDGET_SEASON_YEARS = Array.from({ length: 11 }, (_, index) => 2025 - index);
 let widgetMlbLeague = 'al';
 let widgetMlbView = 'standings';
+let widgetNbaView = 'standings';
 let widgetLoadRequestId = 0;
+
+function currentNbaSeasonStartYear() {
+    const now = new Date();
+    return now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
+}
 
 function updateWidgetSeasonOptions(tab, select) {
     const isMlb = tab === 'mlb';
-    select.innerHTML = '<option value="">현재 시즌</option>' + WIDGET_SEASON_YEARS.map(year => {
+    const years = tab === 'nba'
+        ? Array.from({ length: 11 }, (_, index) => currentNbaSeasonStartYear() - 1 - index)
+        : WIDGET_SEASON_YEARS;
+    select.innerHTML = '<option value="">현재 시즌</option>' + years.map(year => {
         const label = isMlb ? `${year} 시즌` : `${year}-${String(year + 1).slice(-2)} 시즌`;
         return `<option value="${year}">${label}</option>`;
     }).join('');
+}
+
+function syncWidgetSeasonSelect(tab) {
+    const seasonSel = document.getElementById('sp-season-select');
+    if (!seasonSel) return;
+    const supportsSeason = tab === 'nba' || tab === 'epl' || tab === 'mlb';
+    seasonSel.style.display = supportsSeason ? '' : 'none';
+    if (supportsSeason) updateWidgetSeasonOptions(tab, seasonSel);
+    seasonSel.value = widgetSeason[tab] || '';
 }
 
 function setWidgetTab(tab, el) {
@@ -317,13 +347,7 @@ function setWidgetTab(tab, el) {
     document.querySelectorAll('.sp-tab-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
 
-    const seasonSel = document.getElementById('sp-season-select');
-    if (seasonSel) {
-        const supportsSeason = tab === 'epl' || tab === 'mlb';
-        seasonSel.style.display = supportsSeason ? '' : 'none';
-        if (supportsSeason) updateWidgetSeasonOptions(tab, seasonSel);
-        seasonSel.value = widgetSeason[tab] || '';
-    }
+    syncWidgetSeasonSelect(tab);
 
     if (widgetCache[tab]) renderWidget(tab, widgetCache[tab]);
     else loadWidgetData(tab);
@@ -463,6 +487,17 @@ async function loadWidgetData(tab) {
             ? fetchWidgetJson(`https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${mlbYear}&standingsTypes=regularSeason&hydrate=team`)
                 .then(adaptMlbStandings)
             : Promise.resolve(null);
+        const nbaSeasonStart = Number(season) || currentNbaSeasonStartYear();
+        const nbaSeasonEnd = nbaSeasonStart + 1;
+        const nbaStandingsPromise = tab === 'nba'
+            ? fetchWidgetJson(`${WIDGET_STAND_EP.nba}?season=${nbaSeasonEnd}`)
+            : Promise.resolve(null);
+        const nbaLeadersPromise = tab === 'nba'
+            ? Promise.all(WIDGET_NBA_LEADERS.map(async config => ({
+                ...config,
+                data: await fetchWidgetJson(WIDGET_NBA_LEADERS_URL(nbaSeasonEnd, config.sort)),
+            })))
+            : Promise.resolve(null);
         const mlbLeadersPromise = (tab === 'mlb')
             ? (() => {
                 const fetchLeagueLeaders = (leagueId) => {
@@ -479,19 +514,22 @@ async function loadWidgetData(tab) {
             })()
             : Promise.resolve(null);
 
-        const [scoreRes, standRes, statsRes, mlbLeaders] = await Promise.all([
+        const [scoreRes, standRes, statsRes, mlbLeaders, nbaLeaders] = await Promise.all([
             tab === 'mlb'
                 ? mlbSchedulePromise
                 : season ? Promise.resolve(null) : fetchWidgetJson(scoreUrl),
             tab === 'mlb'
                 ? mlbStandingsPromise
-                : WIDGET_STAND_EP[tab] ? fetchWidgetJson(`${WIDGET_STAND_EP[tab]}${seasonQS}`) : Promise.resolve(null),
+                : tab === 'nba'
+                    ? nbaStandingsPromise
+                    : WIDGET_STAND_EP[tab] ? fetchWidgetJson(`${WIDGET_STAND_EP[tab]}${seasonQS}`) : Promise.resolve(null),
             WIDGET_STATS_EP[tab] ? fetchWidgetJson(`${WIDGET_STATS_EP[tab]}${seasonQS}`) : Promise.resolve(null),
-            mlbLeadersPromise
+            mlbLeadersPromise,
+            nbaLeadersPromise,
         ]);
 
         if (requestId !== widgetLoadRequestId || tab !== currentWidgetTab) return;
-        widgetCache[tab] = { scores: scoreRes, standings: standRes, stats: statsRes, mlbLeaders, season };
+        widgetCache[tab] = { scores: scoreRes, standings: standRes, stats: statsRes, mlbLeaders, nbaLeaders, season };
         renderWidget(tab, widgetCache[tab]);
 
         const now = new Date();
@@ -525,6 +563,19 @@ function renderWidget(tab, data) {
                 html += data.standings
                     ? widgetStandings(data.standings, tab)
                     : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해주세요.</span></div>`;
+            }
+        } else if (tab === 'nba') {
+            html += widgetNbaViewTabs();
+            if (widgetNbaView === 'stats') {
+                if (data.nbaLeaders?.some(item => item.data?.athletes?.length)) {
+                    html += widgetNbaStatLeaders(data.nbaLeaders);
+                } else {
+                    html += `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
+                }
+            } else {
+                html += data.standings
+                    ? widgetStandings(data.standings, tab)
+                    : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
             }
         } else {
             if (data.standings) html += widgetStandings(data.standings, tab);
@@ -561,6 +612,19 @@ function renderWidget(tab, data) {
             html += data.standings
                 ? widgetStandings(data.standings, tab)
                 : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해주세요.</span></div>`;
+        }
+    } else if (tab === 'nba') {
+        html += widgetNbaViewTabs();
+        if (widgetNbaView === 'stats') {
+            if (data.nbaLeaders?.some(item => item.data?.athletes?.length)) {
+                html += widgetNbaStatLeaders(data.nbaLeaders);
+            } else {
+                html += `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
+            }
+        } else {
+            html += data.standings
+                ? widgetStandings(data.standings, tab)
+                : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
         }
     } else if (data.standings) {
         html += widgetStandings(data.standings, tab);
@@ -601,6 +665,20 @@ window.setWidgetMlbView = function(view) {
     widgetMlbView = view;
     if (widgetCache.mlb) renderWidget('mlb', widgetCache.mlb);
 };
+
+window.setWidgetNbaView = function(view) {
+    if (view !== 'stats' && view !== 'standings') return;
+    widgetNbaView = view;
+    if (widgetCache.nba) renderWidget('nba', widgetCache.nba);
+};
+
+function widgetNbaViewTabs() {
+    return `
+        <div class="sp-mlb-league-tabs sp-mlb-view-tabs" role="tablist" aria-label="NBA 데이터 선택">
+            <button type="button" class="sp-mlb-league-tab ${widgetNbaView === 'standings' ? 'active' : ''}" role="tab" aria-selected="${widgetNbaView === 'standings'}" onclick="setWidgetNbaView('standings')">팀 순위</button>
+            <button type="button" class="sp-mlb-league-tab ${widgetNbaView === 'stats' ? 'active' : ''}" role="tab" aria-selected="${widgetNbaView === 'stats'}" onclick="setWidgetNbaView('stats')">선수 스탯</button>
+        </div>`;
+}
 
 function widgetMlbViewTabs() {
     return `
@@ -655,6 +733,54 @@ function widgetStatLeaders(stats, tab) {
         </div>`;
     });
     return html;
+}
+
+// ESPN NBA 선수 통계 응답은 카테고리별 배열 인덱스로 값을 제공한다.
+function nbaAthleteStatValue(response, row, groupName, statName) {
+    const group = response?.categories?.find(category => category.name === groupName);
+    const statIndex = group?.names?.indexOf(statName) ?? -1;
+    if (statIndex < 0) return '-';
+    const values = row?.categories?.find(category => category.name === groupName);
+    return values?.totals?.[statIndex] ?? values?.values?.[statIndex] ?? '-';
+}
+
+function widgetNbaStatLeaders(nbaLeaders) {
+    if (!nbaLeaders?.length) return '';
+
+    return nbaLeaders.map(item => {
+        const all = item.data?.athletes || [];
+        if (!all.length) return '';
+        const key = `sp-stat-nba-${item.key}`;
+        const visible = SPORTS_STAT_EXPANDED.has(key)
+            ? all
+            : all.slice(0, SPORTS_STAT_COLLAPSED_LIMIT);
+        const rows = visible.map((row, index) => {
+            const athlete = row.athlete || {};
+            const teamName = getKoName(athlete.teamName || athlete.teamShortName || '-', 'nba');
+            const logoUrl = athlete.teamLogos?.[0]?.href || '';
+            const logo = logoUrl
+                ? `<img src="${logoUrl}" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:4px;">`
+                : '';
+            const value = nbaAthleteStatValue(item.data, row, item.group, item.stat);
+            return `<tr>
+                <td>${index + 1}</td>
+                <td style="text-align:left;font-weight:600;color:#0f172a;">${athlete.shortName || athlete.displayName || '-'}</td>
+                <td style="text-align:left;"><div style="display:flex;align-items:center;">${logo}${teamName}</div></td>
+                <td style="font-weight:700;color:#0f172a;">${value}</td>
+            </tr>`;
+        }).join('');
+
+        return `
+        <div class="sp-standings-wrap">
+            <div class="sp-section-title" style="margin-top:6px;">${item.title}</div>
+            <table class="sp-standings-table sp-stat-table">
+                <colgroup><col class="sp-stat-col-rank"><col class="sp-stat-col-player"><col class="sp-stat-col-team"><col class="sp-stat-col-value"></colgroup>
+                <thead><tr><th>#</th><th>선수</th><th>팀</th><th>${item.label}</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+            ${sportsStatMoreBtnHtml(key, all.length, '선수 더보기')}
+        </div>`;
+    }).join('');
 }
 
 // MLB 공식 API(statsapi.mlb.com) 응답 전용 렌더러 — ESPN 쪽(widgetStatLeaders)과 필드
