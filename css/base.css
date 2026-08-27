@@ -327,10 +327,14 @@ body {
 
 /* 2. 메인 메뉴 */
 .menu-list { list-style: none; padding: 24px 12px; margin: 0; }
-.menu-item { 
-  padding: 8px 14px; margin-bottom: 4px; cursor: pointer; font-size: 15px; font-weight: 500; 
-  border-radius: 8px; transition: all 0.2s ease; display: flex; align-items: center; color: #cbd5e1; 
+.menu-item {
+  padding: 8px 14px; margin-bottom: 4px; cursor: pointer; font-size: 15px; font-weight: 500;
+  border-radius: 8px; transition: all 0.2s ease; display: flex; align-items: center; color: #cbd5e1;
 }
+/* 마지막 메뉴(단가표) 아래 margin-bottom 4px가 menu-list의 padding-bottom(24px)에 그대로
+   더해져서, 구분선 위(28px)가 구분선 아래(shortcuts-area padding-top 24px)보다 4px 더
+   벌어져 보였다 — 마지막 항목만 margin 없애서 위아래 간격을 24px로 맞춤(2026-08-27) */
+.menu-item:last-child { margin-bottom: 0; }
 .icon-circle {
   width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.05);
   display: flex; align-items: center; justify-content: center;
@@ -416,16 +420,13 @@ body {
   height: 70px; flex-shrink: 0; background: white;
   border-bottom: 1px solid var(--border);
   display: flex; justify-content: space-between; align-items: center;
+  gap: 24px;
   padding: 0 40px;
   z-index: 2000;
   position: sticky;
   top: 0;
 }
-.header-brand-links { display: flex; align-items: center; gap: 12px; font-size: 14.5px; font-weight: 700; }
-.header-brand-links a { color: var(--text-sub); text-decoration: none; transition: 0.15s; }
-.header-brand-links a:hover { color: var(--primary); }
-.header-brand-sep { color: var(--border); font-weight: 400; }
-.header-controls { font-size: 14px; color: var(--text-sub); display: flex; gap: 24px; align-items: center; font-weight: 500; }
+.header-controls { font-size: 14px; color: var(--text-sub); display: flex; gap: 24px; align-items: center; font-weight: 500; flex-shrink: 0; }
 .btn-logout { 
   background: none; 
   border: none; 
@@ -457,6 +458,61 @@ body {
 
 .page-section { display: none; animation: fadeIn 0.4s ease; }
 .page-section.active { display: block; }
+
+/* ================= [페이지 탭바] — 사이드바 카테고리를 브라우저 탭처럼 동시에 열어두기
+   (2026-08-27). 각 page-section은 원래도 DOM에 계속 남아있고 showPage()가 .active만
+   토글하는 구조라, "열려있는 탭 목록"만 별도로 관리하면 자연스럽게 얹힌다.
+   예전엔 헤더 아래 별도 줄(스마트스토어 브랜드 바로가기 3개가 있던 자리)로 뺐었는데,
+   그 브랜드 바로가기를 없애고 이 탭바가 헤더 왼쪽 자리를 그대로 대신하는 걸로 변경
+   (2026-08-27). flex:1 + min-width:0로 header-controls(날씨/시계/로그아웃)는 그대로
+   두고 탭 목록만 자체적으로 가로 스크롤되게 함. */
+.page-tab-strip {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+/* 탭 하나하나가 각각 독립된 카드(다른 대시보드 카드와 같은 흰 배경·둥근 모서리·그림자) —
+   전체를 하나의 통 카드로 감싸지 않고 개별 카드를 나란히 띄운 형태 (2026-08-27).
+   헤더 높이(70px) 안에 들어가야 해서 그림자 폭을 좁게 잡아 위아래 여백 안에서 안 잘리게 함. */
+.pg-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: 0.15s;
+}
+.pg-tab:hover { border-color: #c7d2fe; color: var(--text-main); }
+.pg-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(79,70,229,0.25);
+}
+.pg-tab i:first-child { font-size: 12px; }
+.pg-tab-label { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.pg-tab-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 4px; font-size: 10px;
+  color: inherit; opacity: 0.55; margin-left: 2px; flex-shrink: 0;
+}
+.pg-tab-close:hover { opacity: 1; background: rgba(0,0,0,0.08); }
+.pg-tab.active .pg-tab-close:hover { background: rgba(255,255,255,0.25); }
 
 /* notes/media 페이지만 height 100% 필요 (내부 flex 에디터 레이아웃) */
 #page-notes, #page-media { height: 100%; }

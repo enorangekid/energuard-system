@@ -213,6 +213,15 @@
 
         <div class="shortcuts-area">
             <div class="shortcut-group">
+                <!-- 2026-08-27: 헤더에 있던 브랜드 스마트스토어 바로가기 3개를 탭바로 바꾸면서
+                     여기로 옮김 -->
+                <div class="shortcut-title">쇼핑몰 바로가기</div>
+                <a href="https://smartstore.naver.com/energuardcompany" target="_blank" title="에너가드컴퍼니">에너가드컴퍼니 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://smartstore.naver.com/hkdy" target="_blank" title="한국단열">한국단열 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://smartstore.naver.com/hkdylife" target="_blank" title="한국단열라이프">한국단열라이프 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                <a href="https://shop.coupang.com/hkdyshop" target="_blank" title="쿠팡 마이샵">쿠팡 마이샵 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+            </div>
+            <div class="shortcut-group">
                 <div class="shortcut-title">쇼핑몰 관리자 바로가기</div>
                 <a href="https://sell.smartstore.naver.com/#/home/about" target="_blank" title="스마트스토어">스마트스토어 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
                 <a href="https://admin.pay.naver.com/home" target="_blank" title="네이버페이">네이버페이 <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
@@ -244,13 +253,10 @@
 
   <div class="main-content">
     <div class="header">
-      <div class="header-brand-links">
-        <a href="https://smartstore.naver.com/energuardcompany" target="_blank" rel="noopener">에너가드컴퍼니</a>
-        <span class="header-brand-sep">|</span>
-        <a href="https://smartstore.naver.com/hkdy" target="_blank" rel="noopener">한국단열</a>
-        <span class="header-brand-sep">|</span>
-        <a href="https://smartstore.naver.com/hkdylife" target="_blank" rel="noopener">한국단열라이프</a>
-      </div>
+      <!-- 페이지 탭바 — 예전엔 여기가 스마트스토어 브랜드 바로가기 3개였는데, 사이드바
+           카테고리를 브라우저 탭처럼 열어두는 기능으로 바꿈(2026-08-27, common.js의
+           renderPageTabStrip/showPage 참고) -->
+      <div id="pageTabStrip" class="page-tab-strip"></div>
       <div class="header-controls">
         <span id="weather-info" title="포천시 가산면 실시간 날씨" style="display:flex; align-items:center; gap:6px;">
             <i class="fa-solid fa-cloud-sun"></i> 날씨 로딩중...
@@ -846,6 +852,10 @@
                             <span class="ql-formats nt-tool-group">
                                 <button class="ql-clean nt-tb-btn nt-format-btn" type="button" title="초기화" data-label="초기화" data-icon="clean"></button>
                             </span>
+                            <span class="nt-toolbar-divider"></span>
+                            <span class="ql-formats nt-tool-group">
+                                <button type="button" class="nt-tb-btn" onclick="openProjectPrintModal()" title="인쇄" data-label="인쇄" data-icon="print"></button>
+                            </span>
                         </div>
                         <div id="project-editor"></div>
                     </div>
@@ -1185,6 +1195,12 @@
     </ul>
     </aside>
   </div><!-- /.main-content -->
+
+<!-- 프로젝트 인쇄 전용 영역 — 여러 탭을 한 문서로 묶어 인쇄할 때만 채워진다
+     (openProjectPrintModal/printProjectTabs, 2026-08-26). body의 직속 자식이어야
+     인쇄 시 "이것만 남기고 다 숨기기" 규칙이 먹힌다 — .main-content 안에 있으면 그
+     상위가 통째로 display:none 되면서 같이 사라짐. 평소엔 비어서 화면에 안 보임. -->
+<div id="projectPrintArea"></div>
 
 <div id="estimatePanel" class="quick-panel">
     <div class="quick-panel-header">

@@ -412,6 +412,8 @@
 
 .right-quickbar {
   grid-column: 2;
+  /* 2026-08-27: 페이지 탭바를 헤더 안으로 옮기면서 .main-content가 다시 2행(헤더/본문)
+     구조로 돌아왔다 — 퀵바도 원래대로 본문 행(row 2) 하나만 차지하면 된다. */
   grid-row: 2;
   width: 70px;
   height: calc(100dvh - 70px);

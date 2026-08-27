@@ -468,6 +468,65 @@
 #aiSuggestResult.collapsed { max-height: none; }
 #aiSuggestResult.collapsed .ai-result-body { display: none; }
 
+/* ================= [프로젝트 — 탭 여러 개 묶어 인쇄] (2026-08-26) ================= */
+/* 탭 선택 모달 */
+.ppm-overlay {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: center; justify-content: center; z-index: 3000;
+}
+.ppm-box {
+  width: 360px; max-height: 80vh; background: #fff; border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.25); display: flex; flex-direction: column; overflow: hidden;
+}
+.ppm-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b;
+}
+.ppm-close {
+  width: 26px; height: 26px; border-radius: 50%; border: none; background: transparent;
+  color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.15s;
+}
+.ppm-close:hover { background: #f1f5f9; color: #1e293b; }
+.ppm-body { padding: 10px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.ppm-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px; font-size: 13px; color: #334155; cursor: pointer; }
+.ppm-row input { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
+.ppm-footer { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-top: 1px solid #f1f5f9; }
+.ppm-btn-side {
+  padding: 7px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff;
+  color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s;
+}
+.ppm-btn-side:hover { background: #f8fafc; border-color: #cbd5e1; }
+.ppm-btn-print {
+  margin-left: auto; display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 8px; border: none; background: var(--primary);
+  color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; transition: 0.15s;
+}
+.ppm-btn-print:hover { background: var(--primary-hover); }
+
+/* 인쇄 전용 영역 — 평소엔 안 보이다가 인쇄 순간에만 body.project-print-mode로 전환 */
+#projectPrintArea { display: none; }
+@media print {
+  body.project-print-mode > *:not(#projectPrintArea) { display: none !important; }
+  /* quote.css의 노트 인쇄 규칙(body:not(.print-mode-wrap) * { visibility:hidden })이
+     print-mode-wrap이 아닌 body.project-print-mode에도 걸려서 내용이 안 보이게 만든다.
+     display와 별개 속성이라 여기서 다시 visible로 되돌려야 한다. */
+  body.project-print-mode #projectPrintArea,
+  body.project-print-mode #projectPrintArea * {
+    visibility: visible !important;
+  }
+  body.project-print-mode #projectPrintArea {
+    display: block !important; position: static; padding: 15mm;
+  }
+  .ppa-doc-title { font-size: 22px; font-weight: 800; color: #000; margin-bottom: 22px; }
+  .ppa-tab-block { page-break-before: always; }
+  .ppa-tab-block:first-child { page-break-before: avoid; }
+  .ppa-tab-title {
+    font-size: 18px; font-weight: 800; color: #000; margin-bottom: 14px;
+    padding-bottom: 8px; border-bottom: 2px solid #333;
+  }
+  .ppa-tab-content, .ppa-tab-content * { color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
 .ai-suggest-item {
     margin-bottom: 14px;
     padding: 14px 16px;

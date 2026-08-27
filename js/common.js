@@ -91,7 +91,12 @@ function enterAuthenticatedApp(user, showWelcome = false) {
     applyRoleUI();
     if (showWelcome) showWelcomeModal('관리자', 'admin');
 
-    showPage('dashboard', document.querySelector('.menu-item[onclick*="dashboard"]'), true);
+    // 🚀 새로고침/재접속해도 이전에 열어뒀던 탭들을 그대로 복원
+    loadOpenPageTabs();
+    const restoredId = restoreActivePageTabId();
+    const restoredEl = document.querySelector(`.menu-item[onclick*="showPage('${restoredId}'"]`)
+        || document.querySelector('.menu-item[onclick*="dashboard"]');
+    showPage(restoredId, restoredEl, true);
 }
 
 /* ================= [2. Login Logic] ================= */
@@ -381,6 +386,84 @@ window.openEnerguardLab = function() {
 };
 
 /* ================= [3. Navigation & Routing Logic (새로 추가됨!)] ================= */
+/* ================= [페이지 탭바 — 사이드바 카테고리를 브라우저 탭처럼 동시에 열어두기] =================
+   2026-08-27: page-section들은 원래도 DOM에 항상 다 그려져 있고 showPage()가 .active 클래스만
+   토글하는 구조라, "열려있는 탭 목록"만 별도로 관리하면 자연스럽게 얹을 수 있다.
+   - 사이드바에서 새 카테고리를 열면 탭에 추가(이미 있으면 그대로 활성화만)
+   - 탭은 ×버튼으로 개별로 닫을 수 있고, 탭이 하나뿐이면 닫기 버튼을 숨겨서 0개가 되는 걸 방지
+   - 열린 탭 목록/마지막으로 보던 탭은 localStorage에 저장해서 새로고침·재접속해도 복원됨 */
+const PAGE_TAB_META = {
+    dashboard:   { label: '지표 요약',      icon: 'fa-solid fa-chart-pie' },
+    timeline:    { label: '업무 타임라인',   icon: 'fa-solid fa-clock-rotate-left' },
+    worklog:     { label: '월간 업무일지',   icon: 'fa-solid fa-table-list' },
+    productlogs: { label: '상품 수정 내역',  icon: 'fa-solid fa-pen-to-square' },
+    notes:       { label: '업무 노트',      icon: 'fa-solid fa-pen-nib' },
+    media:       { label: '미디어 콘텐츠',   icon: 'fa-solid fa-photo-film' },
+    pricing:     { label: '단가표',        icon: 'fa-solid fa-tags' },
+};
+const PAGE_TABS_STORE_KEY = 'eg_admin_open_tabs_v1';
+const PAGE_ACTIVE_TAB_STORE_KEY = 'eg_admin_active_tab_v1';
+let openPageTabs = ['dashboard'];
+let currentPageId = 'dashboard';
+
+function loadOpenPageTabs() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(PAGE_TABS_STORE_KEY) || '[]');
+        openPageTabs = Array.isArray(saved) ? saved.filter(id => PAGE_TAB_META[id]) : [];
+    } catch (e) { openPageTabs = []; }
+    if (!openPageTabs.length) openPageTabs = ['dashboard'];
+}
+
+function restoreActivePageTabId() {
+    try {
+        const saved = localStorage.getItem(PAGE_ACTIVE_TAB_STORE_KEY);
+        return (saved && PAGE_TAB_META[saved]) ? saved : 'dashboard';
+    } catch (e) { return 'dashboard'; }
+}
+
+function savePageTabsState() {
+    try {
+        localStorage.setItem(PAGE_TABS_STORE_KEY, JSON.stringify(openPageTabs));
+        localStorage.setItem(PAGE_ACTIVE_TAB_STORE_KEY, currentPageId);
+    } catch (e) { /* localStorage 막힌 환경이면 그냥 탭 기억 기능만 조용히 스킵 */ }
+}
+
+function renderPageTabStrip() {
+    const strip = document.getElementById('pageTabStrip');
+    if (!strip) return;
+    strip.innerHTML = openPageTabs.map(id => {
+        const meta = PAGE_TAB_META[id] || { label: id, icon: 'fa-solid fa-file' };
+        const activeCls = id === currentPageId ? ' active' : '';
+        const closeBtn = openPageTabs.length > 1
+            ? `<span class="pg-tab-close" onclick="event.stopPropagation(); closePageTab('${id}')" title="탭 닫기"><i class="fa-solid fa-xmark"></i></span>`
+            : '';
+        return `<div class="pg-tab${activeCls}" onclick="activatePageTab('${id}')" data-tab-id="${id}">
+            <i class="${meta.icon}"></i><span class="pg-tab-label">${meta.label}</span>${closeBtn}
+        </div>`;
+    }).join('');
+    const activeTabEl = strip.querySelector('.pg-tab.active');
+    if (activeTabEl) activeTabEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+window.activatePageTab = function(pageId) {
+    const el = document.querySelector(`.menu-item[onclick*="showPage('${pageId}'"]`);
+    showPage(pageId, el);
+};
+
+window.closePageTab = function(pageId) {
+    const idx = openPageTabs.indexOf(pageId);
+    if (idx === -1 || openPageTabs.length <= 1) return;
+    openPageTabs.splice(idx, 1);
+    if (currentPageId === pageId) {
+        // 닫은 탭이 지금 보던 탭이었으면 바로 왼쪽(없으면 맨 앞) 탭으로 전환
+        const nextId = openPageTabs[Math.max(0, idx - 1)] || openPageTabs[0];
+        window.activatePageTab(nextId);
+    } else {
+        savePageTabsState();
+        renderPageTabStrip();
+    }
+};
+
 window.showPage = function(pageId, element = null, isHistoryAction = false) {
     // 페이지 전환 시 미리보기 모달 정리
     const _prevModal = document.getElementById('arcPreviewModal');
@@ -394,6 +477,14 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
             pageId  = 'dashboard';
             element = document.querySelector('.menu-item[onclick*=\'dashboard\']');
         }
+    }
+
+    // 🚀 페이지 탭바 등록 — 처음 여는 카테고리면 탭에 추가, 이미 열려있으면 활성화만
+    if (PAGE_TAB_META[pageId]) {
+        currentPageId = pageId;
+        if (!openPageTabs.includes(pageId)) openPageTabs.push(pageId);
+        savePageTabsState();
+        renderPageTabStrip();
     }
 
     // 🚀 [핵심 수정] 페이지 이동 시 무조건 로더 끄고 시작 (이전 페이지 로더 찌꺼기 제거)

@@ -365,7 +365,7 @@ function renderProjectTabStrip() {
     const strip = document.getElementById('projectTabStrip');
     if (!strip) return;
     const chips = projectTabsCache.map((t) => `
-        <div class="proj-tab-chip${t.id === currentProjectTabId ? ' active' : ''}" data-tab-id="${t.id}" onclick="selectProjectTab(${t.id})" ondblclick="renameProjectTabPrompt(${t.id})">
+        <div class="proj-tab-chip${t.id === currentProjectTabId ? ' active' : ''}" data-tab-id="${t.id}" onclick="selectProjectTab(${t.id})" ondblclick="renameProjectTabPrompt(${t.id})" title="더블클릭하여 이름 변경">
             <span class="proj-tab-label">${escapeHtml(t.title)}</span>
             <button type="button" class="proj-tab-del" onclick="event.stopPropagation(); deleteProjectTab(${t.id})" title="탭 삭제">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M18 6l-12 12"/><path d="M6 6l12 12"/></svg>
@@ -448,6 +448,73 @@ window.deleteProjectTab = async function(tabId) {
         showToast('탭 삭제에 실패했습니다.', 'error');
     }
 };
+
+/* ================= [인쇄 — 탭 여러 개를 한 문서로 묶어서] =================
+   Quill 에디터 인스턴스는 하나뿐이라 지금 화면에 있는 탭 내용만 들고 있다 — 나머지 탭은
+   projectTabsCache에 저장된(마지막 저장 시점) content를 그대로 쓴다. 지금 보고 있는 탭만은
+   화면의 최신 내용을 반영하도록 Quill에서 직접 읽는다(2026-08-26). */
+window.openProjectPrintModal = function() {
+    if (!projectTabsCache.length) { showToast('인쇄할 탭이 없습니다.', 'warning'); return; }
+    const rows = projectTabsCache.map((t) => `
+        <label class="ppm-row">
+            <input type="checkbox" class="ppm-check" value="${t.id}" checked>
+            <span>${escapeHtml(t.title)}</span>
+        </label>`).join('');
+    const modal = document.createElement('div');
+    modal.className = 'ppm-overlay';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = `
+        <div class="ppm-box">
+            <div class="ppm-header">
+                <strong>인쇄할 탭 선택</strong>
+                <button type="button" class="ppm-close" onclick="this.closest('.ppm-overlay').remove()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="ppm-body">${rows}</div>
+            <div class="ppm-footer">
+                <button type="button" class="ppm-btn-side" onclick="document.querySelectorAll('.ppm-check').forEach(c=>c.checked=true)">전체 선택</button>
+                <button type="button" class="ppm-btn-side" onclick="document.querySelectorAll('.ppm-check').forEach(c=>c.checked=false)">전체 해제</button>
+                <button type="button" class="ppm-btn-print" onclick="confirmProjectPrint()"><i class="fa-solid fa-print"></i> 인쇄</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+};
+
+window.confirmProjectPrint = function() {
+    const ids = Array.from(document.querySelectorAll('.ppm-check:checked')).map((c) => Number(c.value));
+    document.querySelector('.ppm-overlay')?.remove();
+    if (!ids.length) { showToast('선택된 탭이 없습니다.', 'warning'); return; }
+    printProjectTabs(ids);
+};
+
+function printProjectTabs(tabIds) {
+    const selected = projectTabsCache.filter((t) => tabIds.includes(t.id));
+    if (!selected.length) return;
+    const area = document.getElementById('projectPrintArea');
+    if (!area) return;
+
+    area.innerHTML = `<div class="ppa-doc-title">${escapeHtml(currentProjectTitle || '프로젝트')}</div>` +
+        selected.map((t) => {
+            const content = (t.id === currentProjectTabId && window.projectQuill)
+                ? window.projectQuill.root.innerHTML
+                : (t.content || '');
+            return `
+            <div class="ppa-tab-block">
+                <div class="ppa-tab-title">${escapeHtml(t.title)}</div>
+                <div class="ppa-tab-content ql-editor">${content}</div>
+            </div>`;
+        }).join('');
+
+    document.body.classList.add('project-print-mode');
+    window.print();
+    const cleanup = () => {
+        document.body.classList.remove('project-print-mode');
+        area.innerHTML = '';
+        window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+}
 
 /* ================= [저장] ================= */
 async function autoSaveProjectTab() {
@@ -677,6 +744,7 @@ function applyProjectToolbarUi() {
         'align-center': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l16 0"/><path d="M8 12l8 0"/><path d="M6 18l12 0"/></svg>',
         'align-right': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l16 0"/><path d="M10 12l10 0"/><path d="M6 18l14 0"/></svg>',
         clean: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 15l4 4m0 -4l-4 4"/><path d="M7 6v-1h11v1"/><path d="M7 19l4 0"/><path d="M13 5l-4 14"/></svg>',
+        print: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 17h2a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2h-14a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h2"/><path d="M17 9v-4a2 2 0 0 0 -2 -2h-6a2 2 0 0 0 -2 2v4"/><path d="M7 13m0 2a2 2 0 0 1 2 -2h6a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-6a2 2 0 0 1 -2 -2z"/></svg>',
     };
 
     document.querySelectorAll('#project-toolbar button.nt-tb-btn[data-label]').forEach((button) => {
