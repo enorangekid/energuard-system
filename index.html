@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="css/worklog.css">
 <link rel="stylesheet" href="css/notes.css">
 <link rel="stylesheet" href="css/ui-dashboard.css">
-<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/panels.css?v=20260828-mlbfullfeed">
 <link rel="stylesheet" href="css/quote.css">
 <link rel="stylesheet" href="css/toast.css">
 <link rel="stylesheet" href="css/pricing.css">
@@ -1603,23 +1603,21 @@
         </div>
         <div class="sp-meta-bar">
             <span class="sp-update-time" id="sp-updateTime">업데이트 대기</span>
-            <select id="sp-season-select" class="sp-season-select" onchange="changeWidgetSeason(this.value)" style="display:none;">
-                <option value="">현재 시즌</option>
-                <option value="2025">2025-26 시즌</option>
-                <option value="2024">2024-25 시즌</option>
-                <option value="2023">2023-24 시즌</option>
-                <option value="2022">2022-23 시즌</option>
-                <option value="2021">2021-22 시즌</option>
-                <option value="2020">2020-21 시즌</option>
-                <option value="2019">2019-20 시즌</option>
-                <option value="2018">2018-19 시즌</option>
-                <option value="2017">2017-18 시즌</option>
-                <option value="2016">2016-17 시즌</option>
-                <option value="2015">2015-16 시즌</option>
-            </select>
             <button class="sp-refresh-btn" onclick="reloadWidget()">
                 <i class="fa-solid fa-rotate-right" id="sp-refreshIcon"></i> 새로고침
             </button>
+        </div>
+        <div id="sp-season-bar" class="sp-season-bar" style="display:none;">
+            <label class="sp-season-label" for="sp-season-select">
+                <i class="fa-regular fa-calendar"></i>
+                <span>시즌</span>
+            </label>
+            <div class="sp-season-control">
+                <select id="sp-season-select" class="sp-season-select" onchange="changeWidgetSeason(this.value)" aria-label="시즌 선택">
+                    <option value="">현재 시즌</option>
+                </select>
+                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            </div>
         </div>
         <div class="sp-content" id="sp-content">
             <div class="sp-state-box sp-loading">
@@ -1714,7 +1712,7 @@
   <div id="toast-container"></div>
 
 <script src="js/common.js?v=20260820-authfix2"></script>
-<script src="js/widget-sports.js?v=20260827-uclfix"></script>
+<script src="js/widget-sports.js?v=20260828-mlbfullfeed"></script>
 <script src="js/estimate.js"></script>
 <script src="js/notes.js"></script>
 <script src="js/media.js"></script>

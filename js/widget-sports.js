@@ -159,6 +159,24 @@ const TEAM_KO_MAP = {
     "Slavia Prague": "슬라비아 프라하",
     "Sparta Prague": "스파르타 프라하",
     "Girona": "지로나", "Girona FC": "지로나",
+    "AEK Athens": "AEK 아테네", "AEK": "AEK 아테네",
+    "Ajax Amsterdam": "아약스",
+    "Atlético Madrid": "아틀레티코", "Atlético": "아틀레티코",
+    "Dinamo Zagreb": "디나모 자그레브",
+    "F.C. København": "FC 코펜하겐", "København": "FC 코펜하겐",
+    "FK Qarabag": "카라바흐", "Qarabag": "카라바흐",
+    "Hapoel Be'er": "하포엘 베르셰바",
+    "Kairat Almaty": "카이라트 알마티",
+    "LASK Linz": "LASK 린츠",
+    "Levski Sofia": "레프스키 소피아",
+    "NEC Nijmegen": "NEC 네이메헌",
+    "NK Celje": "첼레",
+    "Olympiacos": "올림피아코스",
+    "Pafos": "파포스",
+    "Sabah FK": "사바흐 FK", "SABAH FK": "사바흐 FK",
+    "Slovan Bratislava": "슬로반 브라티슬라바", "S Bratislava": "슬로반 브라티슬라바",
+    "Union St.-Gilloise": "위니옹 생질루아즈", "Union SG": "위니옹 생질루아즈",
+    "Viking FK": "비킹 FK",
 
     // 국가대표 (월드컵)
     "Korea Republic": "대한민국", "South Korea": "대한민국",
@@ -244,6 +262,16 @@ function getKoName(engName, tab) {
     return TEAM_KO_MAP[engName] || engName;
 }
 
+function getKoTeamName(team, tab) {
+    if (!team) return '?';
+    const candidates = [team.displayName, team.name, team.shortDisplayName, team.location, team.abbreviation].filter(Boolean);
+    for (const candidate of candidates) {
+        const translated = getKoName(candidate, tab);
+        if (translated !== candidate) return translated;
+    }
+    return candidates[0] || '?';
+}
+
 function toggleWidgetPanel() {
     openPanel('widgetPanel', () => {
         if (!window.widgetInitialized) {
@@ -275,6 +303,7 @@ const WIDGET_SCORE_EP = {
 const WIDGET_STAND_EP = {
     nba: 'https://site.api.espn.com/apis/v2/sports/basketball/nba/standings',
     epl: 'https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings',
+    ucl: 'https://site.api.espn.com/apis/v2/sports/soccer/uefa.champions/standings',
     wc:  'https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings',
 };
 // 리그 스탯 순위(득점왕 등) — EPL은 이 ESPN 엔드포인트로. MLB용 ESPN 히든 API
@@ -283,6 +312,7 @@ const WIDGET_STAND_EP = {
 // MLB 공식 API(statsapi.mlb.com)로 따로 가져온다 — 아래 WIDGET_MLB_LEADERS_EP 참고.
 const WIDGET_STATS_EP = {
     epl: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/statistics',
+    ucl: 'https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/statistics',
 };
 
 function widgetStatCategories(statsRes, tab) {
@@ -317,17 +347,29 @@ let widgetMlbLeague = 'al';
 let widgetMlbView = 'standings';
 let widgetNbaView = 'standings';
 let widgetEplView = 'standings';
+let widgetUclView = 'standings';
 let widgetLoadRequestId = 0;
+const SPORTS_PLAYOFF_EXPANDED = new Set();
+let mlbCommentaryGameId = null;
+let mlbCommentaryRefreshTimer = null;
 
 function currentNbaSeasonStartYear() {
     const now = new Date();
     return now.getMonth() >= 9 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
+function currentUclSeasonStartYear() {
+    const now = new Date();
+    return now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
 function updateWidgetSeasonOptions(tab, select) {
     const isMlb = tab === 'mlb';
-    const years = tab === 'nba'
-        ? Array.from({ length: 11 }, (_, index) => currentNbaSeasonStartYear() - 1 - index)
+    const currentSeasonStart = tab === 'nba'
+        ? currentNbaSeasonStartYear()
+        : tab === 'ucl' ? currentUclSeasonStartYear() : null;
+    const years = currentSeasonStart
+        ? Array.from({ length: 11 }, (_, index) => currentSeasonStart - 1 - index)
         : WIDGET_SEASON_YEARS;
     select.innerHTML = '<option value="">현재 시즌</option>' + years.map(year => {
         const label = isMlb ? `${year} 시즌` : `${year}-${String(year + 1).slice(-2)} 시즌`;
@@ -337,14 +379,16 @@ function updateWidgetSeasonOptions(tab, select) {
 
 function syncWidgetSeasonSelect(tab) {
     const seasonSel = document.getElementById('sp-season-select');
-    if (!seasonSel) return;
-    const supportsSeason = tab === 'nba' || tab === 'epl' || tab === 'mlb';
-    seasonSel.style.display = supportsSeason ? '' : 'none';
+    const seasonBar = document.getElementById('sp-season-bar');
+    if (!seasonSel || !seasonBar) return;
+    const supportsSeason = tab === 'nba' || tab === 'epl' || tab === 'ucl' || tab === 'mlb';
+    seasonBar.style.display = supportsSeason ? '' : 'none';
     if (supportsSeason) updateWidgetSeasonOptions(tab, seasonSel);
     seasonSel.value = widgetSeason[tab] || '';
 }
 
 function setWidgetTab(tab, el) {
+    if (tab !== 'mlb') stopMlbCommentaryRefresh();
     currentWidgetTab = tab;
     document.querySelectorAll('.sp-tab-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
@@ -356,6 +400,7 @@ function setWidgetTab(tab, el) {
 }
 
 function reloadWidget() {
+    stopMlbCommentaryRefresh();
     delete widgetCache[currentWidgetTab];
     loadWidgetData(currentWidgetTab);
 }
@@ -473,7 +518,8 @@ async function loadWidgetData(tab) {
 
     try {
         const season = widgetSeason[tab]; // 과거 시즌은 경기 목록 없이 순위표와 선수 스탯만 표시한다.
-        const seasonQS = season ? `?season=${season}` : '';
+        const apiSeason = tab === 'ucl' ? (Number(season) || currentUclSeasonStartYear()) : season;
+        const seasonQS = apiSeason ? `?season=${apiSeason}` : '';
 
         // 과거 시즌을 볼 땐 "지금 진행중/예정" 경기 목록은 의미가 없으니 스코어보드는 안 부른다.
         const scoreEndpoints = Array.isArray(WIDGET_SCORE_EP[tab])
@@ -484,7 +530,7 @@ async function loadWidgetData(tab) {
             : scoreEndpoints;
         const scorePromise = tab === 'mlb' || season
             ? Promise.resolve(null)
-            : Promise.all(scoreUrls.map(fetchWidgetJson)).then(responses => {
+            : Promise.all(scoreUrls.map(url => fetchWidgetJson(url))).then(responses => {
                 const valid = responses.filter(Boolean);
                 if (!valid.length) return null;
                 const eventMap = new Map();
@@ -514,6 +560,9 @@ async function loadWidgetData(tab) {
                 data: await fetchWidgetJson(WIDGET_NBA_LEADERS_URL(nbaSeasonEnd, config.sort)),
             })))
             : Promise.resolve(null);
+        const nbaPlayoffsPromise = tab === 'nba'
+            ? fetchWidgetJson(`${WIDGET_SCORE_EP.nba}?dates=${nbaSeasonEnd}0401-${nbaSeasonEnd}0701&limit=1000`, 20000)
+            : Promise.resolve(null);
         const mlbLeadersPromise = (tab === 'mlb')
             ? (() => {
                 const fetchLeagueLeaders = (leagueId) => {
@@ -529,8 +578,14 @@ async function loadWidgetData(tab) {
                 ]).then(([al, nl]) => ({ al, nl }));
             })()
             : Promise.resolve(null);
+        const uclTournamentPromise = tab === 'ucl'
+            ? fetchWidgetJson(`${WIDGET_SCORE_EP.ucl[0]}?dates=${apiSeason}0701-${Number(apiSeason) + 1}0701&limit=1000`, 20000)
+            : Promise.resolve(null);
+        const mlbPlayoffsPromise = tab === 'mlb'
+            ? fetchWidgetJson(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&season=${mlbYear}&gameTypes=F,D,L,W&hydrate=linescore,team,seriesStatus`, 20000)
+            : Promise.resolve(null);
 
-        const [scoreRes, standRes, statsRes, mlbLeaders, nbaLeaders] = await Promise.all([
+        const [scoreRes, standRes, statsRes, mlbLeaders, nbaLeaders, uclTournament, nbaPlayoffs, mlbPlayoffs] = await Promise.all([
             tab === 'mlb'
                 ? mlbSchedulePromise
                 : scorePromise,
@@ -542,10 +597,13 @@ async function loadWidgetData(tab) {
             WIDGET_STATS_EP[tab] ? fetchWidgetJson(`${WIDGET_STATS_EP[tab]}${seasonQS}`) : Promise.resolve(null),
             mlbLeadersPromise,
             nbaLeadersPromise,
+            uclTournamentPromise,
+            nbaPlayoffsPromise,
+            mlbPlayoffsPromise,
         ]);
 
         if (requestId !== widgetLoadRequestId || tab !== currentWidgetTab) return;
-        widgetCache[tab] = { scores: scoreRes, standings: standRes, stats: statsRes, mlbLeaders, nbaLeaders, season };
+        widgetCache[tab] = { scores: scoreRes, standings: standRes, stats: statsRes, mlbLeaders, nbaLeaders, uclTournament, nbaPlayoffs, mlbPlayoffs, season };
         renderWidget(tab, widgetCache[tab]);
 
         const now = new Date();
@@ -569,7 +627,9 @@ function renderWidget(tab, data) {
         let html = `<div class="sp-state-box" style="padding:14px 0;"><i class="fa-solid fa-clock-rotate-left" style="color:#94a3b8;"></i><span>${seasonLabel}</span></div>`;
         if (tab === 'mlb') {
             html += widgetMlbViewTabs();
-            if (widgetMlbView === 'stats') {
+            if (widgetMlbView === 'playoffs') {
+                html += widgetMlbPlayoffs(data.mlbPlayoffs);
+            } else if (widgetMlbView === 'stats') {
                 if (data.mlbLeaders?.al?.length || data.mlbLeaders?.nl?.length) {
                     html += widgetMlbStatLeaders(data.mlbLeaders);
                 } else {
@@ -582,7 +642,9 @@ function renderWidget(tab, data) {
             }
         } else if (tab === 'nba') {
             html += widgetNbaViewTabs();
-            if (widgetNbaView === 'stats') {
+            if (widgetNbaView === 'playoffs') {
+                html += widgetNbaPlayoffs(data.nbaPlayoffs);
+            } else if (widgetNbaView === 'stats') {
                 if (data.nbaLeaders?.some(item => item.data?.athletes?.length)) {
                     html += widgetNbaStatLeaders(data.nbaLeaders);
                 } else {
@@ -604,6 +666,19 @@ function renderWidget(tab, data) {
                 html += data.standings
                     ? widgetStandings(data.standings, tab)
                     : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
+            }
+        } else if (tab === 'ucl') {
+            html += widgetUclViewTabs();
+            if (widgetUclView === 'tournament') {
+                html += widgetUclTournament(data.uclTournament);
+            } else if (widgetUclView === 'stats') {
+                const catsSeason = widgetStatCategories(data.stats, tab);
+                html += catsSeason?.length
+                    ? widgetStatLeaders(catsSeason, tab)
+                    : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯을 불러오지 못했습니다.</span><span>해당 시즌 데이터가 아직 제공되지 않습니다.</span></div>`;
+            } else {
+                const standingsHtml = data.standings ? widgetStandings(data.standings, tab) : '';
+                html += standingsHtml || `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>해당 시즌의 리그/조별 순위 데이터가 없습니다.</span></div>`;
             }
         } else {
             if (data.standings) html += widgetStandings(data.standings, tab);
@@ -628,7 +703,9 @@ function renderWidget(tab, data) {
 
     if (tab === 'mlb') {
         html += widgetMlbViewTabs();
-        if (widgetMlbView === 'stats') {
+        if (widgetMlbView === 'playoffs') {
+            html += widgetMlbPlayoffs(data.mlbPlayoffs);
+        } else if (widgetMlbView === 'stats') {
             if (data.mlbLeaders?.al?.length || data.mlbLeaders?.nl?.length) {
                 html += widgetMlbStatLeaders(data.mlbLeaders);
             } else {
@@ -641,7 +718,9 @@ function renderWidget(tab, data) {
         }
     } else if (tab === 'nba') {
         html += widgetNbaViewTabs();
-        if (widgetNbaView === 'stats') {
+        if (widgetNbaView === 'playoffs') {
+            html += widgetNbaPlayoffs(data.nbaPlayoffs);
+        } else if (widgetNbaView === 'stats') {
             if (data.nbaLeaders?.some(item => item.data?.athletes?.length)) {
                 html += widgetNbaStatLeaders(data.nbaLeaders);
             } else {
@@ -663,6 +742,19 @@ function renderWidget(tab, data) {
             html += data.standings
                 ? widgetStandings(data.standings, tab)
                 : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
+        }
+    } else if (tab === 'ucl') {
+        html += widgetUclViewTabs();
+        if (widgetUclView === 'tournament') {
+            html += widgetUclTournament(data.uclTournament);
+        } else if (widgetUclView === 'stats') {
+            const cats = widgetStatCategories(data.stats, tab);
+            html += cats?.length
+                ? widgetStatLeaders(cats, tab)
+                : `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-chart-simple"></i><span>선수 스탯 집계 전입니다.</span><span>리그 페이즈 시작 후 제공됩니다.</span></div>`;
+        } else {
+            const standingsHtml = data.standings ? widgetStandings(data.standings, tab) : '';
+            html += standingsHtml || `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-ranking-star"></i><span>리그 순위 집계 전입니다.</span><span>리그 페이즈 시작 후 제공됩니다.</span></div>`;
         }
     } else if (data.standings) {
         html += widgetStandings(data.standings, tab);
@@ -688,6 +780,11 @@ window.toggleSportsStatExpand = function(key) {
     if (widgetCache[currentWidgetTab]) renderWidget(currentWidgetTab, widgetCache[currentWidgetTab]);
 };
 
+window.toggleSportsPlayoffSeries = function(key) {
+    if (SPORTS_PLAYOFF_EXPANDED.has(key)) SPORTS_PLAYOFF_EXPANDED.delete(key); else SPORTS_PLAYOFF_EXPANDED.add(key);
+    if (widgetCache.nba) renderWidget('nba', widgetCache.nba);
+};
+
 window.setWidgetMlbLeague = function(league) {
     if (league !== 'al' && league !== 'nl') return;
     widgetMlbLeague = league;
@@ -695,13 +792,13 @@ window.setWidgetMlbLeague = function(league) {
 };
 
 window.setWidgetMlbView = function(view) {
-    if (view !== 'stats' && view !== 'standings') return;
+    if (!['standings', 'stats', 'playoffs'].includes(view)) return;
     widgetMlbView = view;
     if (widgetCache.mlb) renderWidget('mlb', widgetCache.mlb);
 };
 
 window.setWidgetNbaView = function(view) {
-    if (view !== 'stats' && view !== 'standings') return;
+    if (!['standings', 'stats', 'playoffs'].includes(view)) return;
     widgetNbaView = view;
     if (widgetCache.nba) renderWidget('nba', widgetCache.nba);
 };
@@ -712,6 +809,12 @@ window.setWidgetEplView = function(view) {
     if (widgetCache.epl) renderWidget('epl', widgetCache.epl);
 };
 
+window.setWidgetUclView = function(view) {
+    if (!['standings', 'stats', 'tournament'].includes(view)) return;
+    widgetUclView = view;
+    if (widgetCache.ucl) renderWidget('ucl', widgetCache.ucl);
+};
+
 function widgetEplViewTabs() {
     return `
         <div class="sp-mlb-league-tabs sp-mlb-view-tabs" role="tablist" aria-label="EPL 데이터 선택">
@@ -720,11 +823,278 @@ function widgetEplViewTabs() {
         </div>`;
 }
 
+function widgetUclViewTabs() {
+    return `
+        <div class="sp-mlb-league-tabs sp-mlb-view-tabs" role="tablist" aria-label="UCL 데이터 선택">
+            <button type="button" class="sp-mlb-league-tab ${widgetUclView === 'standings' ? 'active' : ''}" role="tab" aria-selected="${widgetUclView === 'standings'}" onclick="setWidgetUclView('standings')">팀 순위</button>
+            <button type="button" class="sp-mlb-league-tab ${widgetUclView === 'stats' ? 'active' : ''}" role="tab" aria-selected="${widgetUclView === 'stats'}" onclick="setWidgetUclView('stats')">선수 스탯</button>
+            <button type="button" class="sp-mlb-league-tab ${widgetUclView === 'tournament' ? 'active' : ''}" role="tab" aria-selected="${widgetUclView === 'tournament'}" onclick="setWidgetUclView('tournament')">토너먼트</button>
+        </div>`;
+}
+
+function widgetUclTournament(data) {
+    const ROUND_META = [
+        ['knockout-round-playoffs', '녹아웃 플레이오프'],
+        ['round-of-16', '16강'],
+        ['quarterfinals', '8강'],
+        ['semifinals', '4강'],
+        ['final', '결승'],
+    ];
+    const events = (data?.events || []).filter(event => ROUND_META.some(([slug]) => slug === event.season?.slug));
+    if (!events.length) {
+        return `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-sitemap"></i><span>토너먼트 대진 전입니다.</span><span>대진이 확정되면 라운드별로 표시됩니다.</span></div>`;
+    }
+
+    const safe = value => escapeAdminHtml(String(value ?? ''));
+    const teamName = competitor => getKoTeamName(competitor?.team, 'ucl');
+    const teamLabel = competitor => {
+        const logoUrl = competitor?.team?.logo || competitor?.team?.logos?.[0]?.href;
+        const logo = logoUrl ? `<img src="${safe(logoUrl)}" alt="">` : '<span class="sp-ucl-team-logo-fallback">?</span>';
+        return `<span class="sp-ucl-team-label">${logo}<span>${safe(teamName(competitor))}</span></span>`;
+    };
+    const eventTeamIds = event => (event.competitions?.[0]?.competitors || [])
+        .map(competitor => String(competitor.team?.id || competitor.id || ''))
+        .filter(Boolean)
+        .sort();
+
+    return ROUND_META.map(([slug, title]) => {
+        const roundEvents = events.filter(event => event.season?.slug === slug);
+        if (!roundEvents.length) return '';
+
+        const ties = new Map();
+        roundEvents.forEach(event => {
+            const key = eventTeamIds(event).join('-') || String(event.id);
+            if (!ties.has(key)) ties.set(key, []);
+            ties.get(key).push(event);
+        });
+
+        const cards = [...ties.values()]
+            .sort((a, b) => new Date(a[0].date) - new Date(b[0].date))
+            .map(tieEvents => {
+                const matches = tieEvents.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+                const decidingEvent = matches[matches.length - 1];
+                const decidingComp = decidingEvent.competitions?.[0] || {};
+                const decidingTeams = decidingComp.competitors || [];
+                const home = decidingTeams.find(team => team.homeAway === 'home') || decidingTeams[0];
+                const away = decidingTeams.find(team => team.homeAway === 'away') || decidingTeams[1];
+                const seriesTeams = decidingComp.series?.competitors || [];
+                const seriesById = new Map(seriesTeams.map(team => [String(team.id), team]));
+                const competitorId = competitor => String(competitor?.team?.id || competitor?.id || '');
+                const winner = decidingTeams.find(team => seriesById.get(competitorId(team))?.winner)
+                    || decidingTeams.find(team => team.winner);
+
+                const matchRows = matches.map((event, index) => {
+                    const comp = event.competitions?.[0] || {};
+                    const teams = comp.competitors || [];
+                    const matchHome = teams.find(team => team.homeAway === 'home') || teams[0];
+                    const matchAway = teams.find(team => team.homeAway === 'away') || teams[1];
+                    const state = event.status?.type?.state;
+                    const date = new Date(event.date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+                    const leg = comp.leg?.displayValue === '1st Leg' ? '1차전'
+                        : comp.leg?.displayValue === '2nd Leg' ? '2차전'
+                        : matches.length > 1 ? `${index + 1}차전` : '단판';
+                    const score = state === 'pre'
+                        ? `<span class="sp-ucl-vs">VS</span>`
+                        : `<strong>${safe(matchHome?.score ?? '-')} : ${safe(matchAway?.score ?? '-')}</strong>`;
+                    const detailsHtml = state === 'pre' ? '' : widgetMatchEvents(comp, matchHome, matchAway);
+                    return `<div class="sp-ucl-match-block"><div class="sp-ucl-match-row">
+                        <span class="sp-ucl-match-meta">${safe(date)} · ${leg}</span>
+                        <span>${safe(teamName(matchHome))}</span>${score}<span>${safe(teamName(matchAway))}</span>
+                    </div>${detailsHtml}
+                    </div>`;
+                }).join('');
+
+                let resultHtml = '';
+                if (decidingComp.series?.completed && seriesTeams.length) {
+                    const homeAggregate = seriesById.get(competitorId(home))?.aggregateScore;
+                    const awayAggregate = seriesById.get(competitorId(away))?.aggregateScore;
+                    resultHtml = `<div class="sp-ucl-tie-result"><span>합계 ${safe(homeAggregate)} : ${safe(awayAggregate)}</span><strong>${safe(teamName(winner))} 진출</strong></div>`;
+                } else if (slug === 'final' && decidingEvent.status?.type?.state === 'post' && winner) {
+                    resultHtml = `<div class="sp-ucl-tie-result"><strong>${safe(teamName(winner))} 우승</strong></div>`;
+                }
+
+                return `<article class="sp-ucl-tie-card">
+                    <div class="sp-ucl-tie-title">${teamLabel(home)}<b>VS</b>${teamLabel(away)}</div>
+                    ${matchRows}${resultHtml}
+                </article>`;
+            }).join('');
+
+        return `<section class="sp-ucl-round"><div class="sp-section-title">${title}</div>${cards}</section>`;
+    }).join('');
+}
+
+function sportsPlayoffTeamLabel(team, tab, logoUrl) {
+    const safe = value => escapeAdminHtml(String(value ?? ''));
+    const resolvedLogo = logoUrl || team?.logo || team?.logos?.[0]?.href;
+    const logo = resolvedLogo
+        ? `<img src="${safe(resolvedLogo)}" alt="">`
+        : '<span class="sp-ucl-team-logo-fallback">?</span>';
+    return `<span class="sp-ucl-team-label">${logo}<span>${safe(getKoTeamName(team, tab))}</span></span>`;
+}
+
+function widgetNbaPlayoffs(data) {
+    const ROUND_META = [
+        ['play-in', '플레이인'],
+        ['first-round', '1라운드'],
+        ['semifinals', '컨퍼런스 준결승'],
+        ['conference-finals', '컨퍼런스 결승'],
+        ['nba-finals', 'NBA 파이널'],
+    ];
+    const allEvents = (data?.events || []).filter(event => ['play-in-season', 'post-season'].includes(event.season?.slug));
+    if (!allEvents.length) {
+        return `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-basketball"></i><span>플레이오프 대진 전입니다.</span><span>대진이 확정되면 라운드별로 표시됩니다.</span></div>`;
+    }
+
+    const roundKey = event => {
+        const headline = event.competitions?.[0]?.notes?.[0]?.headline || '';
+        if (headline.includes('Play-In')) return 'play-in';
+        if (headline.includes('1st Round')) return 'first-round';
+        if (headline.includes('Semifinals')) return 'semifinals';
+        if (headline.includes('East Finals') || headline.includes('West Finals')) return 'conference-finals';
+        if (headline.includes('NBA Finals')) return 'nba-finals';
+        return '';
+    };
+    const safe = value => escapeAdminHtml(String(value ?? ''));
+    const competitorId = competitor => String(competitor?.team?.id || competitor?.id || '');
+
+    return ROUND_META.map(([key, title]) => {
+        const roundEvents = allEvents.filter(event => roundKey(event) === key);
+        if (!roundEvents.length) return '';
+        const seriesMap = new Map();
+        roundEvents.forEach(event => {
+            const competitors = event.competitions?.[0]?.competitors || [];
+            const seriesKey = key === 'play-in'
+                ? String(event.id)
+                : competitors.map(competitorId).filter(Boolean).sort().join('-');
+            if (!seriesMap.has(seriesKey)) seriesMap.set(seriesKey, []);
+            seriesMap.get(seriesKey).push(event);
+        });
+
+        const cards = [...seriesMap.entries()].map(([seriesKey, seriesEvents]) => {
+            const games = seriesEvents.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+            const latest = games[games.length - 1];
+            const latestComp = latest.competitions?.[0] || {};
+            const teams = latestComp.competitors || [];
+            const home = teams.find(team => team.homeAway === 'home') || teams[0];
+            const away = teams.find(team => team.homeAway === 'away') || teams[1];
+            const seriesTeams = latestComp.series?.competitors || [];
+            const seriesById = new Map(seriesTeams.map(team => [String(team.id), Number(team.wins || 0)]));
+            const homeWins = seriesById.get(competitorId(home)) ?? 0;
+            const awayWins = seriesById.get(competitorId(away)) ?? 0;
+            const seriesWinner = latestComp.series?.completed
+                ? (homeWins > awayWins ? home : away)
+                : key === 'play-in' && latest.status?.type?.state === 'post'
+                    ? teams.find(team => team.winner)
+                    : null;
+
+            const expandKey = `nba-${key}-${seriesKey}`;
+            const expanded = SPORTS_PLAYOFF_EXPANDED.has(expandKey);
+            const visibleGames = expanded || games.length <= 3 ? games : games.slice(-3);
+            const gameRows = visibleGames.map(event => {
+                const gameNumber = games.indexOf(event) + 1;
+                const comp = event.competitions?.[0] || {};
+                const eventTeams = comp.competitors || [];
+                const gameHome = eventTeams.find(team => team.homeAway === 'home') || eventTeams[0];
+                const gameAway = eventTeams.find(team => team.homeAway === 'away') || eventTeams[1];
+                const scheduled = event.status?.type?.state === 'pre';
+                const gameDate = new Date(event.date);
+                const date = `${gameDate.getMonth() + 1}/${gameDate.getDate()}`;
+                const score = scheduled ? 'VS' : `${gameHome?.score ?? '-'} : ${gameAway?.score ?? '-'}`;
+                return `<div class="sp-ucl-match-row sp-nba-playoff-game">
+                    <span class="sp-ucl-match-meta">${safe(date)} · ${key === 'play-in' ? '단판' : `${gameNumber}차전`}</span>
+                    <span>${safe(getKoTeamName(gameHome?.team, 'nba'))}</span><strong>${safe(score)}</strong><span>${safe(getKoTeamName(gameAway?.team, 'nba'))}</span>
+                </div>`;
+            }).join('');
+            const moreButton = games.length > 3
+                ? `<button type="button" class="sp-playoff-more" onclick="toggleSportsPlayoffSeries('${expandKey}')">${expanded ? '간략히 보기' : `이전 경기 포함 ${games.length}경기 전체보기`} <span>${expanded ? '−' : '+'}</span></button>`
+                : '';
+            const result = seriesWinner
+                ? `<strong>${safe(getKoTeamName(seriesWinner.team, 'nba'))} ${key === 'play-in' ? '진출' : '시리즈 승리'}</strong>`
+                : `<strong>${homeWins} : ${awayWins}</strong>`;
+
+            return `<article class="sp-ucl-tie-card sp-nba-playoff-card">
+                <div class="sp-ucl-tie-title">${sportsPlayoffTeamLabel(home?.team, 'nba')}<b>VS</b>${sportsPlayoffTeamLabel(away?.team, 'nba')}</div>
+                ${gameRows}${moreButton}<div class="sp-ucl-tie-result"><span>${key === 'play-in' ? '단판 결과' : `시리즈 ${homeWins} : ${awayWins}`}</span>${result}</div>
+            </article>`;
+        }).join('');
+        return `<section class="sp-ucl-round"><div class="sp-section-title">${title}</div>${cards}</section>`;
+    }).join('');
+}
+
+function widgetMlbPlayoffs(data) {
+    const ROUND_META = [
+        ['F', '와일드카드 시리즈'],
+        ['D', '디비전 시리즈'],
+        ['L', '리그 챔피언십 시리즈'],
+        ['W', '월드시리즈'],
+    ];
+    const games = (data?.dates || []).flatMap(date => date.games || []);
+    if (!games.length) {
+        return `<div class="sp-state-box sp-stat-empty"><i class="fa-solid fa-baseball"></i><span>포스트시즌 대진 전입니다.</span><span>대진이 확정되면 라운드별로 표시됩니다.</span></div>`;
+    }
+
+    const safe = value => escapeAdminHtml(String(value ?? ''));
+    const teamId = side => String(side?.team?.id || '');
+    const teamLogo = side => side?.team?.id ? `https://www.mlbstatic.com/team-logos/${side.team.id}.svg` : '';
+    const winTargets = { F: 2, D: 3, L: 4, W: 4 };
+
+    return ROUND_META.map(([gameType, title]) => {
+        const roundGames = games.filter(game => game.gameType === gameType);
+        if (!roundGames.length) return '';
+        const seriesMap = new Map();
+        roundGames.forEach(game => {
+            const key = [teamId(game.teams?.home), teamId(game.teams?.away)].filter(Boolean).sort().join('-');
+            if (!seriesMap.has(key)) seriesMap.set(key, []);
+            seriesMap.get(key).push(game);
+        });
+
+        const cards = [...seriesMap.values()].map(seriesGames => {
+            const ordered = seriesGames.slice().sort((a, b) => new Date(a.gameDate) - new Date(b.gameDate));
+            const latest = ordered[ordered.length - 1];
+            const home = latest.teams?.home;
+            const away = latest.teams?.away;
+            const wins = new Map();
+            ordered.forEach(game => {
+                ['home', 'away'].forEach(sideName => {
+                    const side = game.teams?.[sideName];
+                    if (side?.isWinner) wins.set(teamId(side), (wins.get(teamId(side)) || 0) + 1);
+                });
+            });
+            const homeWins = wins.get(teamId(home)) || 0;
+            const awayWins = wins.get(teamId(away)) || 0;
+            const target = winTargets[gameType];
+            const winner = homeWins >= target ? home : awayWins >= target ? away : null;
+
+            const gameRows = ordered.map((game, index) => {
+                const gameHome = game.teams?.home;
+                const gameAway = game.teams?.away;
+                const scheduled = game.status?.abstractGameState === 'Preview';
+                const date = new Date(game.gameDate).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+                const score = scheduled ? 'VS' : `${gameHome?.score ?? '-'} : ${gameAway?.score ?? '-'}`;
+                return `<div class="sp-ucl-match-row">
+                    <span class="sp-ucl-match-meta">${safe(date)} · ${index + 1}차전</span>
+                    <span>${safe(getKoTeamName(gameHome?.team, 'mlb'))}</span><strong>${safe(score)}</strong><span>${safe(getKoTeamName(gameAway?.team, 'mlb'))}</span>
+                </div>`;
+            }).join('');
+            const result = winner
+                ? `<strong>${safe(getKoTeamName(winner.team, 'mlb'))} 시리즈 승리</strong>`
+                : `<strong>${homeWins} : ${awayWins}</strong>`;
+
+            return `<article class="sp-ucl-tie-card">
+                <div class="sp-ucl-tie-title">${sportsPlayoffTeamLabel(home?.team, 'mlb', teamLogo(home))}<b>VS</b>${sportsPlayoffTeamLabel(away?.team, 'mlb', teamLogo(away))}</div>
+                ${gameRows}<div class="sp-ucl-tie-result"><span>시리즈 ${homeWins} : ${awayWins}</span>${result}</div>
+            </article>`;
+        }).join('');
+        return `<section class="sp-ucl-round"><div class="sp-section-title">${title}</div>${cards}</section>`;
+    }).join('');
+}
+
 function widgetNbaViewTabs() {
     return `
         <div class="sp-mlb-league-tabs sp-mlb-view-tabs" role="tablist" aria-label="NBA 데이터 선택">
             <button type="button" class="sp-mlb-league-tab ${widgetNbaView === 'standings' ? 'active' : ''}" role="tab" aria-selected="${widgetNbaView === 'standings'}" onclick="setWidgetNbaView('standings')">팀 순위</button>
             <button type="button" class="sp-mlb-league-tab ${widgetNbaView === 'stats' ? 'active' : ''}" role="tab" aria-selected="${widgetNbaView === 'stats'}" onclick="setWidgetNbaView('stats')">선수 스탯</button>
+            <button type="button" class="sp-mlb-league-tab ${widgetNbaView === 'playoffs' ? 'active' : ''}" role="tab" aria-selected="${widgetNbaView === 'playoffs'}" onclick="setWidgetNbaView('playoffs')">플레이오프</button>
         </div>`;
 }
 
@@ -733,6 +1103,7 @@ function widgetMlbViewTabs() {
         <div class="sp-mlb-league-tabs sp-mlb-view-tabs" role="tablist" aria-label="MLB 데이터 선택">
             <button type="button" class="sp-mlb-league-tab ${widgetMlbView === 'standings' ? 'active' : ''}" role="tab" aria-selected="${widgetMlbView === 'standings'}" onclick="setWidgetMlbView('standings')">팀 순위</button>
             <button type="button" class="sp-mlb-league-tab ${widgetMlbView === 'stats' ? 'active' : ''}" role="tab" aria-selected="${widgetMlbView === 'stats'}" onclick="setWidgetMlbView('stats')">선수 스탯</button>
+            <button type="button" class="sp-mlb-league-tab ${widgetMlbView === 'playoffs' ? 'active' : ''}" role="tab" aria-selected="${widgetMlbView === 'playoffs'}" onclick="setWidgetMlbView('playoffs')">플레이오프</button>
         </div>`;
 }
 
@@ -758,7 +1129,7 @@ function widgetStatLeaders(stats, tab) {
             const teamData = a.team;
             // 이 API의 team 객체는 abbreviation(BHA, MNC 등) 위주라 TEAM_KO_MAP(전체/짧은
             // 영문명 기준)과 안 맞았다 — name/displayName을 우선 조회한다(2026-08-25).
-            const teamName = getKoName(teamData?.name || teamData?.displayName || teamData?.shortDisplayName || teamData?.abbreviation, tab);
+            const teamName = getKoTeamName(teamData, tab);
             const logoUrl = teamData?.logos?.[0]?.href;
             const logoImg = logoUrl ? `<img src="${logoUrl}" style="width:14px; height:14px; object-fit:contain; vertical-align:middle; margin-right:4px;">` : '';
             return `<tr>
@@ -938,7 +1309,7 @@ function widgetCard(ev, type, tab) {
     const teamEl = (t, win, isAway) => {
         const teamData = (isAway ? R : L).team;
         const logoUrl = teamData?.logo || (teamData?.logos && teamData.logos[0]?.href);
-        const displayName = getKoName(teamData?.shortDisplayName || teamData?.name, tab);
+        const displayName = getKoTeamName(teamData, tab);
         
         const logoHtml = logoUrl 
             ? `<img src="${logoUrl}" style="width:100%; height:100%; object-fit:contain; border-radius:50%;">` 
@@ -963,8 +1334,19 @@ function widgetCard(ev, type, tab) {
         ? widgetMatchEvents(comp, home, away)
         : '';
 
+    const hasMlbCommentary = tab === 'mlb' && type !== 'sched' && ev.id;
+    const commentaryAttrs = hasMlbCommentary
+        ? ` role="button" tabindex="0" aria-label="문자중계 보기" onclick="toggleMlbCommentary(event, '${ev.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMlbCommentary(event,'${ev.id}')}"`
+        : '';
+    const commentaryHint = hasMlbCommentary
+        ? `<div class="sp-commentary-hint"><i class="fa-regular fa-comment-dots"></i><span>문자중계 보기</span><i class="fa-solid fa-chevron-down"></i></div>`
+        : '';
+    const commentaryHost = hasMlbCommentary
+        ? `<div id="sp-mlb-commentary-${ev.id}" class="sp-mlb-commentary-host" aria-live="polite"></div>`
+        : '';
+
     return `
-    <div class="sp-score-card ${type==='live'?'live':''}">
+    <div class="sp-score-card ${type==='live'?'live':''} ${hasMlbCommentary?'sp-score-card-commentary':''}"${commentaryAttrs}>
         <div class="sp-card-meta">
             <span class="sp-league-label">${WIDGET_CFG[tab]?.label||''}</span>
             ${badge}
@@ -975,8 +1357,245 @@ function widgetCard(ev, type, tab) {
             ${teamEl(R, rWin, true)}
         </div>
         ${eventsHtml}
+        ${commentaryHint}
+    </div>
+    ${commentaryHost}`;
+}
+
+function stopMlbCommentaryRefresh() {
+    if (mlbCommentaryRefreshTimer) clearTimeout(mlbCommentaryRefreshTimer);
+    mlbCommentaryRefreshTimer = null;
+    mlbCommentaryGameId = null;
+}
+
+function mlbKoreanEvent(play) {
+    const type = play?.result?.eventType || '';
+    const labels = {
+        single: '안타', double: '2루타', triple: '3루타', home_run: '홈런',
+        walk: '볼넷', intent_walk: '고의4구', hit_by_pitch: '몸에 맞는 공',
+        strikeout: '삼진', field_out: '범타', force_out: '포스 아웃',
+        field_error: '실책 출루', sacrifice_fly: '희생플라이', sac_fly: '희생플라이',
+        sacrifice_bunt: '희생번트', sac_bunt: '희생번트', double_play: '병살타',
+        grounded_into_double_play: '병살타', fielders_choice: '야수 선택',
+        catcher_interf: '포수 방해', stolen_base: '도루', wild_pitch: '폭투',
+        passed_ball: '포일', balk: '보크', runner_out: '주자 아웃',
+        caught_stealing_2b: '2루 도루 실패', caught_stealing_3b: '3루 도루 실패',
+        caught_stealing_home: '홈 도루 실패', pickoff_caught_stealing_2b: '견제 · 2루 도루 실패',
+        pickoff_caught_stealing_3b: '견제 · 3루 도루 실패', pickoff_caught_stealing_home: '견제 · 홈 도루 실패',
+        pickoff_1b: '1루 견제 아웃', pickoff_2b: '2루 견제 아웃', pickoff_3b: '3루 견제 아웃',
+        pitching_substitution: '투수 교체', offensive_substitution: '대타·대주자 교체',
+        defensive_substitution: '수비 교체'
+    };
+    return labels[type] || play?.result?.event || '경기 진행';
+}
+
+function mlbKoreanPitch(description) {
+    const labels = {
+        'Ball': '볼', 'Called Strike': '스트라이크', 'Swinging Strike': '헛스윙',
+        'Swinging Strike (Blocked)': '헛스윙', 'Foul': '파울', 'Foul Tip': '파울팁',
+        'In play, out(s)': '타격 · 아웃', 'In play, no out': '타격 · 출루',
+        'In play, run(s)': '타격 · 득점', 'Hit By Pitch': '몸에 맞는 공'
+    };
+    return labels[description] || description || '투구';
+}
+
+function mlbKoreanPitchType(description) {
+    const labels = {
+        'Four-Seam Fastball': '포심', 'Two-Seam Fastball': '투심', 'Fastball': '직구',
+        'Sinker': '싱커', 'Cutter': '커터', 'Slider': '슬라이더', 'Sweeper': '스위퍼',
+        'Curveball': '커브', 'Knuckle Curve': '너클커브', 'Changeup': '체인지업',
+        'Split-Finger': '스플리터', 'Splitter': '스플리터', 'Knuckleball': '너클볼'
+    };
+    return labels[description] || description || '';
+}
+
+function mlbPlayActor(play) {
+    const type = play?.result?.eventType || '';
+    if (type.includes('stolen') || type.startsWith('pickoff') || type === 'runner_out') {
+        const runner = [...(play?.runners || [])].reverse().find(item => item.details?.runner?.fullName);
+        if (runner) return runner.details.runner.fullName;
+    }
+    if (type === 'pitching_substitution') return play?.matchup?.pitcher?.fullName || '';
+    return play?.matchup?.batter?.fullName || '';
+}
+
+function widgetMlbCommentary(feed) {
+    const safe = value => escapeAdminHtml(String(value ?? ''));
+    const game = feed?.gameData || {};
+    const live = feed?.liveData || {};
+    const linescore = live.linescore || {};
+    const current = live.plays?.currentPlay || {};
+    const plays = live.plays?.allPlays || [];
+    const isLive = game.status?.abstractGameState === 'Live';
+    const awayName = getKoName(game.teams?.away?.name, 'mlb');
+    const homeName = getKoName(game.teams?.home?.name, 'mlb');
+    const awayAbbr = game.teams?.away?.abbreviation || 'AWAY';
+    const homeAbbr = game.teams?.home?.abbreviation || 'HOME';
+    const awayLogo = game.teams?.away?.id ? `https://www.mlbstatic.com/team-logos/${game.teams.away.id}.svg` : '';
+    const homeLogo = game.teams?.home?.id ? `https://www.mlbstatic.com/team-logos/${game.teams.home.id}.svg` : '';
+    const awayRuns = linescore.teams?.away?.runs ?? current.result?.awayScore ?? 0;
+    const homeRuns = linescore.teams?.home?.runs ?? current.result?.homeScore ?? 0;
+    const inning = linescore.currentInning || current.about?.inning || '';
+    const half = linescore.inningHalf === 'Top' || current.about?.halfInning === 'top' ? '초' : '말';
+    const stateText = inning ? `${inning}회 ${half}` : (game.status?.detailedState || '');
+    const batter = current.matchup?.batter?.fullName || '-';
+    const pitcher = current.matchup?.pitcher?.fullName || '-';
+    const count = current.count || {};
+    const balls = count.balls ?? linescore.balls ?? 0;
+    const strikes = count.strikes ?? linescore.strikes ?? 0;
+    const outs = count.outs ?? linescore.outs ?? 0;
+    const offense = linescore.offense || {};
+    const isTopHalf = linescore.inningHalf === 'Top' || current.about?.halfInning === 'top';
+    const battingTeamName = isTopHalf ? awayName : homeName;
+    const pitchingTeamName = isTopHalf ? homeName : awayName;
+    const bases = [
+        { label: '1루', runner: offense.first?.fullName },
+        { label: '2루', runner: offense.second?.fullName },
+        { label: '3루', runner: offense.third?.fullName }
+    ];
+    const baseHtml = bases.map(base => `<span class="${base.runner ? 'occupied' : ''}" title="${safe(base.runner || '주자 없음')}">${base.label}</span>`).join('');
+
+    const innings = linescore.innings || [];
+    const maxInning = Math.max(9, ...innings.map(item => Number(item.num) || 0));
+    const inningNumbers = Array.from({ length: maxInning }, (_, index) => index + 1);
+    const inningByNumber = new Map(innings.map(item => [Number(item.num), item]));
+    const lineTeamRow = (side, name) => {
+        const cells = inningNumbers.map(num => {
+            const value = inningByNumber.get(num)?.[side]?.runs;
+            const active = Number(inning) === num ? ' current' : '';
+            return `<td class="${active.trim()}">${value == null ? '–' : safe(value)}</td>`;
+        }).join('');
+        const totals = linescore.teams?.[side] || {};
+        return `<tr><th title="${safe(name)}">${safe(name)}</th>${cells}<td class="total runs">${safe(totals.runs ?? 0)}</td><td class="total">${safe(totals.hits ?? 0)}</td><td class="total">${safe(totals.errors ?? 0)}</td></tr>`;
+    };
+    const lineScoreHtml = `<div class="sp-mlb-linescore-wrap"><table class="sp-mlb-linescore">
+        <thead><tr><th>팀</th>${inningNumbers.map(num => `<th class="${Number(inning) === num ? 'current' : ''}">${num}</th>`).join('')}<th>R</th><th>H</th><th>E</th></tr></thead>
+        <tbody>${lineTeamRow('away', awayName)}${lineTeamRow('home', homeName)}</tbody>
+    </table></div>`;
+
+    const pitchEvents = (current.playEvents || []).filter(event => event.isPitch).slice(-6);
+    const pitchHtml = pitchEvents.length
+        ? `<div class="sp-mlb-pitches">${pitchEvents.map(event => {
+            const speed = event.pitchData?.startSpeed ? ` ${Math.round(event.pitchData.startSpeed * 1.60934)}km/h` : '';
+            const pitchType = mlbKoreanPitchType(event.details?.type?.description);
+            const pitchDetail = pitchType ? ` · ${safe(pitchType)}${speed}` : speed;
+            const pitchCount = event.count ? ` ${event.count.balls}-${event.count.strikes}` : '';
+            return `<div><b>${event.pitchNumber || ''}구</b><span>${safe(mlbKoreanPitch(event.details?.description))}${pitchDetail}</span><em>${pitchCount}</em></div>`;
+        }).join('')}</div>`
+        : '<div class="sp-mlb-no-pitches">현재 타석의 투구 기록을 기다리는 중입니다.</div>';
+
+    const scoringPlays = plays.filter(play => play.about?.isScoringPlay).slice(-6).reverse();
+    const scoringHtml = scoringPlays.length
+        ? `<div class="sp-mlb-scoring"><div class="sp-mlb-feed-title"><span>득점 장면</span><small>최근 ${scoringPlays.length}개</small></div>${scoringPlays.map(play => {
+            const playHalf = play.about?.halfInning === 'top' ? '초' : '말';
+            const playBatter = mlbPlayActor(play);
+            const battingTeam = play.about?.halfInning === 'top' ? awayName : homeName;
+            const rbi = Number(play.result?.rbi) > 0 ? ` · ${play.result.rbi}타점` : '';
+            return `<div class="sp-mlb-scoring-row"><span>${safe(play.about?.inning)}회 ${playHalf}</span><div><small>${safe(battingTeam)} 공격</small><b>${safe(playBatter)}</b><em>${safe(mlbKoreanEvent(play))}${rbi}</em></div><strong>${safe(play.result?.awayScore ?? 0)} : ${safe(play.result?.homeScore ?? 0)}</strong></div>`;
+        }).join('')}</div>`
+        : '';
+
+    const completedPlays = plays.filter(play => play.about?.isComplete);
+    const playGroups = [];
+    completedPlays.forEach(play => {
+        const key = `${play.about?.inning}-${play.about?.halfInning}`;
+        let group = playGroups[playGroups.length - 1];
+        if (!group || group.key !== key) {
+            group = { key, inning: play.about?.inning, half: play.about?.halfInning, plays: [] };
+            playGroups.push(group);
+        }
+        group.plays.push(play);
+    });
+    const playHtml = playGroups.length
+        ? playGroups.map(group => {
+            const isAwayBatting = group.half === 'top';
+            const teamName = isAwayBatting ? awayName : homeName;
+            const teamAbbr = isAwayBatting ? awayAbbr : homeAbbr;
+            const teamLogo = isAwayBatting ? awayLogo : homeLogo;
+            const halfKo = isAwayBatting ? '초' : '말';
+            const rows = group.plays.map(play => {
+                const playBatter = mlbPlayActor(play);
+                const score = `${play.result?.awayScore ?? 0} : ${play.result?.homeScore ?? 0}`;
+                const scoringClass = play.about?.isScoringPlay ? ' scoring' : '';
+                const rbi = Number(play.result?.rbi) > 0 ? ` · ${play.result.rbi}타점` : '';
+                return `<div class="sp-mlb-play-row${scoringClass}">
+                    <span class="sp-mlb-play-player">${safe(playBatter || teamName)}</span>
+                    <span class="sp-mlb-play-text"><span>${safe(mlbKoreanEvent(play))}${rbi}</span></span>
+                    <strong>${safe(score)}</strong>
+                </div>`;
+            }).join('');
+            const logo = teamLogo ? `<img src="${safe(teamLogo)}" alt="">` : `<span>${safe(teamAbbr)}</span>`;
+            return `<section class="sp-mlb-inning-group">
+                <div class="sp-mlb-inning-head"><b>${safe(group.inning)}회 ${halfKo}</b><div>${logo}<span>${safe(teamName)} 공격</span></div></div>
+                ${rows}
+            </section>`;
+        }).join('')
+        : '<div class="sp-mlb-empty-feed">아직 완료된 타석이 없습니다.</div>';
+
+    return `<div class="sp-mlb-commentary">
+        <div class="sp-mlb-commentary-head">
+            <div><span class="${isLive ? 'live' : ''}">${isLive ? '● LIVE' : safe(game.status?.detailedState || '경기 기록')}</span><b>${safe(stateText)}</b></div>
+            <button type="button" onclick="event.stopPropagation(); refreshMlbCommentary('${safe(game.pk)}')" title="문자중계 새로고침"><i class="fa-solid fa-rotate-right"></i></button>
+        </div>
+        <div class="sp-mlb-live-score"><span><small>원정</small>${safe(awayName)}</span><strong>${safe(awayRuns)} : ${safe(homeRuns)}</strong><span><small>홈</small>${safe(homeName)}</span></div>
+        ${lineScoreHtml}
+        <div class="sp-mlb-situation">
+            <div class="sp-mlb-matchup-line"><span><small>${safe(battingTeamName)} 공격</small>타자 <b>${safe(batter)}</b></span><span><small>${safe(pitchingTeamName)} 수비</small>투수 <b>${safe(pitcher)}</b></span></div>
+            <div class="sp-mlb-count-line"><b>B ${safe(balls)}</b><b>S ${safe(strikes)}</b><b>O ${safe(outs)}</b><div class="sp-mlb-bases">${baseHtml}</div></div>
+            ${pitchHtml}
+        </div>
+        ${scoringHtml}
+        <div class="sp-mlb-feed-title"><span>전체 플레이 기록</span><small>${isLive ? '1회부터 · 12초 자동 갱신' : '1회부터 경기 종료까지'}</small></div>
+        <div class="sp-mlb-play-list">${playHtml}</div>
     </div>`;
 }
+
+async function loadMlbCommentary(gamePk, showLoading = false) {
+    const id = String(gamePk);
+    const host = document.getElementById(`sp-mlb-commentary-${id}`);
+    if (!host || mlbCommentaryGameId !== id) return;
+    if (showLoading) host.innerHTML = '<div class="sp-commentary-loading"><i class="fa-solid fa-spinner fa-spin"></i><span>문자중계를 불러오는 중...</span></div>';
+    const feed = await fetchWidgetJson(`https://statsapi.mlb.com/api/v1.1/game/${encodeURIComponent(id)}/feed/live`, 15000);
+    const activeHost = document.getElementById(`sp-mlb-commentary-${id}`);
+    if (!activeHost || mlbCommentaryGameId !== id) return;
+    if (!feed) {
+        activeHost.innerHTML = '<div class="sp-commentary-loading error"><i class="fa-solid fa-circle-exclamation"></i><span>문자중계를 불러오지 못했습니다.</span></div>';
+        return;
+    }
+    activeHost.innerHTML = widgetMlbCommentary(feed);
+    if (feed.gameData?.status?.abstractGameState === 'Live') {
+        mlbCommentaryRefreshTimer = setTimeout(() => loadMlbCommentary(id), 12000);
+    }
+}
+
+window.toggleMlbCommentary = function(event, gamePk) {
+    event?.stopPropagation();
+    const id = String(gamePk);
+    const host = document.getElementById(`sp-mlb-commentary-${id}`);
+    if (!host) return;
+    if (mlbCommentaryGameId === id && host.classList.contains('open')) {
+        stopMlbCommentaryRefresh();
+        host.classList.remove('open');
+        host.innerHTML = '';
+        return;
+    }
+    document.querySelectorAll('.sp-mlb-commentary-host.open').forEach(el => {
+        el.classList.remove('open');
+        el.innerHTML = '';
+    });
+    stopMlbCommentaryRefresh();
+    mlbCommentaryGameId = id;
+    host.classList.add('open');
+    loadMlbCommentary(id, true);
+};
+
+window.refreshMlbCommentary = function(gamePk) {
+    const id = String(gamePk);
+    if (mlbCommentaryGameId !== id) return;
+    if (mlbCommentaryRefreshTimer) clearTimeout(mlbCommentaryRefreshTimer);
+    mlbCommentaryRefreshTimer = null;
+    loadMlbCommentary(id, true);
+};
 
 // 득점/퇴장 목록 — 홈/원정 어느 팀인지는 details의 team.id를 competitors의 team.id와
 // 비교해서 판정한다(ESPN이 홈/원정 구분자를 따로 안 주는 경우가 있어서).
@@ -990,7 +1609,7 @@ function widgetMatchEvents(comp, home, away) {
             minute: d.clock?.displayValue || '',
             minuteVal: d.clock?.value ?? 0,
             isHome: d.team?.id === homeId,
-            player: d.athletesInvolved?.[0]?.displayName || d.athletesInvolved?.[0]?.shortName || '',
+            player: d.athletesInvolved?.[0]?.displayName || d.athletesInvolved?.[0]?.shortName || (d.redCard ? '선수 정보 없음' : '득점자 정보 없음'),
             isRed: !!d.redCard,
             isOwnGoal: !!d.ownGoal,
             isPenalty: !!d.penaltyKick,
@@ -1022,6 +1641,13 @@ function getRankStyle(rank, tab, total) {
     } else if (tab === 'nba') {
         if (rank <= 6)  return { bg: 'rgba(37,99,235,0.08)',  border: '#2563eb' }; // 플레이오프
         if (rank <= 10) return { bg: 'rgba(234,179,8,0.08)',  border: '#eab308' }; // 플레이인
+    } else if (tab === 'ucl') {
+        if (rank <= 8)  return { bg: 'rgba(37,99,235,0.08)',  border: '#2563eb' }; // 16강 직행
+        if (rank <= 24) return { bg: 'rgba(234,179,8,0.08)',  border: '#eab308' }; // 녹아웃 플레이오프
+        return { bg: 'rgba(239,68,68,0.08)', border: '#ef4444' }; // 탈락
+    } else if (tab === 'ucl-group') {
+        if (rank <= 2) return { bg: 'rgba(37,99,235,0.08)',  border: '#2563eb' }; // 16강 진출
+        if (rank === 3) return { bg: 'rgba(16,185,129,0.08)', border: '#10b981' }; // UEL 이동
     } else if (tab === 'wc') {
         if (rank <= 2) return { bg: 'rgba(37,99,235,0.08)',  border: '#2563eb' }; // 16강 진출
         if (rank === 3) return { bg: 'rgba(234,179,8,0.08)', border: '#eab308' }; // 3위 (진출 경쟁)
@@ -1039,7 +1665,7 @@ function buildStandingsRows(entries, tab) {
         const s = e.stats || [];
         const getStat = name => { const x = s.find(item => item.name === name); return x ? x.displayValue : '0'; };
         
-        const teamName = getKoName(e.team?.shortDisplayName || e.team?.name, tab);
+        const teamName = getKoTeamName(e.team, tab);
         const logoUrl = e.team?.logos?.[0]?.href || '';
         const logoImg = logoUrl ? `<img src="${logoUrl}" style="width:16px; height:16px; object-fit:contain; vertical-align:middle; margin-right:6px;">` : '';
 
@@ -1049,7 +1675,7 @@ function buildStandingsRows(entries, tab) {
             ? `<span class="sp-rank-num" style="background:${style.border}; color:#fff;">${rank}</span>`
             : `<span class="sp-rank-num">${rank}</span>`;
 
-        if (tab === 'epl' || tab === 'wc') {
+        if (tab === 'epl' || tab === 'ucl' || tab === 'ucl-group' || tab === 'wc') {
             const gp = getStat('gamesPlayed');
             const w = getStat('wins');
             const d = getStat('ties');
@@ -1189,6 +1815,46 @@ function widgetStandings(data, tab) {
         });
 
         return html || `<div class="sp-state-box"><span>순위 데이터를 불러올 수 없습니다</span></div>`;
+    }
+    // ✅ UCL: 최근 시즌은 단일 리그 페이즈, 과거 시즌은 그룹별 순위로 렌더링
+    else if (tab === 'ucl') {
+        const groups = (data.children || [])
+            .map(child => ({ name: child.name || '순위표', entries: child.standings?.entries || [] }))
+            .filter(group => group.entries.length);
+        if (!groups.length && data.standings?.entries?.length) {
+            groups.push({ name: data.standings.displayName || '순위표', entries: data.standings.entries });
+        }
+        if (!groups.length) return '';
+
+        const isGroupStage = groups.length > 1 && groups.every(group => group.entries.length <= 8);
+        const sortEntries = entries => entries.slice().sort((a, b) => {
+            const stat = (entry, name) => parseFloat(entry.stats?.find(item => item.name === name)?.displayValue || 0);
+            return stat(b, 'points') - stat(a, 'points') || stat(b, 'pointDifferential') - stat(a, 'pointDifferential');
+        });
+
+        let html = groups.map(group => {
+            const entries = sortEntries(group.entries);
+            const rows = buildStandingsRows(entries, isGroupStage ? 'ucl-group' : 'ucl');
+            return `<div class="sp-standings-wrap">
+                <div class="sp-section-title" style="margin-top:6px;">${group.name}</div>
+                <table class="sp-standings-table">
+                    <thead><tr><th>#</th><th>팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>승점</th><th>득실</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+        }).join('');
+
+        html += isGroupStage
+            ? `<div style="display:flex;gap:10px;flex-wrap:wrap;padding:6px 4px 10px;font-size:10px;color:#64748b;">
+                <span style="padding-left:6px;border-left:3px solid #2563eb;">16강 진출</span>
+                <span style="padding-left:6px;border-left:3px solid #10b981;">UEL 이동</span>
+               </div>`
+            : `<div style="display:flex;gap:10px;flex-wrap:wrap;padding:6px 4px 10px;font-size:10px;color:#64748b;">
+                <span style="padding-left:6px;border-left:3px solid #2563eb;">16강 직행</span>
+                <span style="padding-left:6px;border-left:3px solid #eab308;">녹아웃 플레이오프</span>
+                <span style="padding-left:6px;border-left:3px solid #ef4444;">탈락</span>
+               </div>`;
+        return html;
     }
     // ✅ WC: 조별리그 그룹별 분리 렌더링
     else if (tab === 'wc') {

@@ -203,7 +203,14 @@
 .sp-update-time { font-size: 11px; color: #64748b; font-weight: 600; }
 .sp-refresh-btn { background: #ffffff; border: 1px solid #cbd5e1; color: #475569; font-size: 11px; font-family: 'Pretendard', sans-serif; padding: 5px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 5px; font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 .sp-refresh-btn:hover { border-color: #e11d48; color: #e11d48; background: #fff1f2; }
-.sp-season-select { background: #ffffff; border: 1px solid #cbd5e1; color: #475569; font-size: 11px; font-family: 'Pretendard', sans-serif; padding: 5px 10px; border-radius: 20px; cursor: pointer; font-weight: 700; }
+.sp-season-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: #ffffff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+.sp-season-label { display: flex; align-items: center; gap: 7px; color: #475569; font-size: 11px; font-weight: 800; }
+.sp-season-label i { color: #e11d48; font-size: 12px; }
+.sp-season-control { position: relative; width: 152px; }
+.sp-season-control > i { position: absolute; top: 50%; right: 11px; color: #94a3b8; font-size: 9px; pointer-events: none; transform: translateY(-50%); }
+.sp-season-select { width: 100%; height: 34px; appearance: none; -webkit-appearance: none; padding: 0 30px 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; background: #f8fafc; color: #334155; font-family: 'Pretendard', sans-serif; font-size: 11px; font-weight: 700; cursor: pointer; transition: border-color 0.2s, background 0.2s, box-shadow 0.2s; }
+.sp-season-select:hover { border-color: #94a3b8; background: #ffffff; }
+.sp-season-select:focus { border-color: #fb7185; background: #ffffff; box-shadow: 0 0 0 3px rgba(244,63,94,0.1); }
 
 .sp-content { flex: 1; overflow-y: auto; scrollbar-gutter: stable; padding: 14px; background: #f1f5f9; color: #334155; font-family: 'Pretendard', sans-serif; }
 .sp-content::-webkit-scrollbar { width: 6px; }
@@ -214,6 +221,83 @@
 .sp-score-card { background: #ffffff; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid #e2e8f0; box-shadow: 0 2px 5px rgba(0,0,0,0.02); transition: all 0.2s ease; }
 .sp-score-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 8px rgba(0,0,0,0.05); transform: translateY(-1px); }
 .sp-score-card.live { border-color: #fb7185; box-shadow: 0 0 0 1px #fb7185, 0 4px 8px rgba(225,29,72,0.1); }
+.sp-score-card-commentary { cursor: pointer; }
+.sp-score-card-commentary:focus-visible { outline: 3px solid rgba(244,63,94,0.18); outline-offset: 2px; }
+.sp-commentary-hint { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 11px; padding-top: 9px; border-top: 1px dashed #e2e8f0; color: #64748b; font-size: 10px; font-weight: 700; }
+.sp-commentary-hint .fa-comment-dots { color: #e11d48; }
+.sp-commentary-hint .fa-chevron-down { margin-left: auto; color: #94a3b8; font-size: 8px; }
+.sp-mlb-commentary-host { display: none; margin: -3px 0 12px; }
+.sp-mlb-commentary-host.open { display: block; }
+.sp-commentary-loading { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 92px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #ffffff; color: #64748b; font-size: 11px; font-weight: 700; }
+.sp-commentary-loading i { color: #e11d48; }
+.sp-commentary-loading.error i { color: #ef4444; }
+.sp-mlb-commentary { overflow: hidden; border: 1px solid #cbd5e1; border-radius: 10px; background: #ffffff; box-shadow: 0 4px 12px rgba(15,23,42,0.06); }
+.sp-mlb-commentary-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #0f172a; color: #ffffff; }
+.sp-mlb-commentary-head > div { display: flex; align-items: center; gap: 8px; }
+.sp-mlb-commentary-head span { color: #cbd5e1; font-size: 9px; font-weight: 800; }
+.sp-mlb-commentary-head span.live { color: #fb7185; }
+.sp-mlb-commentary-head b { font-size: 11px; }
+.sp-mlb-commentary-head button { display: grid; width: 25px; height: 25px; padding: 0; place-items: center; border: 0; border-radius: 6px; background: rgba(255,255,255,0.1); color: #ffffff; cursor: pointer; }
+.sp-mlb-live-score { display: grid; grid-template-columns: minmax(0,1fr) 70px minmax(0,1fr); align-items: center; gap: 6px; padding: 13px 12px 11px; text-align: center; }
+.sp-mlb-live-score span { overflow: hidden; color: #475569; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.sp-mlb-live-score span small { display: block; margin-bottom: 3px; color: #94a3b8; font-size: 8px; font-weight: 700; }
+.sp-mlb-live-score strong { color: #0f172a; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-variant-numeric: tabular-nums; }
+.sp-mlb-linescore-wrap { margin: 0 10px 10px; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; scrollbar-width: thin; }
+.sp-mlb-linescore { min-width: 100%; border-collapse: collapse; background: #ffffff; color: #475569; font-size: 9px; table-layout: fixed; }
+.sp-mlb-linescore th, .sp-mlb-linescore td { min-width: 24px; height: 25px; padding: 0 4px; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; text-align: center; font-variant-numeric: tabular-nums; }
+.sp-mlb-linescore thead th { background: #f8fafc; color: #94a3b8; font-weight: 800; }
+.sp-mlb-linescore th:first-child { position: sticky; left: 0; z-index: 1; width: 61px; min-width: 61px; max-width: 61px; overflow: hidden; background: #f8fafc; color: #334155; text-overflow: ellipsis; white-space: nowrap; }
+.sp-mlb-linescore tbody th { background: #ffffff; text-align: left; }
+.sp-mlb-linescore .current { background: #fff1f2; color: #e11d48; font-weight: 900; }
+.sp-mlb-linescore .total { background: #f8fafc; color: #334155; font-weight: 800; }
+.sp-mlb-linescore .total.runs { color: #e11d48; }
+.sp-mlb-situation { margin: 0 10px 10px; padding: 10px; border-radius: 8px; background: #f8fafc; }
+.sp-mlb-matchup-line { display: flex; justify-content: space-between; gap: 8px; color: #64748b; font-size: 9px; }
+.sp-mlb-matchup-line > span { flex: 1; min-width: 0; }
+.sp-mlb-matchup-line > span:last-child { text-align: right; }
+.sp-mlb-matchup-line small { display: block; margin-bottom: 3px; color: #e11d48; font-size: 8px; font-weight: 800; }
+.sp-mlb-matchup-line b { display: block; margin-top: 2px; color: #1e293b; font-size: 10.5px; }
+.sp-mlb-count-line { display: flex; align-items: center; gap: 7px; margin-top: 9px; color: #475569; font-size: 10px; }
+.sp-mlb-count-line > b:nth-child(1) { color: #16a34a; }
+.sp-mlb-count-line > b:nth-child(2) { color: #eab308; }
+.sp-mlb-count-line > b:nth-child(3) { color: #ef4444; }
+.sp-mlb-bases { display: flex; gap: 4px; margin-left: auto; }
+.sp-mlb-bases span { padding: 3px 5px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; color: #94a3b8; font-size: 8px; font-weight: 800; }
+.sp-mlb-bases span.occupied { border-color: #f59e0b; background: #fef3c7; color: #92400e; }
+.sp-mlb-pitches { margin-top: 9px; padding-top: 7px; border-top: 1px solid #e2e8f0; }
+.sp-mlb-pitches > div { display: grid; grid-template-columns: 27px minmax(0,1fr) 32px; align-items: center; min-height: 22px; color: #475569; font-size: 9.5px; }
+.sp-mlb-pitches b { color: #94a3b8; }
+.sp-mlb-pitches em { color: #64748b; font-style: normal; font-weight: 700; text-align: right; }
+.sp-mlb-no-pitches { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 9px; text-align: center; }
+.sp-mlb-feed-title { display: flex; justify-content: space-between; padding: 8px 12px; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; color: #334155; font-size: 10px; font-weight: 800; }
+.sp-mlb-feed-title small { color: #94a3b8; font-size: 8.5px; font-weight: 600; }
+.sp-mlb-play-list { padding: 8px 10px 10px; }
+.sp-mlb-inning-group { overflow: hidden; margin-bottom: 9px; border: 1px solid #e2e8f0; border-radius: 7px; }
+.sp-mlb-inning-group:last-child { margin-bottom: 0; }
+.sp-mlb-inning-head { display: flex; align-items: center; justify-content: space-between; min-height: 31px; padding: 0 8px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+.sp-mlb-inning-head > b { color: #e11d48; font-size: 10px; }
+.sp-mlb-inning-head > div { display: flex; align-items: center; gap: 5px; min-width: 0; color: #334155; font-size: 9.5px; font-weight: 800; }
+.sp-mlb-inning-head img, .sp-mlb-inning-head > div > span:first-child:not(:last-child) { width: 19px; height: 19px; object-fit: contain; }
+.sp-mlb-play-row { display: grid; grid-template-columns: minmax(72px,0.9fr) minmax(75px,1.1fr) 38px; align-items: center; gap: 6px; min-height: 31px; padding: 0 8px; border-bottom: 1px solid #f1f5f9; font-size: 9.5px; }
+.sp-mlb-play-row:last-child { border-bottom: 0; }
+.sp-mlb-play-row.scoring { background: #fff7ed; }
+.sp-mlb-play-player { overflow: hidden; color: #1e293b; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.sp-mlb-play-text { display: flex; min-width: 0; gap: 5px; overflow: hidden; color: #475569; text-overflow: ellipsis; white-space: nowrap; }
+.sp-mlb-play-text b { overflow: hidden; color: #1e293b; text-overflow: ellipsis; }
+.sp-mlb-play-text span { overflow: hidden; text-overflow: ellipsis; }
+.sp-mlb-play-row > strong { color: #0f172a; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.sp-mlb-empty-feed { padding: 20px 8px; color: #94a3b8; font-size: 10px; text-align: center; }
+.sp-mlb-scoring { margin: 0 10px 10px; overflow: hidden; border: 1px solid #fed7aa; border-radius: 8px; background: #fffaf5; }
+.sp-mlb-scoring .sp-mlb-feed-title { border-top: 0; border-bottom-color: #ffedd5; background: #fff7ed; color: #c2410c; }
+.sp-mlb-scoring-row { display: grid; grid-template-columns: 42px minmax(0,1fr) 38px; align-items: center; gap: 6px; min-height: 38px; padding: 0 9px; border-bottom: 1px solid #ffedd5; font-size: 9px; }
+.sp-mlb-scoring-row:last-child { border-bottom: 0; }
+.sp-mlb-scoring-row > span { color: #9a3412; font-weight: 800; }
+.sp-mlb-scoring-row > div { min-width: 0; overflow: hidden; }
+.sp-mlb-scoring-row b, .sp-mlb-scoring-row em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-mlb-scoring-row b { color: #1e293b; font-size: 9.5px; }
+.sp-mlb-scoring-row small { display: block; overflow: hidden; margin-bottom: 2px; color: #9a3412; font-size: 8px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.sp-mlb-scoring-row em { margin-top: 2px; color: #c2410c; font-style: normal; }
+.sp-mlb-scoring-row > strong { color: #c2410c; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 
 .sp-card-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 8px; }
 .sp-league-label { font-size: 11px; font-weight: 800; color: #64748b; letter-spacing: 0.3px; }
@@ -283,6 +367,36 @@
 .sp-placeholder-box p { font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 16px; font-weight: 600;}
 .sp-placeholder-link { display: inline-block; background: #e11d48; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: 700; transition: background 0.2s, transform 0.2s; box-shadow: 0 2px 4px rgba(225,29,72,0.2); }
 .sp-placeholder-link:hover { background: #be123c; transform: translateY(-1px); }
+
+.sp-ucl-round { margin-top: 18px; }
+.sp-ucl-round:first-of-type { margin-top: 12px; }
+.sp-ucl-tie-card { margin-top: 8px; padding: 11px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
+.sp-ucl-tie-title { display: grid; grid-template-columns: minmax(0,1fr) 24px minmax(0,1fr); align-items: center; gap: 4px; padding-bottom: 8px; color: #0f172a; font-size: 12px; font-weight: 800; text-align: center; }
+.sp-ucl-tie-title b { color: #94a3b8; font-size: 10px; }
+.sp-ucl-team-label { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.sp-ucl-team-label img, .sp-ucl-team-logo-fallback { width: 22px; height: 22px; flex: 0 0 22px; object-fit: contain; border-radius: 50%; }
+.sp-ucl-team-label > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-ucl-team-logo-fallback { display: grid; place-items: center; background: #f1f5f9; color: #94a3b8; font-size: 9px; }
+.sp-ucl-match-block { border-top: 1px solid #f1f5f9; }
+.sp-ucl-match-row { display: grid; grid-template-columns: 72px minmax(0,1fr) 38px minmax(0,1fr); align-items: center; gap: 5px; min-height: 28px; border-top: 1px solid #f1f5f9; color: #475569; font-size: 10.5px; text-align: center; }
+.sp-ucl-match-block .sp-ucl-match-row { border-top: 0; }
+.sp-ucl-match-block .sp-match-events { margin: 0 4px 7px; padding: 7px 6px 0; }
+.sp-ucl-match-row > span:not(.sp-ucl-match-meta):not(.sp-ucl-vs) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-ucl-match-meta { color: #94a3b8; font-size: 9.5px; text-align: left; white-space: nowrap; }
+.sp-ucl-match-row strong { color: #0f172a; font-size: 11px; }
+.sp-ucl-vs { color: #94a3b8; font-size: 9px; font-weight: 800; }
+.sp-ucl-tie-result { display: flex; justify-content: space-between; gap: 8px; margin-top: 7px; padding: 7px 8px; border-radius: 7px; background: #f8fafc; color: #64748b; font-size: 10px; }
+.sp-ucl-tie-result strong { color: #e11d48; }
+.sp-nba-playoff-card { padding: 13px 12px 11px; }
+.sp-nba-playoff-card .sp-ucl-tie-title { min-height: 34px; padding-bottom: 10px; }
+.sp-nba-playoff-card .sp-ucl-team-label img,
+.sp-nba-playoff-card .sp-ucl-team-logo-fallback { width: 26px; height: 26px; flex-basis: 26px; }
+.sp-nba-playoff-game { grid-template-columns: 58px minmax(68px,1fr) 64px minmax(68px,1fr); min-height: 34px; gap: 6px; }
+.sp-nba-playoff-game strong { display: block; min-width: 64px; color: #0f172a; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: -0.2px; }
+.sp-nba-playoff-game .sp-ucl-match-meta { font-size: 9px; }
+.sp-playoff-more { width: 100%; margin-top: 5px; padding: 7px 8px; border: 0; border-radius: 7px; background: #f8fafc; color: #64748b; font-family: 'Pretendard', sans-serif; font-size: 10px; font-weight: 700; cursor: pointer; }
+.sp-playoff-more:hover { background: #f1f5f9; color: #334155; }
+.sp-playoff-more span { margin-left: 4px; color: #e11d48; font-size: 12px; }
 
 /* ================= [15. Archive Panel Styles] ================= */
 .arc-cat-btn {
