@@ -1,0 +1,53 @@
+{
+  "name": "energuard-nba-live-widget",
+  "version": "1.0.0",
+  "description": "NBA 실시간 스코어와 문자중계를 표시하는 Windows 데스크톱 위젯",
+  "main": "main.js",
+  "author": "Energuard",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke-test",
+    "check": "node --check main.js && node --check preload.js && node --check renderer.js",
+    "build": "electron-builder --win nsis --config.electronDist=node_modules/electron/dist --config.directories.output=final-release",
+    "build:portable": "electron-builder --win portable --config.electronDist=node_modules/electron/dist --config.directories.output=final-release"
+  },
+  "devDependencies": {
+    "electron": "^38.1.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.energuard.nbalivewidget",
+    "productName": "NBA Live Widget",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "styles.css",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "NBA-Live-Widget-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NBA Live Widget"
+    }
+  }
+}

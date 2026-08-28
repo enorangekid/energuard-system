@@ -273,6 +273,11 @@ function getKoTeamName(team, tab) {
 }
 
 function toggleWidgetPanel() {
+    const isClosing = document.getElementById('widgetPanel')?.classList.contains('open');
+    if (isClosing) {
+        stopMlbCommentaryRefresh();
+        stopNbaCommentaryRefresh();
+    }
     openPanel('widgetPanel', () => {
         if (!window.widgetInitialized) {
             syncWidgetSeasonSelect('nba');
@@ -352,6 +357,8 @@ let widgetLoadRequestId = 0;
 const SPORTS_PLAYOFF_EXPANDED = new Set();
 let mlbCommentaryGameId = null;
 let mlbCommentaryRefreshTimer = null;
+let nbaCommentaryGameId = null;
+let nbaCommentaryRefreshTimer = null;
 
 function currentNbaSeasonStartYear() {
     const now = new Date();
@@ -389,6 +396,7 @@ function syncWidgetSeasonSelect(tab) {
 
 function setWidgetTab(tab, el) {
     if (tab !== 'mlb') stopMlbCommentaryRefresh();
+    if (tab !== 'nba') stopNbaCommentaryRefresh();
     currentWidgetTab = tab;
     document.querySelectorAll('.sp-tab-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
@@ -401,6 +409,7 @@ function setWidgetTab(tab, el) {
 
 function reloadWidget() {
     stopMlbCommentaryRefresh();
+    stopNbaCommentaryRefresh();
     delete widgetCache[currentWidgetTab];
     loadWidgetData(currentWidgetTab);
 }
@@ -781,6 +790,7 @@ window.toggleSportsStatExpand = function(key) {
 };
 
 window.toggleSportsPlayoffSeries = function(key) {
+    stopNbaCommentaryRefresh();
     if (SPORTS_PLAYOFF_EXPANDED.has(key)) SPORTS_PLAYOFF_EXPANDED.delete(key); else SPORTS_PLAYOFF_EXPANDED.add(key);
     if (widgetCache.nba) renderWidget('nba', widgetCache.nba);
 };
@@ -799,6 +809,7 @@ window.setWidgetMlbView = function(view) {
 
 window.setWidgetNbaView = function(view) {
     if (!['standings', 'stats', 'playoffs'].includes(view)) return;
+    stopNbaCommentaryRefresh();
     widgetNbaView = view;
     if (widgetCache.nba) renderWidget('nba', widgetCache.nba);
 };
@@ -1000,10 +1011,16 @@ function widgetNbaPlayoffs(data) {
                 const gameDate = new Date(event.date);
                 const date = `${gameDate.getMonth() + 1}/${gameDate.getDate()}`;
                 const score = scheduled ? 'VS' : `${gameHome?.score ?? '-'} : ${gameAway?.score ?? '-'}`;
-                return `<div class="sp-ucl-match-row sp-nba-playoff-game">
+                const commentaryAttrs = !scheduled && event.id
+                    ? ` role="button" tabindex="0" title="문자중계 보기" onclick="toggleNbaCommentary(event, '${event.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleNbaCommentary(event,'${event.id}')}"`
+                    : '';
+                const commentaryHost = !scheduled && event.id
+                    ? `<div id="sp-nba-commentary-${event.id}" class="sp-nba-commentary-host" aria-live="polite"></div>`
+                    : '';
+                return `<div class="sp-ucl-match-row sp-nba-playoff-game ${commentaryAttrs ? 'sp-score-card-commentary' : ''}"${commentaryAttrs}>
                     <span class="sp-ucl-match-meta">${safe(date)} · ${key === 'play-in' ? '단판' : `${gameNumber}차전`}</span>
                     <span>${safe(getKoTeamName(gameHome?.team, 'nba'))}</span><strong>${safe(score)}</strong><span>${safe(getKoTeamName(gameAway?.team, 'nba'))}</span>
-                </div>`;
+                </div>${commentaryHost}`;
             }).join('');
             const moreButton = games.length > 3
                 ? `<button type="button" class="sp-playoff-more" onclick="toggleSportsPlayoffSeries('${expandKey}')">${expanded ? '간략히 보기' : `이전 경기 포함 ${games.length}경기 전체보기`} <span>${expanded ? '−' : '+'}</span></button>`
@@ -1334,19 +1351,20 @@ function widgetCard(ev, type, tab) {
         ? widgetMatchEvents(comp, home, away)
         : '';
 
-    const hasMlbCommentary = tab === 'mlb' && type !== 'sched' && ev.id;
-    const commentaryAttrs = hasMlbCommentary
-        ? ` role="button" tabindex="0" aria-label="문자중계 보기" onclick="toggleMlbCommentary(event, '${ev.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMlbCommentary(event,'${ev.id}')}"`
+    const commentarySport = type !== 'sched' && ev.id && (tab === 'mlb' || tab === 'nba') ? tab : '';
+    const commentaryHandler = commentarySport === 'mlb' ? 'toggleMlbCommentary' : 'toggleNbaCommentary';
+    const commentaryAttrs = commentarySport
+        ? ` role="button" tabindex="0" aria-label="문자중계 보기" onclick="${commentaryHandler}(event, '${ev.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${commentaryHandler}(event,'${ev.id}')}"`
         : '';
-    const commentaryHint = hasMlbCommentary
+    const commentaryHint = commentarySport
         ? `<div class="sp-commentary-hint"><i class="fa-regular fa-comment-dots"></i><span>문자중계 보기</span><i class="fa-solid fa-chevron-down"></i></div>`
         : '';
-    const commentaryHost = hasMlbCommentary
-        ? `<div id="sp-mlb-commentary-${ev.id}" class="sp-mlb-commentary-host" aria-live="polite"></div>`
+    const commentaryHost = commentarySport
+        ? `<div id="sp-${commentarySport}-commentary-${ev.id}" class="sp-${commentarySport}-commentary-host" aria-live="polite"></div>`
         : '';
 
     return `
-    <div class="sp-score-card ${type==='live'?'live':''} ${hasMlbCommentary?'sp-score-card-commentary':''}"${commentaryAttrs}>
+    <div class="sp-score-card ${type==='live'?'live':''} ${commentarySport?'sp-score-card-commentary':''}"${commentaryAttrs}>
         <div class="sp-card-meta">
             <span class="sp-league-label">${WIDGET_CFG[tab]?.label||''}</span>
             ${badge}
@@ -1595,6 +1613,201 @@ window.refreshMlbCommentary = function(gamePk) {
     if (mlbCommentaryRefreshTimer) clearTimeout(mlbCommentaryRefreshTimer);
     mlbCommentaryRefreshTimer = null;
     loadMlbCommentary(id, true);
+};
+
+function stopNbaCommentaryRefresh() {
+    if (nbaCommentaryRefreshTimer) clearTimeout(nbaCommentaryRefreshTimer);
+    nbaCommentaryRefreshTimer = null;
+    nbaCommentaryGameId = null;
+}
+
+function nbaPeriodLabel(period) {
+    const num = Number(period) || 0;
+    if (!num) return '경기';
+    return num <= 4 ? `${num}쿼터` : `연장 ${num - 4}`;
+}
+
+function nbaKoreanPlay(text) {
+    if (!text) return '경기 진행';
+    let value = String(text)
+        .replace(/(\d+)-foot/gi, '$1피트')
+        .replace(/three point (jumper|shot|pullup jump shot|step back jumpshot|running pullup jump shot)/gi, '3점슛')
+        .replace(/two point (jumper|shot)/gi, '2점슛')
+        .replace(/driving floating jump shot/gi, '드라이빙 플로터')
+        .replace(/running pullup jump shot/gi, '러닝 풀업 점프슛')
+        .replace(/pullup jump shot/gi, '풀업 점프슛')
+        .replace(/step back jumpshot/gi, '스텝백 점프슛')
+        .replace(/jump shot/gi, '점프슛')
+        .replace(/driving layup/gi, '드라이빙 레이업')
+        .replace(/finger roll layup/gi, '핑거롤 레이업')
+        .replace(/layup/gi, '레이업')
+        .replace(/alley oop dunk shot/gi, '앨리웁 덩크')
+        .replace(/driving dunk/gi, '드라이빙 덩크')
+        .replace(/dunk shot|dunk/gi, '덩크')
+        .replace(/free throw/gi, '자유투')
+        .replace(/hook shot/gi, '훅슛')
+        .replace(/bank shot/gi, '뱅크슛')
+        .replace(/Defensive rebound by (.+)/i, '$1 수비 리바운드')
+        .replace(/Offensive rebound by (.+)/i, '$1 공격 리바운드')
+        .replace(/Turnover by (.+)/i, '$1 턴오버')
+        .replace(/Steal by (.+)/i, '$1 스틸')
+        .replace(/Block by (.+)/i, '$1 블록')
+        .replace(/Timeout (.+)/i, '$1 타임아웃')
+        .replace(/ enters the game for /i, ' 교체 투입 → ')
+        .replace(/Personal foul by (.+)/i, '$1 개인 파울')
+        .replace(/Shooting foul by (.+)/i, '$1 슈팅 파울')
+        .replace(/Loose ball foul by (.+)/i, '$1 루즈볼 파울')
+        .replace(/Offensive foul by (.+)/i, '$1 공격자 파울')
+        .replace(/Technical foul by (.+)/i, '$1 테크니컬 파울')
+        .replace(/Jump Ball/i, '점프볼')
+        .replace(/End of the (\d+)(st|nd|rd|th) Quarter/i, '$1쿼터 종료')
+        .replace(/End of Game/i, '경기 종료')
+        .replace(/\(([^)]+) assists\)/gi, '($1 도움)');
+    if (/ makes /i.test(value)) value = value.replace(/ makes /i, ' ') + ' 성공';
+    else if (/ misses /i.test(value)) value = value.replace(/ misses /i, ' ') + ' 실패';
+    return value;
+}
+
+function widgetNbaCommentary(packageData) {
+    const safe = value => escapeAdminHtml(String(value ?? ''));
+    const comp = packageData?.header?.competitions?.[0] || {};
+    const competitors = comp.competitors || [];
+    const home = competitors.find(item => item.homeAway === 'home') || {};
+    const away = competitors.find(item => item.homeAway === 'away') || {};
+    const plays = (packageData?.plays || []).filter(play => play.text || play.shortDescription);
+    const lastPlay = plays[plays.length - 1] || {};
+    const status = comp.status || {};
+    const isLive = status.type?.state === 'in';
+    const period = Number(status.period || lastPlay.period?.number || 0);
+    const clock = status.displayClock || lastPlay.clock?.displayValue || '';
+    const awayName = getKoTeamName(away.team, 'nba');
+    const homeName = getKoTeamName(home.team, 'nba');
+    const awayLogo = away.team?.logos?.[0]?.href || '';
+    const homeLogo = home.team?.logos?.[0]?.href || '';
+    const teamMap = new Map([
+        [String(away.team?.id || away.id || ''), { name: awayName, abbr: away.team?.abbreviation || 'AWAY', logo: awayLogo }],
+        [String(home.team?.id || home.id || ''), { name: homeName, abbr: home.team?.abbreviation || 'HOME', logo: homeLogo }]
+    ]);
+    const maxPeriod = Math.max(4, away.linescores?.length || 0, home.linescores?.length || 0, period);
+    const periodNumbers = Array.from({ length: maxPeriod }, (_, index) => index + 1);
+    const periodHead = periodNumbers.map(num => `<th class="${num === period ? 'current' : ''}">${num <= 4 ? `Q${num}` : `OT${num - 4}`}</th>`).join('');
+    const scoreRow = (competitor, name) => {
+        const scores = competitor.linescores || [];
+        const cells = periodNumbers.map((num, index) => `<td class="${num === period ? 'current' : ''}">${safe(scores[index]?.displayValue ?? '–')}</td>`).join('');
+        return `<tr><th title="${safe(name)}">${safe(competitor.team?.abbreviation || name)}</th>${cells}<td class="total">${safe(competitor.score ?? 0)}</td></tr>`;
+    };
+    const scoreBoard = `<div class="sp-nba-linescore-wrap"><table class="sp-nba-linescore"><thead><tr><th>팀</th>${periodHead}<th>T</th></tr></thead><tbody>${scoreRow(away, awayName)}${scoreRow(home, homeName)}</tbody></table></div>`;
+
+    const possession = competitors.find(item => item.possession);
+    const possessionName = possession ? getKoTeamName(possession.team, 'nba') : '';
+    const situationText = isLive
+        ? `${nbaPeriodLabel(period)} · ${clock}${possessionName ? ` · ${possessionName} 공격` : ''}`
+        : (status.type?.detail || status.type?.shortDetail || '경기 종료');
+
+    const scoringPlays = plays.filter(play => play.scoringPlay).slice(-10).reverse();
+    const scoringHtml = scoringPlays.length ? `<div class="sp-nba-scoring"><div class="sp-nba-block-title"><span>최근 득점</span><small>${scoringPlays.length}개</small></div>${scoringPlays.map(play => {
+        const team = teamMap.get(String(play.team?.id || ''));
+        const logo = team?.logo ? `<img src="${safe(team.logo)}" alt="">` : '';
+        const teamCode = `<span>${safe(team?.abbr || '–')}</span>`;
+        return `<div class="sp-nba-scoring-row"><span>${safe(play.clock?.displayValue || '')}</span><div class="sp-nba-play-team" title="${safe(team?.name || '')}">${logo}${teamCode}</div><p>${safe(nbaKoreanPlay(play.text || play.shortDescription))}</p><strong>${safe(play.awayScore ?? 0)} : ${safe(play.homeScore ?? 0)}</strong></div>`;
+    }).join('')}</div>` : '';
+
+    const playGroups = [];
+    plays.forEach(play => {
+        const periodNum = Number(play.period?.number || 0);
+        if (!periodNum) return;
+        let group = playGroups[playGroups.length - 1];
+        if (!group || group.period !== periodNum) {
+            group = { period: periodNum, plays: [] };
+            playGroups.push(group);
+        }
+        group.plays.push(play);
+    });
+    const playHtml = playGroups.map(group => {
+        const isCurrent = group.period === period;
+        const rows = group.plays.map(play => {
+            const team = teamMap.get(String(play.team?.id || ''));
+            const logo = team?.logo ? `<img src="${safe(team.logo)}" alt="">` : '';
+            const teamCode = `<span>${safe(team?.abbr || '–')}</span>`;
+            return `<div class="sp-nba-play-row ${play.scoringPlay ? 'scoring' : ''}">
+                <span>${safe(play.clock?.displayValue || '')}</span><div class="sp-nba-play-team" title="${safe(team?.name || '공통 경기 상황')}">${logo}${teamCode}</div>
+                <p>${safe(nbaKoreanPlay(play.text || play.shortDescription))}</p><strong>${safe(play.awayScore ?? '')}${play.awayScore == null ? '' : ' : '}${safe(play.homeScore ?? '')}</strong>
+            </div>`;
+        }).join('');
+        return `<details class="sp-nba-period" ${isCurrent ? 'open' : ''}><summary><span>${nbaPeriodLabel(group.period)}</span><small>${group.plays.length}개 플레이</small><i class="fa-solid fa-chevron-down"></i></summary><div>${rows}</div></details>`;
+    }).join('');
+
+    const leaderCards = (packageData?.boxscore?.players || []).map(teamGroup => {
+        const statsBlock = teamGroup.statistics?.[0];
+        const labels = statsBlock?.labels || [];
+        const ptsIndex = labels.indexOf('PTS');
+        const rebIndex = labels.indexOf('REB');
+        const astIndex = labels.indexOf('AST');
+        if (ptsIndex < 0) return '';
+        const leaders = (statsBlock.athletes || []).filter(item => !item.didNotPlay && item.stats?.[ptsIndex] != null)
+            .sort((a, b) => Number(b.stats[ptsIndex]) - Number(a.stats[ptsIndex])).slice(0, 2);
+        if (!leaders.length) return '';
+        const teamName = getKoTeamName(teamGroup.team, 'nba');
+        return `<div class="sp-nba-leader-team"><div class="sp-nba-leader-team-name"><img src="${safe(teamGroup.team?.logo || '')}" alt=""><span>${safe(teamName)}</span></div>${leaders.map(item => `<div class="sp-nba-leader-row">${item.athlete?.headshot?.href ? `<img src="${safe(item.athlete.headshot.href)}" alt="">` : ''}<span><b>${safe(item.athlete?.shortName || item.athlete?.displayName)}</b><small>${safe(item.stats[ptsIndex])}득점 · ${safe(item.stats[rebIndex] ?? 0)}리바운드 · ${safe(item.stats[astIndex] ?? 0)}도움</small></span></div>`).join('')}</div>`;
+    }).filter(Boolean).join('');
+
+    return `<div class="sp-nba-commentary">
+        <div class="sp-nba-commentary-head"><div><span class="${isLive ? 'live' : ''}">${isLive ? '● LIVE' : 'NBA'}</span><b>${safe(situationText)}</b></div><button type="button" onclick="event.stopPropagation(); refreshNbaCommentary('${safe(packageData?.header?.id || '')}')" title="문자중계 새로고침"><i class="fa-solid fa-rotate-right"></i></button></div>
+        <div class="sp-nba-live-score"><span><small>원정</small>${safe(awayName)}</span><strong>${safe(away.score ?? 0)} : ${safe(home.score ?? 0)}</strong><span><small>홈</small>${safe(homeName)}</span></div>
+        ${scoreBoard}
+        ${leaderCards ? `<div class="sp-nba-leaders"><div class="sp-nba-block-title"><span>주요 선수</span><small>팀별 득점 상위</small></div><div class="sp-nba-leader-grid">${leaderCards}</div></div>` : ''}
+        ${scoringHtml}
+        <div class="sp-nba-block-title sp-nba-all-title"><span>전체 문자중계</span><small>${isLive ? '8초 자동 갱신' : '쿼터를 눌러 펼치기'}</small></div>
+        <div class="sp-nba-play-list">${playHtml || '<div class="sp-mlb-empty-feed">플레이 기록이 없습니다.</div>'}</div>
+    </div>`;
+}
+
+async function loadNbaCommentary(gameId, showLoading = false) {
+    const id = String(gameId);
+    const host = document.getElementById(`sp-nba-commentary-${id}`);
+    if (!host || nbaCommentaryGameId !== id) return;
+    if (showLoading) host.innerHTML = '<div class="sp-commentary-loading"><i class="fa-solid fa-spinner fa-spin"></i><span>NBA 문자중계를 불러오는 중...</span></div>';
+    const response = await fetchWidgetJson(`https://cdn.espn.com/core/nba/playbyplay?xhr=1&gameId=${encodeURIComponent(id)}`, 15000);
+    const activeHost = document.getElementById(`sp-nba-commentary-${id}`);
+    if (!activeHost || nbaCommentaryGameId !== id) return;
+    const packageData = response?.gamepackageJSON;
+    if (!packageData) {
+        activeHost.innerHTML = '<div class="sp-commentary-loading error"><i class="fa-solid fa-circle-exclamation"></i><span>NBA 문자중계를 불러오지 못했습니다.</span></div>';
+        return;
+    }
+    activeHost.innerHTML = widgetNbaCommentary(packageData);
+    if (packageData.header?.competitions?.[0]?.status?.type?.state === 'in') {
+        nbaCommentaryRefreshTimer = setTimeout(() => loadNbaCommentary(id), 8000);
+    }
+}
+
+window.toggleNbaCommentary = function(event, gameId) {
+    event?.stopPropagation();
+    const id = String(gameId);
+    const host = document.getElementById(`sp-nba-commentary-${id}`);
+    if (!host) return;
+    if (nbaCommentaryGameId === id && host.classList.contains('open')) {
+        stopNbaCommentaryRefresh();
+        host.classList.remove('open');
+        host.innerHTML = '';
+        return;
+    }
+    document.querySelectorAll('.sp-nba-commentary-host.open').forEach(el => {
+        el.classList.remove('open');
+        el.innerHTML = '';
+    });
+    stopNbaCommentaryRefresh();
+    nbaCommentaryGameId = id;
+    host.classList.add('open');
+    loadNbaCommentary(id, true);
+};
+
+window.refreshNbaCommentary = function(gameId) {
+    const id = String(gameId);
+    if (nbaCommentaryGameId !== id) return;
+    if (nbaCommentaryRefreshTimer) clearTimeout(nbaCommentaryRefreshTimer);
+    nbaCommentaryRefreshTimer = null;
+    loadNbaCommentary(id, true);
 };
 
 // 득점/퇴장 목록 — 홈/원정 어느 팀인지는 details의 team.id를 competitors의 team.id와
