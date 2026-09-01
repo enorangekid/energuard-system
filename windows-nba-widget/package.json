@@ -1,6 +1,6 @@
 {
   "name": "energuard-sports-live-widget",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "NBA, MLB, EPL, UCL 실시간 경기와 문자중계를 표시하는 Windows 데스크톱 위젯",
   "main": "main.js",
   "author": "Energuard",

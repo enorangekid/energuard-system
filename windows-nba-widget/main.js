@@ -76,14 +76,15 @@ function notificationDisplay() {
 function layoutNotificationWindows() {
   notificationWindows = notificationWindows.filter(item => !item.window.isDestroyed());
   const display = notificationDisplay();
-  const height = 150;
-  const gap = 4;
+  const windowHeight = 150;
+  // 카드 실제 높이는 약 126px, 창 위아래 투명 여백(24px)만큼 겹쳐 쌓아 간격을 좁힘
+  const stride = 132;
   const margin = 8;
   [...notificationWindows].reverse().forEach((item, index) => {
     const [width] = item.window.getSize();
     item.window.setPosition(
       Math.round(display.workArea.x + display.workArea.width - width - margin),
-      Math.round(display.workArea.y + display.workArea.height - height - margin - index * (height + gap)),
+      Math.round(display.workArea.y + display.workArea.height - windowHeight - margin - index * stride),
       true
     );
   });
@@ -138,7 +139,7 @@ function showCardNotification(payload = {}) {
     }
   });
   notificationWindow.setAlwaysOnTop(true, 'floating');
-  notificationWindow.setOpacity(Math.min(1, Math.max(0.65, Number(settings.notificationOpacity) || 0.95)));
+  notificationWindow.setOpacity(Math.min(1, Math.max(0.12, Number(settings.notificationOpacity) || 0.95)));
   const currentWindow = notificationWindow;
   const item = { window: currentWindow, pinned: Boolean(settings.pinAllNotifications), createdAt: Date.now() };
   notificationWindows.push(item);
@@ -287,6 +288,8 @@ function createWindow() {
           showCardNotification({
             awayName: 'LA 레이커스',
             homeName: '보스턴',
+            awayLogo: 'https://a.espncdn.com/i/teamlogos/nba/500/lal.png',
+            homeLogo: 'https://a.espncdn.com/i/teamlogos/nba/500/bos.png',
             awayScore: 108,
             homeScore: 106,
             meta: '4쿼터 · 01:24',
@@ -315,7 +318,7 @@ function createWindow() {
           const notificationCapturePath = path.join(app.getPath('temp'), 'sports-live-notification-smoke.png');
           fs.writeFileSync(notificationCapturePath, notificationCapture.toPNG());
           console.log(`NOTIFICATION_SMOKE_IMAGE ${notificationCapturePath}`);
-          showCardNotification({ awayName: '뉴욕 닉스', homeName: '시카고', awayScore: 99, homeScore: 98, meta: '4쿼터 · 00:08', body: '결승 자유투 성공', silent: true });
+          showCardNotification({ awayName: '뉴욕 닉스', homeName: '시카고', awayLogo: 'https://a.espncdn.com/i/teamlogos/nba/500/ny.png', homeLogo: 'https://a.espncdn.com/i/teamlogos/nba/500/chi.png', awayScore: 99, homeScore: 98, meta: '4쿼터 · 00:08', body: '결승 자유투 성공', silent: true });
           await new Promise(resolve => setTimeout(resolve, 500));
           const stackBounds = notificationWindows.map(entry => entry.window.getBounds()).sort((a, b) => a.y - b.y);
           console.log(`NOTIFICATION_STACK_SMOKE_RESULT ${JSON.stringify(stackBounds)}`);
@@ -377,7 +380,7 @@ ipcMain.handle('settings:save', (_event, nextSettings) => {
   });
   updateTrayMenu();
   notificationWindows.forEach(item => {
-    if (!item.window.isDestroyed()) item.window.setOpacity(Math.min(1, Math.max(0.65, Number(settings.notificationOpacity) || 0.95)));
+    if (!item.window.isDestroyed()) item.window.setOpacity(Math.min(1, Math.max(0.12, Number(settings.notificationOpacity) || 0.95)));
   });
   if (previousSettings.pinAllNotifications !== settings.pinAllNotifications) {
     notificationWindows.forEach(item => {
@@ -412,7 +415,7 @@ ipcMain.handle('notification:dismiss-all', () => {
 
 ipcMain.handle('sports:fetch-json', async (_event, requestUrl) => {
   const url = new URL(String(requestUrl || ''));
-  const allowedHosts = new Set(['site.api.espn.com', 'cdn.espn.com', 'statsapi.mlb.com']);
+  const allowedHosts = new Set(['site.api.espn.com', 'site.web.api.espn.com', 'cdn.espn.com', 'statsapi.mlb.com']);
   if (url.protocol !== 'https:' || !allowedHosts.has(url.hostname)) {
     throw new Error('허용되지 않은 스포츠 데이터 주소입니다.');
   }

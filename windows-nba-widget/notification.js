@@ -1,4 +1,5 @@
 const card = document.querySelector('#card');
+const AVATAR_PLACEHOLDER = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MCA0MCI+PHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjZTllZGYyIi8+PGNpcmNsZSBjeD0iMjAiIGN5PSIxNSIgcj0iNyIgZmlsbD0iI2I0YmRjOSIvPjxwYXRoIGQ9Ik02IDM0YzIuMi03LjggNy4yLTExLjQgMTQtMTEuNFMzMiAyNi4yIDM0IDM0eiIgZmlsbD0iI2I0YmRjOSIvPjwvc3ZnPg==";
 let gameId = '';
 let sport = 'nba';
 let endpointLeague = '';
@@ -26,7 +27,7 @@ function renderPinned(nextPinned) {
   pinned = Boolean(nextPinned);
   const button = document.querySelector('#pin');
   button.classList.toggle('active', pinned);
-  button.textContent = pinned ? '◆' : '◇';
+  button.textContent = '📌';
   button.setAttribute('aria-pressed', String(pinned));
   button.title = pinned ? '고정 해제' : '알림 고정';
   if (pinned) clearTimeout(closeTimer); else scheduleClose(3500);
@@ -63,8 +64,13 @@ window.nbaNotification.onData(payload => {
   document.querySelector('#playText').textContent = payload.body || payload.title || '새로운 경기 소식이 있습니다.';
   document.querySelector('#playerName').textContent = payload.playerName || '';
   document.querySelector('#playerName').hidden = !payload.playerName;
-  const playerImage = payload.playerImage || payload.eventTeamLogo || '';
-  if (playerImage) document.querySelector('#playerImage').src = playerImage;
+  const playerImageEl = document.querySelector('#playerImage');
+  const hasPlayerContext = Boolean(payload.playerName);
+  playerImageEl.hidden = !hasPlayerContext;
+  if (hasPlayerContext) {
+    playerImageEl.onerror = () => { playerImageEl.onerror = null; playerImageEl.src = AVATAR_PLACEHOLDER; };
+    playerImageEl.src = payload.playerImage || AVATAR_PLACEHOLDER;
+  }
   if (payload.awayLogo) document.querySelector('#awayLogo').src = payload.awayLogo;
   if (payload.homeLogo) document.querySelector('#homeLogo').src = payload.homeLogo;
   if (!payload.silent) playSoftTone();
