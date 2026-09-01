@@ -1,14 +1,14 @@
 {
-  "name": "energuard-nba-live-widget",
-  "version": "1.0.0",
-  "description": "NBA 실시간 스코어와 문자중계를 표시하는 Windows 데스크톱 위젯",
+  "name": "energuard-sports-live-widget",
+  "version": "2.0.0",
+  "description": "NBA, MLB, EPL, UCL 실시간 경기와 문자중계를 표시하는 Windows 데스크톱 위젯",
   "main": "main.js",
   "author": "Energuard",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
     "smoke": "electron . --smoke-test",
-    "check": "node --check main.js && node --check preload.js && node --check renderer.js",
+    "check": "node --check main.js && node --check preload.js && node --check renderer.js && node --check notification-preload.js && node --check notification.js",
     "build": "electron-builder --win nsis --config.electronDist=node_modules/electron/dist --config.directories.output=final-release",
     "build:portable": "electron-builder --win portable --config.electronDist=node_modules/electron/dist --config.directories.output=final-release"
   },
@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "com.energuard.nbalivewidget",
-    "productName": "NBA Live Widget",
+    "productName": "Energuard Sports Live",
     "asar": true,
     "directories": {
       "output": "dist"
@@ -26,6 +26,10 @@
     "files": [
       "main.js",
       "preload.js",
+      "notification-preload.js",
+      "notification.html",
+      "notification.css",
+      "notification.js",
       "renderer.js",
       "index.html",
       "styles.css",
@@ -40,14 +44,14 @@
           ]
         }
       ],
-      "artifactName": "NBA-Live-Widget-Setup-${version}.${ext}"
+      "artifactName": "Energuard-Sports-Live-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "NBA Live Widget"
+      "shortcutName": "Energuard Sports Live"
     }
   }
 }

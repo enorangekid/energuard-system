@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('nbaDesktop', {
   saveSettings: settings => ipcRenderer.invoke('settings:save', settings),
   fetchJson: url => ipcRenderer.invoke('sports:fetch-json', url),
   showNotification: payload => ipcRenderer.invoke('notification:show', payload),
-  onFocusGame: callback => ipcRenderer.on('focus-game', (_event, gameId) => callback(gameId)),
+  dismissNotifications: () => ipcRenderer.invoke('notification:dismiss-all'),
+  onFocusGame: callback => ipcRenderer.on('focus-game', (_event, target) => callback(target)),
   onSettingsChanged: callback => ipcRenderer.on('settings-changed', (_event, settings) => callback(settings))
 });
