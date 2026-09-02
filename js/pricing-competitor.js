@@ -34,18 +34,33 @@
    -- comp{n}_excluded: "경쟁사 최저가 맞춤"(autoMatchCompetitorPriceIsopink) 자동계산에서
    -- 그 경쟁사를 뺄지 여부. 도저히 가격을 맞출 수 없는 업체를 목록에서 완전히 지우지 않고
    -- 표시는 유지한 채 자동 계산에서만 제외하기 위함(2026-09-02).
+   -- 2026-09-02(2차): 처음엔 tab_id(아이소/비드/우레탄 등 큰 카테고리)만 PK였는데, 같은
+   -- 큰 카테고리 안에서도 서브탭(등급, 예: 비드법의 2종3호/2종2호/.../준불연)마다 실제로
+   -- 등록된 경쟁사가 다를 수 있어서 제외설정도 서브탭 단위로 따로 걸 수 있어야 한다는
+   -- 요청으로 grade_id를 PK에 추가함. 기존 tab_id 단위 값은 각 탭의 기본 서브탭에만
+   -- 옮겨두고 나머지 서브탭은 기본값(제외 없음)에서 새로 시작한다:
+   --   ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS grade_id text;
+   --   UPDATE competitor_names SET grade_id = CASE tab_id
+   --     WHEN 'isopink' THEN 'isopink' WHEN 'bead' THEN 'ia1' WHEN 'pu' THEN 'ic'
+   --     WHEN 'pf' THEN 'lxo_s' WHEN 'fr' THEN 'fr_bul' ELSE tab_id END
+   --   WHERE grade_id IS NULL;
+   --   ALTER TABLE competitor_names DROP CONSTRAINT IF EXISTS competitor_names_pkey;
+   --   ALTER TABLE competitor_names ADD PRIMARY KEY (tab_id, grade_id);
    CREATE TABLE IF NOT EXISTS competitor_names (
-     tab_id          text PRIMARY KEY,
+     tab_id          text NOT NULL,
+     grade_id        text NOT NULL,
      comp1_name      text,
      comp2_name      text,
      comp3_name      text,
      comp1_excluded  boolean DEFAULT false,
      comp2_excluded  boolean DEFAULT false,
      comp3_excluded  boolean DEFAULT false,
-     updated_at      timestamptz DEFAULT now()
+     updated_at      timestamptz DEFAULT now(),
+     PRIMARY KEY (tab_id, grade_id)
    );
    ALTER TABLE competitor_names DISABLE ROW LEVEL SECURITY;
-   -- 이미 competitor_names 테이블이 있는 상태에서 이 컬럼만 추가하려면:
+   -- 이미 competitor_names 테이블이 있는 상태에서 이 컬럼만 추가하려면 위 2026-09-02(2차)
+   -- 마이그레이션 블록을 그대로 실행 (comp{n}_excluded 컬럼 자체가 없다면 먼저):
    -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp1_excluded boolean DEFAULT false;
    -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp2_excluded boolean DEFAULT false;
    -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp3_excluded boolean DEFAULT false;
@@ -67,17 +82,22 @@ const COMP_COLORS        = ['#3b82f6', '#f59e0b', '#10b981'];
 // 같이 채워진다"를 한눈에 보이게 한다(2026-09-02). 경쟁사 슬롯(comp1/2/3)별로 독립 배정.
 const LINK_GROUP_COLORS = ['#fef3c7', '#dbeafe', '#dcfce7', '#fae8ff', '#ffe4e6', '#e0f2fe', '#fef9c3', '#ede9fe', '#ffedd5', '#cffafe'];
 
-/* 탭별 이름+제외설정 인메모리 캐시 — { [tabId]: { names:[3], excluded:[3 bool] } } */
+/* 탭+서브탭(등급)별 이름+제외설정 인메모리 캐시 — { [tabId:gradeId]: { names:[3], excluded:[3 bool] } }
+   2026-09-02: 같은 큰 카테고리(예: 비드법) 안에서도 서브탭마다 등록된 경쟁사가 달라서
+   제외설정을 탭 단위가 아니라 (탭, 서브탭) 단위로 따로 걸 수 있게 키를 확장함. */
 let _compMetaCache = {};
+function _compMetaKey(tabId, gradeId) { return `${tabId}:${gradeId}`; }
 
-async function _compMeta(tabId) {
-  if (_compMetaCache[tabId]) return _compMetaCache[tabId];
+async function _compMeta(tabId, gradeId) {
+  const key = _compMetaKey(tabId, gradeId);
+  if (_compMetaCache[key]) return _compMetaCache[key];
   let meta = { names: [...COMP_DEFAULT_NAMES], excluded: [false, false, false] };
   try {
     const { data: r, error } = await supabaseClient
       .from('competitor_names')
       .select('comp1_name,comp2_name,comp3_name,comp1_excluded,comp2_excluded,comp3_excluded')
       .eq('tab_id', tabId)
+      .eq('grade_id', gradeId)
       .maybeSingle();
     if (error) throw error;
     if (r) {
@@ -91,20 +111,21 @@ async function _compMeta(tabId) {
       };
     }
   } catch(e) { console.warn('[Comp] 이름/제외설정 로드 실패', e); }
-  _compMetaCache[tabId] = meta;
+  _compMetaCache[key] = meta;
   return meta;
 }
 
-async function _compNames(tabId) { return (await _compMeta(tabId)).names; }
-async function _compExcluded(tabId) { return (await _compMeta(tabId)).excluded; }
+async function _compNames(tabId, gradeId) { return (await _compMeta(tabId, gradeId)).names; }
+async function _compExcluded(tabId, gradeId) { return (await _compMeta(tabId, gradeId)).excluded; }
 
-async function _saveCompMeta(tabId, names, excluded) {
+async function _saveCompMeta(tabId, gradeId, names, excluded) {
   // ⚠️ 예전엔 실패해도 여기서 에러를 삼키고 조용히 리턴해서, 호출부(editCompName)가
   // 항상 "저장되었습니다" 성공 토스트를 띄우는 버그가 있었다 — 실제로는 competitor_names
   // 테이블이 없거나 RLS에 막혀도 사용자는 저장된 줄 알고 새로고침 후에야 원래 이름으로
   // 돌아온 걸 발견하게 됨(2026-09-02). 이제 실패를 그대로 던져서 호출부가 알게 한다.
   const { error } = await supabaseClient.from('competitor_names').upsert({
     tab_id: tabId,
+    grade_id: gradeId,
     comp1_name: names[0],
     comp2_name: names[1],
     comp3_name: names[2],
@@ -112,12 +133,12 @@ async function _saveCompMeta(tabId, names, excluded) {
     comp2_excluded: !!excluded[1],
     comp3_excluded: !!excluded[2],
     updated_at: new Date().toISOString(),
-  }, { onConflict: 'tab_id' });
+  }, { onConflict: 'tab_id,grade_id' });
   if (error) {
     console.warn('[Comp] 이름/제외설정 저장 실패', error);
     throw error;
   }
-  _compMetaCache[tabId] = { names, excluded };
+  _compMetaCache[_compMetaKey(tabId, gradeId)] = { names, excluded };
 }
 
 /* ═══════════════════════════════════════
@@ -431,7 +452,7 @@ async function _injectCompColumns(tabId, gradeId, skipFetch) {
   table.querySelectorAll('colgroup .cp-col').forEach(el => el.remove());
   tbody.querySelectorAll('.cp-td-price, .cp-td-diff').forEach(el => el.remove());
 
-  const meta     = await _compMeta(tabId);
+  const meta     = await _compMeta(tabId, gradeId);
   const names    = meta.names;
   const excluded = meta.excluded;
 
@@ -448,12 +469,12 @@ async function _injectCompColumns(tabId, gradeId, skipFetch) {
       th.style.cssText = `--cc:${COMP_COLORS[i]}`;
       th.innerHTML = `
         <div class="cp-th-inner">
-          <span class="cp-th-name" data-ci="${i}" data-tab="${tabId}">${name}</span>
+          <span class="cp-th-name" data-ci="${i}" data-tab="${tabId}" data-grade="${gradeId}">${name}</span>
           <div class="cp-th-actions">
-            <button class="cp-name-btn" title="이름 변경" onclick="editCompName(${i}, '${tabId}')"><i class="fa-solid fa-pen-to-square"></i></button>
-            <button class="cp-exclude-btn${isExcluded ? ' active' : ''}" data-ci="${i}" data-tab="${tabId}"
+            <button class="cp-name-btn" title="이름 변경" onclick="editCompName(${i}, '${tabId}', '${gradeId}')"><i class="fa-solid fa-pen-to-square"></i></button>
+            <button class="cp-exclude-btn${isExcluded ? ' active' : ''}" data-ci="${i}" data-tab="${tabId}" data-grade="${gradeId}"
               title="${isExcluded ? '가격맞춤 계산에서 제외됨 — 클릭하면 다시 포함' : '가격 도저히 못 맞추는 업체면 눌러서 가격맞춤 계산에서 제외'}"
-              onclick="toggleCompExcluded(${i}, '${tabId}')"><i class="fa-solid fa-ban"></i></button>
+              onclick="toggleCompExcluded(${i}, '${tabId}', '${gradeId}')"><i class="fa-solid fa-ban"></i></button>
             <button class="cp-edit-btn" data-ci="${i}" title="단가 편집"
               onclick="toggleCompEdit(${i})"><i class="fa-solid fa-tag"></i></button>
           </div>
@@ -521,23 +542,23 @@ async function _injectCompColumns(tabId, gradeId, skipFetch) {
 /* ═══════════════════════════════════════
    경쟁사 이름 변경
 ═══════════════════════════════════════ */
-window.editCompName = async function(idx, tabId) {
+window.editCompName = async function(idx, tabId, gradeId) {
   if (window.currentUser?.role !== 'admin') {
     if (typeof showToast === 'function') showToast('관리자만 이름을 변경할 수 있습니다.', 'warning');
     return;
   }
-  const meta    = await _compMeta(tabId);
+  const meta    = await _compMeta(tabId, gradeId);
   const names   = meta.names;
   const newName = prompt('경쟁사 이름을 입력하세요:', names[idx]);
   if (!newName || !newName.trim()) return;
   names[idx] = newName.trim();
   try {
-    await _saveCompMeta(tabId, names, meta.excluded);
+    await _saveCompMeta(tabId, gradeId, names, meta.excluded);
   } catch (e) {
     if (typeof showToast === 'function') showToast('이름 저장 실패 — competitor_names 테이블을 확인해주세요.', 'error');
     return;
   }
-  document.querySelectorAll(`.cp-th-name[data-ci="${idx}"][data-tab="${tabId}"]`).forEach(el => {
+  document.querySelectorAll(`.cp-th-name[data-ci="${idx}"][data-tab="${tabId}"][data-grade="${gradeId}"]`).forEach(el => {
     el.textContent = names[idx];
   });
   if (typeof showToast === 'function') showToast('저장되었습니다.', 'success');
@@ -547,21 +568,21 @@ window.editCompName = async function(idx, tabId) {
    경쟁사 "가격맞춤 계산에서 제외" 토글
    — 도저히 가격을 맞출 수 없는 업체를 목록/표시는 유지한 채 자동 최저가 계산에서만 뺀다.
 ═══════════════════════════════════════ */
-window.toggleCompExcluded = async function(idx, tabId) {
+window.toggleCompExcluded = async function(idx, tabId, gradeId) {
   if (window.currentUser?.role !== 'admin') {
     if (typeof showToast === 'function') showToast('관리자만 변경할 수 있습니다.', 'warning');
     return;
   }
-  const meta = await _compMeta(tabId);
+  const meta = await _compMeta(tabId, gradeId);
   const excluded = [...meta.excluded];
   excluded[idx] = !excluded[idx];
   try {
-    await _saveCompMeta(tabId, meta.names, excluded);
+    await _saveCompMeta(tabId, gradeId, meta.names, excluded);
   } catch (e) {
     if (typeof showToast === 'function') showToast('저장 실패 — competitor_names 테이블에 comp{n}_excluded 컬럼이 있는지 확인해주세요.', 'error');
     return;
   }
-  document.querySelectorAll(`.cp-exclude-btn[data-ci="${idx}"][data-tab="${tabId}"]`).forEach(btn => {
+  document.querySelectorAll(`.cp-exclude-btn[data-ci="${idx}"][data-tab="${tabId}"][data-grade="${gradeId}"]`).forEach(btn => {
     btn.classList.toggle('active', excluded[idx]);
     btn.title = excluded[idx] ? '가격맞춤 계산에서 제외됨 — 클릭하면 다시 포함' : '가격 도저히 못 맞추는 업체면 눌러서 가격맞춤 계산에서 제외';
     btn.closest('.cp-th-group')?.classList.toggle('cp-th-excluded', excluded[idx]);
