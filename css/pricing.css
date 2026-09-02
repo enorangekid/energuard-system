@@ -225,12 +225,18 @@
 }
 .pricing-result-hint { font-size: 12px; color: #94a3b8; }
 
-/* 결과 테이블 스크롤 래퍼: 가로 스크롤 허용, 세로는 내용 전부 표시 */
+/* 결과 테이블 스크롤 래퍼: 가로 스크롤 허용, 세로는 내용 전부 표시
+   2026-09-02: .pricing-result-card가 overflow:visible(내용 안 잘림)에 padding:0이라,
+   표 셀 배경이 카드 테두리까지 꽉 채우는데 카드 자체의 border-radius는 여기서 안 먹혀서
+   좌우 하단 모서리가 각지게 보이던 버그(사용자 스크린샷으로 발견) — 실제로 잘라내는
+   요소인 이 스크롤 래퍼에 하단 모서리 radius를 직접 줘서 맞춤(상단은 헤더행이라 원래도
+   괜찮아서 하단만). */
 .pricing-table-scroll {
   width: 100%;
   overflow-x: auto;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
+  border-radius: 0 0 var(--radius) var(--radius);
 }
 
 /* 단가 결과 테이블 */
