@@ -479,6 +479,11 @@ window.autoMatchCompetitorPriceIsopink = async function() {
   // 맞춰 낮추다 보면 그보다 얇은 두께가 오히려 더 비싸지는 역전이 생길 수 있다(2026-09-02,
   // 사용자 지적). 두꺼운 쪽부터 내려오면서 얇은 쪽이 더 비싸면 얇은 쪽 마진만 낮춰서 맞춘다
   // (방금 경쟁사에 맞춘 두꺼운 쪽 가격은 건드리지 않음).
+  // 2026-09-02(2차): 처음엔 "얇은 쪽 <= 두꺼운 쪽"까지만 허용했는데, 실제 판매가가 항상
+  // 100원 단위로 반올림되다 보니 두 두께가 정확히 같은 가격으로 붙는 경우가 자주 생겨서
+  // (모음전 옵션 엑셀에 옵션가 0으로 중복 표시됨, 사용자 발견) — 얇은 쪽이 두꺼운 쪽보다
+  // 최소 100원(이 시스템의 최소 가격 단위)은 더 싸도록 엄격하게 바꿈.
+  const MIN_STEP = 100;
   let cascadeFixed = 0;
   let ceiling = null;
   [...ISOPINK_ROWS].sort((a, b) => b - a).forEach(t => {
@@ -487,11 +492,12 @@ window.autoMatchCompetitorPriceIsopink = async function() {
     const field = document.getElementById(`margin_iso_t${t}`);
     let margin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _isoGetMargin(t);
     let price  = priceFor(t, cost, margin);
-    if (ceiling != null && price > ceiling) {
+    if (ceiling != null && price > ceiling - MIN_STEP) {
+      const target = ceiling - MIN_STEP;
       let m = margin, guard = 0;
-      while (priceFor(t, cost, m) > ceiling && guard < 200) { m--; guard++; }
+      while (priceFor(t, cost, m) > target && guard < 200) { m--; guard++; }
       guard = 0;
-      while (priceFor(t, cost, m + 1) <= ceiling && guard < 200) { m++; guard++; }
+      while (priceFor(t, cost, m + 1) <= target && guard < 200) { m++; guard++; }
       if (field) { field.value = m; cascadeFixed++; }
       margin = m;
       price  = priceFor(t, cost, margin);
@@ -589,6 +595,11 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   // 맞춰 낮추다 보면 그보다 얇은 두께가 오히려 더 비싸지는 역전이 생길 수 있다(2026-09-02,
   // 사용자 지적). 두꺼운 쪽부터 내려오면서 얇은 쪽이 더 비싸면 얇은 쪽 마진만 낮춰서 맞춘다
   // (방금 경쟁사에 맞춘 두꺼운 쪽 가격은 건드리지 않음). 지금 보고 있는 탭·등급 기준만.
+  // 2026-09-02(2차): "얇은 쪽 <= 두꺼운 쪽"까지만 허용했더니 100원 단위 반올림 때문에
+  // 두 두께가 정확히 같은 가격으로 붙는 경우가 자주 생겨서(모음전 옵션 엑셀에 옵션가 0으로
+  // 중복 표시됨, 사용자 발견) — 얇은 쪽이 최소 100원(이 시스템 최소 가격 단위)은 더 싸도록
+  // 엄격하게 바꿈.
+  const MIN_STEP = 100;
   let cascadeFixed = 0;
   let ceiling = null;
   [...rows].sort((a, b) => b - a).forEach(t => {
@@ -599,11 +610,12 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     const field = marginId ? document.getElementById(marginId) : null;
     let margin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
     let price  = priceFor(cost, margin, t);
-    if (ceiling != null && price > ceiling) {
+    if (ceiling != null && price > ceiling - MIN_STEP) {
+      const target = ceiling - MIN_STEP;
       let m = margin, guard = 0;
-      while (priceFor(cost, m, t) > ceiling && guard < 200) { m--; guard++; }
+      while (priceFor(cost, m, t) > target && guard < 200) { m--; guard++; }
       guard = 0;
-      while (priceFor(cost, m + 1, t) <= ceiling && guard < 200) { m++; guard++; }
+      while (priceFor(cost, m + 1, t) <= target && guard < 200) { m++; guard++; }
       if (field) { field.value = m; cascadeFixed++; }
       margin = m;
       price  = priceFor(cost, margin, t);
