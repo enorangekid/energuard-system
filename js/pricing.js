@@ -419,12 +419,20 @@ function _isoGetCost_fromData(s, t) {
    2026-09-02, 사용자 명시 결정: 수익 방어선(최소 마진율 등)은 일부러 안 둠 — 마진이
    음수가 나와도 그대로 적용한다. 자동저장은 안 하고 표만 다시 그려서 검토 후 기존
    [저장] 버튼(savePricingCosts)을 직접 눌러야 실제 반영됨(draft/is_live 분리 유지). */
+/* 경쟁사 최저가보다 "무조건 한 단계(100원) 아래, 100원 단위로 딱 떨어지게" 목표가를 정한다.
+   2026-09-02(2차): 처음엔 "얼마나 낮게 맞출지" 원 단위 버퍼를 입력받았는데, 100원 단위로
+   내림 처리하다 보니 10원처럼 작은 값을 넣어도 실제 차이가 20~119원 사이로 들쭉날쭉해서
+   헷갈린다는 지적 — "8,420원이든 8,500원이든 무조건 8,400원으로 맞추면 되지 않냐"는 요청으로
+   버퍼 입력 자체를 없애고 이 규칙 하나로 고정함. 100원 배수와 정확히 같으면 한 단계 더 내림
+   (그래야 항상 진짜로 더 싸짐 — 같은 가격은 "더 싸다"가 아니므로). */
+function _competitorTarget(compPrice) {
+  let target = Math.floor(compPrice / 100) * 100;
+  if (target >= compPrice) target -= 100;
+  return target;
+}
+
 window.autoMatchCompetitorPriceIsopink = async function() {
   if (window.currentUser?.role !== 'admin') return;
-  const bufferStr = prompt('경쟁사 최저가보다 얼마나 낮게 맞출까요? (원 단위, 예: 100)', '100');
-  if (bufferStr === null) return;
-  const buffer = Number(String(bufferStr).replace(/,/g, ''));
-  if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
 
   // 2026-09-02: 두께 범위 끝쪽(예: 260~300T)처럼 어떤 경쟁사도 아예 안 파는 두께는 굳이
   // 경쟁가에 맞춰 낮출 필요가 없으니, 반대로 마진을 조금 올려서 가져가고 싶다는 요청.
@@ -461,7 +469,7 @@ window.autoMatchCompetitorPriceIsopink = async function() {
       return;
     }
     const minComp = Math.min(...prices);
-    const cappedPrice = Math.floor((minComp - buffer) / 100) * 100; // 우리 가격은 항상 100원 단위
+    const cappedPrice = _competitorTarget(minComp);
     if (cappedPrice <= 0) { skippedBadTarget++; return; }
 
     // cappedPrice 이하로 나올 수 있는 마진 중 가장 큰 값을 찾는다(=최대한 손해를 덜 보는 선에서 목표가 달성)
@@ -529,11 +537,6 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   if (!grade) return;
   const rows = _rowsOf(tabId, grade);
 
-  const bufferStr = prompt('경쟁사 최저가보다 얼마나 낮게 맞출까요? (원 단위, 예: 100)', '100');
-  if (bufferStr === null) return;
-  const buffer = Number(String(bufferStr).replace(/,/g, ''));
-  if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
-
   // 2026-09-02: 두께 범위 끝쪽처럼 어떤 경쟁사도 아예 안 파는 두께는 경쟁가에 맞춰 낮출
   // 필요가 없으니, 반대로 마진을 조금 올려서 가져가고 싶다는 요청. "경쟁사가 하나도 등록
   // 안 된" 두께에만 적용 — 등록은 됐는데 전부 제외 처리된 경우는(그 업체가 실제로 팔고
@@ -574,7 +577,7 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
       return;
     }
     const minComp = Math.min(...prices);
-    const cappedPrice = Math.floor((minComp - buffer) / 100) * 100;
+    const cappedPrice = _competitorTarget(minComp);
     if (cappedPrice <= 0) { skippedBadTarget++; return; }
 
     // 초기 추정값 — fr은 마진이 "장당 금액"이라 공식이 다름
@@ -1805,7 +1808,7 @@ function _costCard(tabId, modalType, titleSub, tableBodyHtml, hiddenHtml) {
       <button class="pricing-margin-edit-btn" onclick="openPricingModal('${modalType}')">
         <i class="fa-solid fa-sliders"></i> 마진 편집
       </button>
-      <button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPrice()" title="두께별 경쟁사 최저가보다 지정한 금액만큼 낮게 마진을 맞추고, 그로 인한 두께 역전도 같이 보정합니다. 경쟁사가 아예 없는 두께는 원하면 마진을 올릴 수도 있습니다(비드법/PU/PF는 지금 선택된 등급 기준)">
+      <button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPrice()" title="두께별 경쟁사 최저가보다 100원 단위로 한 단계 낮게 마진을 맞추고, 그로 인한 두께 역전도 같이 보정합니다. 경쟁사가 아예 없는 두께는 원하면 마진을 올릴 수도 있습니다(비드법/PU/PF는 지금 선택된 등급 기준)">
         <i class="fa-solid fa-bolt"></i> 경쟁사 최저가 맞춤
       </button>
       ${tabId === 'bead' ? `<button class="pricing-margin-edit-btn" onclick="fixBeadJongPriceOrder()" title="같은 호수끼리 1종이 2종보다 비싸지거나 같아진 경우, 1종 마진을 낮춰서 항상 더 저렴하게 자동 보정합니다">
