@@ -35,6 +35,11 @@
      정의돼있는데 빠뜨려서, 헤드/원가입력/단가표 카드들이 흰 배경 카드로 안 보이고
      밋밋하게 붙어있던 버그가 있었다(사용자가 4개 영역이 카드로 분리돼 보이길 원함). -->
 <link rel="stylesheet" href="css/dashboard.css">
+<!-- 2026-09-02(2차): 단가표 좌측 아이콘(.dash-lab-icon)이 무스타일 검은 글자로 나오고
+     제목 줄이 상하 중앙정렬 안 되던 것도 같은 원인 — 이 스타일들이 ui-dashboard.css에
+     있는데 안 불러오고 있었음. 회사 선택 드롭박스(.store-chips)는 notes.css에 있음. -->
+<link rel="stylesheet" href="css/ui-dashboard.css">
+<link rel="stylesheet" href="css/notes.css">
 <link rel="stylesheet" href="css/pricing.css">
 <link rel="stylesheet" href="css/toast.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -111,7 +116,26 @@
             <span class="dash-lab-icon pricing"><i class="fa-solid fa-tags"></i></span>
             <span><strong>단가표</strong></span>
           </span>
+          <!-- 회사 선택 — 앱가격은 이 보기 전용 페이지엔 불필요해서 뺌(요청 없음).
+               한국단열은 아직 데이터 연동 전이라 "준비중" 안내만 뜨지만(setPricingCompany
+               내부 로직, pricing.js), 옵션 자체는 존재를 알 수 있게 남겨둠(2026-09-02). -->
+          <div class="store-chips" id="pricingCompanyChips">
+            <button type="button" class="store-select" data-action="toggle-pricing-company-menu" aria-label="회사 선택">
+              <span id="pricingCompanyLabel">에너가드컴퍼니</span>
+              <span class="store-caret" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </span>
+            </button>
+            <div class="store-menu" role="menu">
+              <button type="button" class="store-chip active" data-pricing-company="energuard" role="menuitem">에너가드컴퍼니</button>
+              <button type="button" class="store-chip" data-pricing-company="hkd" role="menuitem">한국단열</button>
+            </div>
+          </div>
         </div>
+        <!-- pricingAppHeaderRight: 화면에 실제로 쓰진 않지만, setPricingCompany()가
+             무조건 이 id를 찾아 style.display를 만지기 때문에(앱가격 옵션을 안 넣었어도)
+             없으면 그때마다 에러가 나서 빈 틀만 남겨둠(2026-09-02). -->
+        <div class="pricing-header-right" id="pricingAppHeaderRight" style="display:none;"></div>
         <div class="pricing-header-right" id="pricingHeaderRight">
           <span class="pricing-last-saved" id="pricingLastUpdated">원가 미입력</span>
           <span class="pricing-live-badge" id="pricingLiveBadge"></span>
@@ -150,6 +174,12 @@
         <button class="pricing-tab" onclick="setPricingTab('pf',this)">PF 보드</button>
         <button class="pricing-tab" onclick="setPricingTab('fr',this)">불연단열재</button>
       </div>
+    </div>
+
+    <!-- 한국단열 — 아직 준비중 -->
+    <div class="pricing-coming-soon" id="pricingComingSoon" style="display:none;">
+      <i class="fa-solid fa-hammer"></i>
+      <p>한국단열 단가표는 준비중입니다.</p>
     </div>
 
     <div class="pricing-body-wrap" id="pricingBodyWrap">
