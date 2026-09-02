@@ -11,9 +11,12 @@
    .card.input-panel + h3 구조로 통일했다(2026-08-18). 단열재 종류 탭(.pricing-tabs)은
    헤드 카드와 분리된 별도 바로 유지 — 헤드 카드 안에 붙여놨더니 답답하다는 피드백으로
    다시 떼어냄(2026-08-18). */
+/* 2026-09-02: 헤드(24px, .card 기본값)/카테고리(16px)/원가입력(20px) 카드 간 여백이
+   제각각이라 눈에 거슬린다는 지적 — 대시보드(.dash-lab-grid gap:24px)와 같은 24px로
+   통일. 단가표 결과 카드(.pricing-result-card)는 원래도 .card 기본값(24px)이라 안 건드림. */
 .pricing-tabs-bar {
   background: #fff; border: 1px solid var(--border); border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: 14px 24px; margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: 14px 24px; margin-bottom: 24px;
 }
 /* h3가 헤드 카드의 유일한/마지막 자식이라 .input-panel h3의 margin-bottom:18px가
    카드 맨 밑에 빈 여백으로 남는다 — 업무노트/미디어콘텐츠에서 이미 겪은 것과 같은
@@ -50,7 +53,7 @@
 /* ═══════════════════════════════════
    원가 입력 카드
 ═══════════════════════════════════ */
-.pricing-cost-card { padding: 24px !important; margin-bottom: 20px !important; }
+.pricing-cost-card { padding: 24px !important; margin-bottom: 24px !important; }
 .pricing-section-title {
   font-size: 15px; font-weight: 700; color: #1e293b;
   display: flex; align-items: center; gap: 8px;
