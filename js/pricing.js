@@ -456,9 +456,34 @@ window.autoMatchCompetitorPriceIsopink = async function() {
     if (field) { field.value = margin; applied++; }
   });
 
+  // 두께 역전 보정 — 두께가 클수록 가격이 같거나 비싸야 정상인데, 특정 두께만 경쟁사에
+  // 맞춰 낮추다 보면 그보다 얇은 두께가 오히려 더 비싸지는 역전이 생길 수 있다(2026-09-02,
+  // 사용자 지적). 두꺼운 쪽부터 내려오면서 얇은 쪽이 더 비싸면 얇은 쪽 마진만 낮춰서 맞춘다
+  // (방금 경쟁사에 맞춘 두꺼운 쪽 가격은 건드리지 않음).
+  let cascadeFixed = 0;
+  let ceiling = null;
+  [...ISOPINK_ROWS].sort((a, b) => b - a).forEach(t => {
+    const cost = _isoGetCost(t);
+    if (!cost) return; // 원가 없는 두께는 체인에서 그냥 건너뜀(끊지 않음)
+    const field = document.getElementById(`margin_iso_t${t}`);
+    let margin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _isoGetMargin(t);
+    let price  = priceFor(t, cost, margin);
+    if (ceiling != null && price > ceiling) {
+      let m = margin, guard = 0;
+      while (priceFor(t, cost, m) > ceiling && guard < 200) { m--; guard++; }
+      guard = 0;
+      while (priceFor(t, cost, m + 1) <= ceiling && guard < 200) { m++; guard++; }
+      if (field) { field.value = m; cascadeFixed++; }
+      margin = m;
+      price  = priceFor(t, cost, margin);
+    }
+    ceiling = price;
+  });
+
   recalcPricing();
 
   const parts = [`${applied}개 두께 마진 자동 조정`];
+  if (cascadeFixed)     parts.push(`두께 역전 ${cascadeFixed}건 추가 보정`);
   if (skippedNoComp)    parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
   if (skippedNoCost)    parts.push(`원가 미입력 ${skippedNoCost}건 제외`);
   if (skippedBadTarget) parts.push(`목표가 비정상 ${skippedBadTarget}건 제외`);
@@ -520,10 +545,37 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     if (field) { field.value = margin; applied++; }
   });
 
+  // 두께 역전 보정 — 두께가 클수록 가격이 같거나 비싸야 정상인데, 특정 두께만 경쟁사에
+  // 맞춰 낮추다 보면 그보다 얇은 두께가 오히려 더 비싸지는 역전이 생길 수 있다(2026-09-02,
+  // 사용자 지적). 두꺼운 쪽부터 내려오면서 얇은 쪽이 더 비싸면 얇은 쪽 마진만 낮춰서 맞춘다
+  // (방금 경쟁사에 맞춘 두꺼운 쪽 가격은 건드리지 않음). 지금 보고 있는 탭·등급 기준만.
+  let cascadeFixed = 0;
+  let ceiling = null;
+  [...rows].sort((a, b) => b - a).forEach(t => {
+    const costId = _getCostId(tabId, grade, t);
+    const cost   = costId ? fieldVal(costId) : 0;
+    if (!cost) return; // 원가 없는 두께는 체인에서 그냥 건너뜀(끊지 않음)
+    const marginId = _getMarginId(tabId, grade, t);
+    const field = marginId ? document.getElementById(marginId) : null;
+    let margin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
+    let price  = priceFor(cost, margin, t);
+    if (ceiling != null && price > ceiling) {
+      let m = margin, guard = 0;
+      while (priceFor(cost, m, t) > ceiling && guard < 200) { m--; guard++; }
+      guard = 0;
+      while (priceFor(cost, m + 1, t) <= ceiling && guard < 200) { m++; guard++; }
+      if (field) { field.value = m; cascadeFixed++; }
+      margin = m;
+      price  = priceFor(cost, margin, t);
+    }
+    ceiling = price;
+  });
+
   const recalcFn = { bead: recalcBead, pu: recalcPu, pf: recalcPf, fr: recalcFr }[tabId];
   recalcFn?.();
 
   const parts = [`${applied}개 두께 마진 자동 조정`];
+  if (cascadeFixed)     parts.push(`두께 역전 ${cascadeFixed}건 추가 보정`);
   if (skippedNoComp)    parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
   if (skippedNoCost)    parts.push(`원가 미입력 ${skippedNoCost}건 제외`);
   if (skippedBadTarget) parts.push(`목표가 비정상 ${skippedBadTarget}건 제외`);
