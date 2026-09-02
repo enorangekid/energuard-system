@@ -431,6 +431,27 @@ function _competitorTarget(compPrice) {
   return target;
 }
 
+/* 목표가(항상 100원 단위)에 정확히 맞는 마진을 직접 계산한다.
+   2026-09-02(3차): 지금까지는 정수 마진을 하나씩 늘리고 줄여가며 "목표가 이하로 나오는 가장
+   큰 마진"을 찾았는데, 마진 1원 변화가 최종가에 미치는 영향이 두께×면적에 따라 제각각이라
+   100원 단위 목표에 정수 마진으로는 딱 안 맞고 필요 이상으로 더 깎이는 경우가 많았다(마진이
+   원래 적은 상품일수록 몇백 원도 뼈아프다는 지적, 2026-09-02). 마진은 꼭 정수일 필요가 없으니
+   —방정식을 그대로 풀어서 목표가에 정확히 맞는 소수점 마진을 쓴다(부동소수점 오차로 목표를
+   살짝 넘지 않도록 소수 둘째자리에서 내림). */
+function _marginForTarget(cost, t, area, target) {
+  const raw = target / (t * area * 1.1) - cost;
+  return Math.floor(raw * 100) / 100;
+}
+function _isoMarginForTarget(cost, t, target) {
+  const raw = target / (t * 1.1) - cost;
+  return Math.floor(raw * 100) / 100;
+}
+function _frMarginForTarget(costPerM2, area, target) {
+  const costPerSheet = Math.round(costPerM2 * area);
+  const raw = target / 1.1 - costPerSheet;
+  return Math.floor(raw * 100) / 100;
+}
+
 window.autoMatchCompetitorPriceIsopink = async function() {
   if (window.currentUser?.role !== 'admin') return;
 
@@ -472,13 +493,8 @@ window.autoMatchCompetitorPriceIsopink = async function() {
     const cappedPrice = _competitorTarget(minComp);
     if (cappedPrice <= 0) { skippedBadTarget++; return; }
 
-    // cappedPrice 이하로 나올 수 있는 마진 중 가장 큰 값을 찾는다(=최대한 손해를 덜 보는 선에서 목표가 달성)
-    let margin = Math.round(cappedPrice / (t * 1.1) - cost);
-    let guard = 0;
-    while (priceFor(t, cost, margin) > cappedPrice && guard < 200) { margin--; guard++; }
-    guard = 0;
-    while (priceFor(t, cost, margin + 1) <= cappedPrice && guard < 200) { margin++; guard++; }
-
+    // 목표가에 정확히 맞는 마진을 직접 계산(정수로 하나씩 찾지 않음 — _marginForTarget 주석 참고)
+    const margin = _isoMarginForTarget(cost, t, cappedPrice);
     const field = document.getElementById(`margin_iso_t${t}`);
     if (field) { field.value = margin; applied++; }
   });
@@ -502,10 +518,7 @@ window.autoMatchCompetitorPriceIsopink = async function() {
     let price  = priceFor(t, cost, margin);
     if (ceiling != null && price > ceiling - MIN_STEP) {
       const target = ceiling - MIN_STEP;
-      let m = margin, guard = 0;
-      while (priceFor(t, cost, m) > target && guard < 200) { m--; guard++; }
-      guard = 0;
-      while (priceFor(t, cost, m + 1) <= target && guard < 200) { m++; guard++; }
+      const m = _isoMarginForTarget(cost, t, target);
       if (field) { field.value = m; cascadeFixed++; }
       margin = m;
       price  = priceFor(t, cost, margin);
@@ -580,14 +593,10 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     const cappedPrice = _competitorTarget(minComp);
     if (cappedPrice <= 0) { skippedBadTarget++; return; }
 
-    // 초기 추정값 — fr은 마진이 "장당 금액"이라 공식이 다름
-    let margin = isFr
-      ? Math.round(cappedPrice / 1.1 - Math.round(cost * grade.area))
-      : Math.round(cappedPrice / ((tEff ?? t) * grade.area * 1.1) - cost);
-    let guard = 0;
-    while (priceFor(cost, margin, t) > cappedPrice && guard < 200) { margin--; guard++; }
-    guard = 0;
-    while (priceFor(cost, margin + 1, t) <= cappedPrice && guard < 200) { margin++; guard++; }
+    // 목표가에 정확히 맞는 마진을 직접 계산 — fr은 마진이 "장당 금액"이라 공식이 다름
+    const margin = isFr
+      ? _frMarginForTarget(cost, grade.area, cappedPrice)
+      : _marginForTarget(cost, (tEff ?? t), grade.area, cappedPrice);
 
     const marginId = _getMarginId(tabId, grade, t);
     const field = marginId ? document.getElementById(marginId) : null;
@@ -615,10 +624,9 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     let price  = priceFor(cost, margin, t);
     if (ceiling != null && price > ceiling - MIN_STEP) {
       const target = ceiling - MIN_STEP;
-      let m = margin, guard = 0;
-      while (priceFor(cost, m, t) > target && guard < 200) { m--; guard++; }
-      guard = 0;
-      while (priceFor(cost, m + 1, t) <= target && guard < 200) { m++; guard++; }
+      const m = isFr
+        ? _frMarginForTarget(cost, grade.area, target)
+        : _marginForTarget(cost, (tEff ?? t), grade.area, target);
       if (field) { field.value = m; cascadeFixed++; }
       margin = m;
       price  = priceFor(cost, margin, t);
@@ -667,7 +675,6 @@ window.fixBeadJongPriceOrder = async function() {
     { jong1: 'iiib', jong2: 'iiia2', ho: '1호' },
   ];
   const gradeOf = id => BEAD_GRADES.find(g => g.id === id);
-  const priceFor = (grade, cost, margin, t) => calcSheetRow(cost, margin, t, grade.area).realPrice;
 
   let fixed = 0, alreadyOk = 0, skipped = 0;
   PAIRS.forEach(({ jong1, jong2 }) => {
@@ -684,11 +691,7 @@ window.fixBeadJongPriceOrder = async function() {
       const price1 = _beadRealPrice(g1, t);
       if (price1 != null && price1 <= cappedPrice) { alreadyOk++; return; } // 이미 조건 만족
 
-      let margin = Math.round(cappedPrice / (t * g1.area * 1.1) - cost1);
-      let guard = 0;
-      while (priceFor(g1, cost1, margin, t) > cappedPrice && guard < 200) { margin--; guard++; }
-      guard = 0;
-      while (priceFor(g1, cost1, margin + 1, t) <= cappedPrice && guard < 200) { margin++; guard++; }
+      const margin = _marginForTarget(cost1, t, g1.area, cappedPrice);
 
       const marginId = _getMarginId('bead', g1, t);
       const field = marginId ? document.getElementById(marginId) : null;
@@ -720,7 +723,6 @@ window.fixPuJongPriceOrder = async function() {
 
   const g1 = PU_GRADES.find(g => g.id === 'iiia'); // 2종1호 — 더 비싸야 함, 안 건드림
   const g2 = PU_GRADES.find(g => g.id === 'iia');  // 2종2호 — 더 저렴해야 함, 마진 낮춰서 맞춤
-  const priceFor = (grade, cost, margin, t) => calcSheetRow(cost, margin, t, grade.area).realPrice;
 
   let fixed = 0, alreadyOk = 0, skipped = 0;
   const thicknesses = g2.rows.filter(t => g1.rows.includes(t)); // 두 등급 공통 두께만
@@ -736,11 +738,7 @@ window.fixPuJongPriceOrder = async function() {
     const price2 = _puRealPrice(g2, t);
     if (price2 != null && price2 <= cappedPrice) { alreadyOk++; return; } // 이미 조건 만족
 
-    let margin = Math.round(cappedPrice / (t * g2.area * 1.1) - cost2);
-    let guard = 0;
-    while (priceFor(g2, cost2, margin, t) > cappedPrice && guard < 200) { margin--; guard++; }
-    guard = 0;
-    while (priceFor(g2, cost2, margin + 1, t) <= cappedPrice && guard < 200) { margin++; guard++; }
+    const margin = _marginForTarget(cost2, t, g2.area, cappedPrice);
 
     const marginId = _getMarginId('pu', g2, t);
     const field = marginId ? document.getElementById(marginId) : null;
@@ -766,13 +764,7 @@ window.fixPuJongPriceOrder = async function() {
    공유) 두 규격을 동시에 만족하는 마진 중 "가장 큰(=손해 최소)" 값을 찾아야 한다
    — 각 규격별로 풀어낸 최대 허용 마진 중 더 작은 쪽을 채택(작을수록 더 낮은 가격). */
 function _pfSolveMargin(grade, cost, t, cappedPrice) {
-  const priceFor = m => calcSheetRow(cost, m, t, grade.area).realPrice;
-  let margin = Math.round(cappedPrice / (t * grade.area * 1.1) - cost);
-  let guard = 0;
-  while (priceFor(margin) > cappedPrice && guard < 200) { margin--; guard++; }
-  guard = 0;
-  while (priceFor(margin + 1) <= cappedPrice && guard < 200) { margin++; guard++; }
-  return margin;
+  return _marginForTarget(cost, t, grade.area, cappedPrice);
 }
 window.fixPfBrandPriceOrder = async function() {
   if (window.currentUser?.role !== 'admin') return;
