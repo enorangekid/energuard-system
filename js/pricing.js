@@ -426,21 +426,40 @@ window.autoMatchCompetitorPriceIsopink = async function() {
   const buffer = Number(String(bufferStr).replace(/,/g, ''));
   if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
 
+  // 2026-09-02: 두께 범위 끝쪽(예: 260~300T)처럼 어떤 경쟁사도 아예 안 파는 두께는 굳이
+  // 경쟁가에 맞춰 낮출 필요가 없으니, 반대로 마진을 조금 올려서 가져가고 싶다는 요청.
+  // "경쟁사가 하나도 등록 안 된" 두께에만 적용 — 등록은 됐는데 전부 제외 처리된 경우는
+  // (그 업체가 실제로 팔고 있다는 뜻이라) 건드리지 않는다. 0을 입력하면 기존처럼 안 건드림.
+  const bumpStr = prompt('경쟁사가 아예 없는 두께는 마진을 얼마나 올릴까요? (원 단위, 예: 1000, 0=올리지 않음)', '0');
+  if (bumpStr === null) return;
+  const marginBump = Number(String(bumpStr).replace(/,/g, ''));
+  if (!Number.isFinite(marginBump)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
+
   await loadCompPrices('isopink', 'isopink');
   // 가격을 도저히 못 맞추는 업체는 이름/가격 표시는 그대로 두고 이 계산에서만 뺀다
   // (경쟁사 헤더의 "제외" 버튼, pricing-competitor.js의 _compExcluded 참고, 2026-09-02)
   const excluded = (typeof _compExcluded === 'function') ? await _compExcluded('isopink', 'isopink') : [false, false, false];
 
   const priceFor = (t, cost, m) => Math.ceil(Math.round(t * (cost + m) * 1.1) / 100) * 100;
-  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0;
+  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, bumped = 0;
 
   ISOPINK_ROWS.forEach(t => {
     const cost = _isoGetCost(t);
     if (!cost) { skippedNoCost++; return; }
     const comp = window._compCache?.isopink?.isopink?.[t] || {};
     const rawPrices = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
+    const hasAnyComp = rawPrices.some(v => v != null && v > 0);
     const prices = rawPrices.filter((v, i) => !excluded[i] && v != null && v > 0);
-    if (!prices.length) { skippedNoComp++; return; }
+    if (!prices.length) {
+      if (!hasAnyComp && marginBump) {
+        const field = document.getElementById(`margin_iso_t${t}`);
+        const curMargin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _isoGetMargin(t);
+        if (field) { field.value = curMargin + marginBump; bumped++; }
+      } else {
+        skippedNoComp++;
+      }
+      return;
+    }
     const minComp = Math.min(...prices);
     const cappedPrice = Math.floor((minComp - buffer) / 100) * 100; // 우리 가격은 항상 100원 단위
     if (cappedPrice <= 0) { skippedBadTarget++; return; }
@@ -483,10 +502,11 @@ window.autoMatchCompetitorPriceIsopink = async function() {
   recalcPricing();
 
   const parts = [`${applied}개 두께 마진 자동 조정`];
-  if (cascadeFixed)     parts.push(`두께 역전 ${cascadeFixed}건 추가 보정`);
-  if (skippedNoComp)    parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
-  if (skippedNoCost)    parts.push(`원가 미입력 ${skippedNoCost}건 제외`);
-  if (skippedBadTarget) parts.push(`목표가 비정상 ${skippedBadTarget}건 제외`);
+  if (bumped)            parts.push(`경쟁없음 마진 인상 ${bumped}건`);
+  if (cascadeFixed)      parts.push(`두께 역전 ${cascadeFixed}건 추가 보정`);
+  if (skippedNoComp)     parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
+  if (skippedNoCost)     parts.push(`원가 미입력 ${skippedNoCost}건 제외`);
+  if (skippedBadTarget)  parts.push(`목표가 비정상 ${skippedBadTarget}건 제외`);
   if (typeof showToast === 'function') {
     showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', applied ? 'success' : 'warning');
   }
@@ -508,6 +528,15 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   const buffer = Number(String(bufferStr).replace(/,/g, ''));
   if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
 
+  // 2026-09-02: 두께 범위 끝쪽처럼 어떤 경쟁사도 아예 안 파는 두께는 경쟁가에 맞춰 낮출
+  // 필요가 없으니, 반대로 마진을 조금 올려서 가져가고 싶다는 요청. "경쟁사가 하나도 등록
+  // 안 된" 두께에만 적용 — 등록은 됐는데 전부 제외 처리된 경우는(그 업체가 실제로 팔고
+  // 있다는 뜻이라) 건드리지 않는다. 0을 입력하면 기존처럼 안 건드림.
+  const bumpStr = prompt('경쟁사가 아예 없는 두께는 마진을 얼마나 올릴까요? (원 단위, 예: 1000, 0=올리지 않음)', '0');
+  if (bumpStr === null) return;
+  const marginBump = Number(String(bumpStr).replace(/,/g, ''));
+  if (!Number.isFinite(marginBump)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
+
   await loadCompPrices(tabId, gradeId);
   const excluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, gradeId) : [false, false, false];
 
@@ -517,7 +546,7 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     ? (cost, m) => calcFrSheetRow(cost, m, grade.area)?.realPrice ?? 0
     : (cost, m, t) => Math.ceil(Math.round((cost + m) * (tEff ?? t) * grade.area * 1.1) / 100) * 100;
 
-  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0;
+  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, bumped = 0;
 
   rows.forEach(t => {
     const costId = _getCostId(tabId, grade, t);
@@ -525,8 +554,19 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     if (!cost) { skippedNoCost++; return; }
     const comp = window._compCache?.[tabId]?.[gradeId]?.[t] || {};
     const rawPrices = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
+    const hasAnyComp = rawPrices.some(v => v != null && v > 0);
     const prices = rawPrices.filter((v, i) => !excluded[i] && v != null && v > 0);
-    if (!prices.length) { skippedNoComp++; return; }
+    if (!prices.length) {
+      if (!hasAnyComp && marginBump) {
+        const marginId = _getMarginId(tabId, grade, t);
+        const field = marginId ? document.getElementById(marginId) : null;
+        const curMargin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
+        if (field) { field.value = curMargin + marginBump; bumped++; }
+      } else {
+        skippedNoComp++;
+      }
+      return;
+    }
     const minComp = Math.min(...prices);
     const cappedPrice = Math.floor((minComp - buffer) / 100) * 100;
     if (cappedPrice <= 0) { skippedBadTarget++; return; }
@@ -575,10 +615,11 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   recalcFn?.();
 
   const parts = [`${applied}개 두께 마진 자동 조정`];
-  if (cascadeFixed)     parts.push(`두께 역전 ${cascadeFixed}건 추가 보정`);
-  if (skippedNoComp)    parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
-  if (skippedNoCost)    parts.push(`원가 미입력 ${skippedNoCost}건 제외`);
-  if (skippedBadTarget) parts.push(`목표가 비정상 ${skippedBadTarget}건 제외`);
+  if (bumped)            parts.push(`경쟁없음 마진 인상 ${bumped}건`);
+  if (cascadeFixed)      parts.push(`두께 역전 ${cascadeFixed}건 추가 보정`);
+  if (skippedNoComp)     parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
+  if (skippedNoCost)     parts.push(`원가 미입력 ${skippedNoCost}건 제외`);
+  if (skippedBadTarget)  parts.push(`목표가 비정상 ${skippedBadTarget}건 제외`);
   if (typeof showToast === 'function') {
     showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', applied ? 'success' : 'warning');
   }
@@ -1752,7 +1793,7 @@ function _costCard(tabId, modalType, titleSub, tableBodyHtml, hiddenHtml) {
       <button class="pricing-margin-edit-btn" onclick="openPricingModal('${modalType}')">
         <i class="fa-solid fa-sliders"></i> 마진 편집
       </button>
-      <button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPrice()" title="두께별 경쟁사 최저가보다 지정한 금액만큼 낮게 마진을 자동으로 맞춥니다(비드법/PU/PF는 지금 선택된 등급 기준)">
+      <button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPrice()" title="두께별 경쟁사 최저가보다 지정한 금액만큼 낮게 마진을 맞추고, 그로 인한 두께 역전도 같이 보정합니다. 경쟁사가 아예 없는 두께는 원하면 마진을 올릴 수도 있습니다(비드법/PU/PF는 지금 선택된 등급 기준)">
         <i class="fa-solid fa-bolt"></i> 경쟁사 최저가 맞춤
       </button>
       ${tabId === 'bead' ? `<button class="pricing-margin-edit-btn" onclick="fixBeadJongPriceOrder()" title="같은 호수끼리 1종이 2종보다 비싸지거나 같아진 경우, 1종 마진을 낮춰서 항상 더 저렴하게 자동 보정합니다">
