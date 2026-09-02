@@ -550,6 +550,7 @@
   border-bottom: 1px solid #f8fafc;
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   position: relative;
+  cursor: pointer; /* 2026-09-02: 클릭 핸들러가 .phi-label(안쪽)에서 이 박스 전체로 이동함 */
 }
 .pricing-history-item:hover { background: #f0f9ff; }
 .pricing-history-item.selected { background: #eff6ff; border-left: 3px solid #6366f1; }

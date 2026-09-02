@@ -1404,9 +1404,12 @@ function renderHistoryList() {
   const listEl = document.getElementById('pricingHistoryList');
   const data = window._historyCache;
   if (!listEl||!data) return;
+  // 2026-09-02: 날짜 글자(.phi-label) 클릭해야만 조회되던 걸, 박스(.pricing-history-item)
+  // 어디를 눌러도 조회되도록 onclick을 바깥으로 옮김 — "실제 적용" 버튼의
+  // event.stopPropagation()은 이걸 염두에 두고 이미 있던 코드라 그대로 맞물림.
   listEl.innerHTML = data.map((row,idx) => `
-    <div class="pricing-history-item${_viewingIdx===idx?' selected':''}">
-      <div class="phi-left" onclick="viewHistory(${idx})">
+    <div class="pricing-history-item${_viewingIdx===idx?' selected':''}" onclick="viewHistory(${idx})">
+      <div class="phi-left">
         <span class="phi-label">${escapeAdminHtml(row.label || '-')}</span>
         ${idx===0?'<span class="phi-badge phi-badge-latest">최신</span>':''}
         ${_viewingIdx===idx?'<span class="phi-badge phi-badge-viewing">조회중</span>':''}
