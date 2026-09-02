@@ -31,6 +31,10 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="stylesheet" href="css/base.css">
+<!-- 2026-09-02: .card(흰 배경+그림자+radius의 기본 카드 스타일)가 여기 dashboard.css에
+     정의돼있는데 빠뜨려서, 헤드/원가입력/단가표 카드들이 흰 배경 카드로 안 보이고
+     밋밋하게 붙어있던 버그가 있었다(사용자가 4개 영역이 카드로 분리돼 보이길 원함). -->
+<link rel="stylesheet" href="css/dashboard.css">
 <link rel="stylesheet" href="css/pricing.css">
 <link rel="stylesheet" href="css/toast.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -247,6 +251,13 @@
           el.readOnly = true;
         }
         el.tabIndex = -1;
+      });
+
+      // "원가 입력 — 매월 업체 고지 단가 기준으로 변경된 항목만 수정하세요"는 편집자용
+      // 안내문이라 보기 전용 페이지엔 의미가 없음 — "원가"로 단순화(2026-09-02).
+      // pricing.js 쪽 원본 문구는 안 건드림(본 페이지 전용 후처리).
+      document.querySelectorAll('.pricing-section-title').forEach((el) => {
+        el.textContent = '원가';
       });
     });
   });
