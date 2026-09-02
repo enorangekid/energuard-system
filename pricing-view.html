@@ -75,6 +75,16 @@
 
   /* 숫자 가독성 — 자릿수 맞춰 세로로 훑어보기 쉽게 등폭 숫자 사용 */
   .pricing-result-card, .pricing-cost-card { font-variant-numeric: tabular-nums; }
+
+  /* 표가 넓어서(경쟁사 컬럼까지 합치면 1500px 안팎) 화면 전체가 옆으로 밀리던 문제 —
+     표 자체는 .pricing-table-scroll이 이미 overflow-x:auto로 자체 스크롤을 갖고 있으니
+     (pricing.css), 그 바깥 컨테이너들은 전부 화면 폭에서 못 넘치게 막아서 스크롤이
+     표 안쪽으로만 생기게 한다(2026-09-02). */
+  html, body { overflow-x: hidden; max-width: 100vw; }
+  .content-body, #page-pricing, .pricing-body-wrap, .pricing-tab-pane {
+    max-width: 100%; overflow-x: hidden;
+  }
+  .pricing-table-scroll { overflow-x: auto !important; }
 </style>
 </head>
 <body>

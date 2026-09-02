@@ -445,16 +445,25 @@ async function _injectCompColumns(tabId, gradeId, skipFetch) {
   // 2026-09-02: tbody가 통째로 갈아끼워질 때마다 여기서 재조회하면 키보드 입력마다 매번
   // Supabase를 때려서 낭비였음).
   if (!skipFetch) await loadCompPrices(tabId, gradeId);
-
-  /* ── 기존 경쟁사 컬럼 완전 제거 후 재주입 ──
-     플래그 방식 대신 항상 클린하게 지우고 다시 그림 */
-  table.querySelectorAll('thead .cp-th-group, thead .cp-th-sub, thead .cp-th-diff-hd').forEach(el => el.remove());
-  table.querySelectorAll('colgroup .cp-col').forEach(el => el.remove());
-  tbody.querySelectorAll('.cp-td-price, .cp-td-diff').forEach(el => el.remove());
-
   const meta     = await _compMeta(tabId, gradeId);
   const names    = meta.names;
   const excluded = meta.excluded;
+
+  /* ── 기존 경쟁사 컬럼 완전 제거 후 재주입 ──
+     플래그 방식 대신 항상 클린하게 지우고 다시 그림.
+     2026-09-02(2차): 이 remove를 원래 await들보다 앞에 두면 경쟁사 컬럼이 간헐적으로
+     중복 표시되는 버그가 있었다(아이소핑크에서 재현, 사용자 발견) — loadPricingCosts()가
+     recalcPricing()(skipFetch=true, await 1개만)과 _onPricingLoaded()(skipFetch=false,
+     await 1개 더 많음)를 연달아 호출하는데, 둘 다 비동기라 네트워크 응답이 어느 쪽 먼저
+     오느냐에 따라 나중에 시작한 호출이 먼저 remove+append를 끝내버리는 경우가 생긴다.
+     그러면 나중에 끝난 호출은(remove를 이미 옛날에 해놔서) 남의 결과물 위에 그냥
+     append만 얹어버려 컬럼이 두 벌 생김. remove를 모든 await 뒤(= append 바로 직전)로
+     옮기면, 두 호출 다 "이 시점 DOM 상태를 지우고 다시 그린다"가 되어 어느 쪽이 나중에
+     끝나든 한 벌만 남는다(이 뒤로는 함수 끝까지 await가 없어서 remove+append가 끊기지
+     않고 한 번에 실행됨). */
+  table.querySelectorAll('thead .cp-th-group, thead .cp-th-sub, thead .cp-th-diff-hd').forEach(el => el.remove());
+  table.querySelectorAll('colgroup .cp-col').forEach(el => el.remove());
+  tbody.querySelectorAll('.cp-td-price, .cp-td-diff').forEach(el => el.remove());
 
   /* ── 1. thead 헤더 추가 ── */
   const thead    = table.querySelector('thead');
