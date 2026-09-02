@@ -40,7 +40,11 @@
 }
 .timeline-edit-cancel-btn:hover { background: var(--primary); color: #fff; }
 
-.btn-server { background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+/* line-height:1 없이는 아이콘(폰트어썸)과 텍스트(한글)의 줄높이가 서로 달라서
+   display:flex + align-items:center를 줘도 텍스트가 아이콘보다 살짝 아래로 처져
+   보였다(2026-09-02, 단가표 저장/엑셀 저장/모음전 옵션 버튼에서 발견 — 공용 클래스라
+   버튼 전체에 다 적용됨). line-height를 1로 눌러서 줄박스 여백을 없애 정렬을 맞춤. */
+.btn-server { background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 13px; line-height: 1; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
 
 /* 업무 타임라인 헤더 툴바 — 검색/월 이동/저장을 nt-toolbar-divider로 구분해 하나의
    툴바처럼 묶는다. 월 이동(‹ select ›)은 개별 박스 3개 대신 하나의 세그먼트 컨트롤로
