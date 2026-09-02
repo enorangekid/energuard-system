@@ -36,7 +36,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
-  body { background:#f4f5f9; font-family:'NanumSquare','Malgun Gothic',sans-serif; }
+  /* base.css의 body는 원래 사이드바+본문을 나란히 두려고 display:flex(가로)로 짜여있다.
+     이 페이지는 사이드바가 없는 단독 페이지라 그 플렉스 컨텍스트가 오히려 방해가 된다
+     — .view-topbar가 사이드바 자리처럼 옆으로 밀려 좁게 눌리는 버그가 있었다(2026-09-02,
+     사용자 스크린샷으로 발견). 세로 문서 흐름으로 되돌린다. */
+  body { display:block !important; background:#f4f5f9; font-family:'NanumSquare','Malgun Gothic',sans-serif; }
+
   .view-topbar {
     display:flex; align-items:center; gap:10px;
     padding:12px 24px; background:#312e81; color:#fff;
@@ -61,7 +66,7 @@
   input[readonly], select[readonly] {
     background:#f3f4f6 !important; color:#374151; cursor:default;
   }
-  .content-body { padding:20px 24px 60px; }
+  .content-body { max-width:1600px; margin:0 auto; padding:20px 24px 60px; }
 </style>
 </head>
 <body>
