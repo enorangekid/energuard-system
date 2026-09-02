@@ -589,6 +589,34 @@
 .pricing-live-badge.ok   { background: #dcfce7; color: #15803d; }
 .pricing-live-badge.warn { background: #fef3c7; color: #b45309; }
 
+/* "이전대비" 비교 기준 토글(이전달 저장분 / 실제 적용가, 2026-09-02) */
+.pricing-compare-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px;
+  background: #f8fafc;
+  gap: 2px;
+}
+.pricing-compare-btn {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 5px 10px;
+  border-radius: 18px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.pricing-compare-btn:hover { color: #1e293b; }
+.pricing-compare-btn.active {
+  background: #4f46e5;
+  color: #fff;
+}
+
 /* ═══════════════════════════════════
    변동 배지
 ═══════════════════════════════════ */
@@ -772,6 +800,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 14px;
   padding-bottom: 12px;

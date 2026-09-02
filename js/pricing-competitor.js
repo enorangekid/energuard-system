@@ -3,17 +3,52 @@
    단가표 테이블 우측에 경쟁사 컬럼을 인라인으로 추가
 
    [Supabase 테이블 DDL — 최초 1회 실행]
+   -- comp{n}_link: 그 경쟁사 가격의 상품 페이지 URL(loadCompPrices/saveCompPrice가 씀).
+   -- 예전 이 주석엔 안 적혀있었는데 실제 코드/저장은 계속 이 컬럼을 썼음 — 문서만 갱신함
+   -- (2026-09-02). 이미 가격이 잘 저장/로드되고 있었다면 이 컬럼은 이미 있는 것임(select가
+   -- 컬럼 하나라도 없으면 통째로 실패해서 가격까지 안 불러와지므로).
    CREATE TABLE competitor_prices (
      id            bigserial PRIMARY KEY,
      tab_id        text NOT NULL,
      grade_id      text NOT NULL,
      thickness     integer NOT NULL,
      comp1_price   integer,
+     comp1_link    text,
      comp2_price   integer,
+     comp2_link    text,
      comp3_price   integer,
+     comp3_link    text,
      updated_at    timestamptz DEFAULT now(),
      UNIQUE(tab_id, grade_id, thickness)
    );
+   ALTER TABLE competitor_prices DISABLE ROW LEVEL SECURITY;
+   -- 이미 테이블이 있는데 링크 컬럼만 없다면:
+   -- ALTER TABLE competitor_prices ADD COLUMN IF NOT EXISTS comp1_link text;
+   -- ALTER TABLE competitor_prices ADD COLUMN IF NOT EXISTS comp2_link text;
+   -- ALTER TABLE competitor_prices ADD COLUMN IF NOT EXISTS comp3_link text;
+
+   -- 경쟁사 이름(탭별 3곳) — editCompName/_saveCompMeta가 쓰는 테이블.
+   -- 2026-09-02: 이 테이블이 아예 없거나 RLS에 막혀 저장이 조용히 실패하는데도
+   -- "저장되었습니다" 토스트가 뜨던 버그가 있었다(호출부가 에러를 삼켰음, 수정함).
+   -- 이름 변경이 새로고침 후 원래대로 돌아온다면 이 테이블부터 확인/생성할 것.
+   -- comp{n}_excluded: "경쟁사 최저가 맞춤"(autoMatchCompetitorPriceIsopink) 자동계산에서
+   -- 그 경쟁사를 뺄지 여부. 도저히 가격을 맞출 수 없는 업체를 목록에서 완전히 지우지 않고
+   -- 표시는 유지한 채 자동 계산에서만 제외하기 위함(2026-09-02).
+   CREATE TABLE IF NOT EXISTS competitor_names (
+     tab_id          text PRIMARY KEY,
+     comp1_name      text,
+     comp2_name      text,
+     comp3_name      text,
+     comp1_excluded  boolean DEFAULT false,
+     comp2_excluded  boolean DEFAULT false,
+     comp3_excluded  boolean DEFAULT false,
+     updated_at      timestamptz DEFAULT now()
+   );
+   ALTER TABLE competitor_names DISABLE ROW LEVEL SECURITY;
+   -- 이미 competitor_names 테이블이 있는 상태에서 이 컬럼만 추가하려면:
+   -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp1_excluded boolean DEFAULT false;
+   -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp2_excluded boolean DEFAULT false;
+   -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp3_excluded boolean DEFAULT false;
 
    [index.html 적용]
    pricing.js 바로 다음에 추가:
@@ -27,46 +62,57 @@ const COMP_COUNT         = 3;
 const COMP_DEFAULT_NAMES = ['크린슐라', '산일상사', '대유물류'];
 const COMP_COLORS        = ['#3b82f6', '#f59e0b', '#10b981'];
 
-/* 탭별 이름 인메모리 캐시 */
-let _compNamesCache = {};
+/* 탭별 이름+제외설정 인메모리 캐시 — { [tabId]: { names:[3], excluded:[3 bool] } } */
+let _compMetaCache = {};
 
-async function _compNames(tabId) {
-  if (_compNamesCache[tabId]) return _compNamesCache[tabId];
+async function _compMeta(tabId) {
+  if (_compMetaCache[tabId]) return _compMetaCache[tabId];
+  let meta = { names: [...COMP_DEFAULT_NAMES], excluded: [false, false, false] };
   try {
     const { data: r, error } = await supabaseClient
       .from('competitor_names')
-      .select('comp1_name,comp2_name,comp3_name')
+      .select('comp1_name,comp2_name,comp3_name,comp1_excluded,comp2_excluded,comp3_excluded')
       .eq('tab_id', tabId)
       .maybeSingle();
     if (error) throw error;
     if (r) {
-      const names = [
-        r.comp1_name || COMP_DEFAULT_NAMES[0],
-        r.comp2_name || COMP_DEFAULT_NAMES[1],
-        r.comp3_name || COMP_DEFAULT_NAMES[2],
-      ];
-      _compNamesCache[tabId] = names;
-      return names;
+      meta = {
+        names: [
+          r.comp1_name || COMP_DEFAULT_NAMES[0],
+          r.comp2_name || COMP_DEFAULT_NAMES[1],
+          r.comp3_name || COMP_DEFAULT_NAMES[2],
+        ],
+        excluded: [!!r.comp1_excluded, !!r.comp2_excluded, !!r.comp3_excluded],
+      };
     }
-  } catch(e) { console.warn('[Comp] 이름 로드 실패', e); }
-  return [...COMP_DEFAULT_NAMES];
+  } catch(e) { console.warn('[Comp] 이름/제외설정 로드 실패', e); }
+  _compMetaCache[tabId] = meta;
+  return meta;
 }
 
-async function _saveCompNames(names, tabId) {
-  try {
-    const { error } = await supabaseClient.from('competitor_names').upsert({
-      tab_id: tabId,
-      comp1_name: names[0],
-      comp2_name: names[1],
-      comp3_name: names[2],
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'tab_id' });
-    if (error) throw error;
-    _compNamesCache[tabId] = names;
-  } catch(e) {
-    console.warn('[Comp] 이름 저장 실패', e);
-    if (typeof showToast === 'function') showToast('이름 저장 실패', 'error');
+async function _compNames(tabId) { return (await _compMeta(tabId)).names; }
+async function _compExcluded(tabId) { return (await _compMeta(tabId)).excluded; }
+
+async function _saveCompMeta(tabId, names, excluded) {
+  // ⚠️ 예전엔 실패해도 여기서 에러를 삼키고 조용히 리턴해서, 호출부(editCompName)가
+  // 항상 "저장되었습니다" 성공 토스트를 띄우는 버그가 있었다 — 실제로는 competitor_names
+  // 테이블이 없거나 RLS에 막혀도 사용자는 저장된 줄 알고 새로고침 후에야 원래 이름으로
+  // 돌아온 걸 발견하게 됨(2026-09-02). 이제 실패를 그대로 던져서 호출부가 알게 한다.
+  const { error } = await supabaseClient.from('competitor_names').upsert({
+    tab_id: tabId,
+    comp1_name: names[0],
+    comp2_name: names[1],
+    comp3_name: names[2],
+    comp1_excluded: !!excluded[0],
+    comp2_excluded: !!excluded[1],
+    comp3_excluded: !!excluded[2],
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'tab_id' });
+  if (error) {
+    console.warn('[Comp] 이름/제외설정 저장 실패', error);
+    throw error;
   }
+  _compMetaCache[tabId] = { names, excluded };
 }
 
 /* ═══════════════════════════════════════
@@ -351,7 +397,9 @@ async function _injectCompColumns(tabId, gradeId) {
   table.querySelectorAll('colgroup .cp-col').forEach(el => el.remove());
   tbody.querySelectorAll('.cp-td-price, .cp-td-diff').forEach(el => el.remove());
 
-  const names = await _compNames(tabId);
+  const meta     = await _compMeta(tabId);
+  const names    = meta.names;
+  const excluded = meta.excluded;
 
   /* ── 1. thead 헤더 추가 ── */
   const thead    = table.querySelector('thead');
@@ -359,15 +407,19 @@ async function _injectCompColumns(tabId, gradeId) {
 
   if (theadTrs.length >= 2) {
     names.forEach((name, i) => {
+      const isExcluded = !!excluded[i];
       const th = document.createElement('th');
       th.colSpan = 2;
-      th.className = 'cp-th-group';
+      th.className = 'cp-th-group' + (isExcluded ? ' cp-th-excluded' : '');
       th.style.cssText = `--cc:${COMP_COLORS[i]}`;
       th.innerHTML = `
         <div class="cp-th-inner">
           <span class="cp-th-name" data-ci="${i}" data-tab="${tabId}">${name}</span>
           <div class="cp-th-actions">
             <button class="cp-name-btn" title="이름 변경" onclick="editCompName(${i}, '${tabId}')"><i class="fa-solid fa-pen-to-square"></i></button>
+            <button class="cp-exclude-btn${isExcluded ? ' active' : ''}" data-ci="${i}" data-tab="${tabId}"
+              title="${isExcluded ? '가격맞춤 계산에서 제외됨 — 클릭하면 다시 포함' : '가격 도저히 못 맞추는 업체면 눌러서 가격맞춤 계산에서 제외'}"
+              onclick="toggleCompExcluded(${i}, '${tabId}')"><i class="fa-solid fa-ban"></i></button>
             <button class="cp-edit-btn" data-ci="${i}" title="단가 편집"
               onclick="toggleCompEdit(${i})"><i class="fa-solid fa-tag"></i></button>
           </div>
@@ -439,15 +491,49 @@ window.editCompName = async function(idx, tabId) {
     if (typeof showToast === 'function') showToast('관리자만 이름을 변경할 수 있습니다.', 'warning');
     return;
   }
-  const names   = await _compNames(tabId);
+  const meta    = await _compMeta(tabId);
+  const names   = meta.names;
   const newName = prompt('경쟁사 이름을 입력하세요:', names[idx]);
   if (!newName || !newName.trim()) return;
   names[idx] = newName.trim();
-  await _saveCompNames(names, tabId);
+  try {
+    await _saveCompMeta(tabId, names, meta.excluded);
+  } catch (e) {
+    if (typeof showToast === 'function') showToast('이름 저장 실패 — competitor_names 테이블을 확인해주세요.', 'error');
+    return;
+  }
   document.querySelectorAll(`.cp-th-name[data-ci="${idx}"][data-tab="${tabId}"]`).forEach(el => {
     el.textContent = names[idx];
   });
   if (typeof showToast === 'function') showToast('저장되었습니다.', 'success');
+}
+
+/* ═══════════════════════════════════════
+   경쟁사 "가격맞춤 계산에서 제외" 토글
+   — 도저히 가격을 맞출 수 없는 업체를 목록/표시는 유지한 채 자동 최저가 계산에서만 뺀다.
+═══════════════════════════════════════ */
+window.toggleCompExcluded = async function(idx, tabId) {
+  if (window.currentUser?.role !== 'admin') {
+    if (typeof showToast === 'function') showToast('관리자만 변경할 수 있습니다.', 'warning');
+    return;
+  }
+  const meta = await _compMeta(tabId);
+  const excluded = [...meta.excluded];
+  excluded[idx] = !excluded[idx];
+  try {
+    await _saveCompMeta(tabId, meta.names, excluded);
+  } catch (e) {
+    if (typeof showToast === 'function') showToast('저장 실패 — competitor_names 테이블에 comp{n}_excluded 컬럼이 있는지 확인해주세요.', 'error');
+    return;
+  }
+  document.querySelectorAll(`.cp-exclude-btn[data-ci="${idx}"][data-tab="${tabId}"]`).forEach(btn => {
+    btn.classList.toggle('active', excluded[idx]);
+    btn.title = excluded[idx] ? '가격맞춤 계산에서 제외됨 — 클릭하면 다시 포함' : '가격 도저히 못 맞추는 업체면 눌러서 가격맞춤 계산에서 제외';
+    btn.closest('.cp-th-group')?.classList.toggle('cp-th-excluded', excluded[idx]);
+  });
+  if (typeof showToast === 'function') {
+    showToast(excluded[idx] ? '가격맞춤 계산에서 제외했습니다.' : '가격맞춤 계산에 다시 포함했습니다.', 'success');
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -684,6 +770,35 @@ document.addEventListener('DOMContentLoaded', () => {
   color: #16a34a;
   border-color: #16a34a;
 }
+
+/* ── 가격맞춤 계산 제외 토글 ──
+   눌러도 해당 경쟁사 이름/가격 표시는 그대로 두고, autoMatchCompetitorPriceIsopink
+   계산에서만 뺀다(2026-09-02). */
+.cp-exclude-btn {
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 2px 5px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--cc, #6366f1);
+  opacity: 0.6;
+  transition: opacity .15s, background .15s, color .15s, border-color .15s;
+  line-height: 1;
+}
+.cp-exclude-btn:hover { opacity: 1; }
+.cp-exclude-btn.active {
+  opacity: 1;
+  background: #fef2f2;
+  color: #ef4444;
+  border-color: #ef4444;
+}
+/* 제외된 경쟁사는 헤더 전체를 살짝 죽여서 한눈에 보이게 */
+.cp-th-group.cp-th-excluded {
+  background: repeating-linear-gradient(135deg, #f8fafc, #f8fafc 6px, #f1f5f9 6px, #f1f5f9 12px);
+  color: #94a3b8;
+}
+.cp-th-group.cp-th-excluded .cp-th-name { text-decoration: line-through; opacity: 0.6; }
 
 /* ── 읽기 전용 값 표시 ── */
 .cp-val {

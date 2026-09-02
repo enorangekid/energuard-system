@@ -288,8 +288,47 @@ function _resultRow(t, r, badge, extraCells) {
 
 /* ═══════════════════════════════════════
    현재 비교 이력
+   "이전대비" 배지가 뭘 기준으로 비교하는지 — 기본은 지난달(이전 저장) 대비지만,
+   2026-09-02 사용자 요청으로 "지금 실제로 스마트스토어/견적서에 반영중인 값(is_live)"
+   대비로도 비교할 수 있게 토글을 추가함. 실제 적용가 대비 모드에서는 어떤 달을 보고
+   있든(최초 로드/방금 저장/이력에서 과거 월 클릭) 항상 실제 적용가 하나만 기준으로 삼는다.
 ═══════════════════════════════════════ */
 let _compareData = null;
+let _compareMode = 'live'; // 'prev' = 이전달 저장분 대비, 'live' = 실제 적용가 대비 (2026-09-02 기본값을 live로 변경)
+
+/* _cachedLiveCosts({label, costs:{...}, margins:{...}})를 원가 필드는 최상위로 펼치고
+   마진은 .margins에 그대로 두는, 이력 row와 똑같은 모양으로 바꿔준다 — 이렇게 해야
+   _isoGetCost_fromData/_getMargin 등 기존 비교 로직을 그대로 재사용할 수 있다. */
+function _liveCompareRow() {
+  const live = window._cachedLiveCosts;
+  if (!live) return null;
+  return { ...live.costs, margins: { ...live.margins }, label: live.label };
+}
+
+window.setPricingCompareMode = function(mode) {
+  if (mode !== 'prev' && mode !== 'live') return;
+  _compareMode = mode;
+  if (mode === 'live' && !window._cachedLiveCosts && typeof showToast === 'function') {
+    showToast('현재 실제 적용된 단가가 없어서 비교할 대상이 없습니다.', 'warning');
+  }
+  if (mode === 'live') {
+    _compareData = _liveCompareRow();
+  } else {
+    const currentLabel = document.getElementById('cost_base_month')?.value || '';
+    const prevEntry = (window._historyCache || []).find(h => h.label !== currentLabel);
+    _compareData = prevEntry || null;
+  }
+  recalcPricing();
+  Object.keys(_subtabState).forEach(tabId => _recalcTab(tabId));
+  renderAllInputDiff();
+  _updateCompareModeUI();
+};
+
+function _updateCompareModeUI() {
+  document.querySelectorAll('.pricing-compare-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === _compareMode);
+  });
+}
 
 /* ═══════════════════════════════════════
    아이소핑크
@@ -339,7 +378,11 @@ window.recalcPricing = function() {
       const nameTd = i===0 ? `<td rowspan="${rows.length}" class="pricing-name-cell pricing-name-${gradeClass}">${gradeLabel}</td>` : '';
       if (!r) return `<tr data-t="${t}">${nameTd}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
       const prevCost   = _compareData ? (_isoGetCost_fromData(_compareData, t)) : null;
-      const prevMargin = _compareData ? _isoGetMargin(t, _compareData) : null;
+      // ⚠️ 예전엔 여기서 _compareData를 그대로 넘겨서, 이력 row의 마진이 margins:{...}에
+      // 중첩돼있는데도 그걸 안 풀고(.margins 없이) 찾다보니 항상 못 찾아서 "이전대비" 판매가
+      // 배지가 실제 이전 마진이 아니라 기본 마진표(ISO_MARGIN_DEFS)와 비교되고 있었다 — 공통
+      // 엔진(_getMargin) 쪽은 이미 `.margins ?? src`로 풀고 있던 것과 똑같이 맞춤(2026-09-02).
+      const prevMargin = _compareData ? _isoGetMargin(t, _compareData.margins ?? _compareData) : null;
       const prevPrice  = prevCost ? Math.ceil(Math.round(t*(prevCost+prevMargin)*1.1)/100)*100 : null;
       const badge = diffBadge(r.realPrice, prevPrice);
       return `<tr data-t="${t}">${nameTd}
@@ -365,6 +408,60 @@ function _isoGetCost_fromData(s, t) {
   const m=s.cost_900_1800_mid||0, th=s.cost_900_1800_thick||0;
   if(t<=15) return t1; if(t<=25) return t2; if(t<=180) return m; return th;
 }
+
+/* ── 경쟁사 최저가 자동 맞춤(아이소핑크) ──────────────────────────────
+   두께별로 입력돼있는 경쟁사 가격(comp1~3, pricing-competitor.js가 관리) 중 최저가를
+   찾아서, 사용자가 지정한 금액만큼 더 낮은 가격이 되도록 마진을 역산해 채워넣는다.
+   2026-09-02, 사용자 명시 결정: 수익 방어선(최소 마진율 등)은 일부러 안 둠 — 마진이
+   음수가 나와도 그대로 적용한다. 자동저장은 안 하고 표만 다시 그려서 검토 후 기존
+   [저장] 버튼(savePricingCosts)을 직접 눌러야 실제 반영됨(draft/is_live 분리 유지). */
+window.autoMatchCompetitorPriceIsopink = async function() {
+  if (window.currentUser?.role !== 'admin') return;
+  const bufferStr = prompt('경쟁사 최저가보다 얼마나 낮게 맞출까요? (원 단위, 예: 100)', '100');
+  if (bufferStr === null) return;
+  const buffer = Number(String(bufferStr).replace(/,/g, ''));
+  if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
+
+  await loadCompPrices('isopink', 'isopink');
+  // 가격을 도저히 못 맞추는 업체는 이름/가격 표시는 그대로 두고 이 계산에서만 뺀다
+  // (경쟁사 헤더의 "제외" 버튼, pricing-competitor.js의 _compExcluded 참고, 2026-09-02)
+  const excluded = (typeof _compExcluded === 'function') ? await _compExcluded('isopink') : [false, false, false];
+
+  const priceFor = (t, cost, m) => Math.ceil(Math.round(t * (cost + m) * 1.1) / 100) * 100;
+  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0;
+
+  ISOPINK_ROWS.forEach(t => {
+    const cost = _isoGetCost(t);
+    if (!cost) { skippedNoCost++; return; }
+    const comp = window._compCache?.isopink?.isopink?.[t] || {};
+    const rawPrices = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
+    const prices = rawPrices.filter((v, i) => !excluded[i] && v != null && v > 0);
+    if (!prices.length) { skippedNoComp++; return; }
+    const minComp = Math.min(...prices);
+    const cappedPrice = Math.floor((minComp - buffer) / 100) * 100; // 우리 가격은 항상 100원 단위
+    if (cappedPrice <= 0) { skippedBadTarget++; return; }
+
+    // cappedPrice 이하로 나올 수 있는 마진 중 가장 큰 값을 찾는다(=최대한 손해를 덜 보는 선에서 목표가 달성)
+    let margin = Math.round(cappedPrice / (t * 1.1) - cost);
+    let guard = 0;
+    while (priceFor(t, cost, margin) > cappedPrice && guard < 200) { margin--; guard++; }
+    guard = 0;
+    while (priceFor(t, cost, margin + 1) <= cappedPrice && guard < 200) { margin++; guard++; }
+
+    const field = document.getElementById(`margin_iso_t${t}`);
+    if (field) { field.value = margin; applied++; }
+  });
+
+  recalcPricing();
+
+  const parts = [`${applied}개 두께 마진 자동 조정`];
+  if (skippedNoComp)    parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
+  if (skippedNoCost)    parts.push(`원가 미입력 ${skippedNoCost}건 제외`);
+  if (skippedBadTarget) parts.push(`목표가 비정상 ${skippedBadTarget}건 제외`);
+  if (typeof showToast === 'function') {
+    showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', applied ? 'success' : 'warning');
+  }
+};
 
 /* ═══════════════════════════════════════
    공통 엔진 — 비드법 / 경질우레탄 / PF보드
@@ -652,7 +749,7 @@ window.savePricingCosts = async function() {
   const now = new Date().toLocaleString('ko-KR',{month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'});
   const el = document.getElementById('pricingLastUpdated');
   if (el) el.textContent = '최근 저장: ' + now;
-  if (typeof showToast==='function') showToast('원가가 저장되었습니다','success');
+  if (typeof showToast==='function') showToast('단가표가 저장되었습니다','success');
   _viewingIdx = null;
   await loadHistoryList();
   /* 현재 label과 다른 가장 최근 이력을 직전 비교 기준으로 사용 */
@@ -661,6 +758,7 @@ window.savePricingCosts = async function() {
     const prevEntry = window._historyCache.find(h => h.label !== currentLabel);
     _compareData = prevEntry || null;
   }
+  if (_compareMode === 'live') _compareData = _liveCompareRow(); // 실제 적용가 대비 모드면 덮어씀
   renderAllInputDiff();
 
   /* 여기서는 이력에 스냅샷만 남긴다 — 앱가격/견적서에 실제로 반영하려면
@@ -861,6 +959,12 @@ async function loadPricingCosts() {
     margins: { ...(displayData.margins || data.margins || {}) }
   };
   _refreshLiveCostsCache();
+  /* 직전 비교 기준: [0]의 다음 항목(실제 적용가 대비 모드면 그쪽으로 덮어씀) — recalc보다
+     먼저 정해둬야 결과표의 "이전대비" 배지가 첫 렌더부터 바로 맞게 나온다. 예전엔 이 줄이
+     recalc 호출들 뒤에 있어서, 페이지를 막 열었을 때는 배지가 전부 "—"로 비어있다가 뭔가
+     한 번 더 건드려야만 채워지는 순서 문제가 있었다(2026-09-02 발견·수정). */
+  _compareData = window._historyCache?.[1] || null;
+  if (_compareMode === 'live') _compareData = _liveCompareRow();
   recalcPricing();
   Object.keys(_subtabState).forEach(tabId => _recalcTab(tabId));
   _viewingIdx = null;
@@ -873,9 +977,8 @@ async function loadPricingCosts() {
     histBtn.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> 이력 <i class="fa-solid fa-chevron-down" style="font-size:10px;margin-left:2px;"></i>`;
     histBtn.classList.remove('active');
   }
-  /* 직전 비교 기준: [0]의 다음 항목 */
-  _compareData = window._historyCache?.[1] || null;
   renderAllInputDiff();
+  _updateCompareModeUI();
 }
 
 /* ═══════════════════════════════════════
@@ -965,6 +1068,7 @@ window.viewHistory = function(idx) {
   const mEl = document.getElementById('cost_base_month');
   if (mEl) { mEl.value = row.label||''; syncBaseMonth(row.label||''); }
   _compareData = data[idx+1]||null;
+  if (_compareMode === 'live') _compareData = _liveCompareRow();
   _viewingIdx  = idx;
   const btn = document.getElementById('pricingHistoryBtn');
   if (btn) {
@@ -982,6 +1086,7 @@ window.viewHistory = function(idx) {
   Object.keys(_subtabState).forEach(tabId => _recalcTab(tabId));
   renderAllInputDiff();
   _updateLiveBadge();
+  _updateCompareModeUI();
 };
 
 /* ── 실제 적용 지정 — 이력 스냅샷 하나를 "웹/앱에 실제 반영된 값"으로 확정한다.
@@ -1338,6 +1443,9 @@ function _costCard(tabId, modalType, titleSub, tableBodyHtml, hiddenHtml) {
       <button class="pricing-margin-edit-btn" onclick="openPricingModal('${modalType}')">
         <i class="fa-solid fa-sliders"></i> 마진 편집
       </button>
+      ${tabId === 'isopink' ? `<button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPriceIsopink()" title="두께별 경쟁사 최저가보다 지정한 금액만큼 낮게 마진을 자동으로 맞춥니다(2026-09-02 추가, 현재 아이소핑크만 지원)">
+        <i class="fa-solid fa-bolt"></i> 경쟁사 최저가 맞춤
+      </button>` : ''}
     </div>
     <div class="pricing-cost-card-inner">
       <div class="pricing-input-table-wrap">${tableBodyHtml}</div>
