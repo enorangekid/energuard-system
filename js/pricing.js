@@ -467,6 +467,78 @@ window.autoMatchCompetitorPriceIsopink = async function() {
   }
 };
 
+/* ── 경쟁사 최저가 자동 맞춤(비드법/PU/PF/불연 공통) ──────────────────────
+   2026-09-02: 아이소핑크에서만 테스트해봤던 걸 전체 탭으로 확장. 로직은 동일(수익
+   방어선 없음, 자동저장 안 함) — 계산식만 탭마다 다른 실제 판매가 공식(calcSheetRow/
+   calcFrSheetRow)에 맞게 역산한다. 지금 선택된 서브탭(등급)의 두께 전체를 훑는다. */
+window.autoMatchCompetitorPriceGeneric = async function(tabId) {
+  if (window.currentUser?.role !== 'admin') return;
+  const gradeId = _subtabState[tabId];
+  const grade   = _gradesOf(tabId).find(g => g.id === gradeId);
+  if (!grade) return;
+  const rows = _rowsOf(tabId, grade);
+
+  const bufferStr = prompt('경쟁사 최저가보다 얼마나 낮게 맞출까요? (원 단위, 예: 100)', '100');
+  if (bufferStr === null) return;
+  const buffer = Number(String(bufferStr).replace(/,/g, ''));
+  if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
+
+  await loadCompPrices(tabId, gradeId);
+  const excluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId) : [false, false, false];
+
+  const isFr = tabId === 'fr';
+  const tEff = grade.tFactor; // fr 외 탭에서만 쓰임(없으면 t 그대로)
+  const priceFor = isFr
+    ? (cost, m) => calcFrSheetRow(cost, m, grade.area)?.realPrice ?? 0
+    : (cost, m, t) => Math.ceil(Math.round((cost + m) * (tEff ?? t) * grade.area * 1.1) / 100) * 100;
+
+  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0;
+
+  rows.forEach(t => {
+    const costId = _getCostId(tabId, grade, t);
+    const cost   = costId ? fieldVal(costId) : 0;
+    if (!cost) { skippedNoCost++; return; }
+    const comp = window._compCache?.[tabId]?.[gradeId]?.[t] || {};
+    const rawPrices = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
+    const prices = rawPrices.filter((v, i) => !excluded[i] && v != null && v > 0);
+    if (!prices.length) { skippedNoComp++; return; }
+    const minComp = Math.min(...prices);
+    const cappedPrice = Math.floor((minComp - buffer) / 100) * 100;
+    if (cappedPrice <= 0) { skippedBadTarget++; return; }
+
+    // 초기 추정값 — fr은 마진이 "장당 금액"이라 공식이 다름
+    let margin = isFr
+      ? Math.round(cappedPrice / 1.1 - Math.round(cost * grade.area))
+      : Math.round(cappedPrice / ((tEff ?? t) * grade.area * 1.1) - cost);
+    let guard = 0;
+    while (priceFor(cost, margin, t) > cappedPrice && guard < 200) { margin--; guard++; }
+    guard = 0;
+    while (priceFor(cost, margin + 1, t) <= cappedPrice && guard < 200) { margin++; guard++; }
+
+    const marginId = _getMarginId(tabId, grade, t);
+    const field = marginId ? document.getElementById(marginId) : null;
+    if (field) { field.value = margin; applied++; }
+  });
+
+  const recalcFn = { bead: recalcBead, pu: recalcPu, pf: recalcPf, fr: recalcFr }[tabId];
+  recalcFn?.();
+
+  const parts = [`${applied}개 두께 마진 자동 조정`];
+  if (skippedNoComp)    parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
+  if (skippedNoCost)    parts.push(`원가 미입력 ${skippedNoCost}건 제외`);
+  if (skippedBadTarget) parts.push(`목표가 비정상 ${skippedBadTarget}건 제외`);
+  if (typeof showToast === 'function') {
+    showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', applied ? 'success' : 'warning');
+  }
+};
+
+/* 버튼 onclick 하나로 전체 탭 처리 — 아이소핑크는 전용 함수, 나머지는 공통 함수 */
+window.autoMatchCompetitorPrice = function() {
+  const tabId = window._activePricingTab || 'isopink';
+  if (tabId === 'isopink') window.autoMatchCompetitorPriceIsopink();
+  else window.autoMatchCompetitorPriceGeneric(tabId);
+};
+
 /* ═══════════════════════════════════════
    공통 엔진 — 비드법 / 경질우레탄 / PF보드
    (아이소핑크는 원가 단위가 달라 별도 유지)
@@ -1447,9 +1519,9 @@ function _costCard(tabId, modalType, titleSub, tableBodyHtml, hiddenHtml) {
       <button class="pricing-margin-edit-btn" onclick="openPricingModal('${modalType}')">
         <i class="fa-solid fa-sliders"></i> 마진 편집
       </button>
-      ${tabId === 'isopink' ? `<button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPriceIsopink()" title="두께별 경쟁사 최저가보다 지정한 금액만큼 낮게 마진을 자동으로 맞춥니다(2026-09-02 추가, 현재 아이소핑크만 지원)">
+      <button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPrice()" title="두께별 경쟁사 최저가보다 지정한 금액만큼 낮게 마진을 자동으로 맞춥니다(비드법/PU/PF는 지금 선택된 등급 기준)">
         <i class="fa-solid fa-bolt"></i> 경쟁사 최저가 맞춤
-      </button>` : ''}
+      </button>
     </div>
     <div class="pricing-cost-card-inner">
       <div class="pricing-input-table-wrap">${tableBodyHtml}</div>
