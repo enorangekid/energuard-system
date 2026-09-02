@@ -27,7 +27,7 @@
      (쓰기 권한은 절대 주지 않음 — 이 페이지는 애초에 저장/편집 버튼 자체가 없음)
      =============================================================== -->
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/moonspam/NanumSquare@2.0/nanumsquare.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="stylesheet" href="css/base.css">
@@ -40,7 +40,10 @@
      이 페이지는 사이드바가 없는 단독 페이지라 그 플렉스 컨텍스트가 오히려 방해가 된다
      — .view-topbar가 사이드바 자리처럼 옆으로 밀려 좁게 눌리는 버그가 있었다(2026-09-02,
      사용자 스크린샷으로 발견). 세로 문서 흐름으로 되돌린다. */
-  body { display:block !important; background:#f4f5f9; font-family:'NanumSquare','Malgun Gothic',sans-serif; }
+  /* 2026-09-02: NanumSquare(둥근 장식체)는 숫자 빼곡한 단가표엔 가독성이 떨어진다는
+     지적 — Pretendard로 교체(index.html이 원래 쓰려던 폰트인데 정작 CDN 로드가 안 되어
+     있어서 시스템 폰트로 대체되고 있었음, 이 페이지는 직접 로드). */
+  body { display:block !important; background:#f4f5f9; font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif; }
 
   .view-topbar {
     display:flex; align-items:center; gap:10px;
@@ -58,15 +61,20 @@
   @keyframes spin { to { transform:rotate(360deg); } }
 
   /* 편집 관련 UI 전부 숨김 — 이 페이지는 애초에 저장 로직을 안 쓰지만, 눈에 보이는
-     버튼/입력 상태까지 이중으로 막아서 "편집 가능한 것처럼 보이는" 혼란을 없앤다. */
+     버튼/입력 상태까지 이중으로 막아서 "편집 가능한 것처럼 보이는" 혼란을 없앤다.
+     이력 목록 조회(pricingHistoryWrap)는 화면표시 전환일 뿐이라 남겨두고, 그 안의
+     "실제 적용" 버튼(phi-apply-btn, DB 쓰기)만 따로 숨김(2026-09-02). */
   .pricing-margin-edit-btn,
   .cp-th-actions,
-  #pricingHistoryWrap,
+  .phi-apply-btn,
   .pricing-live-badge.warn small { display:none !important; }
   input[readonly], select[readonly] {
     background:#f3f4f6 !important; color:#374151; cursor:default;
   }
   .content-body { max-width:1600px; margin:0 auto; padding:20px 24px 60px; }
+
+  /* 숫자 가독성 — 자릿수 맞춰 세로로 훑어보기 쉽게 등폭 숫자 사용 */
+  .pricing-result-card, .pricing-cost-card { font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -96,6 +104,22 @@
           <div class="pricing-compare-toggle" id="pricingCompareToggle" role="group" aria-label="이전대비 비교 기준">
             <button type="button" class="pricing-compare-btn" data-mode="prev" onclick="setPricingCompareMode('prev')">이전달 대비</button>
             <button type="button" class="pricing-compare-btn active" data-mode="live" onclick="setPricingCompareMode('live')">실제 적용가 대비</button>
+          </div>
+          <!-- 이력 조회 — viewHistory()는 화면 표시만 바꾸는 순수 클라이언트 동작이라
+               보기 전용 페이지에도 안전하게 넣을 수 있음. "실제 적용" 버튼만 CSS로 숨김
+               (applyLivePrice는 DB 쓰기라 role 가드가 없지만, anon 키에 UPDATE 권한 자체를
+               안 줬으니 이중으로 막혀있음, 2026-09-02). -->
+          <div class="pricing-history-wrap" id="pricingHistoryWrap">
+            <button class="pricing-history-btn" id="pricingHistoryBtn" onclick="toggleHistoryDropdown()">
+              <i class="fa-solid fa-clock-rotate-left"></i> 이력
+              <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:2px;"></i>
+            </button>
+            <div class="pricing-history-dropdown" id="pricingHistoryDropdown">
+              <div class="pricing-history-header">저장된 단가 이력</div>
+              <div id="pricingHistoryList" class="pricing-history-list">
+                <div class="pricing-history-empty">저장된 이력이 없습니다</div>
+              </div>
+            </div>
           </div>
           <button class="btn-server" onclick="exportPricingExcel()" style="background:#4338ca;">
             <i class="fa-solid fa-file-excel"></i> 엑셀 저장
