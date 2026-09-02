@@ -1,9 +1,9 @@
 {
-  "name": "energuard-sports-live-widget",
-  "version": "2.1.0",
-  "description": "NBA, MLB, EPL, UCL 실시간 경기와 문자중계를 표시하는 Windows 데스크톱 위젯",
+  "name": "orange-sports-widget",
+  "version": "2.5.0",
+  "description": "NBA, MLB, EPL, UCL 실시간 경기와 F1 과거 세션 데이터를 표시하는 Windows 데스크톱 위젯",
   "main": "main.js",
-  "author": "Energuard",
+  "author": "Orange Sports",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "com.energuard.nbalivewidget",
-    "productName": "Energuard Sports Live",
+    "productName": "Orange Sports",
     "asar": true,
     "directories": {
       "output": "dist"
@@ -44,14 +44,14 @@
           ]
         }
       ],
-      "artifactName": "Energuard-Sports-Live-Setup-${version}.${ext}"
+      "artifactName": "Orange-Sports-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Energuard Sports Live"
+      "shortcutName": "Orange Sports"
     }
   }
 }

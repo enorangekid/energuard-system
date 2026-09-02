@@ -54,6 +54,7 @@ function playSoftTone() {
 window.nbaNotification.onData(payload => {
   gameId = payload.gameId || '';
   sport = payload.sport || 'nba';
+  document.documentElement.dataset.sport = sport;
   endpointLeague = payload.endpointLeague || '';
   document.querySelector('#appMark').textContent = payload.league || sport.toUpperCase();
   document.querySelector('#meta').textContent = payload.meta || '실시간 경기';

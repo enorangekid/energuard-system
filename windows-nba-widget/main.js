@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, Menu, nativeImage, net, screen, Tray } = re
 const fs = require('fs');
 const path = require('path');
 
+app.setName('Orange Sports');
+
 let mainWindow = null;
 let tray = null;
 let notificationWindow = null;
@@ -15,7 +17,8 @@ const DEFAULT_SETTINGS = {
   notificationLevel: 'scores',
   sound: true,
   favoriteTeam: '',
-  favoriteBySport: { nba: '', mlb: '', epl: '', ucl: '' },
+  favoriteBySport: { nba: '', mlb: '', epl: '', ucl: '', f1: '' },
+  alertGameIdsBySport: { nba: [], mlb: [], epl: [], ucl: [], f1: [] },
   notificationOpacity: 0.95,
   pinAllNotifications: false
 };
@@ -24,24 +27,40 @@ function settingsPath() {
   return path.join(app.getPath('userData'), 'settings.json');
 }
 
+function normalizeSettings(saved = {}) {
+  const alertGameIdsBySport = Object.fromEntries(
+    Object.keys(DEFAULT_SETTINGS.alertGameIdsBySport).map(sport => [
+      sport,
+      [...new Set((saved.alertGameIdsBySport?.[sport] || []).map(String))]
+    ])
+  );
+  return {
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    favoriteBySport: { ...DEFAULT_SETTINGS.favoriteBySport, ...(saved.favoriteBySport || {}) },
+    alertGameIdsBySport
+  };
+}
+
 function readSettings() {
   try {
     const candidates = [
       settingsPath(),
+      path.join(app.getPath('appData'), 'energuard-sports-live-widget', 'settings.json'),
       path.join(app.getPath('appData'), 'NBA Live Widget', 'settings.json'),
       path.join(app.getPath('appData'), 'energuard-nba-live-widget', 'settings.json')
     ];
     const source = candidates.find(candidate => fs.existsSync(candidate));
     if (!source) throw new Error('설정 파일 없음');
     const saved = JSON.parse(fs.readFileSync(source, 'utf8'));
-    return { ...DEFAULT_SETTINGS, ...saved, favoriteBySport: { ...DEFAULT_SETTINGS.favoriteBySport, ...(saved.favoriteBySport || {}) } };
+    return normalizeSettings(saved);
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return normalizeSettings();
   }
 }
 
 function writeSettings(nextSettings) {
-  const settings = { ...DEFAULT_SETTINGS, ...(nextSettings || {}) };
+  const settings = normalizeSettings(nextSettings);
   fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
   fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2), 'utf8');
   return settings;
@@ -191,7 +210,7 @@ function updateTrayMenu() {
   if (!tray) return;
   const settings = readSettings();
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Energuard Sports Live 열기', click: () => showWindow() },
+    { label: 'Orange Sports 열기', click: () => showWindow() },
     { type: 'separator' },
     {
       label: '항상 위',
@@ -285,6 +304,23 @@ function createWindow() {
           await new Promise(resolve => setTimeout(resolve, 4000));
           const uclDetail = await mainWindow.webContents.executeJavaScript(`({events:document.querySelectorAll('.soccer-event-row').length,stats:document.querySelectorAll('.soccer-stat-team').length,error:document.querySelector('#commentaryContent')?.innerText.includes('불러오지 못했습니다')||false})`);
           console.log(`UCL_DETAIL_SMOKE_RESULT ${JSON.stringify(uclDetail)}`);
+          await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-sport="f1"]').click()`);
+          await new Promise(resolve => setTimeout(resolve, 2500));
+          await mainWindow.webContents.executeJavaScript(`document.querySelector('#datePicker').value='2025-10-27'; document.querySelector('#datePicker').dispatchEvent(new Event('change',{bubbles:true}))`);
+          await new Promise(resolve => setTimeout(resolve, 6500));
+          const f1Result = await mainWindow.webContents.executeJavaScript(`({sport:document.querySelector('.sport-tab.active')?.dataset.sport,cards:document.querySelectorAll('.f1-session-row').length,status:document.querySelector('#gamesStatus')?.innerText||''})`);
+          console.log(`F1_SMOKE_RESULT ${JSON.stringify(f1Result)}`);
+          await mainWindow.webContents.executeJavaScript(`document.querySelector('.f1-session-row[data-f1-session-key]')?.click()`);
+          await new Promise(resolve => setTimeout(resolve, 9500));
+          const f1Detail = await mainWindow.webContents.executeJavaScript(`({results:document.querySelectorAll('.f1-result-table tbody tr').length,controls:document.querySelectorAll('.f1-control-row').length,strategies:document.querySelectorAll('.f1-strategy-row').length,error:document.querySelector('#commentaryContent')?.innerText.includes('불러오지 못했습니다')||false})`);
+          console.log(`F1_DETAIL_SMOKE_RESULT ${JSON.stringify(f1Detail)}`);
+          await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-view="table"]').click()`);
+          await new Promise(resolve => setTimeout(resolve, 9000));
+          const f1Table = await mainWindow.webContents.executeJavaScript(`({drivers:document.querySelectorAll('.f1-champ-table tbody tr').length,error:document.querySelector('#tableContent')?.innerText.includes('불러오지 못했습니다')||false})`);
+          console.log(`F1_TABLE_SMOKE_RESULT ${JSON.stringify(f1Table)}`);
+          await mainWindow.webContents.executeJavaScript(`document.querySelector('[data-tblview="constructors"]')?.click()`);
+          const f1Teams = await mainWindow.webContents.executeJavaScript(`document.querySelectorAll('.f1-champ-table tbody tr').length`);
+          console.log(`F1_TEAMS_SMOKE_RESULT ${f1Teams}`);
           showCardNotification({
             awayName: 'LA 레이커스',
             homeName: '보스턴',
@@ -341,7 +377,7 @@ function createWindow() {
   });
 
   tray = new Tray(trayIcon());
-  tray.setToolTip('Energuard Sports Live');
+  tray.setToolTip('Orange Sports');
   tray.on('click', () => mainWindow.isVisible() ? mainWindow.hide() : showWindow());
   updateTrayMenu();
 }
@@ -415,14 +451,14 @@ ipcMain.handle('notification:dismiss-all', () => {
 
 ipcMain.handle('sports:fetch-json', async (_event, requestUrl) => {
   const url = new URL(String(requestUrl || ''));
-  const allowedHosts = new Set(['site.api.espn.com', 'site.web.api.espn.com', 'cdn.espn.com', 'statsapi.mlb.com']);
+  const allowedHosts = new Set(['site.api.espn.com', 'site.web.api.espn.com', 'cdn.espn.com', 'statsapi.mlb.com', 'api.openf1.org']);
   if (url.protocol !== 'https:' || !allowedHosts.has(url.hostname)) {
     throw new Error('허용되지 않은 스포츠 데이터 주소입니다.');
   }
   const response = await net.fetch(url.toString(), {
     headers: {
       Accept: 'application/json, text/plain, */*',
-      'User-Agent': 'Energuard-Sports-Live/2.0'
+      'User-Agent': 'Orange-Sports/2.5'
     }
   });
   if (!response.ok) throw new Error(`스포츠 데이터 요청 실패 (${response.status})`);

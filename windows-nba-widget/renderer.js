@@ -18,6 +18,26 @@ const SOCCER_KO = {
 
 const SOCCER_ENDPOINTS = { epl:'eng.1', ucl:'uefa.champions' };
 
+const F1_COUNTRY_KO = {
+  Australia:'호주',China:'중국',Japan:'일본',Bahrain:'바레인','Saudi Arabia':'사우디아라비아',
+  'United States':'미국',Canada:'캐나다',Monaco:'모나코',Spain:'스페인',Austria:'오스트리아',
+  'United Kingdom':'영국',Belgium:'벨기에',Hungary:'헝가리',Netherlands:'네덜란드',Italy:'이탈리아',
+  Azerbaijan:'아제르바이잔',Singapore:'싱가포르',Mexico:'멕시코',Brazil:'브라질',Qatar:'카타르',
+  'United Arab Emirates':'아부다비'
+};
+
+const F1_SESSION_KO = {
+  'Practice 1':'연습 주행 1','Practice 2':'연습 주행 2','Practice 3':'연습 주행 3',
+  Qualifying:'예선','Sprint Qualifying':'스프린트 예선','Sprint Shootout':'스프린트 슛아웃',
+  Sprint:'스프린트',Race:'결승','Day 1':'테스트 1일차','Day 2':'테스트 2일차','Day 3':'테스트 3일차'
+};
+
+const F1_TEAM_KO = {
+  McLaren:'맥라렌',Ferrari:'페라리',Mercedes:'메르세데스','Red Bull Racing':'레드불 레이싱',
+  'Aston Martin':'애스턴마틴',Alpine:'알핀',Williams:'윌리엄스','Racing Bulls':'레이싱 불스',
+  'Kick Sauber':'킥 자우버',Haas:'하스',Audi:'아우디',Cadillac:'캐딜락'
+};
+
 const state = {
   sport: 'nba',
   date: localDateKey(new Date()),
@@ -32,14 +52,15 @@ const state = {
   lastPlayIds: new Map(),
   fallback: false,
   table: {
-    view: { nba: 'standings', mlb: 'standings', epl: 'standings', ucl: 'standings' },
+    view: { nba: 'standings', mlb: 'standings', epl: 'standings', ucl: 'standings', f1: 'drivers' },
     mlbLeague: 'al',
     season: {},
     expanded: new Set(),
     playoffExpanded: new Set(),
     cache: {},
     loadReq: 0
-  }
+  },
+  f1: { calendars: {}, details: {}, requestQueue:Promise.resolve(), requestTimes:[], lastRequestAt:0 }
 };
 
 const $ = selector => document.querySelector(selector);
@@ -49,6 +70,25 @@ const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp
 function localDateKey(date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 10);
+}
+
+function dateKeyInTimeZone(value, timeZone = 'Asia/Seoul') {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const get = type => parts.find(part => part.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+function offsetDateKey(key, days) {
+  const date = new Date(`${key}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function apiDate(key) { return key.replaceAll('-', ''); }
@@ -148,15 +188,59 @@ function setGamesLoading(message = 'NBA 경기를 불러오는 중...') {
 }
 
 function updateDateHeader() {
-  const text = koDate(state.date);
-  $('#dateTitle').textContent = text.label;
-  $('#dateSub').textContent = text.full;
+  const target = new Date(`${state.date}T12:00:00`);
+  $('#dateTitle').textContent = `${target.getFullYear()}.${String(target.getMonth() + 1).padStart(2, '0')}`;
+  $('#dateSub').textContent = `${target.getMonth() + 1}월 ${target.getDate()}일`;
   $('#datePicker').value = state.date;
+  renderDateStrip();
+}
+
+function renderDateStrip() {
+  const today = localDateKey(new Date());
+  const selected = new Date(`${state.date}T12:00:00`);
+  const dayNames = ['일','월','화','수','목','금','토'];
+  $('#dateStrip').innerHTML = Array.from({length:7}, (_, index) => {
+    const date = new Date(selected);
+    date.setDate(selected.getDate() + index - 3);
+    const key = localDateKey(date);
+    const isToday = key === today;
+    const isSelected = key === state.date;
+    return `<button class="date-chip ${isSelected ? 'active' : ''} ${isToday ? 'today' : ''}" data-date="${key}"${isSelected ? ' aria-current="date"' : ''}><small>${isToday ? '오늘' : dayNames[date.getDay()]}</small><b>${date.getDate()}</b></button>`;
+  }).join('');
+  $$('.date-chip').forEach(button => button.addEventListener('click', () => {
+    if (button.dataset.date === state.date) return;
+    state.date = button.dataset.date;
+    loadGames({allowFallback:state.date === today});
+  }));
+}
+
+function scheduleTime(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '--:--' : new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false}).format(date);
+}
+
+function scheduleBoard(sport, title, rows, count) {
+  if (!rows) return '';
+  return `<section class="schedule-board" data-league="${sport}"><header class="schedule-board-head"><span class="league-symbol">${sport.toUpperCase()}</span><div><b>${esc(title)}</b><small>${count}${sport === 'f1' ? '세션' : '경기'}</small></div><span class="board-arrow">›</span></header><div class="schedule-board-body">${rows}</div></section>`;
+}
+
+function scheduleRow({ classes = '', attrs = '', time = '', phase = '', sub = '', awayName = '', awayLogo = '', awayRecord = '', homeName = '', homeLogo = '', homeRecord = '', awayScore = '', homeScore = '', started = false, live = false, selectable = true, gameId = '' }) {
+  const score = started ? `<em>${esc(awayScore)}</em><i>:</i><em>${esc(homeScore)}</em>` : '<span class="versus">VS</span>';
+  const alertSelected = live && isGameAlertSelected(gameId);
+  const action = live && gameId
+    ? `<button type="button" class="game-alert-toggle ${alertSelected ? 'active' : ''}" data-alert-game-id="${esc(gameId)}" aria-pressed="${alertSelected}" title="${alertSelected ? '이 경기 알림 끄기' : '이 경기 알림 받기'}">${alertSelected ? '알림 중' : '알림'}</button>`
+    : `<span class="game-action ${selectable ? '' : 'muted'}">${selectable ? '기록' : '예정'}</span>`;
+  return `<article class="game-card schedule-row ${classes} ${live ? 'live' : ''} ${selectable ? '' : 'disabled'}" ${attrs}>
+    <div class="game-kickoff"><b class="${live ? 'status-live' : ''}">${live ? 'LIVE' : esc(time)}</b><small>${esc(sub)}</small></div>
+    <div class="schedule-match"><div class="schedule-team away"><span><b>${esc(awayName)}</b><small>${esc(awayRecord)}</small></span><img src="${esc(awayLogo)}" alt=""></div><div class="game-score"><strong>${score}</strong><span>${esc(phase)}</span></div><div class="schedule-team home"><img src="${esc(homeLogo)}" alt=""><span><b>${esc(homeName)}</b><small>${esc(homeRecord)}</small></span></div></div>
+    ${action}
+  </article>`;
 }
 
 async function loadGames(options = {}) {
   if (state.sport === 'mlb') return loadMlbGames(options);
   if (state.sport === 'epl' || state.sport === 'ucl') return loadSoccerGames(options);
+  if (state.sport === 'f1') return loadF1Games(options);
   return loadNbaGames(options);
 }
 
@@ -200,23 +284,18 @@ function renderGames(events) {
   $('#gamesStatus').hidden = events.length > 0;
   $('#gamesStatus').innerHTML = events.length ? '' : '선택한 날짜에 NBA 경기가 없습니다.';
   $('#liveDot').hidden = !events.some(isLiveEvent);
-  $('#gamesList').innerHTML = events.map(event => {
+  const rows = events.map(event => {
     const comp = event.competitions?.[0] || {};
     const away = comp.competitors?.find(item => item.homeAway === 'away') || {};
     const home = comp.competitors?.find(item => item.homeAway === 'home') || {};
     const live = isLiveEvent(event);
     const started = event.status?.type?.state !== 'pre';
     const league = event.season?.slug === 'post-season' || event.season?.type === 3 ? '플레이오프' : '정규시즌';
-    return `<article class="game-card ${live ? 'live' : ''}" data-game-id="${esc(event.id)}">
-      <div class="game-meta"><span>${esc(league)}</span><b class="${live ? 'status-live' : ''}">${live ? '● LIVE · ' : ''}${esc(statusText(event.status))}</b></div>
-      <div class="game-teams">
-        <div class="team"><img src="${esc(teamLogo(away))}" alt=""><b>${esc(teamName(away.team))}</b><small>${esc(recordText(away))}</small></div>
-        <div class="game-score"><strong>${started ? `${esc(away.score || 0)} : ${esc(home.score || 0)}` : 'VS'}</strong><span>${live ? '실시간' : (started ? '결과' : '예정')}</span></div>
-        <div class="team"><img src="${esc(teamLogo(home))}" alt=""><b>${esc(teamName(home.team))}</b><small>${esc(recordText(home))}</small></div>
-      </div><div class="game-footer">쿼터 스코어 · 선수 기록 · 전체 문자중계 보기 ›</div>
-    </article>`;
+    return scheduleRow({attrs:`data-game-id="${esc(event.id)}"`,gameId:event.id,time:scheduleTime(event.date),phase:live ? statusText(event.status) : (started ? '종료' : '경기 전'),sub:league,awayName:teamName(away.team),awayLogo:teamLogo(away),awayRecord:recordText(away),homeName:teamName(home.team),homeLogo:teamLogo(home),homeRecord:recordText(home),awayScore:away.score || 0,homeScore:home.score || 0,started,live});
   }).join('');
-  $$('.game-card').forEach(card => card.addEventListener('click', () => openGame(card.dataset.gameId)));
+  $('#gamesList').innerHTML = scheduleBoard('nba','NBA',rows,events.length);
+  bindGameAlertButtons();
+  $$('.game-card[data-game-id]').forEach(card => card.addEventListener('click', () => openGame(card.dataset.gameId)));
 }
 
 function isMlbLive(game) {
@@ -248,17 +327,22 @@ async function loadMlbGames({ quiet = false } = {}) {
   state.fallback = false;
   $('#fallbackBanner').hidden = true;
   if (!quiet) setGamesLoading('MLB 경기를 불러오는 중...');
+  const selectedDate = state.date;
+  const mlbStartDate = offsetDateKey(selectedDate, -1);
   try {
-    const data = await fetchJson(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${state.date}&hydrate=linescore,team`);
-    if (state.sport !== 'mlb') return;
-    const games = (data?.dates || []).flatMap(day => day.games || []);
+    const data = await fetchJson(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&startDate=${mlbStartDate}&endDate=${selectedDate}&hydrate=linescore,team`);
+    if (state.sport !== 'mlb' || state.date !== selectedDate) return;
+    const games = (data?.dates || [])
+      .flatMap(day => day.games || [])
+      .filter(game => dateKeyInTimeZone(game.gameDate) === selectedDate)
+      .sort((a, b) => new Date(a.gameDate) - new Date(b.gameDate));
     state.events = games;
     renderMlbGames(games);
     syncFavoriteSelect();
     monitorLiveGames();
     if (games.some(isMlbLive)) state.scoreboardTimer = setTimeout(() => loadGames({quiet:true}), 20000);
   } catch (error) {
-    if (state.sport !== 'mlb') return;
+    if (state.sport !== 'mlb' || state.date !== selectedDate) return;
     $('#gamesStatus').hidden = false;
     $('#gamesStatus').innerHTML = `MLB 경기 정보를 불러오지 못했습니다.<br><small>${esc(error.message)}</small>`;
   }
@@ -268,22 +352,17 @@ function renderMlbGames(games) {
   $('#gamesStatus').hidden = games.length > 0;
   $('#gamesStatus').innerHTML = games.length ? '' : '선택한 날짜에 MLB 경기가 없습니다.';
   $('#liveDot').hidden = !games.some(isMlbLive);
-  $('#gamesList').innerHTML = games.map(game => {
+  const rows = games.map(game => {
     const away = game.teams?.away || {};
     const home = game.teams?.home || {};
     const live = isMlbLive(game);
     const started = game.status?.abstractGameState !== 'Preview';
     const gameNumber = game.doubleHeader && game.doubleHeader !== 'N' ? ` · 더블헤더 ${game.gameNumber || ''}차전` : '';
     const selectable = started && game.gamePk;
-    return `<article class="game-card mlb-game-card ${selectable ? '' : 'disabled'} ${live ? 'live' : ''}"${selectable ? ` data-game-pk="${esc(game.gamePk)}"` : ''}>
-      <div class="game-meta"><span>MLB${esc(gameNumber)}</span><b class="${live ? 'status-live' : ''}">${live ? '● LIVE · ' : ''}${esc(mlbStatusText(game))}</b></div>
-      <div class="game-teams">
-        <div class="team"><img src="${esc(mlbTeamLogo(away))}" alt=""><b>${esc(mlbTeamName(away.team))}</b><small>${esc(mlbRecord(away))}</small></div>
-        <div class="game-score"><strong>${started ? `${esc(away.score ?? 0)} : ${esc(home.score ?? 0)}` : 'VS'}</strong><span>${live ? '실시간' : (started ? '결과' : '예정')}</span></div>
-        <div class="team"><img src="${esc(mlbTeamLogo(home))}" alt=""><b>${esc(mlbTeamName(home.team))}</b><small>${esc(mlbRecord(home))}</small></div>
-      </div><div class="game-footer ${selectable ? '' : 'muted'}">${selectable ? '이닝 스코어 · 현재 승부 · 전체 문자중계 보기 ›' : '경기 시작 후 문자중계를 볼 수 있습니다.'}</div>
-    </article>`;
+    return scheduleRow({classes:'mlb-game-card',attrs:selectable ? `data-game-pk="${esc(game.gamePk)}"` : '',gameId:game.gamePk,time:scheduleTime(game.gameDate),phase:live ? mlbStatusText(game) : (started ? '종료' : '경기 전'),sub:`MLB${gameNumber}`,awayName:mlbTeamName(away.team),awayLogo:mlbTeamLogo(away),awayRecord:mlbRecord(away),homeName:mlbTeamName(home.team),homeLogo:mlbTeamLogo(home),homeRecord:mlbRecord(home),awayScore:away.score ?? 0,homeScore:home.score ?? 0,started,live,selectable});
   }).join('');
+  $('#gamesList').innerHTML = scheduleBoard('mlb','메이저리그',rows,games.length);
+  bindGameAlertButtons();
   $$('.mlb-game-card[data-game-pk]').forEach(card => card.addEventListener('click', () => openMlbGame(card.dataset.gamePk)));
 }
 
@@ -430,20 +509,235 @@ function renderSoccerGames(events, sport) {
   $('#gamesStatus').hidden = events.length > 0;
   $('#gamesStatus').innerHTML = events.length ? '' : `선택한 날짜에 ${sport.toUpperCase()} 경기가 없습니다.`;
   $('#liveDot').hidden = !events.some(isLiveEvent);
-  $('#gamesList').innerHTML = events.map(event => {
+  const rows = events.map(event => {
     const comp = event.competitions?.[0] || {};
     const away = comp.competitors?.find(item => item.homeAway === 'away') || {};
     const home = comp.competitors?.find(item => item.homeAway === 'home') || {};
     const live = isLiveEvent(event);
     const started = event.status?.type?.state !== 'pre';
-    const date = new Intl.DateTimeFormat('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(event.date));
-    return `<article class="game-card soccer-game-card ${started ? '' : 'disabled'} ${live ? 'live' : ''}"${started ? ` data-game-id="${esc(event.id)}"` : ''}>
-      <div class="game-meta"><span>${esc(sport.toUpperCase())} · ${esc(date)}</span><b class="${live ? 'status-live' : ''}">${live ? '● LIVE · ' : ''}${esc(event.status?.type?.shortDetail || event.status?.type?.detail || '')}</b></div>
-      <div class="game-teams"><div class="team"><img src="${esc(teamLogo(away))}" alt=""><b>${esc(soccerTeamName(away.team))}</b><small>원정</small></div><div class="game-score"><strong>${started ? `${esc(away.score ?? 0)} : ${esc(home.score ?? 0)}` : 'VS'}</strong><span>${live ? '실시간' : (started ? '결과' : '예정')}</span></div><div class="team"><img src="${esc(teamLogo(home))}" alt=""><b>${esc(soccerTeamName(home.team))}</b><small>홈</small></div></div>
-      <div class="game-footer ${started ? '' : 'muted'}">${started ? '득점·카드·교체 이벤트 보기 ›' : '경기 시작 후 이벤트를 볼 수 있습니다.'}</div>
-    </article>`;
+    const detail = event.status?.type?.shortDetail || event.status?.type?.detail || '';
+    return scheduleRow({classes:'soccer-game-card',attrs:started ? `data-game-id="${esc(event.id)}"` : '',gameId:event.id,time:scheduleTime(event.date),phase:live ? detail : (started ? '종료' : '경기 전'),sub:sport.toUpperCase(),awayName:soccerTeamName(away.team),awayLogo:teamLogo(away),awayRecord:'원정',homeName:soccerTeamName(home.team),homeLogo:teamLogo(home),homeRecord:'홈',awayScore:away.score ?? 0,homeScore:home.score ?? 0,started,live,selectable:started});
   }).join('');
+  $('#gamesList').innerHTML = scheduleBoard(sport,sport === 'epl' ? '프리미어리그' : 'UEFA 챔피언스리그',rows,events.length);
+  bindGameAlertButtons();
   $$('.soccer-game-card[data-game-id]').forEach(card => card.addEventListener('click', () => openSoccerGame(card.dataset.gameId)));
+}
+
+function f1SessionName(session = {}) {
+  return F1_SESSION_KO[session.session_name] || F1_SESSION_KO[session.session_type] || session.session_name || session.session_type || '세션';
+}
+
+function f1MeetingName(meeting = {}, session = {}) {
+  if (/testing/i.test(meeting.meeting_name || '')) return '프리시즌 테스트';
+  const country = F1_COUNTRY_KO[meeting.country_name || session.country_name] || meeting.country_name || session.country_name || meeting.location || session.location || 'F1';
+  return `${country} 그랑프리`;
+}
+
+function f1SessionState(session = {}, now = Date.now()) {
+  if (session.is_cancelled) return { key:'cancelled', label:'취소', selectable:false, live:false };
+  const start = new Date(session.date_start).getTime();
+  const end = new Date(session.date_end).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return { key:'unknown', label:'일정 확인', selectable:false, live:false };
+  if (now < start - 30 * 60000) return { key:'pre', label:'예정', selectable:true, live:false };
+  if (now < start) return { key:'restricted', label:'라이브 준비 · 유료', selectable:true, live:false };
+  if (now <= end) return { key:'live', label:'LIVE · 유료', selectable:true, live:true };
+  if (now <= end + 30 * 60000) return { key:'cooldown', label:'결과 준비 중', selectable:true, live:false };
+  return { key:'post', label:'기록 보기', selectable:true, live:false };
+}
+
+async function loadF1Calendar(year) {
+  if (state.f1.calendars[year]) return state.f1.calendars[year];
+  const pending = Promise.all([
+    f1FetchJson(`https://api.openf1.org/v1/meetings?year=${year}`),
+    f1FetchJson(`https://api.openf1.org/v1/sessions?year=${year}`)
+  ]).then(([meetings, sessions]) => {
+    const meetingMap = new Map((meetings || []).map(meeting => [String(meeting.meeting_key), meeting]));
+    return {
+      meetings: meetings || [],
+      sessions: (sessions || []).map(session => ({ ...session, _meeting: meetingMap.get(String(session.meeting_key)) || {} }))
+    };
+  });
+  state.f1.calendars[year] = pending;
+  try {
+    const calendar = await pending;
+    state.f1.calendars[year] = calendar;
+    return calendar;
+  } catch (error) {
+    delete state.f1.calendars[year];
+    throw error;
+  }
+}
+
+async function loadF1Games({ allowFallback = true, quiet = false } = {}) {
+  clearTimeout(state.scoreboardTimer);
+  clearTimeout(state.monitorTimer);
+  updateDateHeader();
+  $('#fallbackBanner').hidden = true;
+  if (!quiet) setGamesLoading('F1 일정을 불러오는 중...');
+  const requestedDate = state.date;
+  const year = Number(requestedDate.slice(0, 4));
+  try {
+    const calendar = await loadF1Calendar(year);
+    if (state.sport !== 'f1' || state.date !== requestedDate) return;
+    let sessions = calendar.sessions.filter(session => dateKeyInTimeZone(session.date_start) === requestedDate);
+    if (!sessions.length && allowFallback && requestedDate === localDateKey(new Date())) {
+      const target = new Date(`${requestedDate}T12:00:00+09:00`).getTime();
+      const nearest = calendar.meetings
+        .filter(meeting => !meeting.is_cancelled)
+        .sort((a, b) => Math.abs(new Date(a.date_start).getTime() - target) - Math.abs(new Date(b.date_start).getTime() - target))[0];
+      if (nearest) {
+        sessions = calendar.sessions.filter(session => String(session.meeting_key) === String(nearest.meeting_key));
+        $('#fallbackBanner').textContent = `오늘 세션이 없어 가장 가까운 ${f1MeetingName(nearest)} 일정을 보여드립니다.`;
+        $('#fallbackBanner').hidden = false;
+      }
+    }
+    state.events = sessions.sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
+    renderF1Games(state.events);
+    syncFavoriteSelect();
+  } catch (error) {
+    if (state.sport !== 'f1' || state.date !== requestedDate) return;
+    $('#gamesStatus').hidden = false;
+    $('#gamesStatus').innerHTML = `F1 일정을 불러오지 못했습니다.<br><small>${esc(error.message)}</small>`;
+  }
+}
+
+function renderF1Games(sessions) {
+  $('#gamesStatus').hidden = sessions.length > 0;
+  $('#gamesStatus').innerHTML = sessions.length ? '' : '선택한 날짜에 F1 세션이 없습니다.';
+  $('#liveDot').hidden = !sessions.some(session => f1SessionState(session).live);
+  const groups = new Map();
+  sessions.forEach(session => {
+    const key = String(session.meeting_key);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(session);
+  });
+  $('#gamesList').innerHTML = [...groups.values()].map(group => {
+    const meeting = group[0]._meeting || {};
+    const rows = group.map(session => {
+      const status = f1SessionState(session);
+      const date = new Date(session.date_start);
+      const dateLabel = new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', month:'numeric', day:'numeric' }).format(date);
+      return `<article class="game-card f1-session-row ${status.live ? 'live' : ''}" data-f1-session-key="${esc(session.session_key)}">
+        <div class="game-kickoff"><b class="${status.live ? 'status-live' : ''}">${status.live ? 'LIVE' : esc(scheduleTime(session.date_start))}</b><small>${esc(dateLabel)}</small></div>
+        <div class="f1-session-main">${meeting.country_flag ? `<img class="f1-flag" src="${esc(meeting.country_flag)}" alt="">` : ''}<span><b>${esc(f1SessionName(session))}</b><small>${esc(session.circuit_short_name || session.location || '')}</small></span></div>
+        <span class="f1-session-status ${status.key}">${esc(status.label)}</span>
+      </article>`;
+    }).join('');
+    return scheduleBoard('f1', f1MeetingName(meeting, group[0]), rows, group.length);
+  }).join('');
+  $$('.f1-session-row[data-f1-session-key]').forEach(card => card.addEventListener('click', () => openF1Session(card.dataset.f1SessionKey)));
+}
+
+function f1Delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+function f1FetchJson(url) {
+  const execute = async () => {
+    let now = Date.now();
+    state.f1.requestTimes = state.f1.requestTimes.filter(time => now - time < 60000);
+    let wait = Math.max(0, 360 - (now - state.f1.lastRequestAt));
+    if (state.f1.requestTimes.length >= 29) wait = Math.max(wait, state.f1.requestTimes[0] + 60050 - now);
+    if (wait > 0) await f1Delay(wait);
+    now = Date.now();
+    state.f1.lastRequestAt = now;
+    state.f1.requestTimes.push(now);
+    return fetchJson(url);
+  };
+  const task = state.f1.requestQueue.then(execute, execute);
+  state.f1.requestQueue = task.then(() => undefined, () => undefined);
+  return task;
+}
+
+async function f1FetchSequence(urls) {
+  const rows = [];
+  for (const url of urls) rows.push(await f1FetchJson(url));
+  return rows;
+}
+
+function f1DriverMap(drivers = []) {
+  return new Map(drivers.map(driver => [String(driver.driver_number), driver]));
+}
+
+function f1Gap(result = {}) {
+  if (result.position === 1) return '우승';
+  const gap = result.gap_to_leader;
+  if (Array.isArray(gap)) return gap.filter(value => value != null).map(value => typeof value === 'number' ? `+${value.toFixed(3)}` : value).join(' / ') || '-';
+  if (typeof gap === 'number') return `+${gap.toFixed(3)}초`;
+  return gap || (result.dnf ? '리타이어' : result.dns ? '미출발' : result.dsq ? '실격' : '-');
+}
+
+function f1ControlText(message = '') {
+  return String(message)
+    .replace(/SAFETY CAR DEPLOYED/gi, '세이프티카 투입')
+    .replace(/VIRTUAL SAFETY CAR DEPLOYED/gi, '버추얼 세이프티카 발동')
+    .replace(/VIRTUAL SAFETY CAR ENDING/gi, '버추얼 세이프티카 종료 예정')
+    .replace(/GREEN FLAG/gi, '그린 플래그')
+    .replace(/YELLOW FLAG/gi, '옐로 플래그')
+    .replace(/RED FLAG/gi, '레드 플래그')
+    .replace(/CHEQUERED FLAG/gi, '체커기')
+    .replace(/DRS ENABLED/gi, 'DRS 사용 가능')
+    .replace(/DRS DISABLED/gi, 'DRS 사용 중지')
+    .replace(/SESSION STARTED/gi, '세션 시작')
+    .replace(/SESSION ENDED/gi, '세션 종료');
+}
+
+async function openF1Session(sessionKey) {
+  state.selectedGameId = String(sessionKey);
+  showView('commentary');
+  $('#commentaryEmpty').hidden = true;
+  await loadF1Session(true);
+}
+
+async function loadF1Session(showLoading = false) {
+  const sessionKey = String(state.selectedGameId || '');
+  const session = state.events.find(item => String(item.session_key) === sessionKey);
+  if (!session) return;
+  const status = f1SessionState(session);
+  if (showLoading) $('#commentaryContent').innerHTML = '<div class="loading"><span class="spinner"></span>F1 세션 기록을 불러오는 중...</div>';
+  if (status.key !== 'post') {
+    const meeting = session._meeting || {};
+    const message = status.live ? '실시간 데이터는 유료 라이브 범위입니다.' : status.key === 'cooldown' ? '무료 데이터 전환을 기다리는 중입니다.' : status.key === 'cancelled' ? '취소된 세션입니다.' : '아직 시작하지 않은 세션입니다.';
+    $('#commentaryContent').innerHTML = `<div class="f1-detail-hero">${meeting.circuit_image ? `<img src="${esc(meeting.circuit_image)}" alt="">` : ''}<div><small>${esc(f1MeetingName(meeting, session))}</small><h2>${esc(f1SessionName(session))}</h2><p>${esc(scheduleTime(session.date_start))} · ${esc(session.circuit_short_name || session.location || '')}</p></div></div><div class="f1-access-note"><b>${message}</b><p>OpenF1 무료 데이터는 세션 종료 30분 후부터 조회할 수 있습니다. 일정은 지금도 무료로 확인할 수 있습니다.</p></div>`;
+    return;
+  }
+  try {
+    let detail = state.f1.details[sessionKey];
+    if (!detail) {
+      const [results, drivers, controls, pits, stints] = await f1FetchSequence([
+        `https://api.openf1.org/v1/session_result?session_key=${encodeURIComponent(sessionKey)}`,
+        `https://api.openf1.org/v1/drivers?session_key=${encodeURIComponent(sessionKey)}`,
+        `https://api.openf1.org/v1/race_control?session_key=${encodeURIComponent(sessionKey)}`,
+        `https://api.openf1.org/v1/pit?session_key=${encodeURIComponent(sessionKey)}`,
+        `https://api.openf1.org/v1/stints?session_key=${encodeURIComponent(sessionKey)}`
+      ]);
+      detail = { results, drivers, controls, pits, stints };
+      state.f1.details[sessionKey] = detail;
+    }
+    if (String(state.selectedGameId) !== sessionKey || state.sport !== 'f1') return;
+    renderF1Session(session, detail);
+  } catch (error) {
+    $('#commentaryContent').innerHTML = `<div class="loading">F1 기록을 불러오지 못했습니다.<br><small>${esc(error.message)}</small></div>`;
+  }
+}
+
+function renderF1Session(session, detail) {
+  const meeting = session._meeting || {};
+  const drivers = f1DriverMap(detail.drivers);
+  const results = (detail.results || []).slice().sort((a, b) => Number(a.position) - Number(b.position));
+  const resultRows = results.map(result => {
+    const driver = drivers.get(String(result.driver_number)) || {};
+    return `<tr><td><b>${esc(result.position)}</b></td><td><div class="f1-driver-cell">${driver.headshot_url ? `<img src="${esc(driver.headshot_url)}" alt="">` : ''}<span><b>${esc(driver.full_name || `#${result.driver_number}`)}</b><small>${esc(F1_TEAM_KO[driver.team_name] || driver.team_name || '')}</small></span></div></td><td>${esc(result.number_of_laps ?? '-')}</td><td>${esc(f1Gap(result))}</td><td>${esc(result.points ?? 0)}</td></tr>`;
+  }).join('');
+  const controlRows = (detail.controls || []).slice().reverse().map(item => `<div class="f1-control-row"><span>${item.lap_number ? `${esc(item.lap_number)}랩` : scheduleTime(item.date)}</span><i class="${esc(String(item.flag || item.category || 'other').toLowerCase().replaceAll(' ','-'))}">${esc(item.flag || item.category || 'INFO')}</i><p>${esc(f1ControlText(item.message))}</p></div>`).join('');
+  const pitRows = (detail.pits || []).map(item => { const driver=drivers.get(String(item.driver_number))||{}; return `<div class="f1-pit-row"><b>${esc(item.lap_number)}랩</b><span>${esc(driver.full_name || `#${item.driver_number}`)}<small>${esc(driver.team_name || '')}</small></span><strong>${item.stop_duration != null ? `${esc(item.stop_duration)}초` : item.lane_duration != null ? `${esc(item.lane_duration)}초` : '-'}</strong></div>`; }).join('');
+  const stintGroups = new Map();
+  (detail.stints || []).forEach(stint => { const key=String(stint.driver_number); if(!stintGroups.has(key)) stintGroups.set(key,[]); stintGroups.get(key).push(stint); });
+  const strategyRows = [...stintGroups.entries()].map(([number, stints]) => { const driver=drivers.get(number)||{}; return `<div class="f1-strategy-row"><b>${esc(driver.name_acronym || `#${number}`)}</b><span>${stints.sort((a,b)=>a.stint_number-b.stint_number).map(stint => `<i class="tyre-${esc(String(stint.compound || 'unknown').toLowerCase())}">${esc(stint.compound || '?')}<small>${esc(stint.lap_start ?? '?')}-${esc(stint.lap_end ?? '?')}랩</small></i>`).join('')}</span></div>`; }).join('');
+  $('#commentaryContent').innerHTML = `<div class="f1-detail-hero">${meeting.circuit_image ? `<img src="${esc(meeting.circuit_image)}" alt="">` : ''}<div><small>${esc(f1MeetingName(meeting, session))}</small><h2>${esc(f1SessionName(session))}</h2><p>${esc(session.circuit_short_name || session.location || '')} · 무료 과거 기록</p></div><button id="refreshF1Detail" title="새로고침">↻</button></div>
+    <div class="panel-block"><div class="block-title"><span>세션 결과</span><small>${results.length}명</small></div><div class="f1-result-wrap"><table class="f1-result-table"><thead><tr><th>#</th><th>드라이버</th><th>랩</th><th>차이</th><th>PTS</th></tr></thead><tbody>${resultRows}</tbody></table></div></div>
+    ${strategyRows ? `<div class="panel-block"><div class="block-title"><span>타이어 전략</span><small>스틴트별 사용 구간</small></div><div class="f1-strategies">${strategyRows}</div></div>` : ''}
+    ${pitRows ? `<div class="panel-block"><div class="block-title"><span>피트스톱</span><small>${detail.pits.length}회</small></div>${pitRows}</div>` : ''}
+    <div class="panel-block"><div class="block-title"><span>레이스 컨트롤</span><small>${detail.controls.length}개 · 최신순</small></div>${controlRows || '<div class="loading">레이스 컨트롤 기록이 없습니다.</div>'}</div>`;
+  $('#refreshF1Detail').addEventListener('click', () => { delete state.f1.details[String(session.session_key)]; loadF1Session(true); });
 }
 
 function soccerAthlete(detail = {}) {
@@ -534,7 +828,7 @@ function renderSoccerCommentary(summary, fallbackEvent, sport) {
 }
 
 function setSport(sport) {
-  if (!['nba','mlb','epl','ucl'].includes(sport) || state.sport === sport) return;
+  if (!['nba','mlb','epl','ucl','f1'].includes(sport) || state.sport === sport) return;
   state.sport = sport;
   state.events = [];
   state.selectedGameId = '';
@@ -547,7 +841,7 @@ function setSport(sport) {
   $('#commentaryContent').innerHTML = '';
   $('#commentaryEmpty').hidden = false;
   $('#commentaryEmpty b').textContent = '경기를 선택해 주세요';
-  $('#commentaryEmpty p').innerHTML = sport === 'mlb' ? '경기 화면에서 원하는 경기를 누르면<br>이닝 스코어와 전체 문자중계를 표시합니다.' : sport === 'nba' ? '경기 화면에서 원하는 경기를 누르면<br>쿼터별 스코어와 전체 문자중계를 표시합니다.' : '경기 화면에서 원하는 경기를 누르면<br>득점·카드·교체 이벤트를 표시합니다.';
+  $('#commentaryEmpty p').innerHTML = sport === 'mlb' ? '경기 화면에서 원하는 경기를 누르면<br>이닝 스코어와 전체 문자중계를 표시합니다.' : sport === 'nba' ? '경기 화면에서 원하는 경기를 누르면<br>쿼터별 스코어와 전체 문자중계를 표시합니다.' : sport === 'f1' ? '세션을 누르면 결과·타이어 전략과<br>레이스 컨트롤 기록을 표시합니다.' : '경기 화면에서 원하는 경기를 누르면<br>득점·카드·교체 이벤트를 표시합니다.';
   $$('.sport-tab').forEach(button => button.classList.toggle('active', button.dataset.sport === sport));
   syncFavoriteSelect();
   const tableActive = $('#tableView').classList.contains('active');
@@ -558,7 +852,7 @@ function setSport(sport) {
     return;
   }
   showView('games');
-  loadGames({allowFallback:sport === 'nba'});
+  loadGames({allowFallback:sport === 'nba' || sport === 'f1'});
 }
 
 async function openGame(gameId) {
@@ -647,6 +941,54 @@ function eventIncludesFavorite(event) {
   return event.competitions?.[0]?.competitors?.some(item => item.team?.abbreviation === favorite);
 }
 
+function alertGameIdsForSport(sport = state.sport) {
+  return (state.settings?.alertGameIdsBySport?.[sport] || []).map(String);
+}
+
+function isGameAlertSelected(gameId, sport = state.sport) {
+  return Boolean(gameId) && alertGameIdsForSport(sport).includes(String(gameId));
+}
+
+function eventGameId(event) {
+  return String(state.sport === 'mlb' ? event?.gamePk || '' : event?.id || '');
+}
+
+function eventMatchesNotificationFilter(event) {
+  return isGameAlertSelected(eventGameId(event)) || eventIncludesFavorite(event);
+}
+
+function notificationStateKey(sport, gameId) {
+  if (sport === 'mlb') return `mlb:${gameId}`;
+  if (sport === 'epl' || sport === 'ucl') return `${sport}:${gameId}`;
+  return String(gameId);
+}
+
+async function toggleGameAlert(gameId, button) {
+  const sport = state.sport;
+  const current = new Set(alertGameIdsForSport(sport));
+  const selected = !current.has(String(gameId));
+  if (selected) current.add(String(gameId)); else current.delete(String(gameId));
+  const alertGameIdsBySport = {
+    nba: [], mlb: [], epl: [], ucl: [], f1: [],
+    ...(state.settings.alertGameIdsBySport || {}),
+    [sport]: [...current]
+  };
+  state.settings = await window.nbaDesktop.saveSettings({ ...state.settings, alertGameIdsBySport });
+  state.lastPlayIds.delete(notificationStateKey(sport, gameId));
+  button.classList.toggle('active', selected);
+  button.setAttribute('aria-pressed', String(selected));
+  button.title = selected ? '이 경기 알림 끄기' : '이 경기 알림 받기';
+  button.textContent = selected ? '알림 중' : '알림';
+  monitorLiveGames();
+}
+
+function bindGameAlertButtons() {
+  $$('.game-alert-toggle').forEach(button => button.addEventListener('click', event => {
+    event.stopPropagation();
+    toggleGameAlert(button.dataset.alertGameId, button);
+  }));
+}
+
 function favoriteForSport() {
   const values = state.settings?.favoriteBySport || {};
   return values[state.sport] ?? (state.sport === 'nba' ? state.settings?.favoriteTeam : '') ?? '';
@@ -676,7 +1018,7 @@ function findPlayAthlete(pkg, play) {
 
 async function monitorLiveGames() {
   clearTimeout(state.monitorTimer);
-  const liveEvents = state.events.filter(event => state.sport === 'mlb' ? isMlbLive(event) : isLiveEvent(event)).filter(eventIncludesFavorite);
+  const liveEvents = state.events.filter(event => state.sport === 'mlb' ? isMlbLive(event) : isLiveEvent(event)).filter(eventMatchesNotificationFilter);
   if (!state.settings?.notifications || !liveEvents.length) return;
   const checker = state.sport === 'mlb' ? checkMlbGameNotifications : ['epl','ucl'].includes(state.sport) ? checkSoccerGameNotifications : checkGameNotifications;
   await Promise.allSettled(liveEvents.map(checker));
@@ -783,6 +1125,14 @@ function syncFavoriteSelect() {
   const select = $('#favoriteTeam');
   if (!select || !state.settings) return;
   const optionMap = new Map();
+  if (state.sport === 'f1') {
+    select.innerHTML = '<option value="">무료 라이브 알림 미지원</option>';
+    select.value = '';
+    select.disabled = true;
+    $('#favoriteTeamLabel').textContent = 'F1 실시간 알림';
+    return;
+  }
+  select.disabled = false;
   if (state.sport === 'nba') NBA_TEAMS.forEach(([value,label]) => optionMap.set(String(value),label));
   else if (state.sport === 'mlb') MLB_TEAMS.forEach(([value,label]) => optionMap.set(String(value),label));
   else state.events.forEach(event => (event.competitions?.[0]?.competitors || []).forEach(side => optionMap.set(String(side.team?.id || ''),soccerTeamName(side.team))));
@@ -794,7 +1144,7 @@ function syncFavoriteSelect() {
 }
 
 async function saveSettings() {
-  const favoriteBySport = { nba:'',mlb:'',epl:'',ucl:'',...(state.settings.favoriteBySport || {}),[state.sport]:$('#favoriteTeam').value };
+  const favoriteBySport = { nba:'',mlb:'',epl:'',ucl:'',f1:'',...(state.settings.favoriteBySport || {}),[state.sport]:$('#favoriteTeam').value };
   state.settings = await window.nbaDesktop.saveSettings({
     alwaysOnTop:$('#alwaysOnTop').checked,
     autoLaunch:$('#autoLaunch').checked,
@@ -802,6 +1152,7 @@ async function saveSettings() {
     notificationLevel:$('#notificationLevel').value,
     favoriteTeam:$('#favoriteTeam').value,
     favoriteBySport,
+    alertGameIdsBySport:state.settings.alertGameIdsBySport,
     sound:$('#sound').checked,
     notificationOpacity:Number($('#notificationOpacity').value),
     pinAllNotifications:$('#pinAllNotifications').checked
@@ -1026,7 +1377,7 @@ const TBL_NBA_LEADERS = [
 ];
 const TBL_NBA_LEADERS_URL = (seasonEndYear, sort) =>
   `https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/statistics/byathlete?region=us&lang=en&contentorigin=espn&isqualified=true&page=1&limit=10&sort=${encodeURIComponent(sort + ':desc')}&season=${seasonEndYear}&seasontype=2`;
-const TBL_SEASON_YEARS = Array.from({ length: 11 }, (_, i) => 2025 - i);
+const TBL_SEASON_YEARS = Array.from({ length: 11 }, (_, i) => new Date().getFullYear() - 1 - i);
 const TBL_STAT_COLLAPSED_LIMIT = 5;
 
 function tblCurrentNbaSeasonStartYear() {
@@ -1044,13 +1395,14 @@ async function tblFetch(url) {
 
 function tblSeasonOptions(sport) {
   const currentStart = sport === 'nba' ? tblCurrentNbaSeasonStartYear()
-    : sport === 'ucl' ? tblCurrentUclSeasonStartYear() : null;
+    : sport === 'ucl' ? tblCurrentUclSeasonStartYear()
+    : sport === 'f1' ? new Date().getFullYear() : null;
   const years = currentStart
-    ? Array.from({ length: 11 }, (_, i) => currentStart - 1 - i)
+    ? sport === 'f1' ? Array.from({ length: Math.max(0, currentStart - 2023) }, (_, i) => currentStart - 1 - i) : Array.from({ length: 11 }, (_, i) => currentStart - 1 - i)
     : TBL_SEASON_YEARS;
-  const isMlb = sport === 'mlb';
+  const isCalendarSeason = sport === 'mlb' || sport === 'f1';
   return '<option value="">현재 시즌</option>' + years.map(year => {
-    const label = isMlb ? `${year} 시즌` : `${year}-${String(year + 1).slice(-2)} 시즌`;
+    const label = isCalendarSeason ? `${year} 시즌` : `${year}-${String(year + 1).slice(-2)} 시즌`;
     return `<option value="${year}">${label}</option>`;
   }).join('');
 }
@@ -1058,7 +1410,7 @@ function tblSeasonOptions(sport) {
 function syncTableSeasonSelect(sport) {
   const bar = $('#tableSeasonBar');
   const select = $('#tableSeasonSelect');
-  const supported = ['nba', 'mlb', 'epl', 'ucl'].includes(sport);
+  const supported = ['nba', 'mlb', 'epl', 'ucl', 'f1'].includes(sport);
   bar.hidden = !supported;
   if (supported) select.innerHTML = tblSeasonOptions(sport);
   select.value = state.table.season[sport] || '';
@@ -1131,6 +1483,11 @@ function tblStat(entry, name) {
   const x = (entry.stats || []).find(item => item.name === name);
   return x ? x.displayValue : '0';
 }
+function tblGamesPlayed(entry) {
+  const gameStat = (entry.stats || []).find(item => item.name === 'gamesPlayed');
+  if (gameStat?.displayValue != null && gameStat.displayValue !== '') return gameStat.displayValue;
+  return Number(tblStat(entry, 'wins')) + Number(tblStat(entry, 'losses'));
+}
 const tblPct = t => parseFloat((t.stats || []).find(x => x.name === 'winPercent')?.displayValue || 0) || 0;
 
 function buildStandingsRows(entries, tab) {
@@ -1144,10 +1501,10 @@ function buildStandingsRows(entries, tab) {
     const teamCell = `<td><div class="sp-team-cell">${logoImg}${esc(teamName)}</div></td>`;
     const rankEl = `<span class="sp-rank-num">${rank}</span>`;
     if (tab === 'epl' || tab === 'ucl' || tab === 'ucl-group' || tab === 'wc') {
-      return `<tr class="${rowClass}"><td>${rankEl}</td>${teamCell}<td>${tblStat(e, 'gamesPlayed')}</td><td>${tblStat(e, 'wins')}</td><td>${tblStat(e, 'ties')}</td><td>${tblStat(e, 'losses')}</td><td>${tblStat(e, 'points')}</td><td>${tblStat(e, 'pointDifferential')}</td></tr>`;
+      return `<tr class="${rowClass}"><td>${rankEl}</td>${teamCell}<td>${tblGamesPlayed(e)}</td><td>${tblStat(e, 'wins')}</td><td>${tblStat(e, 'ties')}</td><td>${tblStat(e, 'losses')}</td><td>${tblStat(e, 'points')}</td><td>${tblStat(e, 'pointDifferential')}</td></tr>`;
     }
     const pct = tblStat(e, 'winPercent') || tblStat(e, 'pointDifferential') || '-';
-    return `<tr class="${rowClass}"><td>${rankEl}</td>${teamCell}<td>${tblStat(e, 'gamesPlayed')}</td><td>${tblStat(e, 'wins')}</td><td>${tblStat(e, 'losses')}</td><td>${pct}</td></tr>`;
+    return `<tr class="${rowClass}"><td>${rankEl}</td>${teamCell}<td>${tblGamesPlayed(e)}</td><td>${tblStat(e, 'wins')}</td><td>${tblStat(e, 'losses')}</td><td>${pct}</td></tr>`;
   }).join('');
 }
 
@@ -1178,7 +1535,7 @@ function tblStandings(data, tab) {
       { lg: 'NL 내셔널리그', divs: [
         { name: '▸ 동부지구', abbs: ['ATL', 'MIA', 'NYM', 'PHI', 'WSH'] },
         { name: '▸ 중부지구', abbs: ['CHC', 'CIN', 'MIL', 'PIT', 'STL'] },
-        { name: '▸ 서부지구', abbs: ['ARI', 'LAD', 'SD', 'SF', 'COL'] }
+        { name: '▸ 서부지구', abbs: ['AZ', 'ARI', 'LAD', 'SD', 'SF', 'COL'] }
       ] }
     ];
     const seen = new Set();
@@ -1249,6 +1606,7 @@ function tblStandings(data, tab) {
 function tblViewTabs(sport) {
   const v = state.table.view[sport];
   const btn = (key, label) => `<button type="button" class="sp-mlb-league-tab ${v === key ? 'active' : ''}" data-tblview="${key}">${label}</button>`;
+  if (sport === 'f1') return `<div class="sp-mlb-league-tabs sp-mlb-view-tabs" role="tablist">${btn('drivers', '드라이버 순위')}${btn('constructors', '팀 순위')}</div>`;
   let tabs = btn('standings', '팀 순위') + btn('stats', '선수 스탯');
   if (sport === 'nba' || sport === 'mlb') tabs += btn('playoffs', '플레이오프');
   if (sport === 'ucl') tabs += btn('tournament', '토너먼트');
@@ -1565,12 +1923,52 @@ function tblMlbPlayoffs(data) {
   }).join('');
 }
 
+async function loadF1Table(reqId) {
+  const year = Number(state.table.season.f1) || new Date().getFullYear();
+  const calendar = await loadF1Calendar(year);
+  const freeCutoff = Date.now() - 30 * 60000;
+  const race = calendar.sessions
+    .filter(session => session.session_name === 'Race' && !session.is_cancelled && new Date(session.date_end).getTime() < freeCutoff)
+    .sort((a, b) => new Date(b.date_end) - new Date(a.date_end))[0];
+  if (!race) throw new Error(`${year} 시즌의 완료된 결승 데이터가 없습니다.`);
+  const [championshipDrivers, championshipTeams, drivers] = await f1FetchSequence([
+    `https://api.openf1.org/v1/championship_drivers?session_key=${encodeURIComponent(race.session_key)}`,
+    `https://api.openf1.org/v1/championship_teams?session_key=${encodeURIComponent(race.session_key)}`,
+    `https://api.openf1.org/v1/drivers?session_key=${encodeURIComponent(race.session_key)}`
+  ]);
+  if (reqId !== state.table.loadReq) return;
+  state.table.cache.f1 = { championshipDrivers, championshipTeams, drivers, race, season:year };
+  renderTable('f1');
+}
+
+function renderF1Table(data) {
+  const drivers = f1DriverMap(data.drivers || []);
+  const view = state.table.view.f1 || 'drivers';
+  let html = `<div class="sp-season-note">${esc(data.season)} 시즌 · ${esc(f1MeetingName(data.race?._meeting || {}, data.race))} 종료 기준</div>${tblViewTabs('f1')}`;
+  if (view === 'constructors') {
+    const rows = (data.championshipTeams || []).slice().sort((a,b)=>a.position_current-b.position_current).map(team => {
+      const change = Number(team.position_start) - Number(team.position_current);
+      return `<tr><td><b>${esc(team.position_current)}</b></td><td><div class="f1-constructor-cell"><i></i><b>${esc(F1_TEAM_KO[team.team_name] || team.team_name)}</b></div></td><td>${esc(team.points_current)}</td><td class="${change > 0 ? 'f1-up' : change < 0 ? 'f1-down' : ''}">${change > 0 ? `▲${change}` : change < 0 ? `▼${Math.abs(change)}` : '–'}</td></tr>`;
+    }).join('');
+    html += `<div class="sp-standings-wrap"><div class="sp-section-title">컨스트럭터 챔피언십</div><table class="sp-standings-table f1-champ-table"><thead><tr><th>#</th><th>팀</th><th>PTS</th><th>변동</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  } else {
+    const rows = (data.championshipDrivers || []).slice().sort((a,b)=>a.position_current-b.position_current).map(item => {
+      const driver = drivers.get(String(item.driver_number)) || {};
+      const change = Number(item.position_start) - Number(item.position_current);
+      return `<tr><td><b>${esc(item.position_current)}</b></td><td><div class="f1-driver-cell">${driver.headshot_url ? `<img src="${esc(driver.headshot_url)}" alt="">` : ''}<span><b>${esc(driver.full_name || `#${item.driver_number}`)}</b><small>${esc(F1_TEAM_KO[driver.team_name] || driver.team_name || '')}</small></span></div></td><td>${esc(item.points_current)}</td><td class="${change > 0 ? 'f1-up' : change < 0 ? 'f1-down' : ''}">${change > 0 ? `▲${change}` : change < 0 ? `▼${Math.abs(change)}` : '–'}</td></tr>`;
+    }).join('');
+    html += `<div class="sp-standings-wrap"><div class="sp-section-title">드라이버 챔피언십</div><table class="sp-standings-table f1-champ-table"><thead><tr><th>#</th><th>드라이버</th><th>PTS</th><th>변동</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  return html;
+}
+
 async function loadTable(sport) {
   const reqId = ++state.table.loadReq;
   $('#tableContent').innerHTML = `<div class="loading"><span class="spinner"></span>순위를 불러오는 중...</div>`;
   const season = state.table.season[sport] || '';
   const seasonQS = season ? `?season=${season}` : '';
   try {
+    if (sport === 'f1') return await loadF1Table(reqId);
     let standings = null, stats = null, nbaLeaders = null, mlbLeaders = null, nbaPlayoffs = null, mlbPlayoffs = null, uclTournament = null;
     if (sport === 'nba') {
       const startYear = Number(season) || tblCurrentNbaSeasonStartYear();
@@ -1623,6 +2021,7 @@ function renderTable(sport) {
   const data = state.table.cache[sport];
   const host = $('#tableContent');
   if (!data) { host.innerHTML = `<div class="loading"><span class="spinner"></span>순위를 불러오는 중...</div>`; return; }
+  if (sport === 'f1') { host.innerHTML = renderF1Table(data); return; }
   const view = state.table.view[sport];
   const emptyStand = `<div class="sp-state-box sp-stat-empty"><span>팀 순위를 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
   const emptyStat = `<div class="sp-state-box sp-stat-empty"><span>선수 스탯을 불러오지 못했습니다.</span><span>새로고침 후 다시 확인해 주세요.</span></div>`;
@@ -1676,6 +2075,7 @@ async function init() {
   $$('.tab').forEach(tab => tab.addEventListener('click', () => showView(tab.dataset.view)));
   $('#prevDate').addEventListener('click', () => shiftDate(-1));
   $('#nextDate').addEventListener('click', () => shiftDate(1));
+  $('#todayButton').addEventListener('click', () => { state.date=localDateKey(new Date()); loadGames({allowFallback:true}); });
   $('#refreshGames').addEventListener('click', () => loadGames({allowFallback:true}));
   $('#dateButton').addEventListener('click', () => $('#datePicker').showPicker());
   $('#datePicker').addEventListener('change', event => { if(event.target.value){ state.date=event.target.value; loadGames({allowFallback:false}); } });
@@ -1701,6 +2101,7 @@ async function init() {
     state.selectedSoccerLeague = target?.endpointLeague || '';
     if (sport === 'mlb') openMlbGame(target.gameId);
     else if (sport === 'epl' || sport === 'ucl') openSoccerGame(target.gameId);
+    else if (sport === 'f1') openF1Session(target.gameId);
     else openGame(target.gameId);
   });
   window.nbaDesktop.onSettingsChanged(settings => {

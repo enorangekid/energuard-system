@@ -5,6 +5,12 @@
 
 > 2026-09-01 업데이트 요약: 카드 알림 5건 개선(팀 로고 표시 · 회색 실루엣 아바타 · 압정형 고정 버튼 · 프라이버시 투명도 · 적층 간격) + EPL/UCL 선수 얼굴 소스 보강, 그리고 Windows 앱에 **순위 뷰**(팀 순위 · 선수 스탯 · 플레이오프/토너먼트 · 과거 시즌 드롭다운)를 통합관리자 웹 위젯에서 이식. 버전 2.0.0 → 2.1.0.
 
+> 2026-09-02 업데이트 요약: NBA 순위 경기 수와 MLB 애리조나 누락을 수정하고 시즌 목록을 현재 연도 기준으로 변경했다. 알림창은 NBA 네이비/오렌지, MLB 레드, EPL 퍼플, UCL 블루 계열로 구분했다. 버전 2.1.0 → 2.2.1.
+
+> 2026-09-02 UI 업데이트: 네이버 스포츠의 정보 구조를 참고해 상단 종목 칩, 화면 메뉴, 월 이동, 7일 날짜 스트립, 리그 헤더와 한 줄 경기 일정으로 재구성했다. 버전 2.2.1 → 2.3.0.
+
+> 2026-09-02 F1 업데이트: OpenF1 무료 API를 연결해 F1 일정, 완료 세션 결과, 타이어 전략, 피트스톱, 레이스 컨트롤, 드라이버·컨스트럭터 챔피언십을 추가했다. 버전 2.4.0 → 2.5.0.
+
 ## 집에서 이어서 시작하기
 
 ```powershell
@@ -47,7 +53,7 @@ npm run build
 
 ### Windows 스포츠 라이브 위젯
 
-`windows-nba-widget/`에 Electron 기반 독립 앱을 만들었다. 설치 제품명은 `Energuard Sports Live`이며 현재 버전은 2.1.0이다.
+`windows-nba-widget/`에 Electron 기반 독립 앱을 만들었다. 설치 제품명은 `Orange Sports`이며 현재 버전은 2.5.0이다.
 
 - 프레임 없는 430×760 위젯 창
 - 항상 위 표시 및 화면 오른쪽 아래 자동 배치
@@ -71,6 +77,12 @@ npm run build
 - UCL 본선(`uefa.champions`)과 예선(`uefa.champions_qual`)을 함께 조회하며, 상세 화면과 알림 클릭 시 원래 리그 경로를 유지한다.
 - MLB는 완료된 새 타석, EPL/UCL은 새 득점·퇴장(모든 이벤트 설정 시 카드·교체 포함)을 감지해 카드 알림을 띄운다.
 - 응원 팀은 NBA/MLB/EPL/UCL별로 따로 저장하고 해당 팀 경기만 감시할 수 있다.
+- 알림 카드의 포인트·테두리·배경·그림자 색은 종목별로 구분하며 레이아웃과 동작은 동일하다.
+- 경기 화면은 종목 선택 → 경기 일정/문자 중계/순위·스탯/설정 → 월·날짜 선택 → 리그별 경기 행 순서로 탐색한다.
+- F1은 OpenF1 무료 API로 시즌 일정, 세션별 한국시간, 완료 세션 결과, 드라이버 사진, 타이어 스틴트, 피트스톱과 레이스 컨트롤 기록을 표시한다.
+- F1 순위 화면은 가장 최근 무료 접근 가능한 결승을 기준으로 드라이버·컨스트럭터 챔피언십을 표시하며 2023년 이후 과거 시즌을 선택할 수 있다.
+- OpenF1 무료 정책에 맞춰 세션 시작 30분 전부터 종료 30분 후까지는 상세 데이터를 요청하지 않고 `라이브 유료` 또는 `결과 준비 중` 안내를 표시한다. F1 실시간 알림은 아직 없다.
+- 선택 날짜를 중심으로 앞뒤 3일씩 총 7일을 표시하며 `오늘`, 이전/다음, 달력 선택을 모두 지원한다.
 - 응원 팀별 알림 필터와 알림음 설정
 - 알림 클릭 시 해당 경기 문자중계로 이동
 - 렌더러가 ESPN에 직접 연결하지 않고 Electron 메인 프로세스가 허용된 ESPN 주소만 요청한다.
@@ -134,6 +146,17 @@ https://site.api.espn.com/apis/site/v2/sports/soccer/{LEAGUE}/statistics
 https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/statistics/byathlete?...   (NBA 선수 스탯 · 허용 호스트 추가됨)
 https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&...
 https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=...&statGroup=hitting|pitching&...
+
+F1 일정/과거 세션/챔피언십 (무료, 인증 불필요)
+https://api.openf1.org/v1/meetings?year={YEAR}
+https://api.openf1.org/v1/sessions?year={YEAR}
+https://api.openf1.org/v1/session_result?session_key={SESSION_KEY}
+https://api.openf1.org/v1/drivers?session_key={SESSION_KEY}
+https://api.openf1.org/v1/race_control?session_key={SESSION_KEY}
+https://api.openf1.org/v1/pit?session_key={SESSION_KEY}
+https://api.openf1.org/v1/stints?session_key={SESSION_KEY}
+https://api.openf1.org/v1/championship_drivers?session_key={SESSION_KEY}
+https://api.openf1.org/v1/championship_teams?session_key={SESSION_KEY}
 ```
 
 웹 위젯에는 MLB Stats API와 ESPN의 축구·농구 데이터 주소도 사용 중이다. 전체 상수와 요청 코드는 `js/widget-sports.js`에서 확인한다.
@@ -151,11 +174,61 @@ https://statsapi.mlb.com/api/v1/stats/leaders?leaderCategories=...&statGroup=hit
 
 - `node --check main.js / renderer.js / notification.js / notification-preload.js`: 통과
 - 카드 알림 개선은 개발자가 `npm start` → 설정 → "알림 미리보기"로 로고·압정 버튼·아바타 육안 확인함
-- `npm run build`: Windows x64 NSIS 설치 파일 생성 성공(코드 서명 포함)
+- `npm run build`: Windows x64 NSIS 설치 파일 생성 성공(코드 서명 인증서는 없어 SmartScreen 경고 가능)
 - 최종 설치 파일명: `Energuard-Sports-Live-Setup-2.1.0.exe`
 - 최종 로컬 설치 파일 크기: 93,777,150 bytes (약 89.4 MiB)
 - SHA-256: `32B924EE83E89B269ED854BFC969674F7FA439F522B7F770E9E8A7B97FA19D5B`
 - ⚠️ 순위 뷰는 이번 커밋 환경(CI 샌드박스)에서 Electron GUI 실행이 막혀 `npm run smoke`/`npm start` 런타임 검증을 못 했다. 로컬에서 `npm start` 후 종목별 **순위** 탭(팀 순위/선수 스탯/플레이오프·토너먼트/시즌 드롭다운)을 한 번 눌러 확인 필요.
+
+### 2.2.1 (2026-09-02)
+
+- 실제 Electron 실행에서 NBA 순위 30팀과 첫 팀 경기 수 82, MLB 순위 30팀 및 애리조나 표시를 확인했다.
+- 과거 시즌 실제 데이터로 NBA 선수 스탯 5종/플레이오프 21개, MLB 선수 스탯 8종/플레이오프 11개, EPL 순위 20팀/스탯 2종, UCL 순위 36팀/스탯 2종/토너먼트 23개를 확인했다.
+- `npm run check`와 기존 `npm run smoke`를 다시 통과했다.
+- 알림창은 `notification.js`가 `html[data-sport]`를 지정하고 `notification.css`가 종목별 컬러 테마를 적용한다.
+- `Energuard-Sports-Live-Setup-2.2.1.exe` 패키징 완료, 크기 93,777,510 bytes, SHA-256 `3C590C69C4D870700006D7A5FDD4C4FC968726204606C2851A85734ADE23F492`.
+- Authenticode 확인 결과 `NotSigned`이며 코드 서명 인증서는 포함되지 않았다.
+
+### 2.3.0 (2026-09-02)
+
+- 경기 일정 화면을 네이버 스포츠형 구조로 개편했다. 상단 종목 칩, 월 이동, 오늘 버튼, 7일 날짜 스트립, 리그별 한 줄 경기 목록을 공통 적용했다.
+- NBA의 세 자리 점수도 열이 어긋나지 않도록 팀·점수 영역을 분리했고, MLB/EPL/UCL도 같은 일정 탐색 구조와 행 스타일을 사용한다.
+- 날짜 스트립에서 날짜를 누르면 해당 날짜의 경기 데이터를 즉시 다시 불러오고, 월 이동 및 오늘 복귀도 동일한 선택 날짜 상태를 사용한다.
+- 430×760 화면에서 실제 렌더링을 육안 확인했으며 월 제목·UCL 종목명 줄바꿈 문제를 보정했다.
+- `npm run check`, `npm run smoke` 통과: NBA/MLB/EPL/UCL 경기 목록과 각 종목 상세 데이터, 알림 적층 동작을 확인했다.
+- `Energuard-Sports-Live-Setup-2.3.0.exe` 패키징 완료, 크기 93,779,576 bytes (약 89.44 MiB), SHA-256 `B2949F5C89AE0C7E04BB4EE27E1C18AD56F5D2A520AE7152A009A7573F6FD564`.
+- Authenticode 확인 결과 `NotSigned`이며 코드 서명 인증서는 포함되지 않았다.
+
+### 2.3.1 (2026-09-02)
+
+- MLB 일정의 날짜 기준을 미국 경기일이 아니라 한국시간(`Asia/Seoul`) 달력 날짜로 수정했다.
+- 선택 날짜의 전날·당일 MLB 일정을 함께 조회하고, `gameDate`를 한국시간으로 변환해 선택 날짜와 일치하는 경기만 표시한다.
+- 경기 시각도 시스템 시간대에 의존하지 않고 한국시간으로 명시해 표시한다.
+- MLB 공식 일정으로 2026-09-02 한국시간 경기 15개와 진행 중 경기 3개가 필터링되는 것을 확인했다.
+- `npm run check` 통과. Electron 스모크는 로컬 GPU 프로세스 오류로 실행되지 않았지만 공식 API 원본을 직접 대조해 날짜 필터 결과를 검증했다.
+- `Energuard-Sports-Live-Setup-2.3.1.exe` 패키징 완료, 크기 93,779,732 bytes (약 89.44 MiB), SHA-256 `DBAEF947AAC0E99A7CCD31CE0A627C3E280E1C3503742143184591B1DDB5B5DC`.
+- Authenticode 확인 결과 `NotSigned`이며 코드 서명 인증서는 포함되지 않았다.
+
+### 2.4.0 (2026-09-02)
+
+- 사용자 노출 제품명을 `Energuard Sports Live`에서 `Orange Sports`로 변경했다. 창 제목, 타이틀바, 트레이, 설치 파일, 바로가기와 User-Agent에 적용했다.
+- 기존 설치판의 설정 파일 경로는 마이그레이션 후보로 유지해 응원 팀·알림·창 설정을 새 이름에서도 읽는다. 기존 `appId`는 설치 업그레이드 호환성을 위해 내부 식별자로 유지한다.
+- 현재 진행 중인 각 경기 행에 `알림` 토글을 추가했다. 선택하면 `알림 중`으로 바뀌며 종목별 응원 팀 필터와 OR 조건으로 감시한다.
+- 경기별 선택값은 `alertGameIdsBySport`에 NBA/MLB/EPL/UCL별로 저장한다. 해당 경기 알림을 켜거나 끌 때 플레이 기준점을 초기화해 과거 이벤트가 뒤늦게 알림으로 나오지 않게 했다.
+- `npm run check`와 경기 필터 단위 검증을 통과했다. 직접 선택 경기, 응원 팀 경기는 포함되고 관계없는 경기는 제외되는 것을 확인했다.
+- `Orange-Sports-Setup-2.4.0.exe` 패키징 완료, 크기 93,780,373 bytes (약 89.44 MiB), SHA-256 `945CC4BA78AD2BBA73B75509397C12576263FAB8A0B90E78D789D4CA38A174F6`.
+- Authenticode 확인 결과 `NotSigned`이며 코드 서명 인증서는 포함되지 않았다.
+
+### 2.5.0 (2026-09-02)
+
+- 상단 종목 칩에 F1을 추가하고 OpenF1의 `meetings`·`sessions`로 날짜별 그랑프리 세션 일정을 표시한다.
+- 무료 접근 가능한 완료 세션에서 최종 결과, 드라이버 사진, 타이어 전략, 피트스톱, 레이스 컨트롤 기록을 표시한다.
+- F1 순위 탭에 드라이버·컨스트럭터 챔피언십과 2023년 이후 시즌 선택을 추가했다.
+- OpenF1 무료 라이브 제한 구간에는 상세 요청을 보내지 않고 유료 라이브/결과 준비 안내를 표시한다.
+- `api.openf1.org`만 Electron 스포츠 프록시 허용 호스트에 추가했다. 모든 OpenF1 요청은 전역 큐에서 최소 360ms 간격과 분당 29회 안전 한도를 적용하고 결과를 메모리 캐시한다.
+- `npm run check` 통과. `npm run smoke`에서 F1 일정 1개, 세션 결과 20명, 레이스 컨트롤 78개, 타이어 전략 20명, 드라이버 순위 23명, 컨스트럭터 순위 11개를 실제 응답으로 확인했다. 기존 NBA/MLB/EPL/UCL 및 알림 스모크도 모두 통과했다.
+- `Orange-Sports-Setup-2.5.0.exe` 패키징 완료, 크기 93,785,862 bytes(약 89.44 MiB), SHA-256 `7DB220BB819EF14A2EFEF3F9202609FD4BF39C84759D4A0297ED0414065F2411`.
+- 기존 `final-release/win-unpacked/resources/app.asar`가 잠겨 있어 빌드는 `release-2.5.0`에서 완료한 뒤 설치 파일과 blockmap을 `final-release`에도 복사했다. Authenticode는 `NotSigned`다.
 
 ## Claude Code에서 버그 수정할 때 확인할 곳
 
