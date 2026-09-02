@@ -62,6 +62,11 @@ const COMP_COUNT         = 3;
 const COMP_DEFAULT_NAMES = ['크린슐라', '산일상사', '대유물류'];
 const COMP_COLORS        = ['#3b82f6', '#f59e0b', '#10b981'];
 
+// 같은 경쟁사 링크를 두께 여러 개에 걸쳐 등록해둔 경우(모음전 상품 하나가 여러 두께를
+// 옵션으로 커버) — 그 행들을 같은 배경색으로 묶어서 "이 URL은 한 번만 열어보면 여러 행이
+// 같이 채워진다"를 한눈에 보이게 한다(2026-09-02). 경쟁사 슬롯(comp1/2/3)별로 독립 배정.
+const LINK_GROUP_COLORS = ['#fef3c7', '#dbeafe', '#dcfce7', '#fae8ff', '#ffe4e6', '#e0f2fe', '#fef9c3', '#ede9fe', '#ffedd5', '#cffafe'];
+
 /* 탭별 이름+제외설정 인메모리 캐시 — { [tabId]: { names:[3], excluded:[3 bool] } } */
 let _compMetaCache = {};
 
@@ -259,9 +264,32 @@ function _refreshAllCompCells(tabId, gradeId) {
 }
 
 /* ═══════════════════════════════════════
+   링크 그룹 색상 — 같은 URL을 쓰는 행이 2개 이상이면 그룹으로 보고 배경색 배정
+   (compIdx별로 독립 배정, 반환값: [{link: color}, {link: color}, {link: color}])
+═══════════════════════════════════════ */
+function _computeLinkGroupColors(tabId, gradeId) {
+  const thicknesses = _thicknesses(tabId, gradeId);
+  const maps = [];
+  for (let i = 0; i < COMP_COUNT; i++) {
+    const counts = {};
+    thicknesses.forEach(t => {
+      const link = _cacheGet(tabId, gradeId, t)[`comp${i + 1}_link`];
+      if (link) counts[link] = (counts[link] || 0) + 1;
+    });
+    const map = {};
+    let idx = 0;
+    Object.keys(counts).forEach(link => {
+      if (counts[link] >= 2) { map[link] = LINK_GROUP_COLORS[idx % LINK_GROUP_COLORS.length]; idx++; }
+    });
+    maps.push(map);
+  }
+  return maps;
+}
+
+/* ═══════════════════════════════════════
    경쟁사 셀 HTML (tr 뒤에 붙는 td들)
 ═══════════════════════════════════════ */
-function _buildCompCells(tabId, gradeId, t) {
+function _buildCompCells(tabId, gradeId, t, linkGroupColors) {
   const ourPrice = _ourPrice(tabId, gradeId, t);
   const cached   = _cacheGet(tabId, gradeId, t);
   let html = '';
@@ -270,11 +298,14 @@ function _buildCompCells(tabId, gradeId, t) {
     const link     = cached[`comp${i + 1}_link`] || '';
     const diffHtml = _compDiffBadge(ourPrice, val);
     const color    = COMP_COLORS[i];
+    const groupColor = link ? linkGroupColors?.[i]?.[link] : null;
+    const groupStyle = groupColor ? ` background:${groupColor} !important;` : '';
+    const groupTitle = groupColor ? ' title="같은 상품 링크가 등록된 다른 두께 행들과 같은 색"' : '';
     const dispVal  = val != null ? Number(val).toLocaleString('ko-KR') : '—';
     const linkIcon = link
       ? `<a href="${link}" target="_blank" class="cp-link-icon" title="상품 페이지"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`
       : `<span class="cp-link-icon cp-link-empty" title="링크 없음"><i class="fa-solid fa-arrow-up-right-from-square"></i></span>`;
-    html += `<td class="cp-td-price" style="--cc:${color}" data-comp-idx="${i}" data-tab="${tabId}" data-grade="${gradeId}" data-t="${t}" data-link="${link.replace(/"/g,'&quot;')}">
+    html += `<td class="cp-td-price" style="--cc:${color};${groupStyle}"${groupTitle} data-comp-idx="${i}" data-tab="${tabId}" data-grade="${gradeId}" data-t="${t}" data-link="${link.replace(/"/g,'&quot;')}">
       <div class="cp-val-wrap">
         <span class="cp-val">${dispVal}</span>
         ${linkIcon}
@@ -381,15 +412,18 @@ function _setEditBtnState(compIdx, isEditing) {
 /* ═══════════════════════════════════════
    테이블에 경쟁사 컬럼 주입
 ═══════════════════════════════════════ */
-async function _injectCompColumns(tabId, gradeId) {
+async function _injectCompColumns(tabId, gradeId, skipFetch) {
   const tbodyId = tabId === 'isopink' ? 'pricingTableBody' : `${tabId}TableBody`;
   const tbody   = document.getElementById(tbodyId);
   if (!tbody) return;
   const table = tbody.closest('table');
   if (!table) return;
 
-  // 데이터 로드
-  await loadCompPrices(tabId, gradeId);
+  // 데이터 로드 — recalcPricing처럼 타이핑할 때마다 불리는 경로에서는 매번 새로 안 불러온다
+  // (경쟁사 가격은 원가/마진 입력과 무관하니 이미 있는 캐시로 표만 다시 그리면 충분함,
+  // 2026-09-02: tbody가 통째로 갈아끼워질 때마다 여기서 재조회하면 키보드 입력마다 매번
+  // Supabase를 때려서 낭비였음).
+  if (!skipFetch) await loadCompPrices(tabId, gradeId);
 
   /* ── 기존 경쟁사 컬럼 완전 제거 후 재주입 ──
      플래그 방식 대신 항상 클린하게 지우고 다시 그림 */
@@ -466,6 +500,7 @@ async function _injectCompColumns(tabId, gradeId) {
   }
 
   /* ── 3. tbody 각 tr에 경쟁사 셀 추가 ── */
+  const linkGroupColors = _computeLinkGroupColors(tabId, gradeId);
   Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
     const thickCell = tr.querySelector('.td-thick');
     const t = thickCell ? parseInt(thickCell.textContent.trim()) : NaN;
@@ -477,7 +512,7 @@ async function _injectCompColumns(tabId, gradeId) {
       }
       return;
     }
-    tr.insertAdjacentHTML('beforeend', _buildCompCells(tabId, gradeId, t));
+    tr.insertAdjacentHTML('beforeend', _buildCompCells(tabId, gradeId, t, linkGroupColors));
   });
 
   table.dataset.compInjected = gradeId;
@@ -581,18 +616,23 @@ document.addEventListener('DOMContentLoaded', () => {
     };;
   });
 
-  /* ── recalcPricing — 원가/마진 변경 시 diff 갱신 전용 (주입 안 함) ── */
+  /* ── recalcPricing — 원가/마진 변경 시 표를 통째로 다시 그린다(isopink는
+     buildRows()가 tbody.innerHTML을 교체함) — 그러면 기존에 주입해둔 경쟁사 셀(.cp-td-price
+     등)도 같이 사라지는데, 예전엔 그 뒤에 diff 배지만 갱신하는 _refreshAllCompCells를 불러서
+     사라진 셀을 못 찾고 조용히 아무 일도 안 했다(2026-09-02 발견 — 원가/마진을 한 번이라도
+     건드리면 경쟁사 컬럼 전체가 없어지는 버그). _injectCompColumns로 통째로 다시 주입하게
+     고침 — 이러면 링크 그룹 색상도 매번 최신 상태로 다시 계산됨. */
   const _origRecalc = window.recalcPricing;
   window.recalcPricing = function() {
     _origRecalc?.();
-    _refreshAllCompCells('isopink', 'isopink');
+    _injectCompColumns('isopink', 'isopink', true);
   };
   ['bead','pu','pf','fr'].forEach(tabId => {
     const key   = `recalc${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`;
     const _orig = window[key];
     window[key] = function() {
       _orig?.();
-      _refreshAllCompCells(tabId, _activeGradeId(tabId));
+      _injectCompColumns(tabId, _activeGradeId(tabId), true);
     };
   });
 

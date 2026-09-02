@@ -12,6 +12,10 @@ const ISOPINK_ROWS = [
   110,120,130,140,150,160,170,180,
   190,200,210,220,230,240,250,260,270,280,290,300
 ];
+// const는 window에 자동으로 안 걸려서, pricing-competitor.js가 window.ISOPINK_ROWS로
+// 두께 목록을 가져가려던 게 계속 빈 배열이었다(2026-09-02 발견 — 경쟁사 링크 그룹 색상이
+// 아이소핑크에서만 안 나오던 원인).
+window.ISOPINK_ROWS = ISOPINK_ROWS;
 
 /* 아이소핑크 마진 기본값 (원/mm) */
 const ISO_MARGIN_DEFS = {
