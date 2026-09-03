@@ -546,14 +546,47 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   const marginBump = Number(String(bumpStr).replace(/,/g, ''));
   if (!Number.isFinite(marginBump)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
 
+  // 2026-09-02: PF보드는 소형(_s)/대형(_l)이 원가·마진 필드를 mk(브랜드+종류) 단위로
+  // 공유한다(_getCostId/_getMarginId 참고) — 그래서 한쪽 규격만 보고 맞추면 그 마진이
+  // 다른 규격에도 그대로 적용돼서, 방금 맞춘 규격은 정상인데 반대쪽 규격의 경쟁가 조건이
+  // 깨져버리는 문제가 있었다(600x1200 맞추면 1200x2000 하나가 깨지고, 반대로 하면
+  // 600x1200이 깨지는 것을 사용자가 발견 — 서로 계속 밀어내는 현상). 짝(sibling) 규격의
+  // 경쟁가도 같이 로드해서, 두 규격 다 만족하는 마진 중 더 작은(=더 저렴한) 쪽을 쓴다.
+  const siblingGrade = tabId === 'pf' ? _gradesOf('pf').find(g => g.mk === grade.mk && g.id !== grade.id) : null;
+
   await loadCompPrices(tabId, gradeId);
   const excluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, gradeId) : [false, false, false];
+  let siblingExcluded = [false, false, false];
+  if (siblingGrade) {
+    await loadCompPrices(tabId, siblingGrade.id);
+    siblingExcluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, siblingGrade.id) : [false, false, false];
+  }
 
   const isFr = tabId === 'fr';
-  const tEff = grade.tFactor; // fr 외 탭에서만 쓰임(없으면 t 그대로)
-  const priceFor = isFr
-    ? (cost, m) => calcFrSheetRow(cost, m, grade.area)?.realPrice ?? 0
-    : (cost, m, t) => Math.ceil(Math.round((cost + m) * (tEff ?? t) * grade.area * 1.1) / 100) * 100;
+  const priceForGrade = (g, cost, m, t) => isFr
+    ? (calcFrSheetRow(cost, m, g.area)?.realPrice ?? 0)
+    : Math.ceil(Math.round((cost + m) * (g.tFactor ?? t) * g.area * 1.1) / 100) * 100;
+  const priceFor = (cost, m, t) => priceForGrade(grade, cost, m, t);
+
+  // 목표가에 맞는 마진을 정수로 하나씩 찾는다(=최대한 손해를 덜 보는 선에서 목표가 달성)
+  function solveMargin(g, cost, t, cappedPrice) {
+    let m = isFr
+      ? Math.round(cappedPrice / 1.1 - Math.round(cost * g.area))
+      : Math.round(cappedPrice / ((g.tFactor ?? t) * g.area * 1.1) - cost);
+    let guard = 0;
+    while (priceForGrade(g, cost, m, t) > cappedPrice && guard < 200) { m--; guard++; }
+    guard = 0;
+    while (priceForGrade(g, cost, m + 1, t) <= cappedPrice && guard < 200) { m++; guard++; }
+    return m;
+  }
+  // 특정 (탭,등급,두께)의 경쟁가 기준 목표가 계산 — 없으면 null
+  function targetFor(gId, t, excl) {
+    const comp = window._compCache?.[tabId]?.[gId]?.[t] || {};
+    const raw = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
+    const hasAny = raw.some(v => v != null && v > 0);
+    const prices = raw.filter((v, i) => !excl[i] && v != null && v > 0);
+    return { hasAny, cappedPrice: prices.length ? _competitorTarget(Math.min(...prices)) : null };
+  }
 
   let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, bumped = 0;
 
@@ -561,12 +594,12 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     const costId = _getCostId(tabId, grade, t);
     const cost   = costId ? fieldVal(costId) : 0;
     if (!cost) { skippedNoCost++; return; }
-    const comp = window._compCache?.[tabId]?.[gradeId]?.[t] || {};
-    const rawPrices = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
-    const hasAnyComp = rawPrices.some(v => v != null && v > 0);
-    const prices = rawPrices.filter((v, i) => !excluded[i] && v != null && v > 0);
-    if (!prices.length) {
-      if (!hasAnyComp && marginBump) {
+
+    const own = targetFor(gradeId, t, excluded);
+    const sib = siblingGrade ? targetFor(siblingGrade.id, t, siblingExcluded) : { hasAny: false, cappedPrice: null };
+
+    if (own.cappedPrice == null && sib.cappedPrice == null) {
+      if (!own.hasAny && !sib.hasAny && marginBump) {
         const marginId = _getMarginId(tabId, grade, t);
         const field = marginId ? document.getElementById(marginId) : null;
         const curMargin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
@@ -576,18 +609,15 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
       }
       return;
     }
-    const minComp = Math.min(...prices);
-    const cappedPrice = _competitorTarget(minComp);
-    if (cappedPrice <= 0) { skippedBadTarget++; return; }
+    if (own.cappedPrice != null && own.cappedPrice <= 0) { skippedBadTarget++; return; }
+    if (sib.cappedPrice != null && sib.cappedPrice <= 0) { skippedBadTarget++; return; }
 
-    // 초기 추정값 — fr은 마진이 "장당 금액"이라 공식이 다름
-    let margin = isFr
-      ? Math.round(cappedPrice / 1.1 - Math.round(cost * grade.area))
-      : Math.round(cappedPrice / ((tEff ?? t) * grade.area * 1.1) - cost);
-    let guard = 0;
-    while (priceFor(cost, margin, t) > cappedPrice && guard < 200) { margin--; guard++; }
-    guard = 0;
-    while (priceFor(cost, margin + 1, t) <= cappedPrice && guard < 200) { margin++; guard++; }
+    // 두 목표(자기 자신 + 짝 규격) 중 존재하는 것만 풀어서, 둘 다 만족하는 마진 중
+    // 더 작은(더 저렴한) 값을 쓴다 — 하나만 있으면 그 값 그대로.
+    const candidates = [];
+    if (own.cappedPrice != null) candidates.push(solveMargin(grade, cost, t, own.cappedPrice));
+    if (sib.cappedPrice != null) candidates.push(solveMargin(siblingGrade, cost, t, sib.cappedPrice));
+    const margin = Math.min(...candidates);
 
     const marginId = _getMarginId(tabId, grade, t);
     const field = marginId ? document.getElementById(marginId) : null;
