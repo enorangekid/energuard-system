@@ -2216,6 +2216,22 @@ async function _doExport() {
     await Promise.all(loadTasks);
   }
 
+  /* 2026-09-02: 헤더의 경쟁사 이름(크린슐라/산일상사/대유물류)이 localStorage에 저장된
+     낡은 값(_compExportNames)을 쓰고 있어서, 화면에서 "이름 변경"으로 실제 DB(competitor_names)
+     에 저장한 이름(예: 대유물류→바로상사)이 엑셀에는 반영이 안 되던 버그. 5개 시트가 전부
+     하나의 공통 헤더를 공유하는 구조라 완벽히 등급별로 다르게 낼 수는 없으니, 지금 화면에서
+     보고 있는 탭/등급 기준 실제 이름을 가져와서 쓴다(적어도 눈에 보이는 값과는 항상 일치). */
+  let compNames = ['크린슐라', '산일상사', '대유물류'];
+  if (typeof _compMeta === 'function') {
+    try {
+      const activeTab   = window._activePricingTab || 'isopink';
+      const activeGrade = (typeof _activeGradeId === 'function') ? _activeGradeId(activeTab) : (activeTab === 'isopink' ? 'isopink' : _subtabState[activeTab]);
+      const meta = await _compMeta(activeTab, activeGrade);
+      if (meta?.names?.length === 3) compNames = meta.names;
+    } catch (_) { /* 조회 실패 시 기본값 유지 */ }
+  }
+  const compHeaderCells = compNames.flatMap(n => [`${n} 단가`, `${n} 차이`, `${n} 링크`]);
+
   const wb = XLSX.utils.book_new();
   const baseMonth = document.getElementById('cost_base_month')?.value || '';
   const now = new Date();
@@ -2230,7 +2246,7 @@ async function _doExport() {
   // ── 시트 공통 헤더 ──
   const COMMON_HEADER = ['품명', '두께(mm)', '규격(m²당원가)', '장당마진', 'm²당판매가',
     '장당원가(VAT미포함)', '장당판매가(VAT미포함)', '최종판매가(VAT포함)', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)',
-    ..._compHeaders()];
+    ...compHeaderCells];
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 1. 아이소핑크
@@ -2353,7 +2369,7 @@ async function _doExport() {
       [],
       ['품명', '두께(mm)', 'm²당원가', '장당마진', '장당원가(VAT미포함)', '장당판매가(VAT미포함)',
        'VAT포함판매가', '최종판매가', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)',
-       ..._compHeaders()],
+       ...compHeaderCells],
     ];
     FR_GRADES.forEach(grade => {
       grade.rows.forEach(t => {
@@ -2385,23 +2401,14 @@ async function _doExport() {
    엑셀 서식 유틸
 ═══════════════════════════════════════ */
 
-/* 경쟁사 이름 배열 */
-function _compExportNames() {
-  try {
-    const s = JSON.parse(localStorage.getItem('energuard_comp_names') || '[]');
-    return ['크린슐라','산일상사','대유물류'].map((d,i) => s[i] || d);
-  } catch { return ['크린슐라','산일상사','대유물류']; }
-}
-
 /* 경쟁사 데이터 조회 */
 function _getCompData(tabId, gradeId, t) {
   return window._compCache?.[tabId]?.[gradeId]?.[t] || {};
 }
 
-/* 경쟁사 헤더: 단가 / 차이 / 링크 */
-function _compHeaders() {
-  return _compExportNames().flatMap(n => [`${n} 단가`, `${n} 차이`, `${n} 링크`]);
-}
+/* 2026-09-02: 경쟁사 이름/헤더는 _doExport() 안에서 실제 DB(competitor_names) 기준으로
+   compHeaderCells를 미리 계산해서 쓴다 — _compExportNames/_compHeaders(localStorage
+   기반, 실제 이름 변경이 반영 안 되던 낡은 방식)는 제거함. */
 
 /* 경쟁사 데이터 셀: 단가 / 차이(우리-경쟁사) / 링크 */
 function _compCells(tabId, gradeId, t, ourPrice) {
