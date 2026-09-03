@@ -215,8 +215,15 @@ function updateRoleBadge(role) {
     if (badgeEl) badgeEl.innerText = role === 'admin' ? '관리자' : '사용자';
 }
 
-/* ── 로그인 환영 모달 ── */
-function showWelcomeModal(displayName, role) {
+/* ── 로그인 환영 모달 ──
+   2026-09-02: 이모지 다 빼고("쓸모없는 이모지는 촌스럽다" — 확장프로그램 UI 다듬을 때
+   나온 지적을 여기도 동일 적용), "팀원이 믿고 있습니다"류 팀 전제 문구를 혼자 운영하는
+   느낌에 맞게 정리, 멘트 개수도 늘림(role별 문구는 실제로 role이 항상 'admin'이라
+   사용자용 문구가 죽은 코드였음 — 하나로 합침). 여기에 "오늘 확인할 업무"(monthly_tasks
+   중 오늘까지 마감인데 미완료인 Daily 항목)를 실제 데이터로 보여주는 섹션을 추가함 —
+   매출/블로그순위/상품순위는 loadSalesOverview 등 기존 로더가 DOM 렌더링과 강하게
+   얽혀있어(순수 데이터 함수로 바로 재사용 불가) 이번엔 보류, 업무 체크만 우선 반영. */
+async function showWelcomeModal(displayName, role) {
     // 혹시 이미 떠 있는 모달 제거 (중복 방지)
     const existing = document.getElementById('welcomeOverlay');
     if (existing) existing.remove();
@@ -228,20 +235,55 @@ function showWelcomeModal(displayName, role) {
     else if (hour >= 17 && hour < 21) greeting = '좋은 저녁이에요';
     else greeting = '늦은 시간까지 수고 많으세요';
 
-    const messages = isAdmin ? [
-        '오늘도 에너가드컴퍼니를 이끌어 주세요 💪',
-        '모든 팀원이 믿고 있습니다. 오늘도 파이팅! 🚀',
-        '좋은 하루가 되길 바랍니다. 오늘도 화이팅! ✨',
-        '에너가드컴퍼니의 성장을 함께 만들어 가요 📈',
-    ] : [
-        '오늘 하루도 함께해 주셔서 감사해요 😊',
-        '작은 노력이 큰 결과를 만들어요. 오늘도 파이팅! 💫',
-        '좋은 하루 보내세요! 오늘도 최선을 다해봐요 🌟',
-        '함께라면 무엇이든 가능해요. 오늘도 화이팅! 🙌',
+    const messages = [
+        '오늘 하루도 수고 많으세요.',
+        '가볍게 오늘 할 일부터 확인해볼까요.',
+        '천천히, 그렇지만 꾸준히 가면 됩니다.',
+        '오늘도 에너가드컴퍼니, 잘 되고 있습니다.',
+        '쌓이는 게 다 자산이 됩니다. 오늘도 화이팅.',
+        '잠깐 숨 고르고, 오늘 할 일부터 봐요.',
+        '매일 조금씩이 결국 큰 차이를 만듭니다.',
+        '오늘도 무리하지 말고 차근차근 가요.',
     ];
     const msg = messages[Math.floor(Math.random() * messages.length)];
     const badgeColor = isAdmin ? '#4f46e5' : '#10b981';
     const badgeText = isAdmin ? '관리자' : '사용자';
+
+    // 오늘 확인할 업무 — monthly_tasks 중 Daily 타입(특정 날짜에 걸린 일)이면서 오늘까지
+    // 날짜가 지났는데 아직 미완료인 것. Plan 타입(주간 목표)은 date가 없어 여기 대상이
+    // 아님(대시보드의 "금주 목표" 카드가 이미 그쪽을 보여줌).
+    let taskSummaryHtml = '';
+    try {
+        if (supabaseClient) {
+            const now = new Date();
+            const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const { data } = await supabaseClient.from('monthly_tasks')
+                .select('date, task, is_done')
+                .eq('year', now.getFullYear()).eq('month', now.getMonth() + 1).eq('type', 'Daily');
+            const pending = (data || [])
+                .filter(r => r.task && r.date && r.date <= todayKey && r.is_done !== true && r.is_done !== 'TRUE')
+                .sort((a, b) => a.date.localeCompare(b.date));
+            if (pending.length) {
+                const preview = pending.slice(0, 3).map(r => {
+                    const overdue = r.date < todayKey;
+                    return `<li class="wm-task-row">
+                        <span class="wm-task-dot" style="background:${overdue ? '#ef4444' : '#f59e0b'};"></span>
+                        <span class="wm-task-text">${escapeAdminHtml(r.task)}</span>
+                        ${overdue ? `<span class="wm-task-badge">${escapeAdminHtml(r.date.slice(5))} 지남</span>` : '<span class="wm-task-badge today">오늘</span>'}
+                    </li>`;
+                }).join('');
+                const moreLabel = pending.length > 3 ? `<div class="wm-task-more">외 ${pending.length - 3}건 더 있습니다</div>` : '';
+                taskSummaryHtml = `
+                    <div class="wm-task-box" onclick="closeWelcomeModal(); navigateFromDash('worklog');">
+                        <div class="wm-task-title"><i class="fa-solid fa-list-check"></i> 오늘 확인할 업무 ${pending.length}건</div>
+                        <ul class="wm-task-list">${preview}</ul>
+                        ${moreLabel}
+                    </div>`;
+            }
+        }
+    } catch (e) {
+        console.warn('[웰컴모달] 업무 조회 실패', e);
+    }
 
     const overlay = document.createElement('div');
     overlay.id = 'welcomeOverlay';
@@ -284,11 +326,12 @@ function showWelcomeModal(displayName, role) {
                 letter-spacing: 0.3px;
             ">${badgeText}</div>
             <div style="font-size: 22px; font-weight: 800; color: #1e293b; margin-bottom: 8px; letter-spacing: -0.5px;">
-                ${greeting},<br>${displayName}님! 👋
+                ${greeting},<br>${displayName}님
             </div>
-            <div style="font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 28px;">
+            <div style="font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: ${taskSummaryHtml ? '18px' : '28px'};">
                 ${msg}
             </div>
+            ${taskSummaryHtml}
             <button onclick="closeWelcomeModal()" style="
                 width: 100%; padding: 13px;
                 background: ${badgeColor};
@@ -305,6 +348,19 @@ function showWelcomeModal(displayName, role) {
             @keyframes welcomeFadeIn { from { opacity:0; } to { opacity:1; } }
             @keyframes welcomeSlideUp { from { opacity:0; transform:translateY(30px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }
             @keyframes welcomeFadeOut { to { opacity:0; } }
+            .wm-task-box {
+                text-align: left; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px;
+                padding: 14px 16px; margin-bottom: 20px; cursor: pointer; transition: background 0.15s;
+            }
+            .wm-task-box:hover { background: #f1f5f9; }
+            .wm-task-title { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+            .wm-task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+            .wm-task-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+            .wm-task-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 6px; }
+            .wm-task-text { flex: 1; min-width: 0; color: #334155; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .wm-task-badge { flex: 0 0 auto; font-size: 11px; font-weight: 600; color: #ef4444; }
+            .wm-task-badge.today { color: #d97706; }
+            .wm-task-more { font-size: 12px; color: #94a3b8; margin-top: 6px; }
         </style>
     `;
 
