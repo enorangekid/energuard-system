@@ -363,6 +363,11 @@ async function handleLogout() {
         activeSession = null;
         currentUser   = null;
         localStorage.removeItem('keepLogin');
+        // 2026-09-02: 페이지 탭바 상태(열린 탭 목록/마지막 탭)가 로그인 세션과 무관한
+        // 별개의 localStorage 키라서 로그아웃해도 안 지워지고 남아있던 문제 — 사용자가
+        // "로그아웃했는데 업무탭이 여전히 남아있다"고 지적해서 같이 정리하도록 추가.
+        localStorage.removeItem(PAGE_TABS_STORE_KEY);
+        localStorage.removeItem(PAGE_ACTIVE_TAB_STORE_KEY);
         if(typeof isDashboardLoaded !== 'undefined') isDashboardLoaded = false;
         location.reload();
     }
