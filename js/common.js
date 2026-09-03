@@ -249,35 +249,29 @@ async function showWelcomeModal(displayName, role) {
     const badgeColor = isAdmin ? '#4f46e5' : '#10b981';
     const badgeText = isAdmin ? '관리자' : '사용자';
 
-    // 오늘 확인할 업무 — monthly_tasks 중 Daily 타입(특정 날짜에 걸린 일)이면서 오늘까지
-    // 날짜가 지났는데 아직 미완료인 것. Plan 타입(주간 목표)은 date가 없어 여기 대상이
-    // 아님(대시보드의 "금주 목표" 카드가 이미 그쪽을 보여줌).
+    // 2026-09-02(2차): 처음엔 밀린 것까지 다 긁어와서 "28건" 식으로 크게 때렸더니 로그인하자마자
+    // 부담스럽다는 반응 — 웰컴창은 업무 보고서가 아니니, 오늘 것 중 딱 하나만(우선순위 높은 것
+    // 우선, 동점이면 랜덤) 부드럽게 살짝 알려주는 정도로 낮춤. 밀린 업무 전체는 업무일지
+    // 페이지에 가면 어차피 보이니 여기서 다 안 보여줘도 됨.
     let taskSummaryHtml = '';
     try {
         if (supabaseClient) {
             const now = new Date();
             const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             const { data } = await supabaseClient.from('monthly_tasks')
-                .select('date, task, is_done')
-                .eq('year', now.getFullYear()).eq('month', now.getMonth() + 1).eq('type', 'Daily');
-            const pending = (data || [])
-                .filter(r => r.task && r.date && r.date <= todayKey && r.is_done !== true && r.is_done !== 'TRUE')
-                .sort((a, b) => a.date.localeCompare(b.date));
+                .select('task, priority, is_done')
+                .eq('year', now.getFullYear()).eq('month', now.getMonth() + 1).eq('type', 'Daily').eq('date', todayKey);
+            const pending = (data || []).filter(r => r.task && r.is_done !== true && r.is_done !== 'TRUE');
             if (pending.length) {
-                const preview = pending.slice(0, 3).map(r => {
-                    const overdue = r.date < todayKey;
-                    return `<li class="wm-task-row">
-                        <span class="wm-task-dot" style="background:${overdue ? '#ef4444' : '#f59e0b'};"></span>
-                        <span class="wm-task-text">${escapeAdminHtml(r.task)}</span>
-                        ${overdue ? `<span class="wm-task-badge">${escapeAdminHtml(r.date.slice(5))} 지남</span>` : '<span class="wm-task-badge today">오늘</span>'}
-                    </li>`;
-                }).join('');
-                const moreLabel = pending.length > 3 ? `<div class="wm-task-more">외 ${pending.length - 3}건 더 있습니다</div>` : '';
+                const maxPriority = Math.max(...pending.map(r => Number(r.priority) || 0));
+                const topPicks = pending.filter(r => (Number(r.priority) || 0) === maxPriority);
+                const picked = topPicks[Math.floor(Math.random() * topPicks.length)];
+                const restLabel = pending.length > 1 ? `<div class="wm-task-more">오늘 할 일 ${pending.length}개 중 하나예요</div>` : '';
                 taskSummaryHtml = `
                     <div class="wm-task-box" onclick="closeWelcomeModal(); navigateFromDash('worklog');">
-                        <div class="wm-task-title"><i class="fa-solid fa-list-check"></i> 오늘 확인할 업무 ${pending.length}건</div>
-                        <ul class="wm-task-list">${preview}</ul>
-                        ${moreLabel}
+                        <div class="wm-task-title"><i class="fa-regular fa-lightbulb"></i> 오늘 할 일 중 하나만 살짝</div>
+                        <div class="wm-task-pick">${escapeAdminHtml(picked.task)}</div>
+                        ${restLabel}
                     </div>`;
             }
         }
@@ -349,18 +343,13 @@ async function showWelcomeModal(displayName, role) {
             @keyframes welcomeSlideUp { from { opacity:0; transform:translateY(30px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }
             @keyframes welcomeFadeOut { to { opacity:0; } }
             .wm-task-box {
-                text-align: left; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px;
+                text-align: left; background: #f8fafc; border: 1px solid #eef0f4; border-radius: 12px;
                 padding: 14px 16px; margin-bottom: 20px; cursor: pointer; transition: background 0.15s;
             }
             .wm-task-box:hover { background: #f1f5f9; }
-            .wm-task-title { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-            .wm-task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-            .wm-task-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-            .wm-task-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 6px; }
-            .wm-task-text { flex: 1; min-width: 0; color: #334155; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-            .wm-task-badge { flex: 0 0 auto; font-size: 11px; font-weight: 600; color: #ef4444; }
-            .wm-task-badge.today { color: #d97706; }
-            .wm-task-more { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+            .wm-task-title { font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+            .wm-task-pick { font-size: 14px; font-weight: 700; color: #334155; line-height: 1.4; }
+            .wm-task-more { font-size: 11px; color: #94a3b8; margin-top: 6px; }
         </style>
     `;
 
