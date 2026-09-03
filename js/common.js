@@ -346,19 +346,6 @@ function applyRoleUI() {
         if (pimConfirm) pimConfirm.style.display = 'none';
     }
 
-    // 차단된 패널의 우측바 아이콘 숨기기
-    if (restriction.blockedPanels) {
-        restriction.blockedPanels.forEach(panelId => {
-            // onclick에 패널 토글 함수가 있는 quick-item 찾기
-            const toggleFn = {
-                'widgetPanel': 'toggleWidgetPanel',
-            }[panelId];
-            if (toggleFn) {
-                const iconEl = document.querySelector(`.quick-item[onclick*="${toggleFn}"]`);
-                if (iconEl) iconEl.style.display = 'none';
-            }
-        });
-    }
 }
 
 /* 현재 사용자가 해당 노트 탭에서 읽기 전용인지 반환 */
@@ -651,13 +638,13 @@ function showToast(message, type = 'info', duration = 3500) {
 
 /* ── [공통] 퀵패널 토글 헬퍼 ──────────────────────────────────────
    모든 퀵패널(quickMemoPanel, aiChatPanel, calcPanel, estimatePanel,
-   widgetPanel)은 이 함수를 통해 열고 닫습니다.
+   archivePanel)은 이 함수를 통해 열고 닫습니다.
    - targetId  : 열거나 닫을 패널 ID
    - onOpen    : 패널을 열 때 실행할 콜백 (선택)
    새 패널을 추가할 때는 QUICK_PANELS 배열에 ID만 추가하면 됩니다.
 ──────────────────────────────────────────────────────────────── */
 const QUICK_PANELS = [
-    'quickMemoPanel', 'aiChatPanel', 'calcPanel', 'estimatePanel', 'widgetPanel', 'archivePanel'
+    'quickMemoPanel', 'aiChatPanel', 'calcPanel', 'estimatePanel', 'archivePanel'
 ];
 
 function openPanel(targetId, onOpen) {

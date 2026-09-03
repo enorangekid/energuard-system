@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self'">
+  <title>Orange Sports</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="titlebar">
+    <div class="brand"><span class="ball">O</span><b>ORANGE SPORTS</b><small>LIVE</small><span id="liveDot" class="live-dot" hidden></span></div>
+    <div class="window-actions">
+      <button id="pinBtn" title="항상 위">PIN</button>
+      <button id="minBtn" title="최소화">─</button>
+      <button id="closeBtn" title="트레이로 숨기기">×</button>
+    </div>
+  </header>
+
+  <main>
+    <nav class="sport-tabs" aria-label="종목 선택">
+      <button class="sport-tab active" data-sport="nba"><b>NBA</b><small>농구</small></button>
+      <button class="sport-tab" data-sport="mlb"><b>MLB</b><small>야구</small></button>
+      <button class="sport-tab" data-sport="epl"><b>EPL</b><small>축구</small></button>
+      <button class="sport-tab" data-sport="ucl"><b>UCL</b><small>챔피언스리그</small></button>
+      <button class="sport-tab" data-sport="f1"><b>F1</b><small>모터스포츠</small></button>
+    </nav>
+    <nav class="tabs tabs-4" aria-label="화면 선택">
+      <button class="tab active" data-view="games">경기 일정</button>
+      <button class="tab" data-view="commentary">문자 중계 <span id="commentaryBadge" hidden>LIVE</span></button>
+      <button class="tab" data-view="table">순위·스탯</button>
+      <button class="tab" data-view="settings">설정</button>
+    </nav>
+
+    <section id="gamesView" class="view active">
+      <div class="date-panel">
+        <div class="date-toolbar">
+          <button id="todayButton" class="today-button">오늘</button>
+          <div class="month-nav">
+            <button id="prevDate" aria-label="이전 날짜">‹</button>
+            <button id="dateButton"><b id="dateTitle">2026.09</b><small id="dateSub"></small></button>
+            <input id="datePicker" type="date" aria-label="경기 날짜">
+            <button id="nextDate" aria-label="다음 날짜">›</button>
+          </div>
+          <button id="refreshGames" class="refresh" title="새로고침" aria-label="새로고침">↻</button>
+        </div>
+        <div id="dateStrip" class="date-strip" aria-label="경기 날짜 선택"></div>
+      </div>
+      <div id="fallbackBanner" class="notice" hidden></div>
+      <div id="gamesStatus" class="loading"><span class="spinner"></span>NBA 경기를 불러오는 중...</div>
+      <div id="gamesList" class="game-list"></div>
+    </section>
+
+    <section id="commentaryView" class="view">
+      <div id="commentaryEmpty" class="empty-state">
+        <div class="empty-ball">🏀</div>
+        <b>경기를 선택해 주세요</b>
+        <p>경기 화면에서 원하는 경기를 누르면<br>쿼터별 스코어와 전체 문자중계를 표시합니다.</p>
+        <button id="backToGames">경기 목록 보기</button>
+      </div>
+      <div id="commentaryContent"></div>
+    </section>
+
+    <section id="tableView" class="view">
+      <div id="tableSeasonBar" class="sp-season-bar" hidden>
+        <label class="sp-season-label" for="tableSeasonSelect"><span>시즌</span></label>
+        <div class="sp-season-right">
+          <div class="sp-season-control">
+            <select id="tableSeasonSelect" aria-label="시즌 선택"><option value="">현재 시즌</option></select>
+          </div>
+          <button id="tableRefresh" class="sp-season-refresh" title="새로고침" aria-label="새로고침">↻</button>
+        </div>
+      </div>
+      <div id="tableContent"><div class="loading"><span class="spinner"></span>순위를 불러오는 중...</div></div>
+    </section>
+
+    <section id="settingsView" class="view settings-view">
+      <div class="settings-card">
+        <h2>위젯 설정</h2>
+        <label class="switch-row"><span><b>항상 위에 표시</b><small>다른 창 위에 위젯을 고정합니다.</small></span><input id="alwaysOnTop" type="checkbox"><i></i></label>
+        <label class="switch-row"><span><b>Windows 시작 시 실행</b><small>로그인할 때 자동으로 시작합니다.</small></span><input id="autoLaunch" type="checkbox"><i></i></label>
+        <label class="switch-row"><span><b>실시간 카드 알림</b><small>득점과 주요 상황을 깔끔한 팝업 카드로 표시합니다.</small></span><input id="notifications" type="checkbox"><i></i></label>
+        <label class="switch-row"><span><b>모든 알림 고정</b><small>알림별 고정 없이도 자동으로 사라지지 않습니다.</small></span><input id="pinAllNotifications" type="checkbox"><i></i></label>
+        <label class="range-row"><span><b>알림 투명도</b><small id="notificationOpacityValue">95%</small></span><input id="notificationOpacity" type="range" min="0.15" max="1" step="0.05" value="0.95"></label>
+        <label class="field-row"><span>알림 범위</span><select id="notificationLevel"><option value="scores">득점·쿼터 종료</option><option value="all">모든 플레이</option></select></label>
+        <label class="field-row"><span id="favoriteTeamLabel">NBA 응원 팀</span><select id="favoriteTeam"><option value="">전체 경기</option></select></label>
+        <p class="inline-help">진행 중인 다른 경기는 경기 일정의 <b>알림</b> 버튼으로 추가할 수 있습니다.</p>
+        <label class="switch-row"><span><b>알림 소리</b><small>Windows 기본 알림음을 사용합니다.</small></span><input id="sound" type="checkbox"><i></i></label>
+      </div>
+      <button id="testNotification" class="primary-button">알림 미리보기</button>
+      <button id="dismissNotifications" class="secondary-button">표시 중인 알림 모두 닫기</button>
+      <button id="moveBottomRight" class="secondary-button">오른쪽 아래로 이동</button>
+      <p class="settings-note">창을 닫아도 트레이에서 실시간 경기를 확인합니다.</p>
+    </section>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>

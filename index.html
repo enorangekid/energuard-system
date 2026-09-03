@@ -1192,7 +1192,7 @@
             </div>
             <span class="quick-text">견적서</span>
         </li>
-        <li class="quick-item" onclick="toggleWidgetPanel()">
+        <li class="quick-item" onclick="showToast('준비 중입니다.', 'info')">
             <div class="quick-icon" style="background:#fee2e2; color:#ef4444;">
                 <i class="fa-solid fa-basketball"></i>
             </div>
@@ -1600,46 +1600,6 @@
   });
   </script>
 
-  <div id="widgetPanel" class="quick-panel">
-    <div class="quick-panel-header">
-        <h3><i class="fa-solid fa-trophy" style="color: #e11d48;"></i> 위젯</h3>
-        <button class="close-panel-btn" onclick="toggleWidgetPanel()"><i class="fa-solid fa-xmark"></i></button>
-    </div>
-    <div class="quick-panel-body" style="padding: 0; background-color: #f8fafc;">
-        <div class="sp-tabs">
-            <button class="sp-tab-btn active" onclick="setWidgetTab('nba',this)">NBA</button>
-            <button class="sp-tab-btn" onclick="setWidgetTab('epl',this)">EPL</button>
-            <button class="sp-tab-btn" onclick="setWidgetTab('ucl',this)">UCL</button>
-            <button class="sp-tab-btn" onclick="setWidgetTab('wc',this)">WC</button>
-            <button class="sp-tab-btn" onclick="setWidgetTab('mlb',this)">MLB</button>
-        </div>
-        <div class="sp-meta-bar">
-            <span class="sp-update-time" id="sp-updateTime">업데이트 대기</span>
-            <button class="sp-refresh-btn" onclick="reloadWidget()">
-                <i class="fa-solid fa-rotate-right" id="sp-refreshIcon"></i> 새로고침
-            </button>
-        </div>
-        <div id="sp-season-bar" class="sp-season-bar" style="display:none;">
-            <label class="sp-season-label" for="sp-season-select">
-                <i class="fa-regular fa-calendar"></i>
-                <span>시즌</span>
-            </label>
-            <div class="sp-season-control">
-                <select id="sp-season-select" class="sp-season-select" onchange="changeWidgetSeason(this.value)" aria-label="시즌 선택">
-                    <option value="">현재 시즌</option>
-                </select>
-                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-            </div>
-        </div>
-        <div class="sp-content" id="sp-content">
-            <div class="sp-state-box sp-loading">
-                <i class="fa-solid fa-spinner fa-spin"></i>
-                <span>불러오는 중...</span>
-            </div>
-        </div>
-    </div>
-  </div>
-
   <!-- ══ 자료실 패널 ══ -->
   <div id="archivePanel" class="quick-panel">
     <div class="quick-panel-header">
@@ -1724,7 +1684,6 @@
   <div id="toast-container"></div>
 
 <script src="js/common.js?v=20260820-authfix2"></script>
-<script src="js/widget-sports.js?v=20260828-nbafulltext"></script>
 <script src="js/estimate.js"></script>
 <script src="js/notes.js"></script>
 <script src="js/media.js"></script>
