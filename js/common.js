@@ -496,7 +496,11 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
         element.classList.add('active');
     } else {
         document.querySelectorAll('.menu-item').forEach(menu => { menu.classList.remove('active'); });
-        let targetMenu = document.querySelector(`.menu-item[onclick*="${pageId}"]`);
+        // 2026-09-02: activatePageTab()은 `showPage('id'` 형태로 정확히 매칭하는데 여기는
+        // pageId 문자열이 onclick 어디든 있으면 매칭하는 느슨한 방식이었다 — 지금 페이지
+        // id들끼리는 안 겹쳐서 문제가 없었지만, 나중에 예를 들어 pricing_history 같은 id를
+        // 추가하면 pricing 탭 복원 시 엉뚱한 메뉴가 활성화될 수 있는 잠재 버그라 통일함.
+        let targetMenu = document.querySelector(`.menu-item[onclick*="showPage('${pageId}'"]`);
         if (targetMenu) {
             targetMenu.classList.add('active');
         } else if(pageId === 'dashboard') {
