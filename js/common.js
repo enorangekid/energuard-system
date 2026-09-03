@@ -382,10 +382,12 @@ window.openEnerguardLab = function() {
    2026-08-27: page-section들은 원래도 DOM에 항상 다 그려져 있고 showPage()가 .active 클래스만
    토글하는 구조라, "열려있는 탭 목록"만 별도로 관리하면 자연스럽게 얹을 수 있다.
    - 사이드바에서 새 카테고리를 열면 탭에 추가(이미 있으면 그대로 활성화만)
-   - 탭은 ×버튼으로 개별로 닫을 수 있고, 탭이 하나뿐이면 닫기 버튼을 숨겨서 0개가 되는 걸 방지
-   - 열린 탭 목록/마지막으로 보던 탭은 localStorage에 저장해서 새로고침·재접속해도 복원됨 */
+   - 탭은 ×버튼으로 개별로 닫을 수 있음
+   - 열린 탭 목록/마지막으로 보던 탭은 localStorage에 저장해서 새로고침·재접속해도 복원됨
+   2026-09-02: "지표 요약"(대시보드)은 업무를 처리하는 화면이 아니라 그냥 홈 화면이라, 업무
+   탭으로 취급하지 않기로 함(사용자 지적) — PAGE_TAB_META에서 빼서 탭에 안 뜨게 하고, 탭이
+   0개가 될 수 있게 허용(닫으면 그냥 대시보드로 돌아감 — 더 이상 "최소 1개 유지" 제약 불필요). */
 const PAGE_TAB_META = {
-    dashboard:   { label: '지표 요약',      icon: 'fa-solid fa-chart-pie' },
     timeline:    { label: '업무 타임라인',   icon: 'fa-solid fa-clock-rotate-left' },
     worklog:     { label: '월간 업무일지',   icon: 'fa-solid fa-table-list' },
     productlogs: { label: '상품 수정 내역',  icon: 'fa-solid fa-pen-to-square' },
@@ -395,7 +397,7 @@ const PAGE_TAB_META = {
 };
 const PAGE_TABS_STORE_KEY = 'eg_admin_open_tabs_v1';
 const PAGE_ACTIVE_TAB_STORE_KEY = 'eg_admin_active_tab_v1';
-let openPageTabs = ['dashboard'];
+let openPageTabs = [];
 let currentPageId = 'dashboard';
 
 function loadOpenPageTabs() {
@@ -403,7 +405,6 @@ function loadOpenPageTabs() {
         const saved = JSON.parse(localStorage.getItem(PAGE_TABS_STORE_KEY) || '[]');
         openPageTabs = Array.isArray(saved) ? saved.filter(id => PAGE_TAB_META[id]) : [];
     } catch (e) { openPageTabs = []; }
-    if (!openPageTabs.length) openPageTabs = ['dashboard'];
 }
 
 function restoreActivePageTabId() {
@@ -426,11 +427,9 @@ function renderPageTabStrip() {
     strip.innerHTML = openPageTabs.map(id => {
         const meta = PAGE_TAB_META[id] || { label: id, icon: 'fa-solid fa-file' };
         const activeCls = id === currentPageId ? ' active' : '';
-        const closeBtn = openPageTabs.length > 1
-            ? `<span class="pg-tab-close" onclick="event.stopPropagation(); closePageTab('${id}')" title="탭 닫기"><i class="fa-solid fa-xmark"></i></span>`
-            : '';
         return `<div class="pg-tab${activeCls}" onclick="activatePageTab('${id}')" data-tab-id="${id}">
-            <i class="${meta.icon}"></i><span class="pg-tab-label">${meta.label}</span>${closeBtn}
+            <i class="${meta.icon}"></i><span class="pg-tab-label">${meta.label}</span>
+            <span class="pg-tab-close" onclick="event.stopPropagation(); closePageTab('${id}')" title="탭 닫기"><i class="fa-solid fa-xmark"></i></span>
         </div>`;
     }).join('');
     const activeTabEl = strip.querySelector('.pg-tab.active');
@@ -444,11 +443,11 @@ window.activatePageTab = function(pageId) {
 
 window.closePageTab = function(pageId) {
     const idx = openPageTabs.indexOf(pageId);
-    if (idx === -1 || openPageTabs.length <= 1) return;
+    if (idx === -1) return;
     openPageTabs.splice(idx, 1);
     if (currentPageId === pageId) {
-        // 닫은 탭이 지금 보던 탭이었으면 바로 왼쪽(없으면 맨 앞) 탭으로 전환
-        const nextId = openPageTabs[Math.max(0, idx - 1)] || openPageTabs[0];
+        // 닫은 탭이 지금 보던 탭이었으면 바로 왼쪽(없으면 맨 앞, 그것도 없으면 대시보드)으로 전환
+        const nextId = openPageTabs[Math.max(0, idx - 1)] || openPageTabs[0] || 'dashboard';
         window.activatePageTab(nextId);
     } else {
         savePageTabsState();
@@ -471,13 +470,14 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
         }
     }
 
-    // 🚀 페이지 탭바 등록 — 처음 여는 카테고리면 탭에 추가, 이미 열려있으면 활성화만
-    if (PAGE_TAB_META[pageId]) {
-        currentPageId = pageId;
-        if (!openPageTabs.includes(pageId)) openPageTabs.push(pageId);
-        savePageTabsState();
-        renderPageTabStrip();
-    }
+    // 🚀 페이지 탭바 등록 — 처음 여는 카테고리면 탭에 추가, 이미 열려있으면 활성화만.
+    // currentPageId는 대시보드를 포함해 항상 갱신(탭 스트립의 "활성 탭" 표시가 정확해야
+    // 하므로 — 대시보드로 오면 어떤 탭도 active로 안 보여야 함), openPageTabs에 실제로
+    // 넣는 건 탭 대상 페이지일 때만.
+    currentPageId = pageId;
+    if (PAGE_TAB_META[pageId] && !openPageTabs.includes(pageId)) openPageTabs.push(pageId);
+    savePageTabsState();
+    renderPageTabStrip();
 
     // 🚀 [핵심 수정] 페이지 이동 시 무조건 로더 끄고 시작 (이전 페이지 로더 찌꺼기 제거)
     const loader = document.getElementById('loader');
