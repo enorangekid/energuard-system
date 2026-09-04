@@ -45,6 +45,8 @@ function initHkPricingTabs() {
   bodyWrap.innerHTML = HK_CATEGORIES.map((c, i) =>
     `<div id="pricing-tab-${c.id}" class="pricing-tab-pane${i === 0 ? ' active' : ''}">${renderHkCategoryPane(c.id)}</div>`
   ).join('');
+
+  _hkIsoPopulateSeedRows();
 }
 document.addEventListener('DOMContentLoaded', initHkPricingTabs);
 
@@ -117,12 +119,103 @@ const HK_ISO_PRODUCTS = [
   { id: 'adhesive', label: '접착식 압출법 특호' },
 ];
 
-// 규격 분할수 — 900×1800 원장 한 장에서 몇 조각이 나오는지(2026-09-04 사용자 확인)
+// 규격 분할수 — 900×1800 원장 한 장에서 몇 조각이 나오는지(2026-09-04 사용자 확인 +
+// 원본 엑셀 실제 판매원가 역산으로 전부 검증 완료)
 const HK_ISO_SIZE_PRESETS = [
   { key: '900x1800', label: '900×1800', divisor: 1 },
   { key: '600x900',  label: '600×900',  divisor: 3 },
   { key: '600x860',  label: '600×860',  divisor: 3 },
+  { key: '600x430',  label: '600×430',  divisor: 6 },
   { key: '430x430',  label: '430×430',  divisor: 8 },
+];
+
+/* 원본 엑셀(아이소핑크.xlsx)의 판매가 행 전부 — "행 추가"로 직접 다 넣지 않아도
+   되게 미리 불러와둠(2026-09-04). channel: '기본'(압출법/접착식 정가) 또는
+   '쿠팡위너'(원가는 같지만 쿠팡 전용으로 마진을 다르게 잡은 채널) — 83행. */
+const HK_ISO_SEED_ROWS = [
+  { channel:'기본', product:'extruded', thickness:10, sizeKey:'430x430', qty:3, sellPrice:2600 },
+  { channel:'기본', product:'extruded', thickness:10, sizeKey:'600x900', qty:3, sellPrice:6800 },
+  { channel:'기본', product:'extruded', thickness:20, sizeKey:'430x430', qty:3, sellPrice:6400 },
+  { channel:'기본', product:'extruded', thickness:20, sizeKey:'600x900', qty:1, sellPrice:4300 },
+  { channel:'기본', product:'extruded', thickness:30, sizeKey:'430x430', qty:2, sellPrice:5700 },
+  { channel:'기본', product:'extruded', thickness:30, sizeKey:'600x900', qty:1, sellPrice:5900 },
+  { channel:'기본', product:'extruded', thickness:40, sizeKey:'430x430', qty:2, sellPrice:7700 },
+  { channel:'기본', product:'extruded', thickness:40, sizeKey:'600x900', qty:1, sellPrice:8200 },
+  { channel:'기본', product:'extruded', thickness:50, sizeKey:'430x430', qty:2, sellPrice:9200 },
+  { channel:'기본', product:'extruded', thickness:50, sizeKey:'600x900', qty:1, sellPrice:10000 },
+  { channel:'기본', product:'extruded', thickness:70, sizeKey:'430x430', qty:1, sellPrice:6700 },
+  { channel:'기본', product:'extruded', thickness:70, sizeKey:'600x900', qty:1, sellPrice:13900 },
+  { channel:'기본', product:'extruded', thickness:100, sizeKey:'430x430', qty:1, sellPrice:9100 },
+  { channel:'기본', product:'extruded', thickness:100, sizeKey:'600x900', qty:1, sellPrice:19900 },
+  { channel:'기본', product:'adhesive', thickness:10, sizeKey:'600x900', qty:3, sellPrice:12500 },
+  { channel:'기본', product:'adhesive', thickness:20, sizeKey:'600x900', qty:1, sellPrice:7100 },
+  { channel:'기본', product:'adhesive', thickness:30, sizeKey:'600x900', qty:1, sellPrice:9100 },
+  { channel:'기본', product:'adhesive', thickness:40, sizeKey:'600x900', qty:1, sellPrice:11500 },
+  { channel:'기본', product:'adhesive', thickness:50, sizeKey:'600x900', qty:1, sellPrice:13900 },
+  { channel:'기본', product:'adhesive', thickness:10, sizeKey:'600x900', qty:10, sellPrice:48000 },
+  { channel:'기본', product:'adhesive', thickness:20, sizeKey:'600x900', qty:5, sellPrice:35500 },
+  { channel:'기본', product:'adhesive', thickness:30, sizeKey:'600x900', qty:3, sellPrice:27600 },
+  { channel:'기본', product:'adhesive', thickness:40, sizeKey:'600x900', qty:2, sellPrice:23400 },
+  { channel:'기본', product:'adhesive', thickness:50, sizeKey:'600x900', qty:2, sellPrice:29000 },
+  { channel:'기본', product:'extruded', thickness:10, sizeKey:'900x1800', qty:10, sellPrice:41500 },
+  { channel:'기본', product:'extruded', thickness:20, sizeKey:'900x1800', qty:5, sellPrice:41500 },
+  { channel:'기본', product:'extruded', thickness:30, sizeKey:'900x1800', qty:3, sellPrice:37500 },
+  { channel:'기본', product:'extruded', thickness:40, sizeKey:'900x1800', qty:2, sellPrice:31000 },
+  { channel:'기본', product:'extruded', thickness:50, sizeKey:'900x1800', qty:2, sellPrice:40000 },
+  { channel:'기본', product:'extruded', thickness:70, sizeKey:'900x1800', qty:1, sellPrice:26500 },
+  { channel:'기본', product:'extruded', thickness:100, sizeKey:'900x1800', qty:1, sellPrice:35500 },
+  { channel:'기본', product:'extruded', thickness:10, sizeKey:'900x1800', qty:1, sellPrice:4200 },
+  { channel:'기본', product:'extruded', thickness:20, sizeKey:'900x1800', qty:1, sellPrice:8400 },
+  { channel:'기본', product:'extruded', thickness:30, sizeKey:'900x1800', qty:1, sellPrice:12500 },
+  { channel:'기본', product:'extruded', thickness:40, sizeKey:'900x1800', qty:1, sellPrice:17000 },
+  { channel:'기본', product:'extruded', thickness:50, sizeKey:'900x1800', qty:1, sellPrice:20000 },
+  { channel:'기본', product:'extruded', thickness:70, sizeKey:'900x1800', qty:1, sellPrice:27000 },
+  { channel:'기본', product:'extruded', thickness:100, sizeKey:'900x1800', qty:1, sellPrice:36500 },
+  { channel:'기본', product:'extruded', thickness:70, sizeKey:'900x1800', qty:3, sellPrice:78000 },
+  { channel:'기본', product:'extruded', thickness:100, sizeKey:'900x1800', qty:3, sellPrice:110000 },
+  { channel:'기본', product:'extruded', thickness:250, sizeKey:'900x1800', qty:1, sellPrice:155000 },
+  { channel:'기본', product:'extruded', thickness:500, sizeKey:'900x1800', qty:1, sellPrice:315000 },
+  { channel:'기본', product:'adhesive', thickness:10, sizeKey:'900x1800', qty:1, sellPrice:9000 },
+  { channel:'기본', product:'adhesive', thickness:20, sizeKey:'900x1800', qty:1, sellPrice:16500 },
+  { channel:'기본', product:'adhesive', thickness:30, sizeKey:'900x1800', qty:1, sellPrice:20500 },
+  { channel:'기본', product:'adhesive', thickness:40, sizeKey:'900x1800', qty:1, sellPrice:25500 },
+  { channel:'기본', product:'adhesive', thickness:50, sizeKey:'900x1800', qty:1, sellPrice:32500 },
+  { channel:'기본', product:'adhesive', thickness:10, sizeKey:'900x1800', qty:10, sellPrice:90500 },
+  { channel:'기본', product:'adhesive', thickness:20, sizeKey:'900x1800', qty:5, sellPrice:75500 },
+  { channel:'기본', product:'adhesive', thickness:30, sizeKey:'900x1800', qty:3, sellPrice:65500 },
+  { channel:'기본', product:'adhesive', thickness:40, sizeKey:'900x1800', qty:2, sellPrice:53500 },
+  { channel:'기본', product:'adhesive', thickness:50, sizeKey:'900x1800', qty:2, sellPrice:67000 },
+  { channel:'기본', product:'extruded', thickness:100, sizeKey:'600x860', qty:1, sellPrice:31000 },
+  { channel:'기본', product:'extruded', thickness:250, sizeKey:'600x430', qty:1, sellPrice:40000 },
+  { channel:'기본', product:'extruded', thickness:250, sizeKey:'600x860', qty:1, sellPrice:70000 },
+  { channel:'기본', product:'extruded', thickness:500, sizeKey:'600x430', qty:1, sellPrice:75000 },
+  { channel:'기본', product:'extruded', thickness:500, sizeKey:'600x860', qty:1, sellPrice:135000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:10, sizeKey:'600x900', qty:10, sellPrice:24400 },
+  { channel:'쿠팡위너', product:'extruded', thickness:10, sizeKey:'600x900', qty:20, sellPrice:48700 },
+  { channel:'쿠팡위너', product:'extruded', thickness:20, sizeKey:'600x900', qty:5, sellPrice:23500 },
+  { channel:'쿠팡위너', product:'extruded', thickness:20, sizeKey:'600x900', qty:10, sellPrice:47000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:30, sizeKey:'600x900', qty:1, sellPrice:6900 },
+  { channel:'쿠팡위너', product:'extruded', thickness:30, sizeKey:'600x900', qty:3, sellPrice:20700 },
+  { channel:'쿠팡위너', product:'extruded', thickness:30, sizeKey:'600x900', qty:5, sellPrice:34500 },
+  { channel:'쿠팡위너', product:'extruded', thickness:30, sizeKey:'600x900', qty:10, sellPrice:69000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:40, sizeKey:'600x900', qty:2, sellPrice:18400 },
+  { channel:'쿠팡위너', product:'extruded', thickness:40, sizeKey:'600x900', qty:5, sellPrice:46000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:50, sizeKey:'600x900', qty:1, sellPrice:11400 },
+  { channel:'쿠팡위너', product:'extruded', thickness:50, sizeKey:'600x900', qty:2, sellPrice:20800 },
+  { channel:'쿠팡위너', product:'extruded', thickness:70, sizeKey:'600x900', qty:1, sellPrice:16300 },
+  { channel:'쿠팡위너', product:'extruded', thickness:100, sizeKey:'600x900', qty:1, sellPrice:23100 },
+  { channel:'쿠팡위너', product:'extruded', thickness:100, sizeKey:'600x860', qty:1, sellPrice:31000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:250, sizeKey:'600x860', qty:1, sellPrice:70000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:250, sizeKey:'600x430', qty:1, sellPrice:40000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:500, sizeKey:'600x860', qty:1, sellPrice:135000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:500, sizeKey:'600x430', qty:1, sellPrice:75000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:10, sizeKey:'900x1800', qty:10, sellPrice:41500 },
+  { channel:'쿠팡위너', product:'extruded', thickness:20, sizeKey:'900x1800', qty:5, sellPrice:41000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:30, sizeKey:'900x1800', qty:3, sellPrice:40500 },
+  { channel:'쿠팡위너', product:'extruded', thickness:40, sizeKey:'900x1800', qty:2, sellPrice:36000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:50, sizeKey:'900x1800', qty:2, sellPrice:40000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:70, sizeKey:'900x1800', qty:1, sellPrice:33000 },
+  { channel:'쿠팡위너', product:'extruded', thickness:100, sizeKey:'900x1800', qty:1, sellPrice:39000 },
 ];
 
 function _hkIsoCostFieldId(t) { return `hk_iso_cost_extruded_t${t}`; }
@@ -167,7 +260,7 @@ function renderHkIsopinkPane() {
 
   const sellCard = `<div class="card pricing-cost-card">
     <div class="pricing-section-title">
-      판매가 계산 <span class="pricing-section-sub">— 규격/묶음수량별로 행을 추가해서 입력</span>
+      판매가 계산 <span class="pricing-section-sub">— 원본 엑셀 데이터로 미리 채워둠, 없는 조합은 "행 추가"로</span>
     </div>
     <div class="pricing-cost-footer">
       <button class="pricing-margin-edit-btn" onclick="_hkIsoAddSellRow()">
@@ -177,7 +270,7 @@ function renderHkIsopinkPane() {
     <div class="pricing-table-scroll">
       <table class="pricing-table">
         <thead><tr>
-          <th>품목</th><th>두께</th><th>규격</th><th>묶음수량</th>
+          <th>채널</th><th>품목</th><th>두께</th><th>규격</th><th>묶음수량</th>
           <th>판매원가</th><th>판매가</th><th>마진액</th><th>순수마진율</th><th></th>
         </tr></thead>
         <tbody id="hkIsoSellRowsBody"></tbody>
@@ -188,36 +281,61 @@ function renderHkIsopinkPane() {
   return costCard + sellCard;
 }
 
-/* 판매가 계산 행 추가 */
+/* 행 하나의 <tr> 내부 HTML — seed가 있으면 그 값으로 미리 선택된 상태로 만든다 */
+function _hkIsoRowInnerHtml(seed) {
+  const s = seed || {};
+  const channel   = s.channel ?? '';
+  const product   = s.product ?? HK_ISO_PRODUCTS[0].id;
+  const thickness = s.thickness ?? HK_ISO_ROWS[0];
+  const sizeKey   = s.sizeKey ?? HK_ISO_SIZE_PRESETS[0].key;
+  const qty       = s.qty ?? 1;
+  const sellPrice = s.sellPrice ?? '';
+  return `
+    <td><input type="text" class="pricing-input-field" style="width:76px" value="${channel}" placeholder="비고"></td>
+    <td><select class="pricing-input-field" onchange="_hkIsoRecalcRow(this)">
+      ${HK_ISO_PRODUCTS.map(p => `<option value="${p.id}"${p.id === product ? ' selected' : ''}>${p.label}</option>`).join('')}
+    </select></td>
+    <td><select class="pricing-input-field" onchange="_hkIsoRecalcRow(this)">
+      ${HK_ISO_ROWS.map(t => `<option value="${t}"${t === thickness ? ' selected' : ''}>${t}T</option>`).join('')}
+    </select></td>
+    <td><select class="pricing-input-field" onchange="_hkIsoRecalcRow(this)">
+      ${HK_ISO_SIZE_PRESETS.map(p => `<option value="${p.key}"${p.key === sizeKey ? ' selected' : ''}>${p.label}</option>`).join('')}
+    </select></td>
+    <td><input type="text" inputmode="numeric" class="pricing-input-field" value="${qty}" style="width:60px" oninput="_hkIsoRecalcRow(this)"></td>
+    <td class="hk-iso-bundle-cost">—</td>
+    <td><input type="text" inputmode="numeric" class="pricing-input-field pcut-cost-field" placeholder="0" value="${sellPrice}" oninput="_hkIsoRecalcRow(this)"></td>
+    <td class="hk-iso-margin-amt">—</td>
+    <td class="hk-iso-margin-rate">—</td>
+    <td><button class="pricing-margin-edit-btn" onclick="this.closest('tr').remove()" title="행 삭제"><i class="fa-solid fa-trash"></i></button></td>`;
+}
+
+/* 판매가 계산 행 추가(빈 행) */
 window._hkIsoAddSellRow = function() {
   const tbody = document.getElementById('hkIsoSellRowsBody');
   if (!tbody) return;
   const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td><select class="pricing-input-field" onchange="_hkIsoRecalcRow(this)">
-      ${HK_ISO_PRODUCTS.map(p => `<option value="${p.id}">${p.label}</option>`).join('')}
-    </select></td>
-    <td><select class="pricing-input-field" onchange="_hkIsoRecalcRow(this)">
-      ${HK_ISO_ROWS.map(t => `<option value="${t}">${t}T</option>`).join('')}
-    </select></td>
-    <td><select class="pricing-input-field" onchange="_hkIsoRecalcRow(this)">
-      ${HK_ISO_SIZE_PRESETS.map(p => `<option value="${p.key}">${p.label}</option>`).join('')}
-    </select></td>
-    <td><input type="text" inputmode="numeric" class="pricing-input-field" value="1" style="width:60px" oninput="_hkIsoRecalcRow(this)"></td>
-    <td class="hk-iso-bundle-cost">—</td>
-    <td><input type="text" inputmode="numeric" class="pricing-input-field pcut-cost-field" placeholder="0" oninput="_hkIsoRecalcRow(this)"></td>
-    <td class="hk-iso-margin-amt">—</td>
-    <td class="hk-iso-margin-rate">—</td>
-    <td><button class="pricing-margin-edit-btn" onclick="this.closest('tr').remove()" title="행 삭제"><i class="fa-solid fa-trash"></i></button></td>`;
+  tr.innerHTML = _hkIsoRowInnerHtml();
   tbody.appendChild(tr);
   _hkIsoRecalcRow(tr);
 };
+
+/* 원본 엑셀 데이터로 판매가 행 전부 미리 채우기 — 아이소핑크 탭 최초 렌더 직후 1회 호출 */
+function _hkIsoPopulateSeedRows() {
+  const tbody = document.getElementById('hkIsoSellRowsBody');
+  if (!tbody || tbody.children.length) return; // 이미 채워져 있으면(재실행) 건너뜀
+  HK_ISO_SEED_ROWS.forEach(seed => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = _hkIsoRowInnerHtml(seed);
+    tbody.appendChild(tr);
+    _hkIsoRecalcRow(tr);
+  });
+}
 
 /* 행 하나 재계산 — 셀렉트/입력값이 바뀔 때마다 호출 */
 window._hkIsoRecalcRow = function(el) {
   const tr = el.closest ? el.closest('tr') : el;
   if (!tr) return;
-  const [productSel, thicknessSel, sizeSel, qtyInput, sellInput] = tr.querySelectorAll('select, input');
+  const [, productSel, thicknessSel, sizeSel, qtyInput, sellInput] = tr.querySelectorAll('select, input');
   const bundleCostCell = tr.querySelector('.hk-iso-bundle-cost');
   const marginAmtCell  = tr.querySelector('.hk-iso-margin-amt');
   const marginRateCell = tr.querySelector('.hk-iso-margin-rate');
