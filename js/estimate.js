@@ -497,7 +497,10 @@ async function saveEstimateToArchive() {
         const source = document.getElementById('estimatePrintArea');
 
         // 캡처 전: UI 전용 요소 직접 숨김
-        const screenEls = source.querySelectorAll('.est-screen-ui, .est-screen-only, .est-add-row-wrap, .est-footer-info, .est-shipping-calc-wrap, .est-vat-toggle');
+        // 2026-09-03: .est-footer-info(계좌/배송주소/전화번호)가 실수로 여기 섞여 들어가서
+        // PDF 저장할 때마다 이 내용이 통째로 안 보이게 됐던 버그 — 이건 화면 전용 UI가
+        // 아니라 견적서 실제 내용이라 여기 있으면 안 됨(사용자가 저장된 PDF에서 발견).
+        const screenEls = source.querySelectorAll('.est-screen-ui, .est-screen-only, .est-add-row-wrap, .est-shipping-calc-wrap, .est-vat-toggle');
         screenEls.forEach(el => {
             el.dataset.origVisibility = el.style.visibility;
             el.dataset.origPosition = el.style.position;
