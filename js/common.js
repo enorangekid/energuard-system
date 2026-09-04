@@ -23,6 +23,9 @@ let activeSession = null;
 window.currentUser = null;  // Supabase Auth 사용자 프로필
 // 🚀 [추가] 페이지 전환 중복 방지 타이머
 let pageTransitionTimer = null;
+// 2026-09-02: 업무노트 탭에 이미 한 번 들어갔다 왔으면(에디터가 이미 떠서 편집 중일 수
+// 있으므로) 재진입 시 handleNoteMonthChange()로 다시 덮어쓰지 않기 위한 플래그.
+let isNotesTabLoaded = false;
 
 async function getAuthenticatedFunctionHeaders() {
     if (!supabaseClient) throw new Error('인증 시스템이 초기화되지 않았습니다.');
@@ -571,16 +574,29 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
     }
   
     // 4. 메뉴별 데이터 로딩 함수 호출
+    // 2026-09-02: 페이지 탭바로 여러 탭을 오가며 작업하게 됐는데, 여기 로딩 호출들이
+    // "그 페이지로 들어올 때마다 무조건" 실행되는 구조였다 — worklog는 initMonthlyLog()가
+    // 컨테이너를 innerHTML=''로 비우고 새로 그리고, notes는 handleNoteMonthChange()가
+    // 에디터 내용을 서버 값으로 덮어써서, 월간업무일지에서 입력하다가 업무노트 갔다 오면
+    // 저장 안 한 입력이 그대로 날아가는 버그였다(사용자가 실제로 겪어서 발견). 이미 이번
+    // 세션에 한 번 로드된 상태면(같은 달의 worklog 캐시가 있거나 notes 에디터가 이미 떠
+    // 있으면) 다시 지우고 다시 그리지 않고 그대로 둔다 — 대시보드가 isDashboardLoaded로
+    // 이미 하던 것과 같은 패턴.
     if(pageId === 'dashboard' && typeof loadDashboardData === 'function') loadDashboardData();
     if(pageId === 'timeline' && typeof loadTimelineFromServer === 'function') loadTimelineFromServer();
     if(pageId === 'worklog' && typeof loadWorklogFromServer === 'function') {
         if(typeof updateDateDisplay === 'function') updateDateDisplay();
-        if(typeof initMonthlyLog === 'function') initMonthlyLog();
-        loadWorklogFromServer();
+        const worklogMonthKey = (typeof currentWorkYear !== 'undefined' && typeof currentWorkMonth !== 'undefined')
+            ? `${currentWorkYear}-${currentWorkMonth}` : null;
+        const worklogAlreadyLoaded = worklogMonthKey && typeof worklogCache !== 'undefined' && worklogCache[worklogMonthKey];
+        if (!worklogAlreadyLoaded) {
+            if(typeof initMonthlyLog === 'function') initMonthlyLog();
+            loadWorklogFromServer();
+        }
     }
     if(pageId === 'productlogs' && typeof renderProductLogPage === 'function') renderProductLogPage();
     // 🚀 [노트 페이지 로직 수정] 타이머에 할당하여 페이지 이탈 시 취소 가능하게 만듦
-    if(pageId === 'notes') {
+    if(pageId === 'notes' && !isNotesTabLoaded) {
         pageTransitionTimer = setTimeout(() => {
             const monthPicker = document.getElementById('noteMonthPicker');
             const now = new Date();
@@ -590,6 +606,7 @@ window.showPage = function(pageId, element = null, isHistoryAction = false) {
             if(typeof handleNoteMonthChange === 'function') {
                 handleNoteMonthChange();
             }
+            isNotesTabLoaded = true;
         }, 300);
     }
     // 블로그/유튜브 원고 — '미디어 콘텐츠' 페이지(2026-08-14, 업무노트에서 분리됨)
