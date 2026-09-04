@@ -33,7 +33,7 @@
       <button id="articleBack" class="article-back" type="button">‹ 뉴스 목록으로</button>
       <article class="reader-card">
         <div id="readerImage" class="reader-image"></div>
-        <div class="reader-content"><div id="readerMeta" class="reader-meta"></div><h2 id="readerTitle"></h2><p id="readerLead"></p><div class="reader-notice">기사의 전체 내용과 정확한 보도 사항은 원문에서 확인할 수 있습니다. 오렌지 스포츠는 기사 제목과 대표 이미지, 출처를 정리해 제공합니다.</div><a id="readerOriginal" class="original-button" href="#" target="_blank" rel="noopener">언론사 원문 보기 ↗</a></div>
+        <div class="reader-content"><div id="readerMeta" class="reader-meta"></div><h2 id="readerTitle"></h2><p id="readerLead"></p><div class="reader-notice">개인 열람용으로 언론사 페이지의 본문을 정리해 표시합니다. 사진 설명·표·인터랙티브 요소는 생략될 수 있으니 정확한 내용은 아래 원문에서 확인하세요.</div><a id="readerOriginal" class="original-button" href="#" target="_blank" rel="noopener">언론사 원문 보기 ↗</a></div>
       </article>
       <section class="reader-related"><div class="section-heading"><div><small>RELATED</small><h2>함께 볼 기사</h2></div></div><div id="readerRelated" class="related-grid"></div></section>
     </section>
@@ -53,7 +53,12 @@
 
     <section class="data-layout shell page-section">
       <div id="gamesList" class="panel schedule-panel"><div class="panel-title"><h2>전체 경기 일정</h2><div class="date-control"><button id="prevDate">‹</button><span id="scheduleDate"></span><button id="nextDate">›</button></div></div><div id="fullSchedule"></div></div>
-      <aside id="standings" class="panel standings-panel"><div class="panel-title"><h2 id="standingsTitle">리그 순위</h2><button type="button" data-coming>전체 순위 ›</button></div><div id="standingsList"><div class="empty">순위를 불러오는 중입니다.</div></div></aside>
+      <aside id="standings" class="panel standings-panel"><div class="panel-title"><h2 id="standingsTitle">리그 순위</h2><select id="seasonSelect" class="season-select" hidden aria-label="시즌 선택"></select></div><div id="standingsList"><div class="empty">순위를 불러오는 중입니다.</div></div></aside>
+    </section>
+
+    <section id="leaderboards" class="content-section shell page-section" hidden>
+      <div class="section-heading"><div><small>STAT LEADERS</small><h2 id="leadersTitle">선수 기록</h2></div><span id="leadersSeasonTag" class="muted"></span></div>
+      <div id="leadersGrid" class="leaders-grid"><div class="empty">기록을 불러오는 중입니다.</div></div>
     </section>
 
     <section id="focus" class="content-section shell page-section"><div class="section-heading"><div><small>FOLLOW NOW</small><h2>관심 키워드</h2></div><p>뉴스 검색과 알림에 바로 활용할 수 있습니다.</p></div><div id="keywordGrid" class="keyword-grid"></div></section>
