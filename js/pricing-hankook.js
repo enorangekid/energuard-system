@@ -101,6 +101,15 @@ function renderHkCategoryPane(tabId) {
 
 const HK_ISO_ROWS = [10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200,210,220,230,240,250,260,270,280,290,300,400,500];
 
+// 압출법 특호 원/mm 단가 — 받은 엑셀(아이소핑크.xlsx)에 실제로 있던 두께만 기본값으로
+// 미리 채워둠(2026-09-04). 여기 없는 두께는 빈칸 — 나중에 자료 오면 채우면 됨.
+const HK_ISO_EXTRUDED_DEFAULTS = { 10:250, 20:250, 30:225, 40:225, 50:220, 70:220, 100:220, 250:230, 500:230 };
+
+// 접착식은 별도 원/mm 단가가 아니라, 같은 두께 압출법 원가에 고정 가공비를 더한 값
+// (10T~50T 전부 정확히 +1,350원으로 확인됨, 2026-09-04 사용자 확인 + 엑셀 역산 검증) —
+// 그래서 두께별로 따로 입력받지 않고, 이 가공비 하나만 입력받아 압출법 원가에 더해서 씀.
+const HK_ISO_ADHESIVE_SURCHARGE_DEFAULT = 1350;
+
 const HK_ISO_PRODUCTS = [
   { id: 'extruded', label: '압출법 특호' },
   { id: 'adhesive', label: '접착식 압출법 특호' },
@@ -114,32 +123,41 @@ const HK_ISO_SIZE_PRESETS = [
   { key: '430x430',  label: '430×430',  divisor: 8 },
 ];
 
-function _hkIsoCostFieldId(productId, t) { return `hk_iso_cost_${productId}_t${t}`; }
+function _hkIsoCostFieldId(t) { return `hk_iso_cost_extruded_t${t}`; }
 
-/* 원장(900×1800) 원가 — 원/mm 단가 입력값 × 두께 */
+/* 원장(900×1800) 원가 — 압출법은 원/mm × 두께, 접착식은 압출법 원가 + 가공비 */
 function _hkIsoSheetCost(productId, t) {
-  const el = document.getElementById(_hkIsoCostFieldId(productId, t));
+  const el = document.getElementById(_hkIsoCostFieldId(t));
   const perMm = el ? parseFloat(el.value) : NaN;
   if (!perMm) return null;
-  return perMm * t;
+  const extrudedCost = perMm * t;
+  if (productId === 'extruded') return extrudedCost;
+  const surchargeEl = document.getElementById('hk_iso_adhesive_surcharge');
+  const surcharge = surchargeEl ? (parseFloat(surchargeEl.value) || 0) : 0;
+  return extrudedCost + surcharge;
 }
 
 function renderHkIsopinkPane() {
   const costRows = HK_ISO_ROWS.map(t => `
     <tr>
       <td class="pcut-name-cell">${t}T</td>
-      ${HK_ISO_PRODUCTS.map(p => `
-      <td><input type="text" inputmode="numeric" id="${_hkIsoCostFieldId(p.id, t)}" class="pricing-input-field pcut-cost-field" placeholder="0"></td>`).join('')}
+      <td><input type="text" inputmode="numeric" id="${_hkIsoCostFieldId(t)}" class="pricing-input-field pcut-cost-field" placeholder="0" value="${HK_ISO_EXTRUDED_DEFAULTS[t] ?? ''}"></td>
     </tr>`).join('');
 
   const costTableHtml = `<table class="pricing-cost-unified-table">
-    <colgroup><col style="width:70px">${HK_ISO_PRODUCTS.map(() => '<col style="width:160px">').join('')}</colgroup>
-    <thead><tr><th>두께</th>${HK_ISO_PRODUCTS.map(p => `<th>${p.label}<br><span class="pricing-th-tiny" style="font-weight:400;color:#94a3b8">원/mm</span></th>`).join('')}</tr></thead>
+    <colgroup><col style="width:70px"><col style="width:160px"></colgroup>
+    <thead><tr><th>두께</th><th>압출법 특호<br><span class="pricing-th-tiny" style="font-weight:400;color:#94a3b8">원/mm</span></th></tr></thead>
     <tbody>${costRows}</tbody>
   </table>`;
 
   const costCard = `<div class="card pricing-cost-card">
-    <div class="pricing-section-title">원가 입력 <span class="pricing-section-sub">— 900×1800 원장 기준, 두께별 원/mm 단가</span></div>
+    <div class="pricing-section-title">원가 입력 <span class="pricing-section-sub">— 900×1800 원장 기준, 두께별 원/mm 단가 (엑셀에 있던 두께는 미리 채워둠)</span></div>
+    <div class="pricing-cost-footer">
+      <label class="pricing-base-month-wrap">
+        <span class="pricing-base-month-label">접착식 가공비(고정, 원장당)</span>
+        <input type="text" inputmode="numeric" id="hk_iso_adhesive_surcharge" class="pricing-input-field pricing-month-field" value="${HK_ISO_ADHESIVE_SURCHARGE_DEFAULT}">
+      </label>
+    </div>
     <div class="pricing-cost-card-inner">
       <div class="pricing-input-table-wrap">${costTableHtml}</div>
     </div>
