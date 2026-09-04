@@ -1143,7 +1143,8 @@
           </div>
         </div>
 
-        <!-- 한국단열 — 아직 준비중 -->
+        <!-- 한국단열 — 더 이상 안 쓰임(2026-09-04), 실제 탭은 아래 hkPricingTabsBar로 대체.
+             레거시 코드가 참조할 수 있어 요소 자체는 남겨둠. -->
         <div class="pricing-coming-soon" id="pricingComingSoon" style="display:none;">
           <i class="fa-solid fa-hammer"></i>
           <p>한국단열 단가표는 준비중입니다.</p>
@@ -1160,6 +1161,12 @@
           <div id="pricing-tab-app"     class="pricing-tab-pane"></div>
 
         </div><!-- /.pricing-body-wrap -->
+
+        <!-- 한국단열 — 에너가드컴퍼니와 완전히 분리된 별도 탭/콘텐츠 영역.
+             카테고리별 탭 구성/렌더는 js/pricing-hankook.js의 initHkPricingTabs()가
+             전담한다(2026-09-04). 평소엔 숨겨져 있다가 setPricingCompany('hkd')에서 켠다. -->
+        <div class="pricing-tabs-bar" id="hkPricingTabsBar" style="display:none;"></div>
+        <div class="pricing-body-wrap" id="hkPricingBodyWrap" style="display:none;"></div>
       </div><!-- /#page-pricing -->
 
     </div><!-- /.content-body -->
@@ -1692,6 +1699,7 @@
 <script src="js/pricing.js"></script>
 <script src="js/pricing-competitor.js"></script>
 <script src="js/pricing-highlight.js"></script>
+<script src="js/pricing-hankook.js"></script>
 <script src="js/dashboard.js?v=20260820-authfix2"></script>
 <script>
 /* ── 아이디 입력창 X 아이콘 제어 ── */

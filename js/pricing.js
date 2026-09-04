@@ -2185,17 +2185,25 @@ window.setPricingCompany = function(company) {
     const bodyWrap   = document.getElementById('pricingBodyWrap');
     const headerRight = document.getElementById('pricingHeaderRight');
     const appHeaderRight = document.getElementById('pricingAppHeaderRight');
+    // 한국단열 전용 영역(js/pricing-hankook.js) — 에너가드컴퍼니 영역과 완전히 분리되어
+    // 별도 탭바/바디를 가진다(2026-09-04, 그 전까지는 "준비중" 안내만 있었음).
+    const hkTabsBar  = document.getElementById('hkPricingTabsBar');
+    const hkBodyWrap = document.getElementById('hkPricingBodyWrap');
+
+    comingSoon.style.display = 'none'; // 더 이상 안 씀, 하위호환으로만 유지
 
     if (company === 'hkd') {
         tabsBar.style.display = 'none';
         bodyWrap.style.display = 'none';
         headerRight.style.display = 'none';
         appHeaderRight.style.display = 'none';
-        comingSoon.style.display = 'flex';
+        if (hkTabsBar)  hkTabsBar.style.display = '';
+        if (hkBodyWrap) hkBodyWrap.style.display = '';
         return;
     }
 
-    comingSoon.style.display = 'none';
+    if (hkTabsBar)  hkTabsBar.style.display = 'none';
+    if (hkBodyWrap) hkBodyWrap.style.display = 'none';
     bodyWrap.style.display = '';
 
     if (company === 'app') {
