@@ -5,7 +5,7 @@
   <meta name="description" content="Orange Sports - 모든 스포츠를 한 화면에서"><title>Orange Sports</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body data-theme="mlb">
+<body data-theme="home">
   <header class="site-header">
     <div class="header-main shell">
       <a class="brand" href="#top"><span class="brand-mark">O</span><span><b>ORANGE</b><small>SPORTS</small></span></a>
@@ -13,7 +13,7 @@
       <div class="header-actions"><button id="myNewsButton" type="button">♡ 관심 뉴스</button><button type="button" data-coming>⚙ 설정</button></div>
     </div>
     <nav class="sport-nav shell" aria-label="스포츠 종목">
-      <button type="button" data-sport="home">스포츠 홈</button><button class="active" type="button" data-sport="mlb">MLB</button><button type="button" data-sport="nba">NBA</button><button type="button" data-sport="epl">EPL</button><button type="button" data-sport="ucl">UCL</button><button type="button" data-sport="f1">F1</button>
+      <button class="active" type="button" data-sport="home">스포츠 홈</button><button type="button" data-sport="kbo">국내야구</button><button type="button" data-sport="mlb">해외야구</button><button type="button" data-sport="kfootball">국내축구</button><button type="button" data-sport="football">해외축구</button><button type="button" data-sport="kbl">국내농구</button><button type="button" data-sport="nba">해외농구</button><button type="button" data-sport="f1">F1</button>
     </nav>
   </header>
 
@@ -45,7 +45,7 @@
     </section>
 
     <section id="news" class="content-section shell page-section">
-      <div class="section-heading"><div><small>ORANGE PICK</small><h2 id="newsTitle">오늘의 MLB 뉴스</h2></div><div class="news-filter"><button class="active" data-news-filter="all">전체</button><button data-news-filter="domestic">국내 기사</button><button data-news-filter="official">공식 소식</button></div></div>
+      <div class="section-heading"><div><small>ORANGE PICK</small><h2 id="newsTitle">오늘의 MLB 뉴스</h2></div><div class="news-filter"><button class="active" data-news-filter="all">전체</button><button data-news-filter="domestic">국내 기사</button><button data-news-filter="official">공식·해외</button></div></div>
       <div id="newsGrid" class="news-grid"></div>
     </section>
 
