@@ -417,7 +417,7 @@ window.estOnThickChange = function(sel) {
 
 
 function toggleEstimatePanel() {
-    openPanel('estimatePanel', () => {
+    openPanel('estimatePanel', async () => {
         // 패널을 열 때 오늘 날짜를 견적서 양식에 자동 기입
         const now = new Date();
         const year = now.getFullYear();
@@ -426,7 +426,15 @@ function toggleEstimatePanel() {
         document.getElementById('estDateStr').value = `${year} 년 ${month} 월 ${date} 일`;
         // 단가표 방문 전이면 Supabase에서 원가 데이터(실제 적용가 캐시 포함) 로드
         if (!window._cachedLiveCosts && typeof loadPricingCosts === 'function') {
-            loadPricingCosts();
+            await loadPricingCosts();
+        }
+        // 2026-09-03: 견적서는 반드시 "실제 적용"으로 지정된 단가만 봐서(draft가 새지 않게
+        // 하려고 일부러 이렇게 설계함, 2026-08-20), 단가표에서 저장만 하고 실제 적용을 한
+        // 번도 안 눌렀으면 이 값 자체가 계속 비어있다 — 견적서를 열어도 왜 가격이 하나도
+        // 안 뜨는지 아무 설명이 없어서, 원인을 바로 알 수 있게 안내 토스트를 추가함
+        // (실제로 사용자가 이 상태로 겪고 나서 발견).
+        if (!window._cachedLiveCosts && typeof showToast === 'function') {
+            showToast('실제 적용된 단가가 없습니다 — 단가표 > 이력에서 "실제 적용"을 먼저 지정해주세요.', 'warning');
         }
     });
 }
