@@ -2277,19 +2277,36 @@ async function _doExport() {
 
   /* 2026-09-02: 헤더의 경쟁사 이름(크린슐라/산일상사/대유물류)이 localStorage에 저장된
      낡은 값(_compExportNames)을 쓰고 있어서, 화면에서 "이름 변경"으로 실제 DB(competitor_names)
-     에 저장한 이름(예: 대유물류→바로상사)이 엑셀에는 반영이 안 되던 버그. 5개 시트가 전부
-     하나의 공통 헤더를 공유하는 구조라 완벽히 등급별로 다르게 낼 수는 없으니, 지금 화면에서
-     보고 있는 탭/등급 기준 실제 이름을 가져와서 쓴다(적어도 눈에 보이는 값과는 항상 일치). */
-  let compNames = ['크린슐라', '산일상사', '대유물류'];
-  if (typeof _compMeta === 'function') {
-    try {
-      const activeTab   = window._activePricingTab || 'isopink';
-      const activeGrade = (typeof _activeGradeId === 'function') ? _activeGradeId(activeTab) : (activeTab === 'isopink' ? 'isopink' : _subtabState[activeTab]);
-      const meta = await _compMeta(activeTab, activeGrade);
-      if (meta?.names?.length === 3) compNames = meta.names;
-    } catch (_) { /* 조회 실패 시 기본값 유지 */ }
+     에 저장한 이름(예: 대유물류→바로상사)이 엑셀에는 반영이 안 되던 버그를 고쳤었다.
+     2026-09-04(2차): 근데 그 수정도 반쪽짜리였다 — "지금 화면에 보이는 탭 하나"의
+     이름을 5개 시트(아이소핑크/비드법/PU/PF/불연) 전부에 그대로 재사용하고 있어서,
+     예를 들어 비드법 탭을 보다가 엑셀저장을 누르면 아이소핑크 시트 헤더에도 비드법의
+     이름이 찍혔다(사용자가 "아이소핑크에 아직도 대유물류로 나온다"고 재차 지적해서
+     발견 — DB엔 이미 바로상사로 정확히 저장돼 있었음). 이제 탭마다 실제 이름을 각각
+     따로 불러와서 그 탭의 시트에만 쓴다 — 서브탭(등급)별로 다를 수도 있지만(2026-09-02
+     마이그레이션 때 등급별로 분리해뒀음) 시트 하나엔 여러 등급이 섞여 있어 전부
+     다르게 낼 수는 없으므로, 각 탭의 "대표 등급"(등급별 분리 마이그레이션 때 옮겨둔
+     기본값) 기준으로 통일한다. */
+  const TAB_REP_GRADE = { isopink: 'isopink', bead: 'ia1', pu: 'ic', pf: 'lxo_s', fr: 'fr_bul' };
+  const compNamesByTab = {};
+  for (const tab of Object.keys(TAB_REP_GRADE)) {
+    let names = ['크린슐라', '산일상사', '대유물류'];
+    if (typeof _compMeta === 'function') {
+      try {
+        const meta = await _compMeta(tab, TAB_REP_GRADE[tab]);
+        if (meta?.names?.length === 3) names = meta.names;
+      } catch (_) { /* 조회 실패 시 기본값 유지 */ }
+    }
+    compNamesByTab[tab] = names;
   }
-  const compHeaderCells = compNames.flatMap(n => [`${n} 단가`, `${n} 차이`, `${n} 링크`]);
+  function _compHeaderCellsFor(tabId) {
+    return compNamesByTab[tabId].flatMap(n => [`${n} 단가`, `${n} 차이`, `${n} 링크`]);
+  }
+  function _commonHeaderFor(tabId) {
+    return ['품명', '두께(mm)', '규격(m²당원가)', '장당마진', 'm²당판매가',
+      '장당원가(VAT미포함)', '장당판매가(VAT미포함)', '최종판매가(VAT포함)', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)',
+      ..._compHeaderCellsFor(tabId)];
+  }
 
   const wb = XLSX.utils.book_new();
   const baseMonth = document.getElementById('cost_base_month')?.value || '';
@@ -2302,11 +2319,6 @@ async function _doExport() {
   // ── 숫자 셀 ──
   const N = (v) => v != null && v !== '' && !isNaN(v) ? { v: Number(v), t:'n' } : { v: '-', t:'s' };
 
-  // ── 시트 공통 헤더 ──
-  const COMMON_HEADER = ['품명', '두께(mm)', '규격(m²당원가)', '장당마진', 'm²당판매가',
-    '장당원가(VAT미포함)', '장당판매가(VAT미포함)', '최종판매가(VAT포함)', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)',
-    ...compHeaderCells];
-
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 1. 아이소핑크
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2315,7 +2327,7 @@ async function _doExport() {
       ['아이소핑크 단가표', '', '', '', '', '', '', '', '', '', '', '', ''],
       [`기준월: ${baseMonth || dateStr}`, '', '', '', '', '', '', '', '', '', '', '', ''],
       [],
-      COMMON_HEADER,
+      _commonHeaderFor('isopink'),
     ];
     ISOPINK_ROWS.forEach(t => {
       const r = _isoCalcRow(t);
@@ -2339,7 +2351,7 @@ async function _doExport() {
       ['비드법단열재 단가표', '', '', '', '', '', '', '', '', '', '', '', ''],
       [`기준월: ${baseMonth || dateStr}`, '', '', '', '', '', '', '', '', '', '', '', ''],
       [],
-      COMMON_HEADER,
+      _commonHeaderFor('bead'),
     ];
     BEAD_GRADES.forEach(grade => {
       BEAD_ROWS.forEach(t => {
@@ -2348,7 +2360,9 @@ async function _doExport() {
         const marginPerM2 = _getMargin('bead', grade, t);
         const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
         const gradeName = `${grade.label} 비드법단열재 ${grade.sub}`;
-        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('fr', grade.id, t)]); return; }
+        // ⚠️ 여기 'fr'로 돼있던 오타 수정(2026-09-04) — 원가 미입력 행에서 엉뚱하게
+        // 불연단열재 캐시를 참조하고 있었음(경쟁사 데이터 안 뜨는 것 외엔 눈에 안 띄던 버그).
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('bead', grade.id, t)]); return; }
         rows.push([gradeName, t, r.costPerM2, r.marginPerM2, r.sellPerM2,
           r.costPerSheet, r.sellPerSheet, r.realPrice,
           r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate,
@@ -2368,7 +2382,7 @@ async function _doExport() {
       ['경질우레탄 단가표', '', '', '', '', '', '', '', '', '', '', '', ''],
       [`기준월: ${baseMonth || dateStr}`, '', '', '', '', '', '', '', '', '', '', '', ''],
       [],
-      COMMON_HEADER,
+      _commonHeaderFor('pu'),
     ];
     PU_GRADES.forEach(grade => {
       grade.rows.forEach(t => {
@@ -2378,7 +2392,8 @@ async function _doExport() {
         const tEff = grade.tFactor ?? t;
         const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, tEff, grade.area) : null;
         const gradeName = `${grade.label} 경질우레탄 ${grade.sub2||grade.sub1}`;
-        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('fr', grade.id, t)]); return; }
+        // ⚠️ 여기도 'fr' 오타 수정(2026-09-04, buildBead와 동일한 문제)
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('pu', grade.id, t)]); return; }
         rows.push([gradeName, t, r.costPerM2, r.marginPerM2, r.sellPerM2,
           r.costPerSheet, r.sellPerSheet, r.realPrice,
           r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate,
@@ -2398,7 +2413,7 @@ async function _doExport() {
       ['PF보드 단가표', '', '', '', '', '', '', '', '', '', '', '', ''],
       [`기준월: ${baseMonth || dateStr}`, '', '', '', '', '', '', '', '', '', '', '', ''],
       [],
-      COMMON_HEADER,
+      _commonHeaderFor('pf'),
     ];
     PF_GRADES.forEach(grade => {
       PF_ROWS.forEach(t => {
@@ -2406,7 +2421,8 @@ async function _doExport() {
         const marginPerM2 = _getMargin('pf', grade, t);
         const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
         const gradeName = `${grade.pfCat} ${grade.pfGrade} ${grade.areaLabel}`;
-        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('fr', grade.id, t)]); return; }
+        // ⚠️ 여기도 'fr' 오타 수정(2026-09-04, buildBead와 동일한 문제)
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('pf', grade.id, t)]); return; }
         rows.push([gradeName, t, r.costPerM2, r.marginPerM2, r.sellPerM2,
           r.costPerSheet, r.sellPerSheet, r.realPrice,
           r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate,
@@ -2428,7 +2444,7 @@ async function _doExport() {
       [],
       ['품명', '두께(mm)', 'm²당원가', '장당마진', '장당원가(VAT미포함)', '장당판매가(VAT미포함)',
        'VAT포함판매가', '최종판매가', '마진금액', '부가세', '수수료6%', '순수마진', '마진율(%)',
-       ...compHeaderCells],
+       ..._compHeaderCellsFor('fr')],
     ];
     FR_GRADES.forEach(grade => {
       grade.rows.forEach(t => {
