@@ -296,6 +296,11 @@
   background: #fef3c7; font-weight: 800; color: #92400e;
   font-size: 14px; text-align: right;
 }
+/* "동일가로만 맞춤"에서 마진 대신 가격을 직접 강제 고정한 행(2026-09-04) —
+   정상적으로 마진이 딱 맞아떨어진 노란 하이라이트와 구분되게 파란색으로. */
+.pricing-table .td-highlight.pricing-price-override {
+  background: #dbeafe; color: #1d4ed8;
+}
 
 /* 마진율 배지 */
 .pricing-rate-badge {

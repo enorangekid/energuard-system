@@ -188,6 +188,11 @@ function _estGetRealPrice(productId, t) {
       const cost = _isoGetCost_fromData(liveCosts, t);
       if (!cost) return null;
       const margin = _isoGetMargin(t, marginSrc);
+      // "동일가로만 맞춤" 오버라이드(2026-09-04, pricing.js의 ALL_PRICE_OVERRIDE_FIELDS
+      // 참고) — 이것도 margins JSON에 같이 저장돼 있어서, 견적서 가격도 마진 계산값이
+      // 아니라 강제 고정된 실제 판매가를 그대로 써야 한다.
+      const overrideVal = marginSrc?.[`iso_price_override_t${t}`];
+      if (overrideVal) return overrideVal;
       const sellPerSheet = Math.round(t * (cost + margin) * 1.1);
       return Math.ceil(sellPerSheet / 100) * 100;
     }

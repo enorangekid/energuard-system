@@ -170,9 +170,17 @@ const ALL_COST_FIELDS = [
   ...FR_GRADES.flatMap(g => g.rows.map(t => `fr_cost_${g.id}_t${t}`)),
 ];
 
+/* 경쟁사 "동일가로만 맞춤"에서 정수 마진 특성상 정확히 그 가격을 못 만드는 경우
+   (두께가 클수록 마진 1단위 변화폭이 커져서 100원 단위를 건너뛰기도 함, 2026-09-04
+   사용자 발견) — 마진 계산을 무시하고 가격 자체를 그 경쟁사가로 강제 고정하는 필드.
+   margins JSON 컬럼에 같이 저장되게 ALL_MARGIN_FIELDS에 합쳐둔다. 우선 아이소핑크만
+   지원(다른 자재도 같은 문제가 생기면 확장). */
+const ALL_PRICE_OVERRIDE_FIELDS = ISOPINK_ROWS.map(t => `iso_price_override_t${t}`);
+
 /* 마진 필드 목록 (margins JSON 컬럼에 저장) */
 const ALL_MARGIN_FIELDS = [
   ...ISOPINK_ROWS.map(t => `margin_iso_t${t}`),
+  ...ALL_PRICE_OVERRIDE_FIELDS,
   ...BEAD_ROWS.flatMap(t => [`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_t${t}`]),
   ...PU_GRADES.flatMap(g => g.rows.map(t => `pu_m_${g.id}_t${t}`)),
   ...PF_ROWS.flatMap(t => ['lxo','lxi','kdo','kdi','imo','imi'].map(mk => `pf_m_${mk}_t${t}`)),
@@ -352,6 +360,13 @@ function _isoGetMargin(t, src) {
   if (cached && cached[k] != null) return parseFloat(cached[k]);
   return ISO_MARGIN_DEFS[t] ?? 55;
 }
+function _isoGetPriceOverride(t) {
+  const el = document.getElementById(`iso_price_override_t${t}`);
+  if (!el || el.value.trim() === '') return null;
+  const v = parseFloat(el.value);
+  return v > 0 ? v : null;
+}
+
 function _isoCalcRow(t) {
   // 아이소핑크는 원가가 원/mm 단위 — area=1로 처리 (기존 로직 유지)
   const cost = _isoGetCost(t);
@@ -360,14 +375,19 @@ function _isoCalcRow(t) {
   const mmSellPrice  = cost + margin;
   const costPerSheet = Math.round(t * cost * 1.1);
   const sellPerSheet = Math.round(t * mmSellPrice * 1.1);
-  const realPrice    = Math.ceil(sellPerSheet / 100) * 100;
+  // "동일가로만 맞춤" 오버라이드(2026-09-04) — 정수 마진 특성상 경쟁사 가격을 정확히
+  // 못 맞추면(autoMatchCompetitorPriceIsopink가 판단) 마진 계산과 무관하게 이 값이
+  // 실제 판매가가 된다. 마진분석(마진액/부가세/수수료/순마진/마진율)도 이 가격 기준으로
+  // 다시 계산 — 마진 필드(margin)는 화면에 참고용으로만 남고 실제 반영은 안 됨.
+  const override = _isoGetPriceOverride(t);
+  const realPrice = override ?? (Math.ceil(sellPerSheet / 100) * 100);
   const marginAmt    = realPrice - costPerSheet;
   const vat          = Math.round(marginAmt / 11);
   const commission   = Math.round(realPrice * 0.06);
   const netMargin    = marginAmt - vat - commission;
   const marginRate   = realPrice > 0 ? Math.round((netMargin / realPrice) * 100) : 0;
   // recalcPricing이 r.cost / r.margin / r.mmSellPrice 를 참조하므로 이름 맞춤
-  return { t, costPerM2:cost, marginPerM2:margin, cost, margin, mmSellPrice, costPerSheet, sellPerSheet, realPrice, marginAmt, vat, commission, netMargin, marginRate };
+  return { t, costPerM2:cost, marginPerM2:margin, cost, margin, mmSellPrice, costPerSheet, sellPerSheet, realPrice, marginAmt, vat, commission, netMargin, marginRate, overridden: override != null };
 }
 
 window.recalcPricing = function() {
@@ -389,11 +409,16 @@ window.recalcPricing = function() {
       const prevMargin = _compareData ? _isoGetMargin(t, _compareData.margins ?? _compareData) : null;
       const prevPrice  = prevCost ? Math.ceil(Math.round(t*(prevCost+prevMargin)*1.1)/100)*100 : null;
       const badge = diffBadge(r.realPrice, prevPrice);
+      // "동일가로만 맞춤"에서 마진 계산 대신 가격을 직접 강제한 행은 색을 다르게 표시
+      // (2026-09-04 사용자 요청) — 30T/100T처럼 정상적으로 마진이 딱 맞아떨어진 행과
+      // 구분되게, 마진이 아니라 가격 자체를 맞췄다는 걸 한눈에 알 수 있어야 함.
+      const overrideCls = r.overridden ? ' pricing-price-override' : '';
+      const overrideTitle = r.overridden ? ' title="정수 마진으로는 경쟁사 가격을 정확히 못 맞춰서, 마진 계산 대신 가격 자체를 경쟁사가로 강제 고정함"' : '';
       return `<tr data-t="${t}">${nameTd}
         <td class="td-thick">${t}</td>
         <td class="td-num">${fmt(r.cost)}</td><td class="td-num">${fmt(r.margin)}</td><td class="td-num">${fmt(r.mmSellPrice)}</td>
         <td class="td-num">${fmt(r.costPerSheet)}</td><td class="td-num">${fmt(r.sellPerSheet)}</td>
-        <td class="td-highlight">${fmt(r.realPrice)}</td>
+        <td class="td-highlight${overrideCls}"${overrideTitle}>${fmt(r.realPrice)}</td>
         <td class="td-diff">${badge}</td>
         <td class="td-num">${fmt(r.marginAmt)}</td><td class="td-num">${fmt(r.vat)}</td><td class="td-num">${fmt(r.commission)}</td>
         <td class="td-num">${fmt(r.netMargin)}</td>
@@ -460,16 +485,18 @@ window.autoMatchCompetitorPriceIsopink = async function() {
   const matchOnly = (typeof _compMatchOnly === 'function') ? await _compMatchOnly('isopink', 'isopink') : [false, false, false];
 
   const priceFor = (t, cost, m) => Math.ceil(Math.round(t * (cost + m) * 1.1) / 100) * 100;
-  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, bumped = 0;
+  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, bumped = 0, overridden = 0;
 
   ISOPINK_ROWS.forEach(t => {
     const cost = _isoGetCost(t);
     if (!cost) { skippedNoCost++; return; }
+    const overrideField = document.getElementById(`iso_price_override_t${t}`);
     const comp = window._compCache?.isopink?.isopink?.[t] || {};
     const rawPrices = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
     const hasAnyComp = rawPrices.some(v => v != null && v > 0);
     const activeIdx = [0, 1, 2].filter(i => !excluded[i] && rawPrices[i] != null && rawPrices[i] > 0);
     if (!activeIdx.length) {
+      if (overrideField) overrideField.value = ''; // 경쟁가 자체가 없어지면 오버라이드도 같이 해제
       if (!hasAnyComp && marginBump) {
         const field = document.getElementById(`margin_iso_t${t}`);
         const curMargin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _isoGetMargin(t);
@@ -482,8 +509,14 @@ window.autoMatchCompetitorPriceIsopink = async function() {
     // 업체별로 목표가를 따로 구해서(동일가 맞춤 업체는 그 가격까지만, 나머지는 한 단계
     // 더 낮게) 그중 제일 낮은 걸 채택 — 결과적으로 여전히 "가장 공격적인 목표"를 따라가되,
     // 동일가 맞춤 업체가 최저가일 때는 거기서 더 내려가지 않는다(2026-09-04).
-    const cappedPrice = Math.min(...activeIdx.map(i => _competitorTargetForSlot(rawPrices[i], matchOnly[i])));
-    if (cappedPrice <= 0) { skippedBadTarget++; return; }
+    const candidates = activeIdx.map(i => ({
+      raw: rawPrices[i], matchOnly: matchOnly[i],
+      target: _competitorTargetForSlot(rawPrices[i], matchOnly[i]),
+    }));
+    candidates.sort((a, b) => a.target - b.target);
+    const winner = candidates[0];
+    const cappedPrice = winner.target;
+    if (cappedPrice <= 0) { skippedBadTarget++; if (overrideField) overrideField.value = ''; return; }
 
     // cappedPrice 이하로 나올 수 있는 마진 중 가장 큰 값을 찾는다(=최대한 손해를 덜 보는 선에서 목표가 달성)
     let margin = Math.round(cappedPrice / (t * 1.1) - cost);
@@ -494,6 +527,19 @@ window.autoMatchCompetitorPriceIsopink = async function() {
 
     const field = document.getElementById(`margin_iso_t${t}`);
     if (field) { field.value = margin; applied++; }
+
+    // "동일가로만" 업체가 최종 목표를 정했는데(=winner), 정수 마진 특성상 두께가
+    // 클수록 마진 1단위 변화폭이 커서 그 가격을 정확히 못 만드는 경우가 있다(100원
+    // 단위를 건너뜀, 2026-09-04 사용자 발견) — 이때는 마진 계산 대신 가격 자체를
+    // 그 경쟁사가로 강제 고정하고(iso_price_override_t 필드), 화면엔 색을 다르게
+    // 표시해서 "마진이 아니라 가격을 직접 맞췄다"는 걸 알 수 있게 한다.
+    const achieved = priceFor(t, cost, margin);
+    if (winner.matchOnly && achieved !== winner.raw) {
+      if (overrideField) overrideField.value = winner.raw;
+      overridden++;
+    } else if (overrideField) {
+      overrideField.value = '';
+    }
   });
 
   // 두께 역전 보정 — 두께가 클수록 가격이 같거나 비싸야 정상인데, 특정 두께만 경쟁사에
@@ -510,10 +556,15 @@ window.autoMatchCompetitorPriceIsopink = async function() {
   [...ISOPINK_ROWS].sort((a, b) => b - a).forEach(t => {
     const cost = _isoGetCost(t);
     if (!cost) return; // 원가 없는 두께는 체인에서 그냥 건너뜀(끊지 않음)
+    // 가격이 오버라이드된 행(2026-09-04)은 실제 경쟁사가로 고정된 값이라 마진을 건드려도
+    // 의미가 없다 — 마진 조정은 건너뛰고, 이 행의 "실제 가격"은 오버라이드값 그대로 다음
+    // (더 얇은) 두께 비교의 기준(ceiling)으로만 쓴다.
+    const overrideField = document.getElementById(`iso_price_override_t${t}`);
+    const overrideVal = overrideField && overrideField.value.trim() !== '' ? parseFloat(overrideField.value) : null;
     const field = document.getElementById(`margin_iso_t${t}`);
     let margin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _isoGetMargin(t);
-    let price  = priceFor(t, cost, margin);
-    if (ceiling != null && price > ceiling - MIN_STEP) {
+    let price  = overrideVal ?? priceFor(t, cost, margin);
+    if (!overrideVal && ceiling != null && price > ceiling - MIN_STEP) {
       const target = ceiling - MIN_STEP;
       let m = margin, guard = 0;
       while (priceFor(t, cost, m) > target && guard < 200) { m--; guard++; }
@@ -529,6 +580,7 @@ window.autoMatchCompetitorPriceIsopink = async function() {
   recalcPricing();
 
   const parts = [`${applied}개 두께 마진 자동 조정`];
+  if (overridden)        parts.push(`동일가 맞춤 중 가격 직접 고정 ${overridden}건(표에 파란색으로 표시)`);
   if (bumped)            parts.push(`경쟁없음 마진 인상 ${bumped}건`);
   if (cascadeFixed)      parts.push(`두께 역전 ${cascadeFixed}건 추가 보정`);
   if (skippedNoComp)     parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
@@ -1207,8 +1259,12 @@ async function syncAppProductPrices(source) {
     const cost = _isoGetCost_fromData(costsData, t);
     if (!cost) return;
     const margin = _isoGetMargin(t, marginsData);
+    // "동일가로만 맞춤" 오버라이드도 margins JSON에 같이 저장돼 있으니(2026-09-04,
+    // ALL_PRICE_OVERRIDE_FIELDS 참고) 여기서도 반영 — 안 그러면 화면엔 파란색으로
+    // 표시된 강제 가격이 실제 앱/견적서에는 마진 계산값으로 새는 문제가 생김.
+    const overrideVal = marginsData?.[`iso_price_override_t${t}`];
     const sellPerSheet = Math.round(t * (cost + margin) * 1.1);
-    const realPrice = Math.ceil(sellPerSheet / 100) * 100;
+    const realPrice = overrideVal ? overrideVal : Math.ceil(sellPerSheet / 100) * 100;
     push(`Iso_900_1800_${t}_E`, realPrice);
   });
 
@@ -1924,7 +1980,8 @@ function buildIsopinkTab() {
         </tr>
       </tbody>
     </table>`;
-  const hiddenHtml = _hiddenFields(ISOPINK_ROWS.map(t=>`margin_iso_t${t}`),'recalcPricing');
+  const hiddenHtml = _hiddenFields(ISOPINK_ROWS.map(t=>`margin_iso_t${t}`),'recalcPricing')
+    + _hiddenFields(ALL_PRICE_OVERRIDE_FIELDS, 'recalcPricing');
   const resultTableHtml = `<table class="pricing-table">
     <colgroup>
       <col style="width:110px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
