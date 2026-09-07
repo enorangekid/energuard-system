@@ -46,16 +46,23 @@
    --   WHERE grade_id IS NULL;
    --   ALTER TABLE competitor_names DROP CONSTRAINT IF EXISTS competitor_names_pkey;
    --   ALTER TABLE competitor_names ADD PRIMARY KEY (tab_id, grade_id);
+   -- comp{n}_match_only: "경쟁사 최저가 맞춤" 자동계산에서 이 경쟁사는 "더 낮게" 대신
+   -- "동일가로만" 맞춘다. 2026-09-04, 사용자 요청: 크린슐라처럼 도매가 아니라 제조업체로
+   -- 보이는 곳은 가격 구조상 도저히 더 낮출 수 없으니(계속 따라가면 밑도 끝도 없이 내려감),
+   -- 그런 업체는 동일가로만 맞추고 산일 같은 정상 도매 경쟁사는 기존처럼 한 단계 더 낮게.
    CREATE TABLE IF NOT EXISTS competitor_names (
-     tab_id          text NOT NULL,
-     grade_id        text NOT NULL,
-     comp1_name      text,
-     comp2_name      text,
-     comp3_name      text,
-     comp1_excluded  boolean DEFAULT false,
-     comp2_excluded  boolean DEFAULT false,
-     comp3_excluded  boolean DEFAULT false,
-     updated_at      timestamptz DEFAULT now(),
+     tab_id            text NOT NULL,
+     grade_id          text NOT NULL,
+     comp1_name        text,
+     comp2_name        text,
+     comp3_name        text,
+     comp1_excluded    boolean DEFAULT false,
+     comp2_excluded    boolean DEFAULT false,
+     comp3_excluded    boolean DEFAULT false,
+     comp1_match_only  boolean DEFAULT false,
+     comp2_match_only  boolean DEFAULT false,
+     comp3_match_only  boolean DEFAULT false,
+     updated_at        timestamptz DEFAULT now(),
      PRIMARY KEY (tab_id, grade_id)
    );
    ALTER TABLE competitor_names DISABLE ROW LEVEL SECURITY;
@@ -64,6 +71,10 @@
    -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp1_excluded boolean DEFAULT false;
    -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp2_excluded boolean DEFAULT false;
    -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp3_excluded boolean DEFAULT false;
+   -- 2026-09-04: comp{n}_match_only 컬럼이 없다면:
+   -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp1_match_only boolean DEFAULT false;
+   -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp2_match_only boolean DEFAULT false;
+   -- ALTER TABLE competitor_names ADD COLUMN IF NOT EXISTS comp3_match_only boolean DEFAULT false;
 
    [index.html 적용]
    pricing.js 바로 다음에 추가:
@@ -91,11 +102,11 @@ function _compMetaKey(tabId, gradeId) { return `${tabId}:${gradeId}`; }
 async function _compMeta(tabId, gradeId) {
   const key = _compMetaKey(tabId, gradeId);
   if (_compMetaCache[key]) return _compMetaCache[key];
-  let meta = { names: [...COMP_DEFAULT_NAMES], excluded: [false, false, false] };
+  let meta = { names: [...COMP_DEFAULT_NAMES], excluded: [false, false, false], matchOnly: [false, false, false] };
   try {
     const { data: r, error } = await supabaseClient
       .from('competitor_names')
-      .select('comp1_name,comp2_name,comp3_name,comp1_excluded,comp2_excluded,comp3_excluded')
+      .select('comp1_name,comp2_name,comp3_name,comp1_excluded,comp2_excluded,comp3_excluded,comp1_match_only,comp2_match_only,comp3_match_only')
       .eq('tab_id', tabId)
       .eq('grade_id', gradeId)
       .maybeSingle();
@@ -108,6 +119,7 @@ async function _compMeta(tabId, gradeId) {
           r.comp3_name || COMP_DEFAULT_NAMES[2],
         ],
         excluded: [!!r.comp1_excluded, !!r.comp2_excluded, !!r.comp3_excluded],
+        matchOnly: [!!r.comp1_match_only, !!r.comp2_match_only, !!r.comp3_match_only],
       };
     }
   } catch(e) { console.warn('[Comp] 이름/제외설정 로드 실패', e); }
@@ -117,12 +129,16 @@ async function _compMeta(tabId, gradeId) {
 
 async function _compNames(tabId, gradeId) { return (await _compMeta(tabId, gradeId)).names; }
 async function _compExcluded(tabId, gradeId) { return (await _compMeta(tabId, gradeId)).excluded; }
+// 2026-09-04: "동일가로만 맞춤" 플래그(제조업체처럼 도저히 더 낮출 수 없는 경쟁사용).
+async function _compMatchOnly(tabId, gradeId) { return (await _compMeta(tabId, gradeId)).matchOnly; }
 
-async function _saveCompMeta(tabId, gradeId, names, excluded) {
+async function _saveCompMeta(tabId, gradeId, names, excluded, matchOnly) {
   // ⚠️ 예전엔 실패해도 여기서 에러를 삼키고 조용히 리턴해서, 호출부(editCompName)가
   // 항상 "저장되었습니다" 성공 토스트를 띄우는 버그가 있었다 — 실제로는 competitor_names
   // 테이블이 없거나 RLS에 막혀도 사용자는 저장된 줄 알고 새로고침 후에야 원래 이름으로
   // 돌아온 걸 발견하게 됨(2026-09-02). 이제 실패를 그대로 던져서 호출부가 알게 한다.
+  // matchOnly 인자를 안 넘긴 옛 호출부가 있어도 깨지지 않게 기본값 유지(2026-09-04).
+  matchOnly = matchOnly || [false, false, false];
   const { error } = await supabaseClient.from('competitor_names').upsert({
     tab_id: tabId,
     grade_id: gradeId,
@@ -132,13 +148,16 @@ async function _saveCompMeta(tabId, gradeId, names, excluded) {
     comp1_excluded: !!excluded[0],
     comp2_excluded: !!excluded[1],
     comp3_excluded: !!excluded[2],
+    comp1_match_only: !!matchOnly[0],
+    comp2_match_only: !!matchOnly[1],
+    comp3_match_only: !!matchOnly[2],
     updated_at: new Date().toISOString(),
   }, { onConflict: 'tab_id,grade_id' });
   if (error) {
     console.warn('[Comp] 이름/제외설정 저장 실패', error);
     throw error;
   }
-  _compMetaCache[_compMetaKey(tabId, gradeId)] = { names, excluded };
+  _compMetaCache[_compMetaKey(tabId, gradeId)] = { names, excluded, matchOnly };
 }
 
 /* ═══════════════════════════════════════
@@ -446,8 +465,9 @@ async function _injectCompColumns(tabId, gradeId, skipFetch) {
   // Supabase를 때려서 낭비였음).
   if (!skipFetch) await loadCompPrices(tabId, gradeId);
   const meta     = await _compMeta(tabId, gradeId);
-  const names    = meta.names;
-  const excluded = meta.excluded;
+  const names     = meta.names;
+  const excluded  = meta.excluded;
+  const matchOnly = meta.matchOnly;
 
   /* ── 기존 경쟁사 컬럼 완전 제거 후 재주입 ──
      플래그 방식 대신 항상 클린하게 지우고 다시 그림.
@@ -471,16 +491,20 @@ async function _injectCompColumns(tabId, gradeId, skipFetch) {
 
   if (theadTrs.length >= 2) {
     names.forEach((name, i) => {
-      const isExcluded = !!excluded[i];
+      const isExcluded  = !!excluded[i];
+      const isMatchOnly = !!matchOnly[i];
       const th = document.createElement('th');
       th.colSpan = 2;
-      th.className = 'cp-th-group' + (isExcluded ? ' cp-th-excluded' : '');
+      th.className = 'cp-th-group' + (isExcluded ? ' cp-th-excluded' : '') + (isMatchOnly ? ' cp-th-matchonly' : '');
       th.style.cssText = `--cc:${COMP_COLORS[i]}`;
       th.innerHTML = `
         <div class="cp-th-inner">
           <span class="cp-th-name" data-ci="${i}" data-tab="${tabId}" data-grade="${gradeId}">${name}</span>
           <div class="cp-th-actions">
             <button class="cp-name-btn" title="이름 변경" onclick="editCompName(${i}, '${tabId}', '${gradeId}')"><i class="fa-solid fa-pen-to-square"></i></button>
+            <button class="cp-match-btn${isMatchOnly ? ' active' : ''}" data-ci="${i}" data-tab="${tabId}" data-grade="${gradeId}"
+              title="${isMatchOnly ? '동일가로만 맞춤 — 클릭하면 다시 한 단계 낮게' : '가격을 도저히 못 낮추는 업체(제조업체 등)면 눌러서 동일가로만 맞춤'}"
+              onclick="toggleCompMatchOnly(${i}, '${tabId}', '${gradeId}')"><i class="fa-solid fa-equals"></i></button>
             <button class="cp-exclude-btn${isExcluded ? ' active' : ''}" data-ci="${i}" data-tab="${tabId}" data-grade="${gradeId}"
               title="${isExcluded ? '가격맞춤 계산에서 제외됨 — 클릭하면 다시 포함' : '가격 도저히 못 맞추는 업체면 눌러서 가격맞춤 계산에서 제외'}"
               onclick="toggleCompExcluded(${i}, '${tabId}', '${gradeId}')"><i class="fa-solid fa-ban"></i></button>
@@ -562,7 +586,7 @@ window.editCompName = async function(idx, tabId, gradeId) {
   if (!newName || !newName.trim()) return;
   names[idx] = newName.trim();
   try {
-    await _saveCompMeta(tabId, gradeId, names, meta.excluded);
+    await _saveCompMeta(tabId, gradeId, names, meta.excluded, meta.matchOnly);
   } catch (e) {
     if (typeof showToast === 'function') showToast('이름 저장 실패 — competitor_names 테이블을 확인해주세요.', 'error');
     return;
@@ -586,7 +610,7 @@ window.toggleCompExcluded = async function(idx, tabId, gradeId) {
   const excluded = [...meta.excluded];
   excluded[idx] = !excluded[idx];
   try {
-    await _saveCompMeta(tabId, gradeId, meta.names, excluded);
+    await _saveCompMeta(tabId, gradeId, meta.names, excluded, meta.matchOnly);
   } catch (e) {
     if (typeof showToast === 'function') showToast('저장 실패 — competitor_names 테이블에 comp{n}_excluded 컬럼이 있는지 확인해주세요.', 'error');
     return;
@@ -598,6 +622,37 @@ window.toggleCompExcluded = async function(idx, tabId, gradeId) {
   });
   if (typeof showToast === 'function') {
     showToast(excluded[idx] ? '가격맞춤 계산에서 제외했습니다.' : '가격맞춤 계산에 다시 포함했습니다.', 'success');
+  }
+}
+
+/* ═══════════════════════════════════════
+   경쟁사 "동일가로만 맞춤" 토글 (2026-09-04)
+   — 크린슐라처럼 도매업체가 아니라 제조업체로 보여서 가격 구조상 도저히 더 낮출 수
+   없는 업체는, 자동 최저가 맞춤에서 "한 단계 더 낮게"가 아니라 "딱 동일가"까지만
+   맞춘다. 제외(toggleCompExcluded)와 달리 계산에서 완전히 빠지는 게 아니라, 이
+   업체가 최저가일 때 우리 목표가의 하한선 역할을 한다.
+═══════════════════════════════════════ */
+window.toggleCompMatchOnly = async function(idx, tabId, gradeId) {
+  if (window.currentUser?.role !== 'admin') {
+    if (typeof showToast === 'function') showToast('관리자만 변경할 수 있습니다.', 'warning');
+    return;
+  }
+  const meta = await _compMeta(tabId, gradeId);
+  const matchOnly = [...meta.matchOnly];
+  matchOnly[idx] = !matchOnly[idx];
+  try {
+    await _saveCompMeta(tabId, gradeId, meta.names, meta.excluded, matchOnly);
+  } catch (e) {
+    if (typeof showToast === 'function') showToast('저장 실패 — competitor_names 테이블에 comp{n}_match_only 컬럼이 있는지 확인해주세요.', 'error');
+    return;
+  }
+  document.querySelectorAll(`.cp-match-btn[data-ci="${idx}"][data-tab="${tabId}"][data-grade="${gradeId}"]`).forEach(btn => {
+    btn.classList.toggle('active', matchOnly[idx]);
+    btn.title = matchOnly[idx] ? '동일가로만 맞춤 — 클릭하면 다시 한 단계 낮게' : '가격을 도저히 못 낮추는 업체(제조업체 등)면 눌러서 동일가로만 맞춤';
+    btn.closest('.cp-th-group')?.classList.toggle('cp-th-matchonly', matchOnly[idx]);
+  });
+  if (typeof showToast === 'function') {
+    showToast(matchOnly[idx] ? '이 업체는 이제 동일가로만 맞춥니다.' : '이 업체도 다시 한 단계 더 낮게 맞춥니다.', 'success');
   }
 }
 
@@ -869,6 +924,37 @@ document.addEventListener('DOMContentLoaded', () => {
   color: #94a3b8;
 }
 .cp-th-group.cp-th-excluded .cp-th-name { text-decoration: line-through; opacity: 0.6; }
+
+/* ── "동일가로만 맞춤" 토글 (2026-09-04) ──
+   제조업체처럼 도저히 더 낮출 수 없는 경쟁사는 자동 맞춤에서 한 단계 낮추는 대신
+   딱 동일가까지만 맞춘다(autoMatchCompetitorPriceIsopink/Generic 참고). 제외와
+   달리 계산에는 계속 참여하므로 색을 다르게(파란 계열) 둬서 구분한다. */
+.cp-match-btn {
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 2px 5px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--cc, #6366f1);
+  opacity: 0.6;
+  transition: opacity .15s, background .15s, color .15s, border-color .15s;
+  line-height: 1;
+}
+.cp-match-btn:hover { opacity: 1; }
+.cp-match-btn.active {
+  opacity: 1;
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #2563eb;
+}
+.cp-th-group.cp-th-matchonly .cp-th-name::after {
+  content: '=동일가';
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #2563eb;
+}
 
 /* ── 읽기 전용 값 표시 ── */
 .cp-val {

@@ -431,6 +431,15 @@ function _competitorTarget(compPrice) {
   return target;
 }
 
+/* 2026-09-04, 사용자 요청: 크린슐라처럼 도매업체가 아니라 제조업체로 보이는 곳은
+   가격 구조상 도저히 더 낮출 수 없다(계속 따라가면 밑도 끝도 없이 내려감) — 그런
+   업체는 "동일가"(그 업체 가격을 100원 단위로 내림한 값, 절대 더 낮추지 않음)까지만
+   맞추고, 산일처럼 정상적으로 맞출 수 있는 업체는 기존처럼 한 단계 더 낮게(
+   _competitorTarget). pricing-competitor.js의 comp{n}_match_only 플래그를 따른다. */
+function _competitorTargetForSlot(compPrice, matchOnly) {
+  return matchOnly ? Math.floor(compPrice / 100) * 100 : _competitorTarget(compPrice);
+}
+
 window.autoMatchCompetitorPriceIsopink = async function() {
   if (window.currentUser?.role !== 'admin') return;
 
@@ -447,6 +456,8 @@ window.autoMatchCompetitorPriceIsopink = async function() {
   // 가격을 도저히 못 맞추는 업체는 이름/가격 표시는 그대로 두고 이 계산에서만 뺀다
   // (경쟁사 헤더의 "제외" 버튼, pricing-competitor.js의 _compExcluded 참고, 2026-09-02)
   const excluded = (typeof _compExcluded === 'function') ? await _compExcluded('isopink', 'isopink') : [false, false, false];
+  // 제조업체 등 "동일가로만" 맞출 업체 플래그(2026-09-04, comp{n}_match_only 참고)
+  const matchOnly = (typeof _compMatchOnly === 'function') ? await _compMatchOnly('isopink', 'isopink') : [false, false, false];
 
   const priceFor = (t, cost, m) => Math.ceil(Math.round(t * (cost + m) * 1.1) / 100) * 100;
   let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, bumped = 0;
@@ -457,8 +468,8 @@ window.autoMatchCompetitorPriceIsopink = async function() {
     const comp = window._compCache?.isopink?.isopink?.[t] || {};
     const rawPrices = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
     const hasAnyComp = rawPrices.some(v => v != null && v > 0);
-    const prices = rawPrices.filter((v, i) => !excluded[i] && v != null && v > 0);
-    if (!prices.length) {
+    const activeIdx = [0, 1, 2].filter(i => !excluded[i] && rawPrices[i] != null && rawPrices[i] > 0);
+    if (!activeIdx.length) {
       if (!hasAnyComp && marginBump) {
         const field = document.getElementById(`margin_iso_t${t}`);
         const curMargin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _isoGetMargin(t);
@@ -468,8 +479,10 @@ window.autoMatchCompetitorPriceIsopink = async function() {
       }
       return;
     }
-    const minComp = Math.min(...prices);
-    const cappedPrice = _competitorTarget(minComp);
+    // 업체별로 목표가를 따로 구해서(동일가 맞춤 업체는 그 가격까지만, 나머지는 한 단계
+    // 더 낮게) 그중 제일 낮은 걸 채택 — 결과적으로 여전히 "가장 공격적인 목표"를 따라가되,
+    // 동일가 맞춤 업체가 최저가일 때는 거기서 더 내려가지 않는다(2026-09-04).
+    const cappedPrice = Math.min(...activeIdx.map(i => _competitorTargetForSlot(rawPrices[i], matchOnly[i])));
     if (cappedPrice <= 0) { skippedBadTarget++; return; }
 
     // cappedPrice 이하로 나올 수 있는 마진 중 가장 큰 값을 찾는다(=최대한 손해를 덜 보는 선에서 목표가 달성)
@@ -556,10 +569,14 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
 
   await loadCompPrices(tabId, gradeId);
   const excluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, gradeId) : [false, false, false];
+  // 제조업체 등 "동일가로만" 맞출 업체 플래그(2026-09-04, comp{n}_match_only 참고)
+  const matchOnly = (typeof _compMatchOnly === 'function') ? await _compMatchOnly(tabId, gradeId) : [false, false, false];
   let siblingExcluded = [false, false, false];
+  let siblingMatchOnly = [false, false, false];
   if (siblingGrade) {
     await loadCompPrices(tabId, siblingGrade.id);
     siblingExcluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, siblingGrade.id) : [false, false, false];
+    siblingMatchOnly = (typeof _compMatchOnly === 'function') ? await _compMatchOnly(tabId, siblingGrade.id) : [false, false, false];
   }
 
   const isFr = tabId === 'fr';
@@ -579,13 +596,17 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     while (priceForGrade(g, cost, m + 1, t) <= cappedPrice && guard < 200) { m++; guard++; }
     return m;
   }
-  // 특정 (탭,등급,두께)의 경쟁가 기준 목표가 계산 — 없으면 null
-  function targetFor(gId, t, excl) {
+  // 특정 (탭,등급,두께)의 경쟁가 기준 목표가 계산 — 없으면 null. match는 comp{n}별
+  // "동일가로만" 플래그(2026-09-04) — 업체별로 목표가를 따로 구해서 그중 가장 낮은 걸 쓴다.
+  function targetFor(gId, t, excl, match) {
     const comp = window._compCache?.[tabId]?.[gId]?.[t] || {};
     const raw = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
     const hasAny = raw.some(v => v != null && v > 0);
-    const prices = raw.filter((v, i) => !excl[i] && v != null && v > 0);
-    return { hasAny, cappedPrice: prices.length ? _competitorTarget(Math.min(...prices)) : null };
+    const activeIdx = [0, 1, 2].filter(i => !excl[i] && raw[i] != null && raw[i] > 0);
+    const cappedPrice = activeIdx.length
+      ? Math.min(...activeIdx.map(i => _competitorTargetForSlot(raw[i], match[i])))
+      : null;
+    return { hasAny, cappedPrice };
   }
 
   let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, bumped = 0;
@@ -595,8 +616,8 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     const cost   = costId ? fieldVal(costId) : 0;
     if (!cost) { skippedNoCost++; return; }
 
-    const own = targetFor(gradeId, t, excluded);
-    const sib = siblingGrade ? targetFor(siblingGrade.id, t, siblingExcluded) : { hasAny: false, cappedPrice: null };
+    const own = targetFor(gradeId, t, excluded, matchOnly);
+    const sib = siblingGrade ? targetFor(siblingGrade.id, t, siblingExcluded, siblingMatchOnly) : { hasAny: false, cappedPrice: null };
 
     if (own.cappedPrice == null && sib.cappedPrice == null) {
       if (!own.hasAny && !sib.hasAny && marginBump) {
