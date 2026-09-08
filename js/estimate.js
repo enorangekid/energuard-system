@@ -211,7 +211,8 @@ function _estGetRealPrice(productId, t) {
       if (!costPerM2) return null;
       const marginPerM2 = _getMargin('bead', grade, t, marginSrc);
       const r = calcSheetRow(costPerM2, marginPerM2, t, grade.area);
-      return r.realPrice;
+      // "동일가로만 맞춤" 오버라이드(2026-09-04, pricing.js의 _getOverrideId 참고)
+      return marginSrc?.[_getOverrideId('bead', grade, t)] || r.realPrice;
     }
 
     // ── 경질우레탄 ──
@@ -225,7 +226,7 @@ function _estGetRealPrice(productId, t) {
       if (!costPerM2) return null;
       const marginPerM2 = _getMargin('pu', grade, t, marginSrc);
       const r = calcSheetRow(costPerM2, marginPerM2, t, grade.area);
-      return r.realPrice;
+      return marginSrc?.[_getOverrideId('pu', grade, t)] || r.realPrice;
     }
 
     // ── PF보드 ──
@@ -236,7 +237,7 @@ function _estGetRealPrice(productId, t) {
       if (!costPerM2) return null;
       const marginPerM2 = _getMargin('pf', grade, t, marginSrc);
       const r = calcSheetRow(costPerM2, marginPerM2, t, grade.area);
-      return r.realPrice;
+      return marginSrc?.[_getOverrideId('pf', grade, t)] || r.realPrice;
     }
 
     // ── 불연단열재 ──
@@ -251,7 +252,8 @@ function _estGetRealPrice(productId, t) {
       const marginPerSheet = _getMargin('fr', grade, t, marginSrc);
       if (!costPerM2) return null;
       const r = calcFrSheetRow(costPerM2, marginPerSheet, grade.area);
-      return r ? r.realPrice : null;
+      if (!r) return null;
+      return marginSrc?.[_getOverrideId('fr', grade, t)] || r.realPrice;
     }
 
   } catch(e) { console.error('[_estGetRealPrice]', productId, t, e); return null; }

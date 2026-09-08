@@ -173,9 +173,16 @@ const ALL_COST_FIELDS = [
 /* 경쟁사 "동일가로만 맞춤"에서 정수 마진 특성상 정확히 그 가격을 못 만드는 경우
    (두께가 클수록 마진 1단위 변화폭이 커져서 100원 단위를 건너뛰기도 함, 2026-09-04
    사용자 발견) — 마진 계산을 무시하고 가격 자체를 그 경쟁사가로 강제 고정하는 필드.
-   margins JSON 컬럼에 같이 저장되게 ALL_MARGIN_FIELDS에 합쳐둔다. 우선 아이소핑크만
-   지원(다른 자재도 같은 문제가 생기면 확장). */
-const ALL_PRICE_OVERRIDE_FIELDS = ISOPINK_ROWS.map(t => `iso_price_override_t${t}`);
+   margins JSON 컬럼에 같이 저장되게 ALL_MARGIN_FIELDS에 합쳐둔다. 처음엔 아이소핑크만
+   지원했다가(iso_price_override_t{T}), 2026-09-04(2차)에 비드법/PU/PF/불연까지 확장
+   — 필드 id 규칙은 _getOverrideId(tabId, grade, t)와 반드시 맞춰야 함. */
+const ALL_PRICE_OVERRIDE_FIELDS = [
+  ...ISOPINK_ROWS.map(t => `iso_price_override_t${t}`),
+  ...BEAD_GRADES.flatMap(g => BEAD_ROWS.map(t => `bead_price_override_${g.id}_t${t}`)),
+  ...PU_GRADES.flatMap(g => g.rows.map(t => `pu_price_override_${g.id}_t${t}`)),
+  ...PF_GRADES.flatMap(g => PF_ROWS.map(t => `pf_price_override_${g.id}_t${t}`)),
+  ...FR_GRADES.flatMap(g => g.rows.map(t => `fr_price_override_${g.id}_t${t}`)),
+];
 
 /* 마진 필드 목록 (margins JSON 컬럼에 저장) */
 const ALL_MARGIN_FIELDS = [
@@ -266,6 +273,8 @@ function compareFrSheetRealPrice(costPerM2, marginPerSheet, area) {
    컬럼: 품명 | 두께 | m²당원가 | 장당마진 | 장당원가 | 장당판매가 | VAT포함판매가 | 최종판매가 | 이전대비 | 마진금액 | 부가세 | 수수료6% | 순수마진 | 마진율 */
 function _frResultRow(t, r, badge, extraCells) {
   if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
+  const overrideCls = r.overridden ? ' pricing-price-override' : '';
+  const overrideTitle = r.overridden ? ' title="정수 마진으로는 경쟁사 가격을 정확히 못 맞춰서, 마진 계산 대신 가격 자체를 경쟁사가로 강제 고정함"' : '';
   return `<tr data-t="${t}">${extraCells}
     <td class="td-thick">${t}</td>
     <td class="td-num">${fmt(r.costPerM2)}</td>
@@ -273,7 +282,7 @@ function _frResultRow(t, r, badge, extraCells) {
     <td class="td-num">${fmt(r.costPerSheet)}</td>
     <td class="td-num">${fmt(r.sellPerSheet)}</td>
     <td class="td-num">${fmt(r.vatSell)}</td>
-    <td class="td-highlight">${fmt(r.realPrice)}</td>
+    <td class="td-highlight${overrideCls}"${overrideTitle}>${fmt(r.realPrice)}</td>
     <td class="td-diff">${badge}</td>
     <td class="td-num">${fmt(r.marginAmt)}</td>
     <td class="td-num">${fmt(r.vat)}</td>
@@ -286,17 +295,39 @@ function _frResultRow(t, r, badge, extraCells) {
 /* 결과 테이블 행 HTML (비드법·PU·PF 공통) */
 function _resultRow(t, r, badge, extraCells) {
   if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
+  const overrideCls = r.overridden ? ' pricing-price-override' : '';
+  const overrideTitle = r.overridden ? ' title="정수 마진으로는 경쟁사 가격을 정확히 못 맞춰서, 마진 계산 대신 가격 자체를 경쟁사가로 강제 고정함"' : '';
   return `<tr data-t="${t}">${extraCells}
     <td class="td-thick">${t}</td>
     <td class="td-num">${fmt(r.costPerM2)}</td><td class="td-num">${fmt(r.marginPerM2)}</td><td class="td-num">${fmt(r.sellPerM2)}</td>
     <td class="td-num">${fmt(r.costPerSheet)}</td><td class="td-num">${fmt(r.sellPerSheet)}</td>
-    <td class="td-highlight">${fmt(r.realPrice)}</td>
+    <td class="td-highlight${overrideCls}"${overrideTitle}>${fmt(r.realPrice)}</td>
     <td class="td-diff">${badge}</td>
     <td class="td-num">${fmt(r.marginAmt)}</td><td class="td-num">${fmt(r.vat)}</td><td class="td-num">${fmt(r.commission)}</td>
     <td class="td-num">${fmt(r.netMargin)}</td>
     <td class="td-diff"><span class="pricing-rate-badge ${rateClass(r.marginRate)}">${r.marginRate}%</span></td>
   </tr>`;
 }
+
+/* "동일가로만 맞춤" 가격 오버라이드 공통 처리(2026-09-04, 아이소핑크 전용이던 걸 비드법/
+   PU/PF/불연까지 확장) — 정수 마진 특성상 목표가를 정확히 못 만들 때, 마진 계산 결과
+   대신 오버라이드 필드값을 실제 판매가로 쓰고 마진분석도 그 가격 기준으로 재계산한다.
+   costBasis: calcSheetRow류는 costPerSheet, calcFrSheetRow는 vatCost(둘 다 "VAT 포함
+   원가"로 마진액 계산의 기준이 되는 값 — 함수마다 필드명이 달라 인자로 받는다). */
+function _applyPriceOverride(r, overridePrice, costBasis) {
+  if (overridePrice == null || r.realPrice === overridePrice) return r;
+  const marginAmt  = overridePrice - costBasis;
+  const vat        = Math.round(marginAmt / 11);
+  const commission = Math.round(overridePrice * 0.06);
+  const netMargin  = marginAmt - vat - commission;
+  const marginRate = overridePrice > 0 ? Math.round((netMargin / overridePrice) * 100) : 0;
+  return { ...r, realPrice: overridePrice, marginAmt, vat, commission, netMargin, marginRate, overridden: true };
+}
+
+/* 오버라이드 필드 id — 마진 필드(_getMarginId)와 달리 PF 소형/대형처럼 마진을 공유하는
+   경우에도 항상 grade(등급) 단위로 독립적으로 둔다(가격 자체를 강제하는 거라 규격별로
+   달라야 함, 2026-09-04). */
+function _getOverrideId(tabId, grade, t) { return `${tabId}_price_override_${grade.id}_t${t}`; }
 
 /* ═══════════════════════════════════════
    현재 비교 이력
@@ -649,29 +680,37 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     return m;
   }
   // 특정 (탭,등급,두께)의 경쟁가 기준 목표가 계산 — 없으면 null. match는 comp{n}별
-  // "동일가로만" 플래그(2026-09-04) — 업체별로 목표가를 따로 구해서 그중 가장 낮은 걸 쓴다.
+  // "동일가로만" 플래그(2026-09-04) — 업체별로 목표가를 따로 구해서 그중 가장 낮은 걸 쓰고,
+  // 그 winner(raw가·matchOnly 여부)도 같이 돌려준다 — 나중에 오버라이드 판단에 필요.
   function targetFor(gId, t, excl, match) {
     const comp = window._compCache?.[tabId]?.[gId]?.[t] || {};
     const raw = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
     const hasAny = raw.some(v => v != null && v > 0);
     const activeIdx = [0, 1, 2].filter(i => !excl[i] && raw[i] != null && raw[i] > 0);
-    const cappedPrice = activeIdx.length
-      ? Math.min(...activeIdx.map(i => _competitorTargetForSlot(raw[i], match[i])))
-      : null;
-    return { hasAny, cappedPrice };
+    if (!activeIdx.length) return { hasAny, cappedPrice: null, winner: null };
+    const candidates = activeIdx.map(i => ({
+      raw: raw[i], matchOnly: match[i], target: _competitorTargetForSlot(raw[i], match[i]),
+    }));
+    candidates.sort((a, b) => a.target - b.target);
+    const winner = candidates[0];
+    return { hasAny, cappedPrice: winner.target, winner };
   }
 
-  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, bumped = 0;
+  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, bumped = 0, overridden = 0;
 
   rows.forEach(t => {
     const costId = _getCostId(tabId, grade, t);
     const cost   = costId ? fieldVal(costId) : 0;
+    const ownOverrideField = document.getElementById(_getOverrideId(tabId, grade, t));
+    const sibOverrideField = siblingGrade ? document.getElementById(_getOverrideId(tabId, siblingGrade, t)) : null;
     if (!cost) { skippedNoCost++; return; }
 
     const own = targetFor(gradeId, t, excluded, matchOnly);
-    const sib = siblingGrade ? targetFor(siblingGrade.id, t, siblingExcluded, siblingMatchOnly) : { hasAny: false, cappedPrice: null };
+    const sib = siblingGrade ? targetFor(siblingGrade.id, t, siblingExcluded, siblingMatchOnly) : { hasAny: false, cappedPrice: null, winner: null };
 
     if (own.cappedPrice == null && sib.cappedPrice == null) {
+      if (ownOverrideField) ownOverrideField.value = '';
+      if (sibOverrideField) sibOverrideField.value = '';
       if (!own.hasAny && !sib.hasAny && marginBump) {
         const marginId = _getMarginId(tabId, grade, t);
         const field = marginId ? document.getElementById(marginId) : null;
@@ -682,19 +721,41 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
       }
       return;
     }
-    if (own.cappedPrice != null && own.cappedPrice <= 0) { skippedBadTarget++; return; }
-    if (sib.cappedPrice != null && sib.cappedPrice <= 0) { skippedBadTarget++; return; }
+    if (own.cappedPrice != null && own.cappedPrice <= 0) { skippedBadTarget++; if (ownOverrideField) ownOverrideField.value = ''; if (sibOverrideField) sibOverrideField.value = ''; return; }
+    if (sib.cappedPrice != null && sib.cappedPrice <= 0) { skippedBadTarget++; if (ownOverrideField) ownOverrideField.value = ''; if (sibOverrideField) sibOverrideField.value = ''; return; }
 
     // 두 목표(자기 자신 + 짝 규격) 중 존재하는 것만 풀어서, 둘 다 만족하는 마진 중
     // 더 작은(더 저렴한) 값을 쓴다 — 하나만 있으면 그 값 그대로.
-    const candidates = [];
-    if (own.cappedPrice != null) candidates.push(solveMargin(grade, cost, t, own.cappedPrice));
-    if (sib.cappedPrice != null) candidates.push(solveMargin(siblingGrade, cost, t, sib.cappedPrice));
-    const margin = Math.min(...candidates);
+    const ownMargin = own.cappedPrice != null ? solveMargin(grade, cost, t, own.cappedPrice) : null;
+    const sibMargin = sib.cappedPrice != null ? solveMargin(siblingGrade, cost, t, sib.cappedPrice) : null;
+    const margin = Math.min(...[ownMargin, sibMargin].filter(m => m != null));
 
     const marginId = _getMarginId(tabId, grade, t);
     const field = marginId ? document.getElementById(marginId) : null;
     if (field) { field.value = margin; applied++; }
+
+    // "동일가로만" 업체가 최종 마진을 실제로 결정했을 때만(=자기 solveMargin 결과가
+    // 최종 마진과 같을 때만) 오버라이드 판단 — PF처럼 짝 규격이 더 타이트해서 덤으로
+    // 더 싸진 경우까지 억지로 끌어올리지 않는다(2026-09-04). 정수 마진 특성상 정확히
+    // 못 맞추면 마진 대신 가격 자체를 강제 고정(아이소핑크와 동일한 로직).
+    if (ownOverrideField) {
+      if (ownMargin != null && ownMargin === margin && own.winner?.matchOnly) {
+        const achieved = priceForGrade(grade, cost, margin, t);
+        if (achieved !== own.winner.raw) { ownOverrideField.value = own.winner.raw; overridden++; }
+        else { ownOverrideField.value = ''; }
+      } else {
+        ownOverrideField.value = '';
+      }
+    }
+    if (siblingGrade && sibOverrideField) {
+      if (sibMargin != null && sibMargin === margin && sib.winner?.matchOnly) {
+        const achievedSib = priceForGrade(siblingGrade, cost, margin, t);
+        if (achievedSib !== sib.winner.raw) { sibOverrideField.value = sib.winner.raw; overridden++; }
+        else { sibOverrideField.value = ''; }
+      } else {
+        sibOverrideField.value = '';
+      }
+    }
   });
 
   // 두께 역전 보정 — 두께가 클수록 가격이 같거나 비싸야 정상인데, 특정 두께만 경쟁사에
@@ -712,11 +773,15 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     const costId = _getCostId(tabId, grade, t);
     const cost   = costId ? fieldVal(costId) : 0;
     if (!cost) return; // 원가 없는 두께는 체인에서 그냥 건너뜀(끊지 않음)
+    // 가격이 오버라이드된 행(2026-09-04)은 마진을 건드려도 실제 표시가는 그대로라
+    // 마진 조정은 건너뛰고, 이 행의 실제가(오버라이드값)를 다음 두께 비교 기준으로만 쓴다.
+    const overrideField = document.getElementById(_getOverrideId(tabId, grade, t));
+    const overrideVal = overrideField && overrideField.value.trim() !== '' ? parseFloat(overrideField.value) : null;
     const marginId = _getMarginId(tabId, grade, t);
     const field = marginId ? document.getElementById(marginId) : null;
     let margin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
-    let price  = priceFor(cost, margin, t);
-    if (ceiling != null && price > ceiling - MIN_STEP) {
+    let price  = overrideVal ?? priceFor(cost, margin, t);
+    if (!overrideVal && ceiling != null && price > ceiling - MIN_STEP) {
       const target = ceiling - MIN_STEP;
       let m = margin, guard = 0;
       while (priceFor(cost, m, t) > target && guard < 200) { m--; guard++; }
@@ -733,6 +798,7 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   recalcFn?.();
 
   const parts = [`${applied}개 두께 마진 자동 조정`];
+  if (overridden)        parts.push(`동일가 맞춤 중 가격 직접 고정 ${overridden}건(표에 파란색으로 표시)`);
   if (bumped)            parts.push(`경쟁없음 마진 인상 ${bumped}건`);
   if (cascadeFixed)      parts.push(`두께 역전 ${cascadeFixed}건 추가 보정`);
   if (skippedNoComp)     parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
@@ -1029,7 +1095,10 @@ function _recalcTab(tabId) {
       const costId      = _getCostId(tabId, grade, t);
       const costPerM2   = costId ? fieldVal(costId) : 0;
       const marginSheet = _getMargin(tabId, grade, t);
-      const r           = calcFrSheetRow(costPerM2, marginSheet, grade.area);
+      let r             = calcFrSheetRow(costPerM2, marginSheet, grade.area);
+      const overrideEl  = document.getElementById(_getOverrideId(tabId, grade, t));
+      const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+      if (r && overrideVal) r = _applyPriceOverride(r, overrideVal, r.vatCost);
       const prevCost    = (_compareData && costId) ? (_compareData[costId] || 0) : null;
       const prevMargin  = _compareData ? _getMargin(tabId, grade, t, _compareData.margins ?? _compareData) : null;
       const badge       = diffBadge(r?.realPrice, prevCost ? compareFrSheetRealPrice(prevCost, prevMargin, grade.area) : null);
@@ -1045,7 +1114,10 @@ function _recalcTab(tabId) {
     const costPerM2   = costId ? fieldVal(costId) : 0;
     const marginPerM2 = _getMargin(tabId, grade, t);
     const tEff        = grade.tFactor ?? t;
-    const r           = costPerM2 ? { t, ...calcSheetRow(costPerM2, marginPerM2, tEff, grade.area) } : null;
+    let r             = costPerM2 ? { t, ...calcSheetRow(costPerM2, marginPerM2, tEff, grade.area) } : null;
+    const overrideEl  = document.getElementById(_getOverrideId(tabId, grade, t));
+    const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+    if (r && overrideVal) r = _applyPriceOverride(r, overrideVal, r.costPerSheet);
     const prevCost    = (_compareData && costId) ? (_compareData[costId] || 0) : null;
     const prevMargin  = _compareData ? _getMargin(tabId, grade, t, _compareData.margins ?? _compareData) : null;
     const badge       = diffBadge(r?.realPrice, prevCost ? compareRealPrice(prevCost, prevMargin, tEff, grade.area) : null);
@@ -1277,6 +1349,10 @@ async function syncAppProductPrices(source) {
     'iia2':  'Neo_2',
     'ia2':   'Neo_3',
   };
+  // "동일가로만 맞춤" 오버라이드(2026-09-04) — margins JSON에 같이 저장돼 있으니
+  // 여기서도 반영. 안 그러면 화면엔 파란색으로 보여도 실제 앱 가격엔 마진 계산값이 샘.
+  const overrideFor = (tabId, grade, t) => marginsData?.[_getOverrideId(tabId, grade, t)] || null;
+
   BEAD_GRADES.forEach(grade => {
     const prefix = BEAD_CODE_MAP[grade.id];
     if (!prefix) return;
@@ -1286,7 +1362,7 @@ async function syncAppProductPrices(source) {
       const margin = _getMargin('bead', grade, t, marginsData);
       const r = cost ? calcSheetRow(cost, margin, t, grade.area) : null;
       if (!r) return;
-      push(`${prefix}_900_1800_${t}_E`, r.realPrice);
+      push(`${prefix}_900_1800_${t}_E`, overrideFor('bead', grade, t) ?? r.realPrice);
     });
   });
 
@@ -1299,8 +1375,9 @@ async function syncAppProductPrices(source) {
       const margin = _getMargin('bead', beadJun, t, marginsData);
       const r = cost ? calcSheetRow(cost, margin, t, beadJun.area) : null;
       if (!r) return;
-      push(`NeoQF_900_1800_${t}_E`, r.realPrice);
-      push(`NeoQF_600_1200_${t}_E`, r.realPrice);
+      const price = overrideFor('bead', beadJun, t) ?? r.realPrice;
+      push(`NeoQF_900_1800_${t}_E`, price);
+      push(`NeoQF_600_1200_${t}_E`, price);
     });
   }
 
@@ -1321,7 +1398,7 @@ async function syncAppProductPrices(source) {
       const tEff = grade.tFactor ?? t;
       const r = cost ? calcSheetRow(cost, margin, tEff, grade.area) : null;
       if (!r) return;
-      push(`${prefix}_1000_2000_${t}_E`, r.realPrice);
+      push(`${prefix}_1000_2000_${t}_E`, overrideFor('pu', grade, t) ?? r.realPrice);
     });
   });
 
@@ -1346,7 +1423,7 @@ async function syncAppProductPrices(source) {
       const margin = _getMargin('pf', grade, t, marginsData);
       const r = cost ? calcSheetRow(cost, margin, t, grade.area) : null;
       if (!r) return;
-      push(`${prefix}_${t}_E`, r.realPrice);
+      push(`${prefix}_${t}_E`, overrideFor('pf', grade, t) ?? r.realPrice);
     });
   });
 
@@ -1359,7 +1436,7 @@ async function syncAppProductPrices(source) {
       const margin = _getMargin('fr', frBul, t, marginsData);
       const r = cost ? calcFrSheetRow(cost, margin, frBul.area) : null;
       if (!r) return;
-      push(`HR_F_1000_1200_${t}_E`, r.realPrice);
+      push(`HR_F_1000_1200_${t}_E`, overrideFor('fr', frBul, t) ?? r.realPrice);
     });
   }
 
@@ -2019,7 +2096,8 @@ function buildBeadTab() {
     <thead><tr><th>종류</th><th>품명</th><th>단가 (원/m²)</th><th class="pricing-col-diff">이전대비</th></tr></thead>
     <tbody>${costRows}</tbody>
   </table>`;
-  const hiddenHtml = _hiddenFields(BEAD_ROWS.flatMap(t=>[`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_t${t}`]),'recalcBead');
+  const hiddenHtml = _hiddenFields(BEAD_ROWS.flatMap(t=>[`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_t${t}`]),'recalcBead')
+    + _hiddenFields(BEAD_GRADES.flatMap(g => BEAD_ROWS.map(t => _getOverrideId('bead', g, t))), 'recalcBead');
   const subtabBar = `<div class="bead-subtab-bar">
     ${BEAD_GRADES.map((g,i)=>`<button class="bead-subtab${i===0?' active':''}" onclick="setBeadSubtab('${g.id}',this)">${g.label}<span class="bead-subtab-sub">${g.sub}</span></button>`).join('')}
   </div>`;
@@ -2072,8 +2150,9 @@ function buildPuTab() {
     ${_resultThead(['품명'])}
     <tbody id="puTableBody"></tbody>
   </table>`;
+  const puOverrideIds = PU_GRADES.flatMap(g => g.rows.map(t => _getOverrideId('pu', g, t)));
   document.getElementById('pricing-tab-pu').innerHTML =
-    _costCard('pu','pu','품종별 m²당 원가를 입력하세요', `<div class="pu-cost-tables-row">${gradeTables}</div>`, _hiddenFields(hiddenIds,'recalcPu')) +
+    _costCard('pu','pu','품종별 m²당 원가를 입력하세요', `<div class="pu-cost-tables-row">${gradeTables}</div>`, _hiddenFields(hiddenIds,'recalcPu') + _hiddenFields(puOverrideIds,'recalcPu')) +
     _resultCard('경질우레탄보드 단가표','규격: 1000×2000mm', subtabBar, resultTableHtml);
 }
 
@@ -2119,7 +2198,8 @@ function buildPfTab() {
     <thead><tr><th>품명</th><th>부위</th><th>단가 (원/m²)</th><th class="pricing-col-diff">이전대비</th></tr></thead>
     <tbody>${costRows}</tbody>
   </table>`;
-  const hiddenHtml = _hiddenFields(PF_ROWS.flatMap(t=>['lxo','lxi','kdo','kdi','imo','imi'].map(mk=>`pf_m_${mk}_t${t}`)),'recalcPf');
+  const hiddenHtml = _hiddenFields(PF_ROWS.flatMap(t=>['lxo','lxi','kdo','kdi','imo','imi'].map(mk=>`pf_m_${mk}_t${t}`)),'recalcPf')
+    + _hiddenFields(PF_GRADES.flatMap(g => PF_ROWS.map(t => _getOverrideId('pf', g, t))), 'recalcPf');
   const subtabGroups = [
     { label:'LX 국내산', cls:'pf-lx-label', tabs:[
       {id:'lxo_s',text:'I-C',sub:'심재 준불연 0.6×1.2'},{id:'lxo_l',text:'I-C',sub:'심재 준불연 1.2×2'},
@@ -2177,6 +2257,8 @@ function buildFrTab() {
   </table>`;
   const hiddenHtml = _hiddenFields(
     FR_GRADES.flatMap(g => g.rows.map(t => `fr_m_${g.id}_t${t}`)), 'recalcFr'
+  ) + _hiddenFields(
+    FR_GRADES.flatMap(g => g.rows.map(t => _getOverrideId('fr', g, t))), 'recalcFr'
   );
   const subtabBar = `<div class="bead-subtab-bar">
     ${FR_GRADES.map((g, i) => `<button class="fr-subtab bead-subtab${i===0?' active':''}" onclick="setFrSubtab('${g.id}',this)">${g.label}<span class="bead-subtab-sub">${g.sub1}</span></button>`).join('')}
@@ -2415,7 +2497,10 @@ async function _doExport() {
         const costId = _getCostId('bead', grade, t);
         const costPerM2 = costId ? fieldVal(costId) : 0;
         const marginPerM2 = _getMargin('bead', grade, t);
-        const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
+        let r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
+        const overrideEl = document.getElementById(_getOverrideId('bead', grade, t));
+        const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+        if (r && overrideVal) r = _applyPriceOverride(r, overrideVal, r.costPerSheet);
         const gradeName = `${grade.label} 비드법단열재 ${grade.sub}`;
         // ⚠️ 여기 'fr'로 돼있던 오타 수정(2026-09-04) — 원가 미입력 행에서 엉뚱하게
         // 불연단열재 캐시를 참조하고 있었음(경쟁사 데이터 안 뜨는 것 외엔 눈에 안 띄던 버그).
@@ -2447,7 +2532,10 @@ async function _doExport() {
         const costPerM2 = costId ? fieldVal(costId) : 0;
         const marginPerM2 = _getMargin('pu', grade, t);
         const tEff = grade.tFactor ?? t;
-        const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, tEff, grade.area) : null;
+        let r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, tEff, grade.area) : null;
+        const overrideEl = document.getElementById(_getOverrideId('pu', grade, t));
+        const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+        if (r && overrideVal) r = _applyPriceOverride(r, overrideVal, r.costPerSheet);
         const gradeName = `${grade.label} 경질우레탄 ${grade.sub2||grade.sub1}`;
         // ⚠️ 여기도 'fr' 오타 수정(2026-09-04, buildBead와 동일한 문제)
         if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('pu', grade.id, t)]); return; }
@@ -2476,7 +2564,10 @@ async function _doExport() {
       PF_ROWS.forEach(t => {
         const costPerM2 = fieldVal(grade.costId);
         const marginPerM2 = _getMargin('pf', grade, t);
-        const r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
+        let r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
+        const overrideEl = document.getElementById(_getOverrideId('pf', grade, t));
+        const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+        if (r && overrideVal) r = _applyPriceOverride(r, overrideVal, r.costPerSheet);
         const gradeName = `${grade.pfCat} ${grade.pfGrade} ${grade.areaLabel}`;
         // ⚠️ 여기도 'fr' 오타 수정(2026-09-04, buildBead와 동일한 문제)
         if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('pf', grade.id, t)]); return; }
@@ -2508,7 +2599,10 @@ async function _doExport() {
         const costId = _getCostId('fr', grade, t);
         const costPerM2 = costId ? fieldVal(costId) : 0;
         const marginSheet = _getMargin('fr', grade, t);
-        const r = calcFrSheetRow(costPerM2, marginSheet, grade.area);
+        let r = calcFrSheetRow(costPerM2, marginSheet, grade.area);
+        const overrideEl = document.getElementById(_getOverrideId('fr', grade, t));
+        const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+        if (r && overrideVal) r = _applyPriceOverride(r, overrideVal, r.vatCost);
         const gradeName = `${grade.sub1} ${grade.sub2}`;
         if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('fr', grade.id, t)]); return; }
         rows.push([gradeName, t, r.costPerM2, r.marginPerSheet,
