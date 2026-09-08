@@ -2909,7 +2909,24 @@ function _doBeadExport(type) {
     const jong      = type === '1jong' ? '1종' : '2종';
     const basePrice = _beadRealPrice(gradeObjs[0], BEAD_ROWS[0]);
     if (!basePrice) { showToast(`비드법 ${jong} 원가 데이터가 없습니다.`, 'error'); return; }
-    const rows = [['종류', '규격', '옵션가', '재고수량', '관리코드', '사용여부']];
+    // 2026-09-08: 모음전 상품 자체의 대표가(정가/즉시할인가/실제판매가)는 옵션가와
+    // 별개로 네이버 상품등록 화면에 직접 입력해야 하는 값이라, 매번 손으로 최고/최저
+    // 옵션 가격을 찾아 계산하기 번거롭다는 요청 — 옵션 데이터를 만들 때 나온 실제
+    // 가격들로 미리 계산해서 시트 맨 위에 적어두고, 보고 바로 수정할 수 있게 한다.
+    // 판매가 = 가장 비싼 옵션의 실제가 × 2(정가를 넉넉히 잡아 "즉시할인" 폭을 크게
+    // 보이게 하는 통상적인 방식), 즉시할인가 = 판매가 − 가장 싼 옵션의 실제가,
+    // 실제판매가 = 가장 싼 옵션의 실제가(=보통 기준행과 같음).
+    const allPrices = BEAD_ROWS.flatMap(t => gradeObjs.map(g => _beadRealPrice(g, t))).filter(p => p != null);
+    const minPrice  = Math.min(...allPrices);
+    const maxPrice  = Math.max(...allPrices);
+    const listPrice = maxPrice * 2;
+    const rows = [
+      ['판매가', listPrice],
+      ['즉시할인가', listPrice - minPrice],
+      ['실제판매가', minPrice],
+      [],
+      ['종류', '규격', '옵션가', '재고수량', '관리코드', '사용여부'],
+    ];
     BEAD_ROWS.forEach(t => {
       gradeObjs.forEach(grade => {
         const rp = _beadRealPrice(grade, t);
