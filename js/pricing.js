@@ -1460,6 +1460,33 @@ async function syncAppProductPrices(source) {
 /* ═══════════════════════════════════════
    통합 로드
 ═══════════════════════════════════════ */
+/* 2026-09-08: 비드법 준불연(ib_09/ib_06)·PF보드 소형/대형 마진 필드를 grade별로
+   독립시키면서 필드 id가 바뀌었다(bead_mj_t{T} → bead_mj_ib_09_t{T}/…_ib_06_t{T},
+   pf_m_{mk}_t{T} → pf_m_{gradeId}_t{T}). DB엔 예전 공유 id로 저장된 값이 이미
+   있으니, 로드할 때 새 필드가 비어있으면 예전 값으로 한 번 채워준다(다음에 저장하면
+   새 id로 다시 저장되니 1회성 호환용) — 안 그러면 기존에 입력해둔 마진이 화면에서
+   전부 빈칸으로 보이는 것처럼 나온다. */
+function _migrateLegacySharedMargins(marginsData) {
+  BEAD_ROWS.forEach(t => {
+    const legacy = marginsData[`bead_mj_t${t}`];
+    if (legacy == null) return;
+    ['ib_09', 'ib_06'].forEach(gid => {
+      const newKey = `bead_mj_${gid}_t${t}`;
+      if (marginsData[newKey] == null) marginsData[newKey] = legacy;
+    });
+  });
+  PF_ROWS.forEach(t => {
+    ['lxo', 'lxi', 'kdo', 'kdi', 'imo', 'imi'].forEach(mk => {
+      const legacy = marginsData[`pf_m_${mk}_t${t}`];
+      if (legacy == null) return;
+      PF_GRADES.filter(g => g.mk === mk).forEach(g => {
+        const newKey = `pf_m_${g.id}_t${t}`;
+        if (marginsData[newKey] == null) marginsData[newKey] = legacy;
+      });
+    });
+  });
+}
+
 async function loadPricingCosts() {
   if (typeof supabaseClient==='undefined'||!supabaseClient) return;
   const { data, error } = await supabaseClient.from('pricing_costs').select('*').eq('product_type','all').maybeSingle();
@@ -1481,6 +1508,7 @@ async function loadPricingCosts() {
   });
   /* 마진 필드 복원 — margins JSON에서 */
   const marginsData = displayData.margins || data.margins || {};
+  _migrateLegacySharedMargins(marginsData);
   ALL_MARGIN_FIELDS.forEach(f => {
     const el = document.getElementById(f);
     if (el) el.value = marginsData[f] != null ? marginsData[f] : '';
@@ -1555,10 +1583,15 @@ async function loadHistoryList() {
    "실제 적용"으로 지정된 이력 하나만 여기 반영된다(2026-08-20). */
 function _refreshLiveCostsCache() {
   const liveRow = (window._historyCache || []).find(h => h.is_live);
+  const margins = { ...(liveRow?.margins || {}) };
+  // 2026-09-08: "실제 적용" 이력이 마진 필드 분리 이전에 저장됐을 수 있다 — 앱 가격/
+  // 견적서가 참조하는 캐시라 여기서도 예전 공유 id를 새 id로 옮겨줘야 한다(안 그러면
+  // PF·비드법 준불연 실제 판매가가 기본값으로 조용히 되돌아감).
+  _migrateLegacySharedMargins(margins);
   window._cachedLiveCosts = liveRow ? {
     label: liveRow.label,
     costs: Object.fromEntries(ALL_COST_FIELDS.map(f => [f, parseFloat(liveRow[f]) || 0])),
-    margins: { ...(liveRow.margins || {}) }
+    margins
   } : null;
   _updateLiveBadge();
 }
@@ -1609,6 +1642,7 @@ window.viewHistory = function(idx) {
     if (el) el.value = row[f] != null ? row[f] : '';
   });
   const rowMargins = row.margins || {};
+  _migrateLegacySharedMargins(rowMargins); // 2026-09-08: 예전 이력엔 공유 id로 저장돼있음
   ALL_MARGIN_FIELDS.forEach(f => {
     const el = document.getElementById(f);
     if (el) el.value = rowMargins[f] != null ? rowMargins[f] : '';
