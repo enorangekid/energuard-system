@@ -2868,6 +2868,25 @@ function _beadRealPrice(grade, t) {
   return calcSheetRow(cost, margin, t, grade.area).realPrice;
 }
 
+/* 모음전 상품 자체의 대표가(정가/즉시할인가/실제판매가) 요약 행 — 2026-09-08, 비드법
+   2종에서 시작해 전 제품군 모음전 엑셀에 공통 적용. 네이버 옵션 추가금액에 상한이
+   있어서, 아이소핑크처럼 두께별 가격폭이 1천원대~수십만원대까지 넓은 상품은 판매가
+   (기준가)를 넉넉히 잡아야 최고가 옵션의 추가금액도 그 상한 안에 들어온다 — 그래서
+   판매가는 실제가가 아니라 "옵션표에 찍히는 차액(옵션가)" 중 가장 큰 값을 기준으로
+   잡는다. allPrices는 그 시트에 들어갈 모든 옵션의 실제가 목록(null 제외), basePrice는
+   기준행(0원 옵션)의 실제가. */
+function _moeumSummaryRows(basePrice, allPrices) {
+  const maxOptionOffset = Math.max(...allPrices) - basePrice;
+  const minPrice = Math.min(...allPrices);
+  const listPrice = maxOptionOffset * 2;
+  return [
+    ['판매가', listPrice],
+    ['즉시할인가', listPrice - minPrice],
+    ['실제판매가', minPrice],
+    [],
+  ];
+}
+
 // ── 비드법 1종 모음전 ──
 window.exportBeadOptionExcel1jong = function() {
   if (typeof XLSX === 'undefined') {
@@ -2909,25 +2928,9 @@ function _doBeadExport(type) {
     const jong      = type === '1jong' ? '1종' : '2종';
     const basePrice = _beadRealPrice(gradeObjs[0], BEAD_ROWS[0]);
     if (!basePrice) { showToast(`비드법 ${jong} 원가 데이터가 없습니다.`, 'error'); return; }
-    // 2026-09-08: 모음전 상품 자체의 대표가(정가/즉시할인가/실제판매가)는 옵션가와
-    // 별개로 네이버 상품등록 화면에 직접 입력해야 하는 값이라, 매번 손으로 최고/최저
-    // 옵션 가격을 찾아 계산하기 번거롭다는 요청 — 옵션 데이터를 만들 때 나온 값들로
-    // 미리 계산해서 시트 맨 위에 적어두고, 보고 바로 수정할 수 있게 한다.
-    // 판매가 = "옵션가"(기준행 대비 차액) 중 가장 큰 값 × 2 — 실제가가 아니라
-    // 옵션표에 찍히는 차액 기준인 이유는 네이버 옵션 추가금액에 상한이 있어서,
-    // 모음전처럼 두께별 가격폭이 1천원대~수십만원대까지 넓은 상품은 판매가(기준가)를
-    // 넉넉히 잡아야 최고가 옵션의 추가금액도 그 상한 안에 들어오기 때문(2026-09-08
-    // 사용자 설명). 즉시할인가 = 판매가 − 가장 싼 옵션의 실제가, 실제판매가 = 가장
-    // 싼 옵션의 실제가(=보통 기준행과 같음).
     const allPrices = BEAD_ROWS.flatMap(t => gradeObjs.map(g => _beadRealPrice(g, t))).filter(p => p != null);
-    const minPrice  = Math.min(...allPrices);
-    const maxOptionOffset = Math.max(...allPrices) - basePrice;
-    const listPrice = maxOptionOffset * 2;
     const rows = [
-      ['판매가', listPrice],
-      ['즉시할인가', listPrice - minPrice],
-      ['실제판매가', minPrice],
-      [],
+      ..._moeumSummaryRows(basePrice, allPrices),
       ['종류', '규격', '옵션가', '재고수량', '관리코드', '사용여부'],
     ];
     BEAD_ROWS.forEach(t => {
@@ -2950,7 +2953,11 @@ function _doBeadExport(type) {
     // 기준가: 600x1200 10T = 0
     const basePrice = _beadRealPrice(g06, BEAD_ROWS[0]);
     if (!basePrice) { showToast('준불연 원가 데이터가 없습니다.', 'error'); return; }
-    const rows = [['두께', '규격', '옵션가', '재고수량', '관리코드', '사용여부']];
+    const allPrices = BEAD_ROWS.flatMap(t => [_beadRealPrice(g06, t), _beadRealPrice(g09, t)]).filter(p => p != null);
+    const rows = [
+      ..._moeumSummaryRows(basePrice, allPrices),
+      ['두께', '규격', '옵션가', '재고수량', '관리코드', '사용여부'],
+    ];
     BEAD_ROWS.forEach(t => {
       const rp06 = _beadRealPrice(g06, t);
       const rp09 = _beadRealPrice(g09, t);
@@ -2986,8 +2993,12 @@ function _doSmartStoreExport() {
   const baseRow = _isoCalcRow(ISOPINK_ROWS[0]);
   if (!baseRow) { showToast('아이소핑크 원가 데이터가 없습니다.', 'error'); return; }
   const basePrice = baseRow.realPrice;
+  const allPrices = ISOPINK_ROWS.map(t => _isoCalcRow(t)?.realPrice).filter(p => p != null);
 
-  const rows = [['아이소핑크 두께 선택', '옵션가', '재고수량', '관리코드', '사용여부']];
+  const rows = [
+    ..._moeumSummaryRows(basePrice, allPrices),
+    ['아이소핑크 두께 선택', '옵션가', '재고수량', '관리코드', '사용여부'],
+  ];
   ISOPINK_ROWS.forEach(t => {
     const r = _isoCalcRow(t);
     if (!r) return;
@@ -3044,7 +3055,11 @@ function _doPuExport(gradeId) {
   if (!grade || !cfg) { showToast('지원하지 않는 경질우레탄 등급입니다.', 'error'); return; }
   const basePrice = _puRealPrice(grade, grade.rows[0]);
   if (!basePrice) { showToast(`${cfg.header} 원가 데이터가 없습니다.`, 'error'); return; }
-  const rows = [[cfg.header, '옵션가', '재고수량', '관리코드', '사용여부']];
+  const allPrices = grade.rows.map(t => _puRealPrice(grade, t)).filter(p => p != null);
+  const rows = [
+    ..._moeumSummaryRows(basePrice, allPrices),
+    [cfg.header, '옵션가', '재고수량', '관리코드', '사용여부'],
+  ];
   grade.rows.forEach(t => {
     const rp = _puRealPrice(grade, t);
     if (rp == null) return;
@@ -3095,7 +3110,11 @@ function _doFrExport(gradeId) {
   if (!grade || !cfg) { showToast('지원하지 않는 열반사 등급입니다.', 'error'); return; }
   const basePrice = _frRealPriceById(grade, grade.rows[0]);
   if (!basePrice) { showToast(`${cfg.header} 원가 데이터가 없습니다.`, 'error'); return; }
-  const rows = [['제품선택', '옵션가', '재고수량', '관리코드', '사용여부']];
+  const allPrices = grade.rows.map(t => _frRealPriceById(grade, t)).filter(p => p != null);
+  const rows = [
+    ..._moeumSummaryRows(basePrice, allPrices),
+    ['제품선택', '옵션가', '재고수량', '관리코드', '사용여부'],
+  ];
   grade.rows.forEach(t => {
     const rp = _frRealPriceById(grade, t);
     if (rp == null) return;
@@ -3161,8 +3180,12 @@ function _doPfExport(subtabId) {
 
   const basePrice = _pfRealPrice(gradeS, PF_ROWS[0]);
   if (!basePrice) { showToast(`${cfg.prefix} 원가 데이터가 없습니다.`, 'error'); return; }
+  const allPrices = PF_ROWS.flatMap(t => [_pfRealPrice(gradeS, t), _pfRealPrice(gradeL, t)]).filter(p => p != null);
 
-  const rows = [['두께', '규격', '옵션가', '재고수량', '관리코드', '사용여부']];
+  const rows = [
+    ..._moeumSummaryRows(basePrice, allPrices),
+    ['두께', '규격', '옵션가', '재고수량', '관리코드', '사용여부'],
+  ];
   PF_ROWS.forEach(t => {
     const rpS = _pfRealPrice(gradeS, t);
     const rpL = _pfRealPrice(gradeL, t);
