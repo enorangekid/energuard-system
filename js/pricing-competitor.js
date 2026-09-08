@@ -258,6 +258,14 @@ function _ourPrice(tabId, gradeId, t) {
     if (tabId === 'isopink') return window._isoCalcRow?.(t)?.realPrice ?? null;
     const grade = (window._gradesOf?.(tabId) || []).find(g => g.id === gradeId);
     if (!grade) return null;
+    // "동일가로만 맞춤" 오버라이드(2026-09-04) — 정수 마진으로 정확히 못 맞춰서 가격을
+    // 직접 강제 고정한 행은 이게 진짜 표시가다. 여기서 이걸 안 보고 마진으로 다시 계산하면
+    // 화면엔 파란색으로 정확히 경쟁사가와 일치하게 보이는데 "우리 대비"만 옛날 값 기준으로
+    // 어긋나 보이는 문제가 생긴다(사용자 발견 — 비드법에서 재현).
+    const overrideId  = window._getOverrideId?.(tabId, grade, t);
+    const overrideEl  = overrideId ? document.getElementById(overrideId) : null;
+    const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+    if (overrideVal) return overrideVal;
     const costId = window._getCostId?.(tabId, grade, t);
     const cost   = costId ? (window.fieldVal?.(costId) ?? 0) : 0;
     if (!cost) return null;
