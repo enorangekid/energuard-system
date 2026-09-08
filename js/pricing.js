@@ -838,7 +838,7 @@ window.fixBeadJongPriceOrder = async function() {
   const gradeOf = id => BEAD_GRADES.find(g => g.id === id);
   const priceFor = (grade, cost, margin, t) => calcSheetRow(cost, margin, t, grade.area).realPrice;
 
-  let fixed = 0, alreadyOk = 0, skipped = 0;
+  let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0;
   PAIRS.forEach(({ jong1, jong2 }) => {
     const g1 = gradeOf(jong1), g2 = gradeOf(jong2);
     BEAD_ROWS.forEach(t => {
@@ -852,6 +852,12 @@ window.fixBeadJongPriceOrder = async function() {
 
       const price1 = _beadRealPrice(g1, t);
       if (price1 != null && price1 <= cappedPrice) { alreadyOk++; return; } // 이미 조건 만족
+
+      // "동일가로만 맞춤"으로 가격이 고정된 행은 마진을 바꿔도 실제 표시가가 안 바뀌므로
+      // 건드리지 않는다(2026-09-04) — 여기서 억지로 마진을 다시 계산해봤자 나중에 오버라이드가
+      // 풀렸을 때 엉뚱한 값이 남는 문제가 생김. 대신 "오버라이드로 고정되어 조정 불가"로 집계.
+      const overrideEl1 = document.getElementById(_getOverrideId('bead', g1, t));
+      if (overrideEl1 && overrideEl1.value.trim() !== '') { overrideLocked++; return; }
 
       let margin = Math.round(cappedPrice / (t * g1.area * 1.1) - cost1);
       let guard = 0;
@@ -868,8 +874,9 @@ window.fixBeadJongPriceOrder = async function() {
   recalcBead();
 
   const parts = [`${fixed}건 보정`];
-  if (alreadyOk) parts.push(`이미 정상 ${alreadyOk}건`);
-  if (skipped)   parts.push(`계산 불가 ${skipped}건`);
+  if (alreadyOk)       parts.push(`이미 정상 ${alreadyOk}건`);
+  if (overrideLocked)  parts.push(`동일가 맞춤으로 고정되어 조정 불가 ${overrideLocked}건`);
+  if (skipped)         parts.push(`계산 불가 ${skipped}건`);
   if (typeof showToast === 'function') {
     showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', fixed ? 'success' : 'warning');
   }
@@ -891,7 +898,7 @@ window.fixPuJongPriceOrder = async function() {
   const g2 = PU_GRADES.find(g => g.id === 'iia');  // 2종2호 — 더 저렴해야 함, 마진 낮춰서 맞춤
   const priceFor = (grade, cost, margin, t) => calcSheetRow(cost, margin, t, grade.area).realPrice;
 
-  let fixed = 0, alreadyOk = 0, skipped = 0;
+  let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0;
   const thicknesses = g2.rows.filter(t => g1.rows.includes(t)); // 두 등급 공통 두께만
   thicknesses.forEach(t => {
     const cost2Id = _getCostId('pu', g2, t);
@@ -904,6 +911,11 @@ window.fixPuJongPriceOrder = async function() {
 
     const price2 = _puRealPrice(g2, t);
     if (price2 != null && price2 <= cappedPrice) { alreadyOk++; return; } // 이미 조건 만족
+
+    // 동일가로만 맞춤 오버라이드가 걸린 행은 마진을 바꿔도 실제 표시가가 안 바뀌므로 건드리지
+    // 않는다(2026-09-04, fixBeadJongPriceOrder와 동일한 이유).
+    const overrideEl2 = document.getElementById(_getOverrideId('pu', g2, t));
+    if (overrideEl2 && overrideEl2.value.trim() !== '') { overrideLocked++; return; }
 
     let margin = Math.round(cappedPrice / (t * g2.area * 1.1) - cost2);
     let guard = 0;
@@ -919,8 +931,9 @@ window.fixPuJongPriceOrder = async function() {
   recalcPu();
 
   const parts = [`${fixed}건 보정`];
-  if (alreadyOk) parts.push(`이미 정상 ${alreadyOk}건`);
-  if (skipped)   parts.push(`계산 불가 ${skipped}건`);
+  if (alreadyOk)      parts.push(`이미 정상 ${alreadyOk}건`);
+  if (overrideLocked) parts.push(`동일가 맞춤으로 고정되어 조정 불가 ${overrideLocked}건`);
+  if (skipped)        parts.push(`계산 불가 ${skipped}건`);
   if (typeof showToast === 'function') {
     showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', fixed ? 'success' : 'warning');
   }
@@ -951,7 +964,7 @@ window.fixPfBrandPriceOrder = async function() {
   if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
 
   const gradeOf = id => PF_GRADES.find(g => g.id === id);
-  let fixed = 0, alreadyOk = 0, skipped = 0;
+  let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0;
 
   function fixPair(upperMk, lowerMk, t) {
     const upperS = gradeOf(`${upperMk}_s`), upperL = gradeOf(`${upperMk}_l`);
@@ -969,6 +982,15 @@ window.fixPfBrandPriceOrder = async function() {
     const priceLowerS = _pfRealPrice(lowerS, t);
     const priceLowerL = _pfRealPrice(lowerL, t);
     if (priceLowerS != null && priceLowerL != null && priceLowerS <= capS && priceLowerL <= capL) { alreadyOk++; return; }
+
+    // 소형/대형이 마진 필드를 공유하므로, 둘 중 하나라도 동일가 맞춤으로 고정돼 있으면
+    // 마진을 바꿔봤자 그 규격 표시가는 안 바뀌면서 반대쪽 규격만 영향받는 혼란스러운
+    // 상태가 된다 — 아예 건드리지 않는다(2026-09-04).
+    const overrideElS = document.getElementById(_getOverrideId('pf', lowerS, t));
+    const overrideElL = document.getElementById(_getOverrideId('pf', lowerL, t));
+    if ((overrideElS && overrideElS.value.trim() !== '') || (overrideElL && overrideElL.value.trim() !== '')) {
+      overrideLocked++; return;
+    }
 
     const marginS = _pfSolveMargin(lowerS, costLower, t, capS);
     const marginL = _pfSolveMargin(lowerL, costLower, t, capL);
@@ -990,8 +1012,9 @@ window.fixPfBrandPriceOrder = async function() {
   recalcPf();
 
   const parts = [`${fixed}건 보정`];
-  if (alreadyOk) parts.push(`이미 정상 ${alreadyOk}건`);
-  if (skipped)   parts.push(`계산 불가 ${skipped}건`);
+  if (alreadyOk)      parts.push(`이미 정상 ${alreadyOk}건`);
+  if (overrideLocked) parts.push(`동일가 맞춤으로 고정되어 조정 불가 ${overrideLocked}건`);
+  if (skipped)         parts.push(`계산 불가 ${skipped}건`);
   if (typeof showToast === 'function') {
     showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', fixed ? 'success' : 'warning');
   }
@@ -2685,6 +2708,11 @@ function _styleSheet(ws, totalRows) {
 
 // 비드법 단일 등급 realPrice 계산 헬퍼
 function _beadRealPrice(grade, t) {
+  // "동일가로만 맞춤" 오버라이드가 걸려있으면 그게 진짜 표시가(2026-09-04) — 마진
+  // 계산값이 아니라 이걸 반환해야 가격역전 보정 등 다른 로직도 실제 화면과 일치함.
+  const overrideEl = document.getElementById(_getOverrideId('bead', grade, t));
+  const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+  if (overrideVal) return overrideVal;
   const costId = _getCostId('bead', grade, t);
   const cost   = costId ? fieldVal(costId) : 0;
   const margin = _getMargin('bead', grade, t);
@@ -2814,6 +2842,9 @@ function _doSmartStoreExport() {
    경질우레탄 모음전 옵션 엑셀
 ═══════════════════════════════════════ */
 function _puRealPrice(grade, t) {
+  const overrideEl = document.getElementById(_getOverrideId('pu', grade, t));
+  const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+  if (overrideVal) return overrideVal;
   const band = grade.costBands?.find(b => t >= b.min && t <= b.max);
   if (!band) return null;
   const cost   = fieldVal(band.costId);
@@ -2918,6 +2949,9 @@ function _doFrExport(gradeId) {
 
 // PF realPrice 헬퍼
 function _pfRealPrice(grade, t) {
+  const overrideEl = document.getElementById(_getOverrideId('pf', grade, t));
+  const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+  if (overrideVal) return overrideVal;
   const cost   = fieldVal(grade.costId);
   const margin = _getMargin('pf', grade, t);
   if (!cost) return null;
