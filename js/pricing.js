@@ -648,7 +648,15 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   // 깨져버리는 문제가 있었다(600x1200 맞추면 1200x2000 하나가 깨지고, 반대로 하면
   // 600x1200이 깨지는 것을 사용자가 발견 — 서로 계속 밀어내는 현상). 짝(sibling) 규격의
   // 경쟁가도 같이 로드해서, 두 규격 다 만족하는 마진 중 더 작은(=더 저렴한) 쪽을 쓴다.
-  const siblingGrade = tabId === 'pf' ? _gradesOf('pf').find(g => g.mk === grade.mk && g.id !== grade.id) : null;
+  // 2026-09-08: 비드법 준불연도 똑같은 구조였다 — I-B 심재 준불연 0.9×1.8(ib_09)과
+  // 0.6×1.2(ib_06)이 원가(bead_cost_ib)·마진(bead_mj_t{T})을 둘 다 공유한다
+  // (_getCostId/_getMarginId 참고). 사용자가 "최적가 적용할 때마다 둘이 같이 바뀐다"고
+  // 발견 — PF와 같은 이유라 같은 sibling 메커니즘으로 묶는다.
+  const siblingGrade = tabId === 'pf'
+    ? _gradesOf('pf').find(g => g.mk === grade.mk && g.id !== grade.id)
+    : (tabId === 'bead' && (grade.id === 'ib_09' || grade.id === 'ib_06'))
+      ? BEAD_GRADES.find(g => (g.id === 'ib_09' || g.id === 'ib_06') && g.id !== grade.id)
+      : null;
 
   await loadCompPrices(tabId, gradeId);
   const excluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, gradeId) : [false, false, false];
