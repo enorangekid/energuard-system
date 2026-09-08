@@ -1019,14 +1019,88 @@ function _getMargin(tabId, grade, t, src) {
   return (el && el.value.trim() !== '') ? parseFloat(el.value) : fb;
 }
 
+/* ── 등급별 상품 링크(단품/모음전) ──────────────────────────────────────
+   2026-09-08: 두께별로 상품번호를 따로 저장하려던 시도 대신, 품명 셀 하나당
+   링크 2개(단품 상품페이지 / 모음전 상품페이지)만 저장해서 클릭 한 번에 네이버
+   상품페이지로 바로 이동하게 단순화. 클릭 = 열기(없으면 admin은 등록 프롬프트),
+   우클릭 = 이미 있는 링크도 변경. */
+let _gradeLinksCache = {};
+function _glKey(tabId, gradeId) { return `${tabId}|${gradeId}`; }
+
+async function _loadGradeLinks() {
+  if (typeof supabaseClient === 'undefined') return;
+  try {
+    const { data, error } = await supabaseClient.from('pricing_grade_links').select('tab_id,grade_id,danpum_url,moeum_url');
+    if (error) throw error;
+    _gradeLinksCache = {};
+    (data || []).forEach(r => {
+      _gradeLinksCache[_glKey(r.tab_id, r.grade_id)] = { danpum: r.danpum_url || '', moeum: r.moeum_url || '' };
+    });
+  } catch (e) { console.warn('[상품 링크] 로드 실패', e); }
+}
+
+async function _saveGradeLink(tabId, gradeId, kind, url) {
+  if (typeof supabaseClient === 'undefined') return;
+  const key   = _glKey(tabId, gradeId);
+  const field = kind === 'danpum' ? 'danpum_url' : 'moeum_url';
+  try {
+    const { error } = await supabaseClient.from('pricing_grade_links').upsert(
+      { tab_id: tabId, grade_id: gradeId, [field]: url || null },
+      { onConflict: 'tab_id,grade_id' }
+    );
+    if (error) throw error;
+    _gradeLinksCache[key] = { ..._gradeLinksCache[key], [kind]: url || '' };
+    // _recalcTab을 직접 부르지 않고 window.recalcXxx(경쟁사가/하이라이트가 후킹해둔 버전)를
+    // 통해서 다시 그려야 그 컬럼들이 같이 다시 붙는다(직접 부르면 tbody가 갈아끼워지면서
+    // 경쟁사가/하이라이트 컬럼이 사라진 채로 남는다).
+    const recalcKey = { isopink: 'recalcIsopink', bead: 'recalcBead', pu: 'recalcPu', pf: 'recalcPf', fr: 'recalcFr' }[tabId];
+    window[recalcKey]?.();
+    if (typeof showToast === 'function') showToast('저장되었습니다', 'success');
+  } catch (e) {
+    console.warn('[상품 링크] 저장 실패', e);
+    if (typeof showToast === 'function') showToast('링크 저장 실패 — pricing_grade_links 테이블을 확인해주세요', 'error');
+  }
+}
+
+window.openGradeLink = function(tabId, gradeId, kind) {
+  const url = _gradeLinksCache[_glKey(tabId, gradeId)]?.[kind];
+  if (url) { window.open(url, '_blank', 'noopener'); return; }
+  if (window.currentUser?.role !== 'admin') {
+    if (typeof showToast === 'function') showToast('등록된 링크가 없습니다.', 'warning');
+    return;
+  }
+  window.editGradeLink(tabId, gradeId, kind);
+};
+window.editGradeLink = function(tabId, gradeId, kind) {
+  if (window.currentUser?.role !== 'admin') return;
+  const cur   = _gradeLinksCache[_glKey(tabId, gradeId)]?.[kind] || '';
+  const label = kind === 'danpum' ? '단품' : '모음전';
+  const url   = prompt(`${label} 상품 링크를 입력하세요 (비우면 삭제):`, cur);
+  if (url === null) return;
+  _saveGradeLink(tabId, gradeId, kind, url.trim());
+};
+
+function _gradeLinkButtons(tabId, gradeId) {
+  const links = _gradeLinksCache[_glKey(tabId, gradeId)] || {};
+  const btn = (kind, label) => {
+    const has = !!links[kind];
+    return `<button type="button" class="pgl-btn${has ? '' : ' pgl-empty'}"
+      title="${has ? '클릭: 열기 / 우클릭: 링크 변경' : '클릭: 링크 등록'}"
+      onclick="event.stopPropagation();openGradeLink('${tabId}','${gradeId}','${kind}')"
+      oncontextmenu="event.preventDefault();event.stopPropagation();editGradeLink('${tabId}','${gradeId}','${kind}')">${label}</button>`;
+  };
+  return `<div class="pgl-btns">${btn('danpum', '단품')}${btn('moeum', '모음전')}</div>`;
+}
+
 /* ── name 셀 HTML ── */
 function _nameCell(tabId, grade, rowCount) {
-  const cls = grade.colorClass;
-  if (tabId === 'isopink') return `<td rowspan="${rowCount}" class="pricing-name-cell pricing-name-${cls}"><span class="pnc-code">${grade.label}</span><span class="pnc-cat">압출법단열재</span><span class="pnc-grade">${grade.sub}</span></td>`;
-  if (tabId === 'bead') return `<td rowspan="${rowCount}" class="pricing-name-cell bead-name-cell ${cls}"><span class="pnc-code">${grade.label}</span><span class="pnc-cat">비드법단열재</span><span class="pnc-grade">${grade.sub}</span></td>`;
-  if (tabId === 'pu')   return `<td rowspan="${rowCount}" class="pricing-name-cell bead-name-cell ${cls}"><span class="pnc-code">${grade.label}</span><span class="pnc-cat">경질우레탄</span><span class="pnc-grade">${grade.sub2 || grade.sub1}</span></td>`;
-  if (tabId === 'pf')   return `<td rowspan="${rowCount}" class="pricing-name-cell bead-name-cell ${cls}"><span class="pnc-code">${grade.label}</span><span class="pnc-cat">${grade.pfCat}</span><span class="pnc-grade">${grade.pfGrade}</span></td>`;
-  if (tabId === 'fr')   return `<td rowspan="${rowCount}" class="pricing-name-cell bead-name-cell ${cls}"><span class="pnc-code">${grade.label}</span><span class="pnc-cat">${grade.sub1}</span><span class="pnc-grade">${grade.sub2}</span></td>`;
+  const cls   = grade.colorClass;
+  const links = _gradeLinkButtons(tabId, grade.id);
+  if (tabId === 'isopink') return `<td rowspan="${rowCount}" class="pricing-name-cell pricing-name-${cls}"><span class="pnc-code">${grade.label}</span><span class="pnc-cat">압출법단열재</span><span class="pnc-grade">${grade.sub}</span>${links}</td>`;
+  if (tabId === 'bead') return `<td rowspan="${rowCount}" class="pricing-name-cell bead-name-cell ${cls}"><span class="pnc-code">${grade.label}</span><span class="pnc-cat">비드법단열재</span><span class="pnc-grade">${grade.sub}</span>${links}</td>`;
+  if (tabId === 'pu')   return `<td rowspan="${rowCount}" class="pricing-name-cell bead-name-cell ${cls}"><span class="pnc-code">${grade.label}</span><span class="pnc-cat">경질우레탄</span><span class="pnc-grade">${grade.sub2 || grade.sub1}</span>${links}</td>`;
+  if (tabId === 'pf')   return `<td rowspan="${rowCount}" class="pricing-name-cell bead-name-cell ${cls}"><span class="pnc-code">${grade.label}</span><span class="pnc-cat">${grade.pfCat}</span><span class="pnc-grade">${grade.pfGrade}</span>${links}</td>`;
+  if (tabId === 'fr')   return `<td rowspan="${rowCount}" class="pricing-name-cell bead-name-cell ${cls}"><span class="pnc-code">${grade.label}</span><span class="pnc-cat">${grade.sub1}</span><span class="pnc-grade">${grade.sub2}</span>${links}</td>`;
   return '';
 }
 
@@ -1511,6 +1585,7 @@ async function loadPricingCosts() {
   _compareData = window._historyCache?.[1] || null;
   if (_compareMode === 'live') _compareData = _liveCompareRow();
   _seedIsopink1hoFromTeukho();
+  await _loadGradeLinks();
   // 2026-09-08: 아이소핑크(1호/특호)도 이제 _subtabState에 들어있어서 이 반복문 하나로 처리됨
   Object.keys(_subtabState).forEach(tabId => _recalcTab(tabId));
   _viewingIdx = null;

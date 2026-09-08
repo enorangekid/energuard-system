@@ -508,6 +508,29 @@
   white-space: nowrap;
 }
 
+/* 품명 셀 — 단품/모음전 링크 버튼 (2026-09-08) */
+.pgl-btns {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 6px;
+  white-space: nowrap;
+}
+.pgl-btn {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.pgl-btn:hover { opacity: 1; background: rgba(255,255,255,.5); }
+.pgl-btn.pgl-empty { opacity: 0.35; border-style: dashed; }
+
 /* 입력 필드 */
 .pcut-cost-field   { width: 110px; background: #fafaff; border-color: #a5b4fc; }
 .pcut-cost-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
