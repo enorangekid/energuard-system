@@ -108,8 +108,10 @@ const BEAD_MARGIN_FALLBACK = (() => {
     fb[`bead_m1_3_t${t}`] = m1[i];
     fb[`bead_m1_2_t${t}`] = m1[i];
     fb[`bead_m1_1_t${t}`] = m1[i];
-    /* 준불연 */
-    fb[`bead_mj_t${t}`] = mj[i];
+    /* 준불연 — 2026-09-08: 0.9×1.8(ib_09)/0.6×1.2(ib_06) 마진 필드 분리, 둘 다 같은
+       기본값에서 시작 */
+    fb[`bead_mj_ib_09_t${t}`] = mj[i];
+    fb[`bead_mj_ib_06_t${t}`] = mj[i];
   });
   return fb;
 })();
@@ -188,9 +190,11 @@ const ALL_PRICE_OVERRIDE_FIELDS = [
 const ALL_MARGIN_FIELDS = [
   ...ISOPINK_ROWS.map(t => `margin_iso_t${t}`),
   ...ALL_PRICE_OVERRIDE_FIELDS,
-  ...BEAD_ROWS.flatMap(t => [`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_t${t}`]),
+  // 2026-09-08: 준불연 마진 필드 분리(bead_mj_t{T} → bead_mj_ib_09_t{T}/bead_mj_ib_06_t{T})
+  ...BEAD_ROWS.flatMap(t => [`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_ib_09_t${t}`,`bead_mj_ib_06_t${t}`]),
   ...PU_GRADES.flatMap(g => g.rows.map(t => `pu_m_${g.id}_t${t}`)),
-  ...PF_ROWS.flatMap(t => ['lxo','lxi','kdo','kdi','imo','imi'].map(mk => `pf_m_${mk}_t${t}`)),
+  // 2026-09-08: PF 소형/대형 마진 필드 분리(pf_m_{mk}_t{T} → grade.id 기준 각각)
+  ...PF_GRADES.flatMap(g => PF_ROWS.map(t => `pf_m_${g.id}_t${t}`)),
   ...FR_GRADES.flatMap(g => g.rows.map(t => `fr_m_${g.id}_t${t}`)),
 ];
 
@@ -625,7 +629,14 @@ window.autoMatchCompetitorPriceIsopink = async function() {
 /* ── 경쟁사 최저가 자동 맞춤(비드법/PU/PF/불연 공통) ──────────────────────
    2026-09-02: 아이소핑크에서만 테스트해봤던 걸 전체 탭으로 확장. 로직은 동일(수익
    방어선 없음, 자동저장 안 함) — 계산식만 탭마다 다른 실제 판매가 공식(calcSheetRow/
-   calcFrSheetRow)에 맞게 역산한다. 지금 선택된 서브탭(등급)의 두께 전체를 훑는다. */
+   calcFrSheetRow)에 맞게 역산한다. 지금 선택된 서브탭(등급)의 두께 전체를 훑는다.
+   2026-09-02~09-08: PF 소형/대형, 비드법 준불연 0.9×1.8/0.6×1.2가 원가·마진 필드를
+   공유하던 시절엔 여기서 "짝(sibling) 규격"까지 같이 풀어서 서로 안 깨지게 하는
+   로직이 있었다. 근데 사용자가 실제로 겪어보니(크린슐라가 0.6×1.2에만 동일가로
+   걸려있는데 0.9×1.8까지 같이 깎이는 문제) — 두 규격이 같은 마진을 쓰는 한 이건
+   피할 수 없는 결과였다("마진 공유"의 근본적 한계). 그래서 2026-09-08에 마진
+   필드 자체를 규격별로 완전히 독립시켰다(_getMarginId 참고) — 이제 sibling을
+   고려할 필요가 아예 없어져서, 다시 단순한 "내 등급만" 로직으로 되돌린다. */
 window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   if (window.currentUser?.role !== 'admin') return;
   const gradeId = _subtabState[tabId];
@@ -642,33 +653,10 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   const marginBump = Number(String(bumpStr).replace(/,/g, ''));
   if (!Number.isFinite(marginBump)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
 
-  // 2026-09-02: PF보드는 소형(_s)/대형(_l)이 원가·마진 필드를 mk(브랜드+종류) 단위로
-  // 공유한다(_getCostId/_getMarginId 참고) — 그래서 한쪽 규격만 보고 맞추면 그 마진이
-  // 다른 규격에도 그대로 적용돼서, 방금 맞춘 규격은 정상인데 반대쪽 규격의 경쟁가 조건이
-  // 깨져버리는 문제가 있었다(600x1200 맞추면 1200x2000 하나가 깨지고, 반대로 하면
-  // 600x1200이 깨지는 것을 사용자가 발견 — 서로 계속 밀어내는 현상). 짝(sibling) 규격의
-  // 경쟁가도 같이 로드해서, 두 규격 다 만족하는 마진 중 더 작은(=더 저렴한) 쪽을 쓴다.
-  // 2026-09-08: 비드법 준불연도 똑같은 구조였다 — I-B 심재 준불연 0.9×1.8(ib_09)과
-  // 0.6×1.2(ib_06)이 원가(bead_cost_ib)·마진(bead_mj_t{T})을 둘 다 공유한다
-  // (_getCostId/_getMarginId 참고). 사용자가 "최적가 적용할 때마다 둘이 같이 바뀐다"고
-  // 발견 — PF와 같은 이유라 같은 sibling 메커니즘으로 묶는다.
-  const siblingGrade = tabId === 'pf'
-    ? _gradesOf('pf').find(g => g.mk === grade.mk && g.id !== grade.id)
-    : (tabId === 'bead' && (grade.id === 'ib_09' || grade.id === 'ib_06'))
-      ? BEAD_GRADES.find(g => (g.id === 'ib_09' || g.id === 'ib_06') && g.id !== grade.id)
-      : null;
-
   await loadCompPrices(tabId, gradeId);
   const excluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, gradeId) : [false, false, false];
   // 제조업체 등 "동일가로만" 맞출 업체 플래그(2026-09-04, comp{n}_match_only 참고)
   const matchOnly = (typeof _compMatchOnly === 'function') ? await _compMatchOnly(tabId, gradeId) : [false, false, false];
-  let siblingExcluded = [false, false, false];
-  let siblingMatchOnly = [false, false, false];
-  if (siblingGrade) {
-    await loadCompPrices(tabId, siblingGrade.id);
-    siblingExcluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, siblingGrade.id) : [false, false, false];
-    siblingMatchOnly = (typeof _compMatchOnly === 'function') ? await _compMatchOnly(tabId, siblingGrade.id) : [false, false, false];
-  }
 
   const isFr = tabId === 'fr';
   const priceForGrade = (g, cost, m, t) => isFr
@@ -709,17 +697,14 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   rows.forEach(t => {
     const costId = _getCostId(tabId, grade, t);
     const cost   = costId ? fieldVal(costId) : 0;
-    const ownOverrideField = document.getElementById(_getOverrideId(tabId, grade, t));
-    const sibOverrideField = siblingGrade ? document.getElementById(_getOverrideId(tabId, siblingGrade, t)) : null;
+    const overrideField = document.getElementById(_getOverrideId(tabId, grade, t));
     if (!cost) { skippedNoCost++; return; }
 
     const own = targetFor(gradeId, t, excluded, matchOnly);
-    const sib = siblingGrade ? targetFor(siblingGrade.id, t, siblingExcluded, siblingMatchOnly) : { hasAny: false, cappedPrice: null, winner: null };
 
-    if (own.cappedPrice == null && sib.cappedPrice == null) {
-      if (ownOverrideField) ownOverrideField.value = '';
-      if (sibOverrideField) sibOverrideField.value = '';
-      if (!own.hasAny && !sib.hasAny && marginBump) {
+    if (own.cappedPrice == null) {
+      if (overrideField) overrideField.value = '';
+      if (!own.hasAny && marginBump) {
         const marginId = _getMarginId(tabId, grade, t);
         const field = marginId ? document.getElementById(marginId) : null;
         const curMargin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
@@ -729,39 +714,23 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
       }
       return;
     }
-    if (own.cappedPrice != null && own.cappedPrice <= 0) { skippedBadTarget++; if (ownOverrideField) ownOverrideField.value = ''; if (sibOverrideField) sibOverrideField.value = ''; return; }
-    if (sib.cappedPrice != null && sib.cappedPrice <= 0) { skippedBadTarget++; if (ownOverrideField) ownOverrideField.value = ''; if (sibOverrideField) sibOverrideField.value = ''; return; }
+    if (own.cappedPrice <= 0) { skippedBadTarget++; if (overrideField) overrideField.value = ''; return; }
 
-    // 두 목표(자기 자신 + 짝 규격) 중 존재하는 것만 풀어서, 둘 다 만족하는 마진 중
-    // 더 작은(더 저렴한) 값을 쓴다 — 하나만 있으면 그 값 그대로.
-    const ownMargin = own.cappedPrice != null ? solveMargin(grade, cost, t, own.cappedPrice) : null;
-    const sibMargin = sib.cappedPrice != null ? solveMargin(siblingGrade, cost, t, sib.cappedPrice) : null;
-    const margin = Math.min(...[ownMargin, sibMargin].filter(m => m != null));
+    const margin = solveMargin(grade, cost, t, own.cappedPrice);
 
     const marginId = _getMarginId(tabId, grade, t);
     const field = marginId ? document.getElementById(marginId) : null;
     if (field) { field.value = margin; applied++; }
 
-    // "동일가로만" 업체가 최종 마진을 실제로 결정했을 때만(=자기 solveMargin 결과가
-    // 최종 마진과 같을 때만) 오버라이드 판단 — PF처럼 짝 규격이 더 타이트해서 덤으로
-    // 더 싸진 경우까지 억지로 끌어올리지 않는다(2026-09-04). 정수 마진 특성상 정확히
-    // 못 맞추면 마진 대신 가격 자체를 강제 고정(아이소핑크와 동일한 로직).
-    if (ownOverrideField) {
-      if (ownMargin != null && ownMargin === margin && own.winner?.matchOnly) {
+    // 정수 마진 특성상 목표가를 정확히 못 맞추는 경우(2026-09-04 발견) — 마진 대신
+    // 가격 자체를 강제 고정(아이소핑크와 동일한 로직).
+    if (overrideField) {
+      if (own.winner?.matchOnly) {
         const achieved = priceForGrade(grade, cost, margin, t);
-        if (achieved !== own.winner.raw) { ownOverrideField.value = own.winner.raw; overridden++; }
-        else { ownOverrideField.value = ''; }
+        if (achieved !== own.winner.raw) { overrideField.value = own.winner.raw; overridden++; }
+        else { overrideField.value = ''; }
       } else {
-        ownOverrideField.value = '';
-      }
-    }
-    if (siblingGrade && sibOverrideField) {
-      if (sibMargin != null && sibMargin === margin && sib.winner?.matchOnly) {
-        const achievedSib = priceForGrade(siblingGrade, cost, margin, t);
-        if (achievedSib !== sib.winner.raw) { sibOverrideField.value = sib.winner.raw; overridden++; }
-        else { sibOverrideField.value = ''; }
-      } else {
-        sibOverrideField.value = '';
+        overrideField.value = '';
       }
     }
   });
@@ -952,9 +921,11 @@ window.fixPuJongPriceOrder = async function() {
    수입산보다 같거나 싸게 책정된 경우가 다수 발견되어 추가. 규칙: 같은 종류(심재
    준불연 mk접미사 'o' / 준불연 'i')·같은 규격(_s/_l)끼리 LX > 국내산 > 수입산 순서가
    유지돼야 함 → 위반 시 하위 브랜드(국내산, 수입산) 마진을 낮춰서 맞춘다.
-   주의: PF는 원가/마진 필드가 mk(브랜드+종류) 단위로 공용이라(_s/_l이 같은 필드를
-   공유) 두 규격을 동시에 만족하는 마진 중 "가장 큰(=손해 최소)" 값을 찾아야 한다
-   — 각 규격별로 풀어낸 최대 허용 마진 중 더 작은 쪽을 채택(작을수록 더 낮은 가격). */
+   2026-09-08: 예전엔 소형(_s)/대형(_l)이 마진 필드를 mk 단위로 공유해서 두 규격을
+   동시에 만족하는 마진 중 하나만 골라 써야 했는데(비드법 준불연에서 겪은 것과 같은
+   문제 — 크린슐라가 한쪽 규격에만 걸려있으면 반대쪽까지 끌려 내려감), 이제 소형/
+   대형 마진 필드가 완전히 독립적이라(_getMarginId 참고) 각자 따로 풀어서 각자의
+   필드에 쓰면 된다 — 서로 영향 없음. */
 function _pfSolveMargin(grade, cost, t, cappedPrice) {
   const priceFor = m => calcSheetRow(cost, m, t, grade.area).realPrice;
   let margin = Math.round(cappedPrice / (t * grade.area * 1.1) - cost);
@@ -974,37 +945,24 @@ window.fixPfBrandPriceOrder = async function() {
   const gradeOf = id => PF_GRADES.find(g => g.id === id);
   let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0;
 
-  function fixPair(upperMk, lowerMk, t) {
-    const upperS = gradeOf(`${upperMk}_s`), upperL = gradeOf(`${upperMk}_l`);
-    const lowerS = gradeOf(`${lowerMk}_s`), lowerL = gradeOf(`${lowerMk}_l`);
-    const costLowerId = _getCostId('pf', lowerS, t); // 규격 무관, mk 기준 공용 필드
+  // 규격 하나(소형 또는 대형)만 독립적으로 보정 — upper/lower 같은 규격끼리 비교.
+  function fixOne(upperGrade, lowerGrade, t) {
+    const costLowerId = _getCostId('pf', lowerGrade, t);
     const costLower   = costLowerId ? fieldVal(costLowerId) : 0;
-    const priceUpperS = _pfRealPrice(upperS, t);
-    const priceUpperL = _pfRealPrice(upperL, t);
-    if (!costLower || priceUpperS == null || priceUpperL == null) { skipped++; return; }
+    const priceUpper   = _pfRealPrice(upperGrade, t);
+    if (!costLower || priceUpper == null) { skipped++; return; }
 
-    const capS = Math.floor((priceUpperS - buffer) / 100) * 100;
-    const capL = Math.floor((priceUpperL - buffer) / 100) * 100;
-    if (capS <= 0 || capL <= 0) { skipped++; return; }
+    const cap = Math.floor((priceUpper - buffer) / 100) * 100;
+    if (cap <= 0) { skipped++; return; }
 
-    const priceLowerS = _pfRealPrice(lowerS, t);
-    const priceLowerL = _pfRealPrice(lowerL, t);
-    if (priceLowerS != null && priceLowerL != null && priceLowerS <= capS && priceLowerL <= capL) { alreadyOk++; return; }
+    const priceLower = _pfRealPrice(lowerGrade, t);
+    if (priceLower != null && priceLower <= cap) { alreadyOk++; return; }
 
-    // 소형/대형이 마진 필드를 공유하므로, 둘 중 하나라도 동일가 맞춤으로 고정돼 있으면
-    // 마진을 바꿔봤자 그 규격 표시가는 안 바뀌면서 반대쪽 규격만 영향받는 혼란스러운
-    // 상태가 된다 — 아예 건드리지 않는다(2026-09-04).
-    const overrideElS = document.getElementById(_getOverrideId('pf', lowerS, t));
-    const overrideElL = document.getElementById(_getOverrideId('pf', lowerL, t));
-    if ((overrideElS && overrideElS.value.trim() !== '') || (overrideElL && overrideElL.value.trim() !== '')) {
-      overrideLocked++; return;
-    }
+    const overrideEl = document.getElementById(_getOverrideId('pf', lowerGrade, t));
+    if (overrideEl && overrideEl.value.trim() !== '') { overrideLocked++; return; }
 
-    const marginS = _pfSolveMargin(lowerS, costLower, t, capS);
-    const marginL = _pfSolveMargin(lowerL, costLower, t, capL);
-    const margin  = Math.min(marginS, marginL); // 두 규격 모두 만족하는 값 중 가장 큰(=손해 최소) 마진
-
-    const marginId = _getMarginId('pf', lowerS, t);
+    const margin  = _pfSolveMargin(lowerGrade, costLower, t, cap);
+    const marginId = _getMarginId('pf', lowerGrade, t);
     const field = marginId ? document.getElementById(marginId) : null;
     if (field) { field.value = margin; fixed++; }
   }
@@ -1012,8 +970,11 @@ window.fixPfBrandPriceOrder = async function() {
   const GROUPS = [['lxo', 'kdo', 'imo'], ['lxi', 'kdi', 'imi']]; // [LX, 국내산, 수입산]
   GROUPS.forEach(([lx, kd, im]) => {
     PF_ROWS.forEach(t => {
-      fixPair(lx, kd, t); // 국내산이 LX보다 저렴하도록
-      fixPair(kd, im, t); // 수입산이 국내산(보정 후)보다 저렴하도록
+      ['s', 'l'].forEach(size => {
+        const lxG = gradeOf(`${lx}_${size}`), kdG = gradeOf(`${kd}_${size}`), imG = gradeOf(`${im}_${size}`);
+        if (lxG && kdG) fixOne(lxG, kdG, t); // 국내산이 LX보다 저렴하도록
+        if (kdG && imG) fixOne(kdG, imG, t); // 수입산이 국내산(보정 후)보다 저렴하도록
+      });
     });
   });
 
@@ -1071,14 +1032,22 @@ function _getCostId(tabId, grade, t) {
   return null;
 }
 
-/* ── 마진 field ID 조회 ── */
+/* ── 마진 field ID 조회 ──
+   2026-09-08: 비드법 준불연(ib_09/ib_06)과 PF 소형/대형(mk 단위)이 예전엔 마진을
+   공유해서 한쪽을 경쟁사에 맞추면 반대쪽까지 끌려가는 문제가 있었다(크린슐라가
+   0.6×1.2에만 동일가로 걸려있는데 0.9×1.8까지 깎이는 걸 사용자가 발견 — "마진을
+   공유하는 한 피할 수 없는 결과"임을 확인하고 분리 결정). 이제 둘 다 grade.id
+   기준으로 완전히 독립된 필드를 쓴다 — 대신 "마진 편집" 모달에서는 여전히 하나로
+   보여주고 입력하면 양쪽에 같은 값을 채워넣는다(_modalFieldTargets 참고, 대부분
+   같은 마진을 쓸 거라는 사용자 판단). */
 function _getMarginId(tabId, grade, t) {
   if (tabId === 'bead') {
     const tKey = Math.min(300, Math.max(10, Math.round(t / 10) * 10));
+    if (grade.id === 'ib_09' || grade.id === 'ib_06') return `bead_mj_${grade.id}_t${tKey}`;
     return `${grade.marginKey}_t${tKey}`;
   }
   if (tabId === 'pu')  return `pu_m_${grade.id}_t${t}`;
-  if (tabId === 'pf')  return `pf_m_${grade.mk}_t${t}`;
+  if (tabId === 'pf')  return `pf_m_${grade.id}_t${t}`;
   if (tabId === 'fr')  return `fr_m_${grade.id}_t${t}`;
   return null;
 }
@@ -1189,10 +1158,6 @@ window.togglePuExtraRows = function(btn) {
   icon.textContent  = isOpen ? '▼' : '▲';
   btn.closest('tr').classList.toggle('open', !isOpen);
 };
-
-/* 하위 호환 유지 */
-function _pfMarginId(mk, t)     { return _getMarginId('pf', { mk }, t); }
-function getPfMarginFieldId(mk, t) { return _pfMarginId(mk, t); }
 
 /* ═══════════════════════════════════════
    입력표 변동 배지
@@ -1782,8 +1747,10 @@ function buildBeadModalBody() {
     html += `<tr><td class="pim-td-t">${t}T</td>`;
     grades.forEach(g => {
       const fieldId = `${g.key}_t${t}`;
-      const fb = BEAD_MARGIN_FALLBACK[fieldId] ?? 0;
-      html += `<td><input type="text" inputmode="numeric" id="${_pimId(fieldId)}" class="pim-input pim-input-margin" placeholder="${fb}" value="${_realVal(fieldId)}" style="width:58px"></td>
+      // 준불연은 대표(가상) id라 실제 값은 첫 번째 실 필드(ib_09)에서 읽어온다(2026-09-08).
+      const realId = _modalFieldTargets('bead', fieldId)[0];
+      const fb = BEAD_MARGIN_FALLBACK[realId] ?? 0;
+      html += `<td><input type="text" inputmode="numeric" id="${_pimId(fieldId)}" class="pim-input pim-input-margin" placeholder="${fb}" value="${_realVal(realId)}" style="width:58px"></td>
       <td class="pim-td-diff" id="pimdiff_${fieldId}"><span class="pcut-diff-empty">—</span></td>`;
     });
     html += `</tr>`;
@@ -1849,8 +1816,10 @@ function buildPfModalBody() {
   PF_ROWS.forEach(t => {
     html += `<tr><td class="pim-td-t">${t}T</td>`;
     groups.forEach(g => {
-      const id = _pfMarginId(g.mk, t);
-      html += `<td><input type="text" inputmode="numeric" id="${_pimId(id)}" class="pim-input pim-input-margin" placeholder="${PF_FB[g.mk]?.[t]??35}" value="${_realVal(id)}"></td>
+      const id = `pf_m_${g.mk}_t${t}`; // 대표(가상) id
+      // 소형/대형 마진이 독립 필드라(2026-09-08) 실제 값은 첫 번째(소형)에서 읽어온다.
+      const realId = _modalFieldTargets('pf', id)[0];
+      html += `<td><input type="text" inputmode="numeric" id="${_pimId(id)}" class="pim-input pim-input-margin" placeholder="${PF_FB[g.mk]?.[t]??35}" value="${_realVal(realId)}"></td>
         <td class="pim-td-diff" id="pimdiff_${id}"><span class="pcut-diff-empty">—</span></td>`;
     });
     html += `</tr>`;
@@ -1907,15 +1876,19 @@ window.openPricingModal = function(type) {
   modal.style.display = 'flex';
 };
 
-/* ── 모달 이전대비 diff ── */
-function _renderPimDiff(el, fieldId, fallback) {
+/* ── 모달 이전대비 diff ──
+   compareFieldId: 2026-09-08 — 비드법 준불연/PF 소형·대형처럼 모달의 대표(가상)
+   fieldId가 실제 저장 필드와 다른 경우, 비교에 쓸 진짜 필드 id를 따로 받는다
+   (안 주면 fieldId 그대로 사용 — 기존 1:1 타입은 동작 그대로). */
+function _renderPimDiff(el, fieldId, fallback, compareFieldId) {
   if (!el) return;
   const inputEl = document.getElementById(_pimId(fieldId));
   const curr = parseFloat(inputEl?.value) || parseFloat(inputEl?.placeholder) || fallback || 0;
+  const cmpId = compareFieldId || fieldId;
   /* 마진 필드는 _compareData.margins 에서, 원가 필드는 직접 */
-  const prevRaw = ALL_MARGIN_FIELDS.includes(fieldId)
-    ? (_compareData?.margins?.[fieldId])
-    : (_compareData?.[fieldId]);
+  const prevRaw = ALL_MARGIN_FIELDS.includes(cmpId)
+    ? (_compareData?.margins?.[cmpId])
+    : (_compareData?.[cmpId]);
   const prev = prevRaw!=null ? parseFloat(prevRaw) : fallback;
   if (prev==null||(curr===0&&prev===0)) { el.innerHTML='<span class="pcut-diff-empty">—</span>'; return; }
   const diff = curr - prev;
@@ -1925,7 +1898,11 @@ function _renderPimDiff(el, fieldId, fallback) {
 }
 
 
-/* ── 타입별 마진 fieldId 목록 ── */
+/* ── 타입별 마진 fieldId 목록 ──
+   2026-09-08: 여기 나오는 bead_mj_t{T} / pf_m_{mk}_t{T}는 이제 "대표(가상) id"다 —
+   실제 DOM 필드는 규격별로 분리됐지만(_getMarginId 참고), "마진 편집" 모달에는
+   여전히 하나로 보여주고 싶다는 요청(어차피 대부분 같은 값을 쓸 거라서) —
+   _modalFieldTargets()가 이 대표 id 하나를 실제 필드 여러 개로 풀어준다. */
 function _modalMarginFields(type) {
   if (type === 'isopink') return ISOPINK_ROWS.map(t => `margin_iso_t${t}`);
   if (type === 'bead')    return BEAD_ROWS.flatMap(t => [`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_t${t}`]);
@@ -1933,6 +1910,21 @@ function _modalMarginFields(type) {
   if (type === 'pf')      return PF_ROWS.flatMap(t => ['lxo','lxi','kdo','kdi','imo','imi'].map(mk => `pf_m_${mk}_t${t}`));
   if (type === 'fr')      return FR_GRADES.flatMap(g => g.rows.map(t => `fr_m_${g.id}_t${t}`));
   return [];
+}
+
+/* "마진 편집" 모달의 대표(가상) 필드 id 하나가 실제로 반영해야 할 진짜 필드 목록.
+   기본은 1:1이지만, 비드법 준불연(ib_09/ib_06)과 PF 소형/대형(_s/_l)처럼 화면엔
+   하나로 보여주되 실제 저장은 독립적인 경우 여기서 묶는다(2026-09-08). */
+function _modalFieldTargets(type, repId) {
+  if (type === 'bead') {
+    const m = repId.match(/^bead_mj_t(\d+)$/);
+    if (m) return [`bead_mj_ib_09_t${m[1]}`, `bead_mj_ib_06_t${m[1]}`];
+  }
+  if (type === 'pf') {
+    const m = repId.match(/^pf_m_([^_]+)_t(\d+)$/);
+    if (m) return [`pf_m_${m[1]}_s_t${m[2]}`, `pf_m_${m[1]}_l_t${m[2]}`];
+  }
+  return [repId];
 }
 
 function renderModalDiff(type) {
@@ -1946,7 +1938,7 @@ function renderModalDiff(type) {
       const t = parseInt(id.replace('margin_iso_t', ''));
       fb = ISO_MARGIN_DEFS[t] ?? 55;
     } else if (type === 'bead') {
-      fb = BEAD_MARGIN_FALLBACK[id] ?? 0;  // marginKey 기반 필드명이므로 그대로 조회
+      fb = BEAD_MARGIN_FALLBACK[_modalFieldTargets('bead', id)[0]] ?? 0;
     } else if (type === 'pu') {
       const m = id.match(/^pu_m_(.+)_t(\d+)$/);
       if (m) { const g = PU_GRADES.find(g => g.id === m[1]); fb = g?.fallback?.[+m[2]] ?? 0; }
@@ -1957,7 +1949,7 @@ function renderModalDiff(type) {
       const m = id.match(/^fr_m_(.+)_t(\d+)$/);
       if (m) { const g = FR_GRADES.find(g => g.id === m[1]); fb = g?.fallback?.[+m[2]] ?? 0; }
     }
-    _renderPimDiff(el, id, fb);
+    _renderPimDiff(el, id, fb, _modalFieldTargets(type, id)[0]);
   });
 }
 
@@ -1968,10 +1960,15 @@ window.closePricingModal = function() {
 };
 window.confirmPricingModal = function() {
   if (!_pimType) return;
+  // 2026-09-08: 대표(가상) 필드 하나가 실제로는 여러 필드(비드법 준불연/PF 소형·대형)에
+  // 반영돼야 할 수 있어서 _modalFieldTargets로 풀어서 전부 써준다.
   _modalMarginFields(_pimType).forEach(id => {
     const modalEl = document.getElementById(_pimId(id));
-    const realEl  = document.getElementById(id);
-    if (modalEl && realEl) realEl.value = modalEl.value;
+    if (!modalEl) return;
+    _modalFieldTargets(_pimType, id).forEach(realId => {
+      const realEl = document.getElementById(realId);
+      if (realEl) realEl.value = modalEl.value;
+    });
   });
   const recalc = { isopink: recalcPricing, bead: recalcBead, pu: recalcPu, pf: recalcPf, fr: recalcFr };
   recalc[_pimType]?.();
@@ -2127,7 +2124,7 @@ function buildBeadTab() {
     <thead><tr><th>종류</th><th>품명</th><th>단가 (원/m²)</th><th class="pricing-col-diff">이전대비</th></tr></thead>
     <tbody>${costRows}</tbody>
   </table>`;
-  const hiddenHtml = _hiddenFields(BEAD_ROWS.flatMap(t=>[`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_t${t}`]),'recalcBead')
+  const hiddenHtml = _hiddenFields(BEAD_ROWS.flatMap(t=>[`bead_m2_3_t${t}`,`bead_m2_2_t${t}`,`bead_m2_1_t${t}`,`bead_m1_3_t${t}`,`bead_m1_2_t${t}`,`bead_m1_1_t${t}`,`bead_mj_ib_09_t${t}`,`bead_mj_ib_06_t${t}`]),'recalcBead')
     + _hiddenFields(BEAD_GRADES.flatMap(g => BEAD_ROWS.map(t => _getOverrideId('bead', g, t))), 'recalcBead');
   const subtabBar = `<div class="bead-subtab-bar">
     ${BEAD_GRADES.map((g,i)=>`<button class="bead-subtab${i===0?' active':''}" onclick="setBeadSubtab('${g.id}',this)">${g.label}<span class="bead-subtab-sub">${g.sub}</span></button>`).join('')}
@@ -2229,7 +2226,7 @@ function buildPfTab() {
     <thead><tr><th>품명</th><th>부위</th><th>단가 (원/m²)</th><th class="pricing-col-diff">이전대비</th></tr></thead>
     <tbody>${costRows}</tbody>
   </table>`;
-  const hiddenHtml = _hiddenFields(PF_ROWS.flatMap(t=>['lxo','lxi','kdo','kdi','imo','imi'].map(mk=>`pf_m_${mk}_t${t}`)),'recalcPf')
+  const hiddenHtml = _hiddenFields(PF_GRADES.flatMap(g => PF_ROWS.map(t => _getMarginId('pf', g, t))),'recalcPf')
     + _hiddenFields(PF_GRADES.flatMap(g => PF_ROWS.map(t => _getOverrideId('pf', g, t))), 'recalcPf');
   const subtabGroups = [
     { label:'LX 국내산', cls:'pf-lx-label', tabs:[
