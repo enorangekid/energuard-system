@@ -645,6 +645,74 @@ window.autoMatchCompetitorPrice = function() {
   window.autoMatchCompetitorPriceGeneric(tabId);
 };
 
+/* ── 아이소핑크 1호/특호 가격역전 확인·보정 ──────────────────────────────
+   2026-09-08: 특호(Ⅱ-B-2)는 1호(Ⅱ-A)보다 높은 등급이라 같은 두께에서 항상 더
+   비싸야 정상인데, 겹치는 30T~300T 구간에서 원가/마진을 따로 조정하다 보면
+   역전(1호가 특호보다 비싸짐)될 수 있다. 비드법/PU/PF 가격역전 보정과 동일한
+   방식으로 1호 마진을 낮춰서 맞춘다(특호는 안 건드림). */
+function _isopinkRealPrice(grade, t) {
+  // "동일가로만 맞춤" 오버라이드가 걸려있으면 그게 진짜 표시가 — 다른 가격역전
+  // 보정 헬퍼(_beadRealPrice 등)와 동일한 이유.
+  const overrideEl = document.getElementById(_getOverrideId('isopink', grade, t));
+  const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+  if (overrideVal) return overrideVal;
+  const costId = _getCostId('isopink', grade, t);
+  const cost   = costId ? fieldVal(costId) : 0;
+  const margin = _getMargin('isopink', grade, t);
+  if (!cost) return null;
+  return calcSheetRow(cost, margin, t, grade.area).realPrice;
+}
+window.fixIsopinkGradePriceOrder = async function() {
+  if (window.currentUser?.role !== 'admin') return;
+  const bufferStr = prompt('1호가 특호보다 얼마나 저렴해야 할까요? (원 단위, 예: 100)', '100');
+  if (bufferStr === null) return;
+  const buffer = Number(String(bufferStr).replace(/,/g, ''));
+  if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
+
+  const g1ho  = ISOPINK_GRADES.find(g => g.id === '1ho');
+  const gTeuk = ISOPINK_GRADES.find(g => g.id === 'isopink');
+  const priceFor = (cost, margin, t) => calcSheetRow(cost, margin, t, g1ho.area).realPrice;
+
+  let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0;
+  gTeuk.rows.forEach(t => { // 특호가 있는 두께(30T~300T)만 — 겹치는 구간만 비교 대상
+    const cost1Id = _getCostId('isopink', g1ho, t);
+    const cost1   = cost1Id ? fieldVal(cost1Id) : 0;
+    const priceTeuk = _isopinkRealPrice(gTeuk, t);
+    if (!cost1 || priceTeuk == null) { skipped++; return; }
+
+    const cappedPrice = Math.floor((priceTeuk - buffer) / 100) * 100;
+    if (cappedPrice <= 0) { skipped++; return; }
+
+    const price1ho = _isopinkRealPrice(g1ho, t);
+    if (price1ho != null && price1ho <= cappedPrice) { alreadyOk++; return; } // 이미 조건 만족
+
+    // 동일가로만 맞춤 오버라이드가 걸린 행은 마진을 바꿔도 실제 표시가가 안 바뀌므로
+    // 건드리지 않는다(2026-09-04, 다른 가격역전 보정과 동일한 이유).
+    const overrideEl1 = document.getElementById(_getOverrideId('isopink', g1ho, t));
+    if (overrideEl1 && overrideEl1.value.trim() !== '') { overrideLocked++; return; }
+
+    let margin = Math.round(cappedPrice / (t * g1ho.area * 1.1) - cost1);
+    let guard = 0;
+    while (priceFor(cost1, margin, t) > cappedPrice && guard < 200) { margin--; guard++; }
+    guard = 0;
+    while (priceFor(cost1, margin + 1, t) <= cappedPrice && guard < 200) { margin++; guard++; }
+
+    const marginId = _getMarginId('isopink', g1ho, t);
+    const field = marginId ? document.getElementById(marginId) : null;
+    if (field) { field.value = margin; fixed++; }
+  });
+
+  window.recalcIsopink?.();
+
+  const parts = [`${fixed}건 보정`];
+  if (alreadyOk)       parts.push(`이미 정상 ${alreadyOk}건`);
+  if (overrideLocked)  parts.push(`동일가 맞춤으로 고정되어 조정 불가 ${overrideLocked}건`);
+  if (skipped)         parts.push(`계산 불가 ${skipped}건`);
+  if (typeof showToast === 'function') {
+    showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', fixed ? 'success' : 'warning');
+  }
+};
+
 /* ── 비드법 1종/2종 가격역전 보정 ──────────────────────────────────────
    2026-09-02: 같은 호수(예: 3호)끼리는 1종이 2종보다 항상 저렴해야 정상인데,
    원가/마진을 조정하다 보면 가끔 같아지거나 역전(1종이 더 비쌈)되는 경우가 생겨서,
@@ -1972,6 +2040,9 @@ function _costCard(tabId, modalType, titleSub, tableBodyHtml, hiddenHtml) {
       <button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPrice()" title="두께별 경쟁사 최저가보다 100원 단위로 한 단계 낮게 마진을 맞추고, 그로 인한 두께 역전도 같이 보정합니다. 경쟁사가 아예 없는 두께는 원하면 마진을 올릴 수도 있습니다(아이소핑크/비드법/PU/PF는 지금 선택된 등급 기준)">
         <i class="fa-solid fa-bolt"></i> 경쟁사 최저가 맞춤
       </button>
+      ${tabId === 'isopink' ? `<button class="pricing-margin-edit-btn" onclick="fixIsopinkGradePriceOrder()" title="같은 두께(30T~300T)에서 1호가 특호보다 비싸지거나 같아진 경우, 1호 마진을 낮춰서 항상 더 저렴하게 자동 보정합니다">
+        <i class="fa-solid fa-arrow-down-wide-short"></i> 1호·특호 가격역전 보정
+      </button>` : ''}
       ${tabId === 'bead' ? `<button class="pricing-margin-edit-btn" onclick="fixBeadJongPriceOrder()" title="같은 호수끼리 1종이 2종보다 비싸지거나 같아진 경우, 1종 마진을 낮춰서 항상 더 저렴하게 자동 보정합니다">
         <i class="fa-solid fa-arrow-down-wide-short"></i> 1종·2종 가격역전 보정
       </button>` : ''}
