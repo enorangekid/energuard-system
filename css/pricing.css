@@ -323,13 +323,14 @@
 }
 .pricing-empty-msg i { margin-right: 6px; }
 
-/* 결과 테이블 품명 셀 — rowspan으로 묶인 품명은 그룹 높이의 정중앙에 배치한다.
-   상단 고정과 별도 padding을 사용하면 등급별 행 수에 따라 위치가 달라 보인다. */
+/* 결과 테이블 품명 셀 — 2026-09-08: vertical-align:middle이면 아이소핑크 1호처럼
+   30행짜리 그룹에서 라벨이 그룹 한가운데(맨 위에서 14번째 행쯤)에 붕 떠 보인다
+   (실제로 사용자가 이 문제로 확인 요청함) — top으로 고정해서 항상 그룹 맨 위에
+   붙게 함(2026-09-08 재적용: 중간에 middle로 되돌아갔던 걸 다시 top으로). */
 .pricing-name-cell {
   text-align: center !important; font-weight: 700; font-size: 12px;
   line-height: 1.5; border-right: 2px solid #e2e8f0 !important;
-  white-space: nowrap; vertical-align: middle; padding-top: 10px !important;
-  padding-bottom: 10px !important;
+  white-space: nowrap; vertical-align: top; padding-top: 14px !important;
 }
 .pricing-table tbody td.pricing-name-grade1  { background: #eef2ff !important; color: #3730a3 !important; }
 .pricing-table tbody td.pricing-name-special { background: #fffbeb !important; color: #92400e !important; border-radius: 0 0 0 8px; }
@@ -692,7 +693,7 @@
 ═══════════════════════════════════ */
 .bead-name-cell {
   text-align: center; font-weight: 700; font-size: 13px;
-  line-height: 1.5; vertical-align: middle; padding-top: 10px; padding-bottom: 10px;
+  line-height: 1.5; vertical-align: top; padding-top: 14px;
 }
 .bead-2jong  { background: #e0f2fe; color: #0369a1; }
 .bead-1jong  { background: #f0fdf4; color: #166534; }
@@ -724,7 +725,7 @@
 .fr-jun-th      { background: #fff7ed !important; color: #9a3412; border-bottom: 2px solid #fed7aa !important; }
 
 /* 비드법 품명 셀 (결과 단가표) */
-.bead-name-cell { text-align:center; font-weight:700; font-size:13px; line-height:1.5; vertical-align:middle; padding-top:10px; padding-bottom:10px; }
+.bead-name-cell { text-align:center; font-weight:700; font-size:13px; line-height:1.5; vertical-align:top; padding-top:14px; }
 /* 비드법 입력표 품명 셀 */
 .bead-2jong  { background:#dbeafe; color:#1e40af; border-right: 2px solid #93c5fd !important; }
 .bead-1jong  { background:#dcfce7; color:#166534; border-right: 2px solid #86efac !important; }
