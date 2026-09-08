@@ -133,9 +133,14 @@ function _ensurePcBulkModal() {
     <div class="pcode-modal-box">
       <div class="pcode-modal-title">상품번호 일괄 입력·복사</div>
       <div class="pcode-modal-sub" id="pcBulkModalSub"></div>
-      <div class="pcode-modal-hint">두께 큰 것부터 작은 순서로 한 줄에 하나씩 — 등록 안 된 얇은 두께는 생략해도 됩니다.
-        현재 저장된 값이 미리 채워져 있으니, 복사만 하려면 바로 "클립보드로 복사"를 누르면 됩니다.</div>
-      <textarea id="pcBulkTextarea" class="pcode-textarea" rows="14" spellcheck="false"></textarea>
+      <div class="pcode-modal-hint">붙여넣고 [적용]을 누르면 저장됩니다 — 아래 <b>"여기부터 채우기"</b>로 고른 두께부터
+        한 줄에 하나씩, 순서대로(두께가 작아지는 방향) 채워집니다. 등록된 만큼만 적으면 되고 끝까지 안 채워도 됩니다.
+        이미 저장된 값이 있으면 아래 칸에 미리 보이니, 복사만 하려면 그대로 "클립보드로 복사"를 누르면 됩니다.</div>
+      <div class="pcode-start-row">
+        <label for="pcBulkStartT">여기부터 채우기</label>
+        <select id="pcBulkStartT"></select>
+      </div>
+      <textarea id="pcBulkTextarea" class="pcode-textarea" rows="14" spellcheck="false" placeholder="여기에 상품번호를 한 줄에 하나씩 붙여넣으세요"></textarea>
       <div class="pcode-modal-actions">
         <label class="pcode-comma-toggle"><input type="checkbox" id="pcBulkCommaMode"> 쉼표로 복사</label>
         <button class="pricing-margin-edit-btn" onclick="copyPcBulkToClipboard()"><i class="fa-solid fa-copy"></i> 클립보드로 복사</button>
@@ -158,11 +163,18 @@ window.openPcBulkModal = function(tabId, gradeId) {
 
   _ensurePcBulkModal();
   const codes = rows.map(t => _pcCache[_pcKey(tabId, gradeId, t)] || '');
-  let lastFilled = -1;
-  codes.forEach((c, i) => { if (c) lastFilled = i; });
-  const visible = codes.slice(0, lastFilled + 1);
-
+  let firstFilled = -1, lastFilled = -1;
+  codes.forEach((c, i) => { if (c) { if (firstFilled === -1) firstFilled = i; lastFilled = i; } });
+  const visible = firstFilled === -1 ? [] : codes.slice(firstFilled, lastFilled + 1);
   document.getElementById('pcBulkTextarea').value = visible.join('\n');
+
+  // "여기부터 채우기" 드롭다운 — 저장된 값이 있으면 그 시작 두께를, 없으면 제일 큰 두께를
+  // 기본으로 선택해둔다(2026-09-08: 1호처럼 등록된 상품이 얇은 두께 몇 개뿐인 경우,
+  // 항상 제일 큰 두께부터 채운다고 가정하면 엉뚱한 행에 들어가는 문제가 있어서 추가).
+  const startSel = document.getElementById('pcBulkStartT');
+  startSel.innerHTML = rows.map(t => `<option value="${t}">${t}T</option>`).join('');
+  startSel.value = String(rows[firstFilled === -1 ? 0 : firstFilled]);
+
   const label = `${grade.label || ''}${grade.sub ? ' ' + grade.sub : ''}`.trim() || gradeId;
   document.getElementById('pcBulkModalSub').textContent =
     `${tabId} / ${label} — 두께 ${rows[0]}T → ${rows[rows.length - 1]}T 순서 (총 ${rows.length}행)`;
@@ -193,18 +205,26 @@ window.applyPcBulkModal = async function() {
   const ctx = _pcBulkCtx;
   if (!ctx) return;
   const { tabId, gradeId, rows } = ctx;
+
+  // "여기부터 채우기"로 고른 두께를 시작점으로, 그 두께부터 작아지는 순서로만 반영한다
+  // (그보다 큰 두께의 기존 값은 건드리지 않음).
+  const startT = document.getElementById('pcBulkStartT')?.value;
+  let startIdx = rows.findIndex(t => String(t) === String(startT));
+  if (startIdx === -1) startIdx = 0;
+  const targetRows = rows.slice(startIdx);
+
   const raw = document.getElementById('pcBulkTextarea')?.value ?? '';
   let lines = raw.split(/\r?\n/).map(s => s.trim());
   // 줄바꿈 없이 쉼표만으로 붙여넣은 경우도 허용
   if (lines.length === 1 && lines[0].includes(',')) lines = lines[0].split(',').map(s => s.trim());
 
-  if (lines.length > rows.length && typeof showToast === 'function') {
-    showToast(`두께 행(${rows.length}개)보다 입력한 줄(${lines.length}개)이 더 많아서 앞쪽 ${rows.length}개만 반영됩니다.`, 'warning');
+  if (lines.length > targetRows.length && typeof showToast === 'function') {
+    showToast(`${rows[startIdx]}T부터 남은 행(${targetRows.length}개)보다 입력한 줄(${lines.length}개)이 더 많아서 앞쪽 ${targetRows.length}개만 반영됩니다.`, 'warning');
   }
 
   let changed = 0;
-  for (let i = 0; i < rows.length; i++) {
-    const t    = rows[i];
+  for (let i = 0; i < targetRows.length; i++) {
+    const t    = targetRows[i];
     const code = (lines[i] || '').trim();
     const key  = _pcKey(tabId, gradeId, t);
     if ((_pcCache[key] || '') === code) continue;
@@ -321,6 +341,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 .pcode-modal-title { font-size: 15px; font-weight: 700; color: #1e293b; }
 .pcode-modal-sub { font-size: 12px; color: #64748b; margin-top: 3px; }
 .pcode-modal-hint { font-size: 11px; color: #94a3b8; margin: 8px 0; line-height: 1.5; }
+.pcode-start-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.pcode-start-row label { font-size: 12px; font-weight: 600; color: #334155; }
+.pcode-start-row select {
+  border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px;
+  font-size: 12px; color: #334155;
+}
 .pcode-textarea {
   width: 100%; box-sizing: border-box; resize: vertical;
   border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px;
