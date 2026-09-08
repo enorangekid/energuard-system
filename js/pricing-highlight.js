@@ -158,8 +158,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 5. setPricingTab 후킹
   const _origSetTab = window.setPricingTab;
   window.setPricingTab = function(tabId, el) {
-    _origSetTab?.(tabId, el);
-    Promise.resolve().then(() => window._applyHighlights());
+    const result = _origSetTab?.(tabId, el);
+    if (result && typeof result.then === 'function') {
+      return result.then(() => window._applyHighlights());
+    }
+    window._applyHighlights();
+    return result;
   };
 
   // 6. 서브탭 후킹
@@ -167,8 +171,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   Object.entries(subtabFns).forEach(([tabId, fnKey]) => {
     const _orig = window[fnKey];
     window[fnKey] = function(gradeId, btnEl) {
-      _orig?.(gradeId, btnEl);
-      Promise.resolve().then(() => window._applyHighlights());
+      const result = _orig?.(gradeId, btnEl);
+      if (result && typeof result.then === 'function') {
+        return result.then(() => window._applyHighlights());
+      }
+      window._applyHighlights();
+      return result;
     };
   });
 });

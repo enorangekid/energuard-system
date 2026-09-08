@@ -165,6 +165,11 @@ async function _saveCompMeta(tabId, gradeId, names, excluded, matchOnly) {
    { [tabId]: { [gradeId]: { [t]: { comp1_price, comp1_link, comp2_price, comp2_link, comp3_price, comp3_link } } } }
 ═══════════════════════════════════════ */
 window._compCache = {};
+const _compLoadedGrades = new Set();
+const _compLoadPromises = new Map();
+let _compPreloadPromise = null;
+
+function _compGradeKey(tabId, gradeId) { return `${tabId}:${gradeId}`; }
 
 function _cacheGet(tabId, gradeId, t) {
   return window._compCache?.[tabId]?.[gradeId]?.[t] || {};
@@ -180,23 +185,69 @@ function _cacheSet(tabId, gradeId, t, compIdx, price, link) {
 
 async function loadCompPrices(tabId, gradeId) {
   if (typeof supabaseClient === 'undefined') return;
-  try {
-    const { data: rows, error } = await supabaseClient
-      .from('competitor_prices')
-      .select('thickness,comp1_price,comp1_link,comp2_price,comp2_link,comp3_price,comp3_link')
-      .eq('tab_id', tabId)
-      .eq('grade_id', gradeId);
-    if (error) throw error;
-    window._compCache[tabId]          = window._compCache[tabId] || {};
-    window._compCache[tabId][gradeId] = {};
-    (rows || []).forEach(r => {
-      window._compCache[tabId][gradeId][r.thickness] = {
-        comp1_price: r.comp1_price, comp1_link: r.comp1_link,
-        comp2_price: r.comp2_price, comp2_link: r.comp2_link,
-        comp3_price: r.comp3_price, comp3_link: r.comp3_link,
-      };
-    });
-  } catch(e) { console.warn('[Comp] 로드 실패', e); }
+  const key = _compGradeKey(tabId, gradeId);
+  if (_compLoadedGrades.has(key)) return;
+  if (_compLoadPromises.has(key)) return _compLoadPromises.get(key);
+  const task = (async () => {
+    try {
+      const { data: rows, error } = await supabaseClient
+        .from('competitor_prices')
+        .select('thickness,comp1_price,comp1_link,comp2_price,comp2_link,comp3_price,comp3_link')
+        .eq('tab_id', tabId)
+        .eq('grade_id', gradeId);
+      if (error) throw error;
+      window._compCache[tabId]          = window._compCache[tabId] || {};
+      window._compCache[tabId][gradeId] = {};
+      (rows || []).forEach(r => {
+        window._compCache[tabId][gradeId][r.thickness] = {
+          comp1_price: r.comp1_price, comp1_link: r.comp1_link,
+          comp2_price: r.comp2_price, comp2_link: r.comp2_link,
+          comp3_price: r.comp3_price, comp3_link: r.comp3_link,
+        };
+      });
+      _compLoadedGrades.add(key);
+    } catch(e) { console.warn('[Comp] 로드 실패', e); }
+  })();
+  _compLoadPromises.set(key, task);
+  try { await task; } finally { _compLoadPromises.delete(key); }
+}
+
+/* 품목 전환 때마다 경쟁사 데이터를 기다리며 표가 두 번 그려지지 않도록 페이지 진입 시
+   가격·업체 메타를 각각 한 번의 요청으로 미리 채운다. 실패한 등급만 기존 개별 조회로 폴백. */
+async function _preloadAllCompData() {
+  if (_compPreloadPromise || typeof supabaseClient === 'undefined') return _compPreloadPromise;
+  _compPreloadPromise = (async () => {
+    try {
+      const [priceResult, metaResult] = await Promise.all([
+        supabaseClient.from('competitor_prices').select('tab_id,grade_id,thickness,comp1_price,comp1_link,comp2_price,comp2_link,comp3_price,comp3_link'),
+        supabaseClient.from('competitor_names').select('tab_id,grade_id,comp1_name,comp2_name,comp3_name,comp1_excluded,comp2_excluded,comp3_excluded,comp1_match_only,comp2_match_only,comp3_match_only'),
+      ]);
+      if (priceResult.error) throw priceResult.error;
+      (priceResult.data || []).forEach(r => {
+        window._compCache[r.tab_id] = window._compCache[r.tab_id] || {};
+        window._compCache[r.tab_id][r.grade_id] = window._compCache[r.tab_id][r.grade_id] || {};
+        window._compCache[r.tab_id][r.grade_id][r.thickness] = {
+          comp1_price:r.comp1_price, comp1_link:r.comp1_link,
+          comp2_price:r.comp2_price, comp2_link:r.comp2_link,
+          comp3_price:r.comp3_price, comp3_link:r.comp3_link,
+        };
+        _compLoadedGrades.add(_compGradeKey(r.tab_id, r.grade_id));
+      });
+      if (!metaResult.error) (metaResult.data || []).forEach(r => {
+        _compMetaCache[_compMetaKey(r.tab_id, r.grade_id)] = {
+          names:[r.comp1_name || COMP_DEFAULT_NAMES[0],r.comp2_name || COMP_DEFAULT_NAMES[1],r.comp3_name || COMP_DEFAULT_NAMES[2]],
+          excluded:[!!r.comp1_excluded,!!r.comp2_excluded,!!r.comp3_excluded],
+          matchOnly:[!!r.comp1_match_only,!!r.comp2_match_only,!!r.comp3_match_only],
+        };
+      });
+    } catch(e) { console.warn('[Comp] 전체 미리 로드 실패', e); }
+  })();
+  return _compPreloadPromise;
+}
+
+async function _prepareCompGrade(tabId, gradeId) {
+  await _preloadAllCompData();
+  await Promise.all([loadCompPrices(tabId, gradeId), _compMeta(tabId, gradeId)]);
 }
 
 async function saveCompPrice(tabId, gradeId, thickness, compIdx, rawVal, rawLink) {
@@ -688,20 +739,27 @@ window.toggleCompMatchOnly = async function(idx, tabId, gradeId) {
 window._onPricingLoaded = function() {
   const tabId   = window._activePricingTab || 'isopink';
   const gradeId = _activeGradeId(tabId);
-  _injectCompColumns(tabId, gradeId);
+  _prepareCompGrade(tabId, gradeId).then(() => _injectCompColumns(tabId, gradeId, true));
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  _preloadAllCompData();
+
+  let pricingTabSwitchSeq = 0;
+  const subtabSwitchSeq = {};
 
   /* ── setPricingTab (상품 탭 전환) ──
      단가표 페이지가 활성 상태일 때만 주입 (showPage 진입 시 _onPricingLoaded가 처리하므로 중복 방지) */
   const _origSetTab = window.setPricingTab;
-  window.setPricingTab = function(tabId, el) {
+  window.setPricingTab = async function(tabId, el) {
+    const seq = ++pricingTabSwitchSeq;
+    const gradeId = _activeGradeId(tabId);
+    if (gradeId) await _prepareCompGrade(tabId, gradeId);
+    if (seq !== pricingTabSwitchSeq) return;
     _origSetTab?.(tabId, el);
     const pricingPage = document.getElementById('page-pricing');
-    if (pricingPage?.classList.contains('active')) {
-      // _origSetTab 내부 recalc 완료 후 실행되도록 microtask 뒤로 밀기
-      Promise.resolve().then(() => _injectCompColumns(tabId, _activeGradeId(tabId)));
+    if (gradeId && pricingPage?.classList.contains('active')) {
+      await _injectCompColumns(tabId, gradeId, true);
     }
   };
 
@@ -710,13 +768,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const fnMap = { isopink:'setIsopinkSubtab', bead:'setBeadSubtab', pu:'setPuSubtab', pf:'setPfSubtab', fr:'setFrSubtab' };
     const fnKey = fnMap[tabId];
     const _orig = window[fnKey];
-        window[fnKey] = function(gradeId, btnEl) {
+    window[fnKey] = async function(gradeId, btnEl) {
+      const seq = (subtabSwitchSeq[tabId] || 0) + 1;
+      subtabSwitchSeq[tabId] = seq;
+      await _prepareCompGrade(tabId, gradeId);
+      if (seq !== subtabSwitchSeq[tabId]) return;
       _orig?.(gradeId, btnEl);
       const pricingPage = document.getElementById('page-pricing');
       if (pricingPage?.classList.contains('active')) {
-        Promise.resolve().then(() => _injectCompColumns(tabId, gradeId));
+        await _injectCompColumns(tabId, gradeId, true);
       }
-    };;
+    };
   });
 
   /* ── recalcXxx — 원가/마진 변경 시 표를 통째로 다시 그린다. 그러면 기존에 주입해둔

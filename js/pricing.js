@@ -1025,10 +1025,18 @@ function _getMargin(tabId, grade, t, src) {
    복사된다"가 맞는 동작이었다(사용자 지적). 또한 단품은 두께마다 상품이 따로
    등록되어 있어서(28개 등) 등급 하나에 코드 하나로는 안 맞고, 두께 행마다 따로
    저장해야 한다는 것도 확인함 — 그건 _dpCache(아래, 결과행 "단품" 버튼)가 담당하고,
-   여기 등급(품명 셀)에는 "모음전"(등급 전체를 아우르는 옵션 상품 하나) 코드만 남긴다.
+   여기 등급(품명 셀)에는 "모음전" 코드를 남긴다. 같은 등급에 모음전이 여러 개면
+   줄바꿈으로 함께 저장하고 버튼 한 번에 전부 복사한다.
    클릭 = 복사(없으면 admin은 등록 프롬프트), 우클릭 = 이미 있는 코드도 변경. */
 let _gradeLinksCache = {};
 function _glKey(tabId, gradeId) { return `${tabId}|${gradeId}`; }
+
+/* 모음전 상품이 둘 이상인 품목도 버튼 하나로 한꺼번에 복사할 수 있도록, DB의 text
+   한 칸에는 상품코드를 줄바꿈으로 보관한다. 관리자 입력은 줄바꿈/쉼표/공백을 모두
+   허용하고 중복 코드는 제거한다. */
+function _normalizeProductCodeList(value) {
+  return [...new Set(String(value || '').split(/[\s,]+/).map(v => v.trim()).filter(Boolean))].join('\n');
+}
 
 async function _loadGradeLinks() {
   if (typeof supabaseClient === 'undefined') return;
@@ -1036,20 +1044,23 @@ async function _loadGradeLinks() {
     const { data, error } = await supabaseClient.from('pricing_grade_links').select('tab_id,grade_id,moeum_code');
     if (error) throw error;
     _gradeLinksCache = {};
-    (data || []).forEach(r => { _gradeLinksCache[_glKey(r.tab_id, r.grade_id)] = r.moeum_code || ''; });
+    (data || []).forEach(r => {
+      _gradeLinksCache[_glKey(r.tab_id, r.grade_id)] = _normalizeProductCodeList(r.moeum_code);
+    });
   } catch (e) { console.warn('[모음전 코드] 로드 실패', e); }
 }
 
 async function _saveGradeLink(tabId, gradeId, code) {
   if (typeof supabaseClient === 'undefined') return;
   const key = _glKey(tabId, gradeId);
+  const normalizedCode = _normalizeProductCodeList(code);
   try {
     const { error } = await supabaseClient.from('pricing_grade_links').upsert(
-      { tab_id: tabId, grade_id: gradeId, moeum_code: code || null },
+      { tab_id: tabId, grade_id: gradeId, moeum_code: normalizedCode || null },
       { onConflict: 'tab_id,grade_id' }
     );
     if (error) throw error;
-    _gradeLinksCache[key] = code || '';
+    _gradeLinksCache[key] = normalizedCode;
     _rerenderPricingTab(tabId);
     if (typeof showToast === 'function') showToast('저장되었습니다', 'success');
   } catch (e) {
@@ -1069,7 +1080,10 @@ function _rerenderPricingTab(tabId) {
 async function _copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
-    if (typeof showToast === 'function') showToast(`복사되었습니다 (${text})`, 'success');
+    const count = String(text).split(/\r?\n/).filter(Boolean).length;
+    if (typeof showToast === 'function') {
+      showToast(count > 1 ? `상품코드 ${count}개가 복사되었습니다.` : `복사되었습니다 (${text})`, 'success');
+    }
     return true;
   } catch (e) {
     console.warn('[클립보드] 복사 실패', e);
@@ -1090,13 +1104,14 @@ window.copyGradeCode = function(tabId, gradeId) {
 window.editGradeLink = function(tabId, gradeId) {
   if (window.currentUser?.role !== 'admin') return;
   const cur  = _gradeLinksCache[_glKey(tabId, gradeId)] || '';
-  const code = prompt('모음전 상품코드를 입력하세요 (비우면 삭제):', cur);
+  const code = prompt('모음전 상품코드를 입력하세요. 여러 개는 쉼표 또는 공백으로 구분합니다 (비우면 삭제):', cur.split('\n').join(', '));
   if (code === null) return;
   _saveGradeLink(tabId, gradeId, code.trim());
 };
 
 function _gradeLinkButtons(tabId, gradeId) {
-  const hasMoeum = !!_gradeLinksCache[_glKey(tabId, gradeId)];
+  const moeumCount = (_gradeLinksCache[_glKey(tabId, gradeId)] || '').split('\n').filter(Boolean).length;
+  const hasMoeum = moeumCount > 0;
   // 2026-09-08: 단품은 두께마다 코드가 따로 있지만, "한 번에 전부 복사"할 거라
   // 모음전과 똑같이 품명 셀 아래 버튼 하나로 둔다(개별 두께 행마다 버튼 X) —
   // 클릭하면 그 등급의 저장된 단품 코드를 전부(두께 큰 순서) 클립보드에 복사,
@@ -1108,7 +1123,7 @@ function _gradeLinkButtons(tabId, gradeId) {
       onclick="event.stopPropagation();copyAllDanpumCodes('${tabId}','${gradeId}')"
       oncontextmenu="event.preventDefault();event.stopPropagation();openDpBulkModal('${tabId}','${gradeId}')">단품</button>
     <button type="button" class="pgl-btn${hasMoeum ? '' : ' pgl-empty'}"
-      title="${hasMoeum ? '클릭: 코드 복사 / 우클릭: 코드 변경' : '클릭: 코드 등록'}"
+      title="${hasMoeum ? `클릭: 모음전 코드 ${moeumCount}개 전체 복사 / 우클릭: 코드 변경` : '클릭: 코드 등록'}"
       onclick="event.stopPropagation();copyGradeCode('${tabId}','${gradeId}')"
       oncontextmenu="event.preventDefault();event.stopPropagation();editGradeLink('${tabId}','${gradeId}')">모음전</button>
   </div>`;
@@ -2217,7 +2232,7 @@ function buildIsopinkTab() {
   </div>`;
   const resultTableHtml = `<table class="pricing-table">
     <colgroup>
-      <col style="width:110px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
+      <col style="width:100px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
       <col style="width:90px"><col style="width:90px"><col style="width:90px"><col style="width:72px">
       <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:70px">
     </colgroup>
@@ -2259,7 +2274,7 @@ function buildBeadTab() {
   </div>`;
   const resultTableHtml = `<table class="pricing-table">
     <colgroup>
-      <col style="width:130px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
+      <col style="width:100px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
       <col style="width:90px"><col style="width:90px"><col style="width:90px"><col style="width:72px">
       <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:70px">
     </colgroup>
@@ -2299,7 +2314,7 @@ function buildPuTab() {
   </div>`;
   const resultTableHtml = `<table class="pricing-table">
     <colgroup>
-      <col style="width:130px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
+      <col style="width:100px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
       <col style="width:90px"><col style="width:90px"><col style="width:90px"><col style="width:72px">
       <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:70px">
     </colgroup>
@@ -2379,7 +2394,7 @@ function buildPfTab() {
   </div>`;
   const resultTableHtml = `<table class="pricing-table">
     <colgroup>
-      <col style="width:140px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
+      <col style="width:100px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
       <col style="width:90px"><col style="width:90px"><col style="width:90px"><col style="width:72px">
       <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:70px">
     </colgroup>
@@ -2421,7 +2436,7 @@ function buildFrTab() {
   </div>`;
   const resultTableHtml = `<table class="pricing-table">
     <colgroup>
-      <col style="width:130px"><col style="width:55px">
+      <col style="width:100px"><col style="width:55px">
       <col style="width:75px"><col style="width:80px">
       <col style="width:85px"><col style="width:85px"><col style="width:90px">
       <col style="width:90px"><col style="width:72px">
