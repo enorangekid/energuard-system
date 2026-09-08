@@ -255,7 +255,10 @@ function _compDiffBadge(ourPrice, compPrice) {
 ═══════════════════════════════════════ */
 function _ourPrice(tabId, gradeId, t) {
   try {
-    if (tabId === 'isopink') return window._isoCalcRow?.(t)?.realPrice ?? null;
+    // 2026-09-08: 아이소핑크 특호(기존 grade.id='isopink', 1호 신설 이전부터 있던
+    // 실제 데이터)는 예전 전용 계산 경로(_isoCalcRow)를 그대로 쓴다 — 필드 id를
+    // 하나도 안 바꿔서 완전히 호환됨. 신설된 1호는 다른 탭처럼 아래 공통 경로로.
+    if (tabId === 'isopink' && gradeId === 'isopink') return window._isoCalcRow?.(t)?.realPrice ?? null;
     const grade = (window._gradesOf?.(tabId) || []).find(g => g.id === gradeId);
     if (!grade) return null;
     // "동일가로만 맞춤" 오버라이드(2026-09-04) — 정수 마진으로 정확히 못 맞춰서 가격을
@@ -283,16 +286,21 @@ function _ourPrice(tabId, gradeId, t) {
    현재 활성 gradeId
 ═══════════════════════════════════════ */
 function _activeGradeId(tabId) {
-  return tabId === 'isopink' ? 'isopink' : (window._subtabState?.[tabId] || '');
+  // 2026-09-08: 아이소핑크도 이제 _subtabState에 들어있다(1호/특호) — 그걸 우선
+  // 쓰고, 혹시 아직 초기화 전이면(초기 로드 타이밍) 기존 기본값 'isopink'로 폴백.
+  return window._subtabState?.[tabId] || (tabId === 'isopink' ? 'isopink' : '');
 }
 
 /* ═══════════════════════════════════════
    두께 목록
 ═══════════════════════════════════════ */
 function _thicknesses(tabId, gradeId) {
-  if (tabId === 'isopink') return window.ISOPINK_ROWS || [];
+  // 2026-09-08: 아이소핑크 1호(10~300T)/특호(30~300T)가 범위가 달라져서 더 이상
+  // ISOPINK_ROWS 하나로 퉁칠 수 없다 — 등급별 rows를 그대로 쓴다.
   const grade = (window._gradesOf?.(tabId) || []).find(g => g.id === gradeId);
-  return grade ? (window._rowsOf?.(tabId, grade) || []) : [];
+  if (grade) return window._rowsOf?.(tabId, grade) || [];
+  if (tabId === 'isopink') return window.ISOPINK_ROWS || []; // 폴백
+  return [];
 }
 
 /* ═══════════════════════════════════════
@@ -393,7 +401,9 @@ window.toggleCompEdit = function(compIdx) {
   if (window.currentUser?.role !== 'admin') return;
   const tabId   = window._activePricingTab || 'isopink';
   const gradeId = _activeGradeId(tabId);
-  const tbodyId = tabId === 'isopink' ? 'pricingTableBody' : `${tabId}TableBody`;
+  // 2026-09-08: 아이소핑크도 1호/특호 서브탭으로 나뉘면서 다른 탭과 같은 규칙
+  // (`${tabId}TableBody`)을 쓰게 됐다 — 예전엔 'pricingTableBody'로 따로 있었음.
+  const tbodyId = `${tabId}TableBody`;
   const tbody   = document.getElementById(tbodyId);
   if (!tbody) return;
 
@@ -461,7 +471,7 @@ function _setEditBtnState(compIdx, isEditing) {
    테이블에 경쟁사 컬럼 주입
 ═══════════════════════════════════════ */
 async function _injectCompColumns(tabId, gradeId, skipFetch) {
-  const tbodyId = tabId === 'isopink' ? 'pricingTableBody' : `${tabId}TableBody`;
+  const tbodyId = `${tabId}TableBody`; // 2026-09-08: 아이소핑크도 이제 다른 탭과 동일 규칙
   const tbody   = document.getElementById(tbodyId);
   if (!tbody) return;
   const table = tbody.closest('table');
@@ -695,9 +705,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  /* ── 서브탭 전환 ── */
-  ['bead','pu','pf','fr'].forEach(tabId => {
-    const fnMap = { bead:'setBeadSubtab', pu:'setPuSubtab', pf:'setPfSubtab', fr:'setFrSubtab' };
+  /* ── 서브탭 전환 (아이소핑크 1호/특호도 2026-09-08부터 포함) ── */
+  ['isopink','bead','pu','pf','fr'].forEach(tabId => {
+    const fnMap = { isopink:'setIsopinkSubtab', bead:'setBeadSubtab', pu:'setPuSubtab', pf:'setPfSubtab', fr:'setFrSubtab' };
     const fnKey = fnMap[tabId];
     const _orig = window[fnKey];
         window[fnKey] = function(gradeId, btnEl) {
@@ -709,18 +719,14 @@ document.addEventListener('DOMContentLoaded', () => {
     };;
   });
 
-  /* ── recalcPricing — 원가/마진 변경 시 표를 통째로 다시 그린다(isopink는
-     buildRows()가 tbody.innerHTML을 교체함) — 그러면 기존에 주입해둔 경쟁사 셀(.cp-td-price
-     등)도 같이 사라지는데, 예전엔 그 뒤에 diff 배지만 갱신하는 _refreshAllCompCells를 불러서
-     사라진 셀을 못 찾고 조용히 아무 일도 안 했다(2026-09-02 발견 — 원가/마진을 한 번이라도
-     건드리면 경쟁사 컬럼 전체가 없어지는 버그). _injectCompColumns로 통째로 다시 주입하게
-     고침 — 이러면 링크 그룹 색상도 매번 최신 상태로 다시 계산됨. */
-  const _origRecalc = window.recalcPricing;
-  window.recalcPricing = function() {
-    _origRecalc?.();
-    _injectCompColumns('isopink', 'isopink', true);
-  };
-  ['bead','pu','pf','fr'].forEach(tabId => {
+  /* ── recalcXxx — 원가/마진 변경 시 표를 통째로 다시 그린다. 그러면 기존에 주입해둔
+     경쟁사 셀(.cp-td-price 등)도 같이 사라지는데, 예전엔 그 뒤에 diff 배지만 갱신하는
+     _refreshAllCompCells를 불러서 사라진 셀을 못 찾고 조용히 아무 일도 안 했다
+     (2026-09-02 발견 — 원가/마진을 한 번이라도 건드리면 경쟁사 컬럼 전체가 없어지는
+     버그). _injectCompColumns로 통째로 다시 주입하게 고침 — 이러면 링크 그룹 색상도
+     매번 최신 상태로 다시 계산됨. 2026-09-08: 아이소핑크(recalcPricing→recalcIsopink)
+     도 다른 탭과 같은 공통 엔진을 쓰게 되면서 이 목록에 합류. */
+  ['isopink','bead','pu','pf','fr'].forEach(tabId => {
     const key   = `recalc${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`;
     const _orig = window[key];
     window[key] = function() {

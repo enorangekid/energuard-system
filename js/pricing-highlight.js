@@ -79,13 +79,14 @@ async function _removeHighlight(tabId, gradeId, t) {
    DOM 적용 — 현재 보이는 tbody에 하이라이트 클래스 적용
 ═══════════════════════════════════════ */
 function _activeGradeIdHL(tabId) {
-  return tabId === 'isopink' ? 'isopink' : (window._subtabState?.[tabId] || '');
+  // 2026-09-08: 아이소핑크도 1호/특호 서브탭으로 나뉘면서 _subtabState를 그대로 씀.
+  return window._subtabState?.[tabId] || (tabId === 'isopink' ? 'isopink' : '');
 }
 
 window._applyHighlights = function() {
   const tabId   = window._activePricingTab || 'isopink';
   const gradeId = _activeGradeIdHL(tabId);
-  const tbodyId = tabId === 'isopink' ? 'pricingTableBody' : `${tabId}TableBody`;
+  const tbodyId = `${tabId}TableBody`; // 2026-09-08: 아이소핑크도 다른 탭과 동일 규칙
   const tbody   = document.getElementById(tbodyId);
   if (!tbody) return;
 
@@ -135,7 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await _loadHighlights();
 
   // 2. tbody 클릭 이벤트 등록 (이벤트 위임)
-  ['pricingTableBody','beadTableBody','puTableBody','pfTableBody','frTableBody'].forEach(id => {
+  ['isopinkTableBody','beadTableBody','puTableBody','pfTableBody','frTableBody'].forEach(id => {
     // tbody가 나중에 동적 생성되므로 부모에 위임
     const pane = document.getElementById('page-pricing');
     if (pane && !pane._hlRegistered) {
@@ -144,15 +145,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // 3. recalcPricing 후킹 (아이소핑크)
-  const _origRecalc = window.recalcPricing;
-  window.recalcPricing = function() {
-    _origRecalc?.();
-    window._applyHighlights();
-  };
-
-  // 4. recalcBead/Pu/Pf/Fr 후킹
-  ['bead','pu','pf','fr'].forEach(tabId => {
+  // 3. recalcIsopink/Bead/Pu/Pf/Fr 후킹(2026-09-08: 아이소핑크도 공통 엔진 합류)
+  ['isopink','bead','pu','pf','fr'].forEach(tabId => {
     const key   = `recalc${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`;
     const _orig = window[key];
     window[key] = function() {
@@ -169,7 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   // 6. 서브탭 후킹
-  const subtabFns = { bead:'setBeadSubtab', pu:'setPuSubtab', pf:'setPfSubtab', fr:'setFrSubtab' };
+  const subtabFns = { isopink:'setIsopinkSubtab', bead:'setBeadSubtab', pu:'setPuSubtab', pf:'setPfSubtab', fr:'setFrSubtab' };
   Object.entries(subtabFns).forEach(([tabId, fnKey]) => {
     const _orig = window[fnKey];
     window[fnKey] = function(gradeId, btnEl) {
