@@ -1096,10 +1096,19 @@ window.editGradeLink = function(tabId, gradeId) {
 };
 
 function _gradeLinkButtons(tabId, gradeId) {
-  const has = !!_gradeLinksCache[_glKey(tabId, gradeId)];
+  const hasMoeum = !!_gradeLinksCache[_glKey(tabId, gradeId)];
+  // 2026-09-08: 단품은 두께마다 코드가 따로 있지만, "한 번에 전부 복사"할 거라
+  // 모음전과 똑같이 품명 셀 아래 버튼 하나로 둔다(개별 두께 행마다 버튼 X) —
+  // 클릭하면 그 등급의 저장된 단품 코드를 전부(두께 큰 순서) 클립보드에 복사,
+  // 우클릭하면 일괄 입력 모달(pricing-danpum-code.js)이 뜬다.
+  const hasDanpum = typeof window._dpHasAny === 'function' && window._dpHasAny(tabId, gradeId);
   return `<div class="pgl-btns">
-    <button type="button" class="pgl-btn${has ? '' : ' pgl-empty'}"
-      title="${has ? '클릭: 코드 복사 / 우클릭: 코드 변경' : '클릭: 코드 등록'}"
+    <button type="button" class="pgl-btn${hasDanpum ? '' : ' pgl-empty'}"
+      title="${hasDanpum ? '클릭: 단품 코드 전체 복사 / 우클릭: 코드 입력·수정' : '클릭 또는 우클릭: 단품 코드 입력'}"
+      onclick="event.stopPropagation();copyAllDanpumCodes('${tabId}','${gradeId}')"
+      oncontextmenu="event.preventDefault();event.stopPropagation();openDpBulkModal('${tabId}','${gradeId}')">단품</button>
+    <button type="button" class="pgl-btn${hasMoeum ? '' : ' pgl-empty'}"
+      title="${hasMoeum ? '클릭: 코드 복사 / 우클릭: 코드 변경' : '클릭: 코드 등록'}"
       onclick="event.stopPropagation();copyGradeCode('${tabId}','${gradeId}')"
       oncontextmenu="event.preventDefault();event.stopPropagation();editGradeLink('${tabId}','${gradeId}')">모음전</button>
   </div>`;
