@@ -2999,10 +2999,15 @@ function _doSmartStoreExport() {
     ..._moeumSummaryRows(basePrice, allPrices),
     ['아이소핑크 두께 선택', '옵션가', '재고수량', '관리코드', '사용여부'],
   ];
+  // 2026-09-08: 1호가 10~300T 전체 범위를 가진 독립 서브탭으로 확장됐지만, 아직 1호
+  // 모음전 상품 자체를 등록 안 해서(단품만 두 개 있음) 이 시트는 예전 그대로 10T/20T만
+  // "1호"로, 나머지(30T~300T)는 "특호"로 라벨만 나눠서 낸다 — 원가/마진은 여전히
+  // 특호(grade.id='isopink') 필드 기준(_isoCalcRow, 기존과 동일) 그대로 씀.
   ISOPINK_ROWS.forEach(t => {
     const r = _isoCalcRow(t);
     if (!r) return;
-    const optionName = `아이소핑크 KS정품 900x1800 ${t}T`;
+    const gradeLabel = (t === 10 || t === 20) ? '1호' : '특호';
+    const optionName = `아이소핑크 ${gradeLabel} KS정품 900x1800 ${t}T`;
     const optionPrice = r.realPrice - basePrice;
     rows.push([optionName, optionPrice, 99999, '', 'Y']);
   });
