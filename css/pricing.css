@@ -297,9 +297,14 @@
   font-size: 14px; text-align: right;
 }
 /* "동일가로만 맞춤"에서 마진 대신 가격을 직접 강제 고정한 행(2026-09-04) —
-   정상적으로 마진이 딱 맞아떨어진 노란 하이라이트와 구분되게 파란색으로. */
+   정상적으로 마진이 딱 맞아떨어진 노란 하이라이트와 구분되게 파란색으로.
+   !important: pricing-highlight.js의 수동 "★ 하이라이트" 행(.hl-row .td-highlight)이
+   배경색을 !important로 강제 노란색 처리하고 있어서, 오버라이드된 행이 동시에 수동
+   하이라이트도 켜져 있으면 배경만 노란색으로 되돌아가고 글자색만 파랗게 남는 문제가
+   있었다(2026-09-08, 사용자 발견 — 별표 켜진 행에서만 재현됨). 이 파란색이 우선이어야
+   하므로 같이 !important로 맞춤. */
 .pricing-table .td-highlight.pricing-price-override {
-  background: #dbeafe; color: #1d4ed8;
+  background: #dbeafe !important; color: #1d4ed8 !important;
 }
 
 /* 마진율 배지 */
