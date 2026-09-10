@@ -831,6 +831,12 @@ window.checkPuHoPriceOrder = function() {
 };
 
 /* PF 검증 전용. 대형 판 면적이 브랜드마다 달라 판매가/면적으로 비교한다. */
+// 2026-09-10: 처음엔 ㎡당 단가(가격÷면적)로 비교했는데, 수입산 "대형"(1×1.2m,
+// 1.2㎡)이 LX/국내산 "대형"(1.2×2.0m, 2.4㎡)보다 물리적으로 절반 크기라 ㎡로
+// 나누면 실제로는 정상 순서(LX 51,500 > 국내산 39,000 > 수입산 19,900원, 시트
+// 가격 그대로 비교하면 역전 아님)인데도 역전으로 잘못 떴다(사용자 발견 — "이런
+// 가격은 없다"). 예전 자동보정 버튼도 항상 시트 가격 그대로 비교했으니, 그
+// 기준으로 되돌린다 — ㎡ 환산 없이 규격(소·대)별로 실제 판매가만 직접 비교.
 function _checkPfBrandPrices() {
   const groups = [{ name:'심재 준불연', ids:['lxo','kdo','imo'] }, { name:'준불연', ids:['lxi','kdi','imi'] }];
   const brands = ['LX','국내산','수입산'];
@@ -840,9 +846,9 @@ function _checkPfBrandPrices() {
     const grades = group.ids.map(id => PF_GRADES.find(g => g.id === id+'_'+size));
     for (const t of PF_ROWS) {
       const prices = grades.map(g => {
-        if (!g || !(g.area > 0)) return null;
+        if (!g) return null;
         const price = _pfRealPrice(g, t);
-        return Number.isFinite(price) && price > 0 ? price / g.area : null;
+        return Number.isFinite(price) && price > 0 ? price : null;
       });
       const valid = prices.map(p => Number.isFinite(p) && p > 0);
       const problems = [];
@@ -869,9 +875,9 @@ window.checkPfBrandPriceOrder = function() {
   dialog.style.cssText = 'width:min(760px,90vw);max-height:80vh;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:24px;color:#1e293b;';
   const priceText = p => Number.isFinite(p) && p > 0 ? Math.round(p).toLocaleString('ko-KR') : '—';
   dialog.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>PF보드 브랜드 가격 검증</strong><button type="button" class="pricing-margin-edit-btn" id="pfBrandPriceCheckClose">닫기</button></div>
-    <p>같은 종류·두께별 ㎡당 판매가 기준: <b>LX &gt; 국내산 &gt; 수입산</b> · 규격별 면적으로 나눠 비교하며, 표시만 원 단위 반올림합니다. 가격은 변경하지 않습니다.</p>
+    <p>같은 종류·규격(소·대)·두께별 실제 판매가(시트 가격) 기준: <b>LX &gt; 국내산 &gt; 수입산</b> · 규격별 물리적 크기가 달라도 표시된 시트 가격 그대로 비교합니다. 가격은 변경하지 않습니다.</p>
     <p>정상 ${passed}개 · 확인 필요 ${issues.length}개 (가격 확인 불가 포함 ${incomplete}개)</p>
-    ${issues.length ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th>종류·규격</th><th>두께</th><th>LX (원/㎡)</th><th>국내산 (원/㎡)</th><th>수입산 (원/㎡)</th><th>확인 사항</th></tr></thead><tbody>${issues.map(row => `<tr><td>${row.group}</td><td>${row.t}T</td>${row.prices.map(p => `<td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(p)}</td>`).join('')}<td style="color:#b45309;padding:8px 4px;border-top:1px solid #e2e8f0">${row.problems.join('<br>')}</td></tr>`).join('')}</tbody></table>` : '<p>모든 비교 구간에서 LX > 국내산 > 수입산 순서가 정상입니다.</p>'}`;
+    ${issues.length ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th>종류·규격</th><th>두께</th><th>LX (원)</th><th>국내산 (원)</th><th>수입산 (원)</th><th>확인 사항</th></tr></thead><tbody>${issues.map(row => `<tr><td>${row.group}</td><td>${row.t}T</td>${row.prices.map(p => `<td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(p)}</td>`).join('')}<td style="color:#b45309;padding:8px 4px;border-top:1px solid #e2e8f0">${row.problems.join('<br>')}</td></tr>`).join('')}</tbody></table>` : '<p>모든 비교 구간에서 LX > 국내산 > 수입산 순서가 정상입니다.</p>'}`;
   document.body.appendChild(dialog);
   dialog.querySelector('#pfBrandPriceCheckClose').onclick = () => dialog.close();
   dialog.addEventListener('close', () => dialog.remove(), { once:true });
