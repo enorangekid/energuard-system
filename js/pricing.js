@@ -679,7 +679,22 @@ window.fixIsopinkGradePriceOrder = async function() {
   const gTeuk = ISOPINK_GRADES.find(g => g.id === 'isopink');
   const priceFor = (cost, margin, t) => calcSheetRow(cost, margin, t, g1ho.area).realPrice;
 
-  let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0;
+  // 2026-09-10: 1호가 특호 값을 이어받을 때(_seedIsopink1hoFromTeukho) 오버라이드도
+  // 같이 복사되는데, 그게 진짜 1호 자체 경쟁사 때문인지 그냥 특호 값을 베낀 것뿐인지는
+  // 필드만 봐서는 구분이 안 된다(110T 사례: 특호는 크린슐라 동일가 맞춤이 진짜 걸려
+  // 있는데 1호엔 등록된 경쟁사가 하나도 없는데도 오버라이드가 25,410으로 똑같이
+  // 남아있어서 가격역전 보정이 매번 "조정 불가"로 건너뛰기만 함, 사용자 발견) — 1호
+  // 자체에 등록된(제외 안 된) 경쟁사가 없는 두께라면 그 오버라이드는 근거가 없는 값이니
+  // 지우고 마진으로 다시 풀 수 있게 한다. 진짜 1호 경쟁사가 있으면 그대로 skip.
+  await loadCompPrices('isopink', '1ho');
+  const excluded1ho = (typeof _compExcluded === 'function') ? await _compExcluded('isopink', '1ho') : [false, false, false];
+  function has1hoActiveComp(t) {
+    const comp = window._compCache?.isopink?.['1ho']?.[t] || {};
+    const raw = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
+    return [0, 1, 2].some(i => !excluded1ho[i] && raw[i] != null && raw[i] > 0);
+  }
+
+  let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0, overrideCleared = 0;
   gTeuk.rows.forEach(t => { // 특호가 있는 두께(30T~300T)만 — 겹치는 구간만 비교 대상
     const cost1Id = _getCostId('isopink', g1ho, t);
     const cost1   = cost1Id ? fieldVal(cost1Id) : 0;
@@ -693,9 +708,14 @@ window.fixIsopinkGradePriceOrder = async function() {
     if (price1ho != null && price1ho <= cappedPrice) { alreadyOk++; return; } // 이미 조건 만족
 
     // 동일가로만 맞춤 오버라이드가 걸린 행은 마진을 바꿔도 실제 표시가가 안 바뀌므로
-    // 건드리지 않는다(2026-09-04, 다른 가격역전 보정과 동일한 이유).
+    // 원래는 건드리지 않았는데(2026-09-04, 다른 가격역전 보정과 동일한 이유), 1호는
+    // 그 오버라이드가 특호에서 복사된 근거 없는 값일 수 있어 한 번 더 확인한다.
     const overrideEl1 = document.getElementById(_getOverrideId('isopink', g1ho, t));
-    if (overrideEl1 && overrideEl1.value.trim() !== '') { overrideLocked++; return; }
+    if (overrideEl1 && overrideEl1.value.trim() !== '') {
+      if (has1hoActiveComp(t)) { overrideLocked++; return; } // 진짜 1호 경쟁사가 있으면 손 안 댐
+      overrideEl1.value = ''; // 근거 없는 오버라이드 — 지우고 아래에서 마진으로 다시 계산
+      overrideCleared++;
+    }
 
     let margin = Math.round(cappedPrice / (t * g1ho.area * 1.1) - cost1);
     let guard = 0;
@@ -711,8 +731,9 @@ window.fixIsopinkGradePriceOrder = async function() {
   window.recalcIsopink?.();
 
   const parts = [`${fixed}건 보정`];
+  if (overrideCleared) parts.push(`근거없는 동일가 오버라이드 해제 후 보정 ${overrideCleared}건`);
   if (alreadyOk)       parts.push(`이미 정상 ${alreadyOk}건`);
-  if (overrideLocked)  parts.push(`동일가 맞춤으로 고정되어 조정 불가 ${overrideLocked}건`);
+  if (overrideLocked)  parts.push(`1호 자체 경쟁사 동일가 맞춤으로 고정되어 조정 불가 ${overrideLocked}건`);
   if (skipped)         parts.push(`계산 불가 ${skipped}건`);
   if (typeof showToast === 'function') {
     showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', fixed ? 'success' : 'warning');
