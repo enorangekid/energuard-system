@@ -3001,34 +3001,46 @@ window.exportSmartStoreOptionExcel = function() {
   }
 };
 
+// 2026-09-10: 실제 네이버 모음전 상품에 1호(10T~300T 전체)·특호(30T~300T)가 둘 다
+// 옵션으로 등록된 걸 사용자가 내려받은 optionCombination 엑셀로 확인함 — 그동안
+// "1호 모음전 아직 미등록"이라 10T/20T만 특호 값 재탕으로 라벨만 바꿔 내던 걸 걷어내고,
+// 실제 1호 독립 원가/마진으로 계산하도록 바꾼다. 컬럼 구성도 실제 네이버 내보내기
+// 형식(종류/규격/옵션가/재고수량/관리코드/사용여부, 비드법과 동일한 6열)에 맞춘다.
+function _isoGradeRealPrice(grade, t) {
+  const costId = _getCostId('isopink', grade, t);
+  const costPerM2 = costId ? fieldVal(costId) : 0;
+  const marginPerM2 = _getMargin('isopink', grade, t);
+  let r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
+  const overrideEl = document.getElementById(_getOverrideId('isopink', grade, t));
+  const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+  if (r && overrideVal) r = _applyPriceOverride(r, overrideVal, r.costPerSheet);
+  return r ? r.realPrice : null;
+}
+
 function _doSmartStoreExport() {
   const wb = XLSX.utils.book_new();
 
-  // 아이소핑크 모음전 옵션 시트
-  const baseRow = _isoCalcRow(ISOPINK_ROWS[0]);
-  if (!baseRow) { showToast('아이소핑크 원가 데이터가 없습니다.', 'error'); return; }
-  const basePrice = baseRow.realPrice;
-  const allPrices = ISOPINK_ROWS.map(t => _isoCalcRow(t)?.realPrice).filter(p => p != null);
+  const g1ho    = ISOPINK_GRADES.find(g => g.id === '1ho');
+  const gTeukho = ISOPINK_GRADES.find(g => g.id === 'isopink');
+
+  const basePrice = _isoGradeRealPrice(g1ho, g1ho.rows[0]);
+  if (!basePrice) { showToast('아이소핑크 원가 데이터가 없습니다.', 'error'); return; }
+  const allPrices = [g1ho, gTeukho].flatMap(g => g.rows.map(t => _isoGradeRealPrice(g, t))).filter(p => p != null);
 
   const rows = [
     ..._moeumSummaryRows(basePrice, allPrices),
-    ['아이소핑크 두께 선택', '옵션가', '재고수량', '관리코드', '사용여부'],
+    ['종류', '규격', '옵션가', '재고수량', '관리코드', '사용여부'],
   ];
-  // 2026-09-08: 1호가 10~300T 전체 범위를 가진 독립 서브탭으로 확장됐지만, 아직 1호
-  // 모음전 상품 자체를 등록 안 해서(단품만 두 개 있음) 이 시트는 예전 그대로 10T/20T만
-  // "1호"로, 나머지(30T~300T)는 "특호"로 라벨만 나눠서 낸다 — 원가/마진은 여전히
-  // 특호(grade.id='isopink') 필드 기준(_isoCalcRow, 기존과 동일) 그대로 씀.
-  ISOPINK_ROWS.forEach(t => {
-    const r = _isoCalcRow(t);
-    if (!r) return;
-    const gradeLabel = (t === 10 || t === 20) ? '1호' : '특호';
-    const optionName = `아이소핑크 ${gradeLabel} KS정품 900x1800 ${t}T`;
-    const optionPrice = r.realPrice - basePrice;
-    rows.push([optionName, optionPrice, 99999, '', 'Y']);
+  [g1ho, gTeukho].forEach(grade => {
+    grade.rows.forEach(t => {
+      const rp = _isoGradeRealPrice(grade, t);
+      if (rp == null) return;
+      rows.push([`아이소핑크 KS정품 ${grade.sub}`, `900x1800 ${t}T`, rp - basePrice, 99999, '', 'Y']);
+    });
   });
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{ wch: 36 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
+  ws['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
   XLSX.utils.book_append_sheet(wb, ws, '아이소핑크 옵션');
 
   const now = new Date();
