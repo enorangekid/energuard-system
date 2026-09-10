@@ -2577,6 +2577,7 @@ async function _doExport() {
   if (typeof loadCompPrices === 'function') {
     const loadTasks = [
       loadCompPrices('isopink', 'isopink'),
+      loadCompPrices('isopink', '1ho'),
       ...BEAD_GRADES.map(g => loadCompPrices('bead', g.id)),
       ...PU_GRADES.map(g => loadCompPrices('pu', g.id)),
       ...PF_GRADES.map(g => loadCompPrices('pf', g.id)),
@@ -2632,6 +2633,12 @@ async function _doExport() {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 1. 아이소핑크
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 2026-09-08: 1호/특호가 각자 독립된 원가·마진·오버라이드 필드를 쓰는 별개
+  // 등급이 됐는데(커밋 248a760), 여기는 여전히 예전처럼 _isoCalcRow(특호 필드만
+  // 읽음)로 전체를 계산하고 10T/20T만 라벨만 "1호"로 바꿔치기하고 있었다 — 실제
+  // 1호 원가/마진을 바꿔도 엑셀엔 반영이 안 되고, 경쟁사가도 특호 데이터만 참조해서
+  // 1호 두께의 경쟁사 칸이 어긋났다. 다른 탭들(비드법 등)과 똑같이 등급별로 실제
+  // 계산 엔진(calcSheetRow)을 쓰도록 고침.
   (function buildIsopink() {
     const rows = [
       ['아이소핑크 단가표', '', '', '', '', '', '', '', '', '', '', '', ''],
@@ -2639,14 +2646,22 @@ async function _doExport() {
       [],
       _commonHeaderFor('isopink'),
     ];
-    ISOPINK_ROWS.forEach(t => {
-      const r = _isoCalcRow(t);
-      const grade = (t===10||t===20) ? 'II-A 압출법단열재 1호' : 'II-B-2 압출법단열재 특호';
-      if (!r) { rows.push([grade, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('isopink', 'isopink', t)]); return; }
-      rows.push([grade, t, r.cost, r.margin, r.mmSellPrice,
-        r.costPerSheet, r.sellPerSheet, r.realPrice,
-        r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate,
-        ..._compCells('isopink', 'isopink', t, r.realPrice)]);
+    ISOPINK_GRADES.forEach(grade => {
+      grade.rows.forEach(t => {
+        const costId = _getCostId('isopink', grade, t);
+        const costPerM2 = costId ? fieldVal(costId) : 0;
+        const marginPerM2 = _getMargin('isopink', grade, t);
+        let r = costPerM2 ? calcSheetRow(costPerM2, marginPerM2, t, grade.area) : null;
+        const overrideEl = document.getElementById(_getOverrideId('isopink', grade, t));
+        const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+        if (r && overrideVal) r = _applyPriceOverride(r, overrideVal, r.costPerSheet);
+        const gradeName = `${grade.label} 압출법단열재 ${grade.sub}`;
+        if (!r) { rows.push([gradeName, t, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', ..._compCells('isopink', grade.id, t)]); return; }
+        rows.push([gradeName, t, r.costPerM2, r.marginPerM2, r.sellPerM2,
+          r.costPerSheet, r.sellPerSheet, r.realPrice,
+          r.marginAmt, r.vat, r.commission, r.netMargin, r.marginRate,
+          ..._compCells('isopink', grade.id, t, r.realPrice)]);
+      });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
     _styleSheet(ws, rows.length);
