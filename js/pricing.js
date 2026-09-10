@@ -748,8 +748,14 @@ window.fixIsopinkGradePriceOrder = async function() {
    두께가 붙어있는" 식으로 들쭉날쭉해 보인다는 지적(사용자 발견). 경쟁사가
    등록된(또는 오버라이드로 고정된) 두께를 "앵커"로 보고 그 값은 그대로 두되,
    앵커와 앵커 사이에 낀 두께들의 마진만 두 앵커 사이에서 선형보간해서 자연스럽게
-   이어지도록 한다. 양 끝(바깥쪽에 앵커가 하나뿐인 구간)은 가장 가까운 앵커 값으로
-   평평하게 채운다. */
+   이어지도록 한다.
+   2026-09-10(2차, 사고 수정): 원래는 바깥쪽(한쪽에만 앵커가 있는 구간)을 그 앵커
+   값으로 평평하게 밀었는데, 실제로 220T 앵커 하나로 그 위(230T~300T, 앵커 없음)
+   전체를 밀어버리는 사고가 났다 — 그 구간엔 실제로 220T와 무관한 별개의 가격
+   단차(실제 네이버 등록가 기준 진짜 더 비쌈)가 있었는데, 앵커 하나만 보고 그걸
+   뭉개버린 것. 이제는 "양쪽에 진짜 앵커가 있어 확실히 사이에 낀" 두께만 보간하고,
+   바깥쪽(한쪽 앵커만 있거나 아예 없는 구간)은 아예 건드리지 않는다 — 근거 없이
+   추측성으로 값을 만들어내지 않는 쪽이 안전하다. */
 window.smoothMarginByCompAnchors = async function(tabId) {
   if (window.currentUser?.role !== 'admin') return;
   const gradeId = _subtabState[tabId];
@@ -774,6 +780,19 @@ window.smoothMarginByCompAnchors = async function(tabId) {
     const field = marginId ? document.getElementById(marginId) : null;
     return (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
   }
+  // 오버라이드로 고정된 앵커는 저장된 "마진 필드" 값이 실제 표시가와 무관한 낡은/장식용
+  // 숫자일 수 있다(2026-09-10 사고: 220T 마진필드=69인데 실제가는 오버라이드 52,030원) —
+  // 보간 기준점으로 쓸 땐 실제 표시가에서 역산한 "유효 마진"을 써야 정확하다.
+  function effectiveMarginAt(t) {
+    const overrideEl = document.getElementById(_getOverrideId(tabId, grade, t));
+    const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
+    if (overrideVal) {
+      const costId = _getCostId(tabId, grade, t);
+      const cost = costId ? fieldVal(costId) : 0;
+      if (cost) return overrideVal / (t * grade.area * 1.1) - cost;
+    }
+    return marginAt(t);
+  }
 
   // 경쟁사가 실제로 등록돼 있거나(활성) 오버라이드로 가격이 고정된 두께 = 앵커.
   const anchors = rows.filter(t => hasActiveComp(t) || hasOverride(t));
@@ -782,23 +801,17 @@ window.smoothMarginByCompAnchors = async function(tabId) {
     return;
   }
 
-  let changed = 0;
+  let changed = 0, outOfRange = 0;
   rows.forEach(t => {
     if (hasActiveComp(t) || hasOverride(t)) return; // 앵커는 그대로 둠
     const below = [...anchors].reverse().find(a => a < t);
     const above = anchors.find(a => a > t);
-    let newMargin;
-    if (below != null && above != null) {
-      const mBelow = marginAt(below), mAbove = marginAt(above);
-      newMargin = mBelow + (mAbove - mBelow) * ((t - below) / (above - below));
-    } else if (below != null) {
-      newMargin = marginAt(below); // 바깥쪽 끝은 가장 가까운 앵커 값으로 평평하게
-    } else if (above != null) {
-      newMargin = marginAt(above);
-    } else {
-      return;
-    }
-    newMargin = Math.round(newMargin);
+    // 양쪽에 진짜 앵커가 있어 확실히 "사이"인 두께만 보간한다 — 한쪽 앵커만 있는
+    // 바깥쪽 구간은 그 앵커와 무관한 별개의 가격일 수 있어(2026-09-10 사고 참고)
+    // 추측해서 채우지 않고 그대로 둔다.
+    if (below == null || above == null) { outOfRange++; return; }
+    const mBelow = effectiveMarginAt(below), mAbove = effectiveMarginAt(above);
+    const newMargin = Math.round(mBelow + (mAbove - mBelow) * ((t - below) / (above - below)));
     const marginId = _getMarginId(tabId, grade, t);
     const field = marginId ? document.getElementById(marginId) : null;
     if (field && parseFloat(field.value) !== newMargin) { field.value = newMargin; changed++; }
@@ -808,7 +821,9 @@ window.smoothMarginByCompAnchors = async function(tabId) {
   recalcFn?.();
 
   if (typeof showToast === 'function') {
-    showToast(`마진 보간: ${anchors.length}개 앵커 기준 ${changed}개 두께 조정됨 — 표 확인 후 [저장]을 눌러야 반영됩니다.`, changed ? 'success' : 'warning');
+    const parts = [`${anchors.length}개 앵커 기준 ${changed}개 두께 조정됨`];
+    if (outOfRange) parts.push(`양쪽 앵커가 없어 건드리지 않은 두께 ${outOfRange}건`);
+    showToast(`마진 보간: ${parts.join(' · ')} — 표 확인 후 [저장]을 눌러야 반영됩니다.`, changed ? 'success' : 'warning');
   }
 };
 
