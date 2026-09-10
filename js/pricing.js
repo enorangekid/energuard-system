@@ -1608,8 +1608,9 @@ function _migrateLegacySharedMargins(marginsData) {
 /* 2026-09-08: 아이소핑크 1호 신설 — "가격은 특호와 동일하게" 요청에 따라, 특호와 겹치는
    30T~300T 구간의 1호 전용 필드(cost_900_1800_1ho_mid/thick, margin_iso_1ho_t{T},
    iso_price_override_1ho_t{T})가 비어있을 때만 특호의 현재 DOM 값을 복사해 1회성 기본값으로
-   채워준다(DOM만 채움 — 실제 DB 저장은 사용자가 [저장]을 눌러야 반영됨). 이미 값이 있으면
-   (사용자가 1호를 따로 조정해뒀거나 이전에 저장된 값이 있으면) 절대 덮어쓰지 않는다. */
+   채워준다(DOM만 채움 — 실제 DB 저장은 사용자가 [저장]을 눌러야 반영됨). 겹치는 두께의
+   1호가 한 번이라도 설정된 적 있으면(마진 필드에 값이 있으면) 그 두께는 통째로 건드리지
+   않는다 — 오버라이드가 비어있어도 그건 "마진으로 계산"하겠다는 의도이기 때문. */
 function _seedIsopink1hoFromTeukho() {
   const copyIfEmpty = (fromId, toId) => {
     const to = document.getElementById(toId);
@@ -1620,6 +1621,15 @@ function _seedIsopink1hoFromTeukho() {
   copyIfEmpty('cost_900_1800_mid', 'cost_900_1800_1ho_mid');
   copyIfEmpty('cost_900_1800_thick', 'cost_900_1800_1ho_thick');
   ISOPINK_ROWS.filter(t => t >= 30).forEach(t => {
+    /* 2026-09-10 버그 수정: 마진/오버라이드를 한 두께 단위로 묶어서 판단한다.
+       기존엔 둘을 따로 copyIfEmpty 해서, 사용자가 "1호·특호 비율 맞춤"으로 1호
+       마진만 조정하고 오버라이드는 비운(= 마진으로 계산) 두께에서, 재로딩 때
+       빈 1호 오버라이드에 특호 오버라이드가 복사돼 1호 가격이 특호값으로 되돌아갔다.
+       1호 마진 필드에 값이 있으면(= 이 두께 1호가 한 번이라도 설정된 적 있으면)
+       오버라이드가 비어있어도 그건 의도된 상태이므로 아무것도 건드리지 않는다.
+       마진까지 비어있는 두께(1호 신설 이전 이력 등)만 특호 값으로 시드한다. */
+    const m1ho = document.getElementById(`margin_iso_1ho_t${t}`);
+    if (m1ho && m1ho.value.trim() !== '') return;
     copyIfEmpty(`margin_iso_t${t}`, `margin_iso_1ho_t${t}`);
     copyIfEmpty(`iso_price_override_t${t}`, `iso_price_override_1ho_t${t}`);
   });
