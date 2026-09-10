@@ -509,10 +509,6 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   // 제조업체 등 "동일가로만" 맞출 업체 플래그(2026-09-04, comp{n}_match_only 참고)
   const matchOnly = (typeof _compMatchOnly === 'function') ? await _compMatchOnly(tabId, gradeId) : [false, false, false];
 
-  if (tabId === 'pf' && rows.some(t => _pfBaseMargin(grade, t) == null)) {
-    showToast('PF 공통 기본 마진을 먼저 마진 편집에서 설정해주세요.', 'warning');
-    return;
-  }
   const isFr = tabId === 'fr';
   const priceForGrade = (g, cost, m, t) => isFr
     ? (calcFrSheetRow(cost, m, g.area)?.realPrice ?? 0)
@@ -636,9 +632,16 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
 };
 
 // PF 공통 기본 마진은 경쟁가로 역산된 규격별 마진과 별도로 저장한다.
+// 2026-09-10: 이 기능을 막 도입했을 때 pf_base_* 필드가 DB에 하나도 없는 상태라
+// (마이그레이션 대상이던 옛 공유 필드 pf_m_{mk}_t{T}도 9/8 분리 이후 저장 때마다
+// 같이 빠져서 이미 사라진 뒤였음) "경쟁사 최저가 맞춤"이 PF에서 전부 막혀버렸다 —
+// 마진 편집에서 값을 명시적으로 저장한 적 없으면 기존 PF 기본표(PF_FB, 모달
+// placeholder와 동일한 값)로 조용히 대체해서 막히지 않게 한다. 관리자가 마진
+// 편집에서 직접 값을 입력해두면 그 값이 우선한다.
 function _pfBaseMargin(grade, t) {
   const el = document.getElementById(`pf_base_${grade.mk}_t${t}`);
-  return el && el.value.trim() !== '' && Number.isFinite(Number(el.value)) ? Number(el.value) : null;
+  if (el && el.value.trim() !== '' && Number.isFinite(Number(el.value))) return Number(el.value);
+  return PF_FB[grade.mk]?.[t] ?? 35;
 }
 function _restorePfBaseRow(grade, t) {
   const base = _pfBaseMargin(grade, t);
