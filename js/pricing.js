@@ -192,6 +192,7 @@ const ALL_PRICE_OVERRIDE_FIELDS = [
 
 /* 마진 필드 목록 (margins JSON 컬럼에 저장) */
 const ALL_MARGIN_FIELDS = [
+  ...[...new Set(PF_GRADES.map(g => g.mk))].flatMap(mk => PF_ROWS.map(t => `pf_base_${mk}_t${t}`)),
   ...ISOPINK_ROWS.map(t => `margin_iso_t${t}`),
   // 2026-09-08: 아이소핑크 1호 신설 — 특호와 겹치는 30T~300T 구간은 독립 마진 필드
   ...ISOPINK_ROWS.filter(t => t >= 30).map(t => `margin_iso_1ho_t${t}`),
@@ -284,7 +285,7 @@ function compareFrSheetRealPrice(costPerM2, marginPerSheet, area) {
 function _frResultRow(t, r, badge, extraCells) {
   if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
   const overrideCls = r.overridden ? ' pricing-price-override' : '';
-  const overrideTitle = r.overridden ? ' title="정수 마진으로는 경쟁사 가격을 정확히 못 맞춰서, 마진 계산 대신 가격 자체를 경쟁사가로 강제 고정함"' : '';
+  const overrideTitle = r.overridden ? ' title="경쟁가 또는 지정 차액을 정확히 맞추기 위해 마진 계산 대신 판매가를 직접 고정함"' : '';
   return `<tr data-t="${t}">${extraCells}
     <td class="td-thick">${t}</td>
     <td class="td-num">${fmt(r.costPerM2)}</td>
@@ -306,7 +307,7 @@ function _frResultRow(t, r, badge, extraCells) {
 function _resultRow(t, r, badge, extraCells) {
   if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
   const overrideCls = r.overridden ? ' pricing-price-override' : '';
-  const overrideTitle = r.overridden ? ' title="정수 마진으로는 경쟁사 가격을 정확히 못 맞춰서, 마진 계산 대신 가격 자체를 경쟁사가로 강제 고정함"' : '';
+  const overrideTitle = r.overridden ? ' title="경쟁가 또는 지정 차액을 정확히 맞추기 위해 마진 계산 대신 판매가를 직접 고정함"' : '';
   // 2026-09-10: 아이소핑크 특호 탭에서, 같은 두께의 1호보다 얼마나 더 비싼지 실제
   // 장당판매가 셀 아래에 작게 표시(r.diffFrom1ho, _recalcTab에서만 채워짐) — 단품
   // 상품마다 "1호/특호 옵션 +가격"을 직접 입력해야 해서 이 차액을 보면서 바로 옮겨
@@ -503,20 +504,15 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   if (!grade) return;
   const rows = _rowsOf(tabId, grade);
 
-  // 2026-09-02: 두께 범위 끝쪽처럼 어떤 경쟁사도 아예 안 파는 두께는 경쟁가에 맞춰 낮출
-  // 필요가 없으니, 반대로 마진을 조금 올려서 가져가고 싶다는 요청. "경쟁사가 하나도 등록
-  // 안 된" 두께에만 적용 — 등록은 됐는데 전부 제외 처리된 경우는(그 업체가 실제로 팔고
-  // 있다는 뜻이라) 건드리지 않는다. 0을 입력하면 기존처럼 안 건드림.
-  const bumpStr = prompt('경쟁사가 아예 없는 두께는 마진을 얼마나 올릴까요? (원 단위, 예: 1000, 0=올리지 않음)', '0');
-  if (bumpStr === null) return;
-  const marginBump = Number(String(bumpStr).replace(/,/g, ''));
-  if (!Number.isFinite(marginBump)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
-
   await loadCompPrices(tabId, gradeId);
   const excluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, gradeId) : [false, false, false];
   // 제조업체 등 "동일가로만" 맞출 업체 플래그(2026-09-04, comp{n}_match_only 참고)
   const matchOnly = (typeof _compMatchOnly === 'function') ? await _compMatchOnly(tabId, gradeId) : [false, false, false];
 
+  if (tabId === 'pf' && rows.some(t => _pfBaseMargin(grade, t) == null)) {
+    showToast('PF 공통 기본 마진을 먼저 마진 편집에서 설정해주세요.', 'warning');
+    return;
+  }
   const isFr = tabId === 'fr';
   const priceForGrade = (g, cost, m, t) => isFr
     ? (calcFrSheetRow(cost, m, g.area)?.realPrice ?? 0)
@@ -538,20 +534,19 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   // "동일가로만" 플래그(2026-09-04) — 업체별로 목표가를 따로 구해서 그중 가장 낮은 걸 쓰고,
   // 그 winner(raw가·matchOnly 여부)도 같이 돌려준다 — 나중에 오버라이드 판단에 필요.
   function targetFor(gId, t, excl, match) {
-    const comp = window._compCache?.[tabId]?.[gId]?.[t] || {};
+    const comp = window._compEffectiveRow?.(tabId, gId, t) ?? window._compCache?.[tabId]?.[gId]?.[t] ?? {};
     const raw = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
-    const hasAny = raw.some(v => v != null && v > 0);
     const activeIdx = [0, 1, 2].filter(i => !excl[i] && raw[i] != null && raw[i] > 0);
-    if (!activeIdx.length) return { hasAny, cappedPrice: null, winner: null };
+    if (!activeIdx.length) return { cappedPrice: null, winner: null };
     const candidates = activeIdx.map(i => ({
       raw: raw[i], matchOnly: match[i], target: _competitorTargetForSlot(raw[i], match[i]),
     }));
     candidates.sort((a, b) => a.target - b.target);
     const winner = candidates[0];
-    return { hasAny, cappedPrice: winner.target, winner };
+    return { cappedPrice: winner.target, winner };
   }
 
-  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, bumped = 0, overridden = 0;
+  let applied = 0, skippedNoCost = 0, skippedNoComp = 0, skippedBadTarget = 0, overridden = 0;
 
   rows.forEach(t => {
     const costId = _getCostId(tabId, grade, t);
@@ -562,15 +557,9 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     const own = targetFor(gradeId, t, excluded, matchOnly);
 
     if (own.cappedPrice == null) {
-      if (overrideField) overrideField.value = '';
-      if (!own.hasAny && marginBump) {
-        const marginId = _getMarginId(tabId, grade, t);
-        const field = marginId ? document.getElementById(marginId) : null;
-        const curMargin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
-        if (field) { field.value = curMargin + marginBump; bumped++; }
-      } else {
-        skippedNoComp++;
-      }
+      if (tabId === 'pf') _restorePfBaseRow(grade, t);
+      // 다른 제품은 비교할 경쟁가가 없으면 기존 값을 유지한다.
+      skippedNoComp++;
       return;
     }
     if (own.cappedPrice <= 0) { skippedBadTarget++; if (overrideField) overrideField.value = ''; return; }
@@ -606,6 +595,8 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   let cascadeFixed = 0;
   let ceiling = null;
   [...rows].sort((a, b) => b - a).forEach(t => {
+    // PF의 경쟁 없는 두께는 기본 마진을 유지한다. 역전 보정으로 다시 깎지 않는다.
+    if (tabId === 'pf' && targetFor(gradeId, t, excluded, matchOnly).cappedPrice == null) { ceiling = null; return; }
     const costId = _getCostId(tabId, grade, t);
     const cost   = costId ? fieldVal(costId) : 0;
     if (!cost) return; // 원가 없는 두께는 체인에서 그냥 건너뜀(끊지 않음)
@@ -635,7 +626,6 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
 
   const parts = [`${applied}개 두께 마진 자동 조정`];
   if (overridden)        parts.push(`동일가 맞춤 중 가격 직접 고정 ${overridden}건(표에 파란색으로 표시)`);
-  if (bumped)            parts.push(`경쟁없음 마진 인상 ${bumped}건`);
   if (cascadeFixed)      parts.push(`두께 역전 ${cascadeFixed}건 추가 보정`);
   if (skippedNoComp)     parts.push(`경쟁가 미입력 ${skippedNoComp}건 제외`);
   if (skippedNoCost)     parts.push(`원가 미입력 ${skippedNoCost}건 제외`);
@@ -645,7 +635,33 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   }
 };
 
-/* 버튼 onclick 하나로 전체 탭 처리 — 아이소핑크는 전용 함수, 나머지는 공통 함수 */
+// PF 공통 기본 마진은 경쟁가로 역산된 규격별 마진과 별도로 저장한다.
+function _pfBaseMargin(grade, t) {
+  const el = document.getElementById(`pf_base_${grade.mk}_t${t}`);
+  return el && el.value.trim() !== '' && Number.isFinite(Number(el.value)) ? Number(el.value) : null;
+}
+function _restorePfBaseRow(grade, t) {
+  const base = _pfBaseMargin(grade, t);
+  if (base == null) return;
+  const margin = document.getElementById(_getMarginId('pf', grade, t));
+  const override = document.getElementById(_getOverrideId('pf', grade, t));
+  if (margin) margin.value = base;
+  if (override) override.value = '';
+}
+window.restorePfBaseMargins = async function(gradeId) {
+  for (const grade of PF_GRADES.filter(g => !gradeId || g.id === gradeId)) {
+    await loadCompPrices('pf', grade.id);
+    if (!window._compCache?.pf?.[grade.id]) continue;
+    const excluded = await _compExcluded('pf', grade.id);
+    for (const t of PF_ROWS) {
+      const comp = window._compEffectiveRow?.('pf', grade.id, t) ?? window._compCache.pf[grade.id][t] ?? {};
+      if (![0,1,2].some(i => !excluded[i] && comp[`comp${i+1}_price`] > 0)) _restorePfBaseRow(grade, t);
+    }
+  }
+  recalcPf();
+};
+
+/* 버튼 onclick 하나로 전체 탭 처리 */
 window.autoMatchCompetitorPrice = function() {
   const tabId = window._activePricingTab || 'isopink';
   window.autoMatchCompetitorPriceGeneric(tabId);
@@ -668,359 +684,195 @@ function _isopinkRealPrice(grade, t) {
   if (!cost) return null;
   return calcSheetRow(cost, margin, t, grade.area).realPrice;
 }
-window.fixIsopinkGradePriceOrder = async function() {
+// 빈 두께의 1호 판매가를 특호 × (1 - 할인율)로 맞춘다. 실제 경쟁가가 있는 1호는 보존.
+// 정수 마진/100원 올림으로 정확한 차액을 못 만드는 경우 기존 판매가 고정 필드를 사용.
+window.alignIsopinkGradeGap = async function() {
   if (window.currentUser?.role !== 'admin') return;
-  const bufferStr = prompt('1호가 특호보다 얼마나 저렴해야 할까요? (원 단위, 예: 100)', '100');
-  if (bufferStr === null) return;
-  const buffer = Number(String(bufferStr).replace(/,/g, ''));
-  if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
-
-  const g1ho  = ISOPINK_GRADES.find(g => g.id === '1ho');
-  const gTeuk = ISOPINK_GRADES.find(g => g.id === 'isopink');
-  const priceFor = (cost, margin, t) => calcSheetRow(cost, margin, t, g1ho.area).realPrice;
-
-  // 2026-09-10: 1호가 특호 값을 이어받을 때(_seedIsopink1hoFromTeukho) 오버라이드도
-  // 같이 복사되는데, 그게 진짜 1호 자체 경쟁사 때문인지 그냥 특호 값을 베낀 것뿐인지는
-  // 필드만 봐서는 구분이 안 된다(110T 사례: 특호는 크린슐라 동일가 맞춤이 진짜 걸려
-  // 있는데 1호엔 등록된 경쟁사가 하나도 없는데도 오버라이드가 25,410으로 똑같이
-  // 남아있어서 가격역전 보정이 매번 "조정 불가"로 건너뛰기만 함, 사용자 발견) — 1호
-  // 자체에 등록된(제외 안 된) 경쟁사가 없는 두께라면 그 오버라이드는 근거가 없는 값이니
-  // 지우고 마진으로 다시 풀 수 있게 한다. 진짜 1호 경쟁사가 있으면 그대로 skip.
+  const rate = Number(document.getElementById('isopinkGradeGapRate')?.value);
+  const toast = (message, type = 'warning') => window.showToast?.(message, type);
+  if (!Number.isInteger(rate) || rate < 1 || rate > 5) return toast('할인율을 1~5% 중에서 선택해주세요.');
   await loadCompPrices('isopink', '1ho');
-  const excluded1ho = (typeof _compExcluded === 'function') ? await _compExcluded('isopink', '1ho') : [false, false, false];
-  function has1hoActiveComp(t) {
-    const comp = window._compCache?.isopink?.['1ho']?.[t] || {};
-    const raw = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
-    return [0, 1, 2].some(i => !excluded1ho[i] && raw[i] != null && raw[i] > 0);
-  }
-
-  let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0, overrideCleared = 0;
-  gTeuk.rows.forEach(t => { // 특호가 있는 두께(30T~300T)만 — 겹치는 구간만 비교 대상
-    const cost1Id = _getCostId('isopink', g1ho, t);
-    const cost1   = cost1Id ? fieldVal(cost1Id) : 0;
-    const priceTeuk = _isopinkRealPrice(gTeuk, t);
-    if (!cost1 || priceTeuk == null) { skipped++; return; }
-
-    const cappedPrice = Math.floor((priceTeuk - buffer) / 100) * 100;
-    if (cappedPrice <= 0) { skipped++; return; }
-
-    const price1ho = _isopinkRealPrice(g1ho, t);
-    if (price1ho != null && price1ho <= cappedPrice) { alreadyOk++; return; } // 이미 조건 만족
-
-    // 동일가로만 맞춤 오버라이드가 걸린 행은 마진을 바꿔도 실제 표시가가 안 바뀌므로
-    // 원래는 건드리지 않았는데(2026-09-04, 다른 가격역전 보정과 동일한 이유), 1호는
-    // 그 오버라이드가 특호에서 복사된 근거 없는 값일 수 있어 한 번 더 확인한다.
-    const overrideEl1 = document.getElementById(_getOverrideId('isopink', g1ho, t));
-    if (overrideEl1 && overrideEl1.value.trim() !== '') {
-      if (has1hoActiveComp(t)) { overrideLocked++; return; } // 진짜 1호 경쟁사가 있으면 손 안 댐
-      overrideEl1.value = ''; // 근거 없는 오버라이드 — 지우고 아래에서 마진으로 다시 계산
-      overrideCleared++;
+  const compRows = window._compCache?.isopink?.['1ho'];
+  if (!compRows) return toast('1호 경쟁가를 불러오지 못했습니다. 다시 시도해주세요.');
+  const one = ISOPINK_GRADES.find(g => g.id === '1ho');
+  const special = ISOPINK_GRADES.find(g => g.id === 'isopink');
+  const changes = new Map();
+  let protectedCount = 0, skipped = 0;
+  for (const t of special.rows) {
+    const comp = compRows[t] || {};
+    if ([comp.comp1_price, comp.comp2_price, comp.comp3_price].some(p => p > 0)) {
+      protectedCount++;
+      continue;
     }
-
-    let margin = Math.round(cappedPrice / (t * g1ho.area * 1.1) - cost1);
-    let guard = 0;
-    while (priceFor(cost1, margin, t) > cappedPrice && guard < 200) { margin--; guard++; }
-    guard = 0;
-    while (priceFor(cost1, margin + 1, t) <= cappedPrice && guard < 200) { margin++; guard++; }
-
-    const marginId = _getMarginId('isopink', g1ho, t);
-    const field = marginId ? document.getElementById(marginId) : null;
-    if (field) { field.value = margin; fixed++; }
+    const cost = fieldVal(_getCostId('isopink', one, t));
+    const base = _isopinkRealPrice(special, t);
+    const marginEl = document.getElementById(_getMarginId('isopink', one, t));
+    const overrideEl = document.getElementById(_getOverrideId('isopink', one, t));
+    const target = Math.round(base * (1 - rate / 100) / 100) * 100;
+    if (!(cost > 0) || !Number.isFinite(base) || target <= 0 || target >= base || !marginEl || !overrideEl) {
+      skipped++;
+      continue;
+    }
+    if (_isopinkRealPrice(one, t) === target) continue;
+    const margin = Math.round(target / (t * one.area * 1.1) - cost);
+    const override = calcSheetRow(cost, margin, t, one.area).realPrice === target ? '' : target;
+    changes.set(t, { target, margin, override, marginEl, overrideEl });
+  }
+  // 입력을 바꾸기 전에 전체 두께 순서를 검사한다. 기존 문제를 악화시키는 변경도 중단.
+  let previous = null;
+  for (const t of [...one.rows].sort((a, b) => a - b)) {
+    const old = _isopinkRealPrice(one, t);
+    const next = changes.get(t)?.target ?? old;
+    if (!Number.isFinite(next)) continue;
+    if (previous && (changes.has(t) || changes.has(previous.t))) {
+      const oldStep = old - previous.old;
+      const newStep = next - previous.next;
+      if (newStep < 100 && (!Number.isFinite(oldStep) || newStep < oldStep)) {
+        return toast(`${previous.t}T·${t}T에서 두께별 가격 간격이 좁아지거나 역전됩니다. 할인율 또는 기준 가격을 조정해주세요. 변경하지 않았습니다.`);
+      }
+    }
+    previous = { t, old, next };
+  }
+  changes.forEach(({ marginEl, overrideEl, margin, override }) => {
+    marginEl.value = margin;
+    overrideEl.value = override;
   });
-
   window.recalcIsopink?.();
-
-  const parts = [`${fixed}건 보정`];
-  if (overrideCleared) parts.push(`근거없는 동일가 오버라이드 해제 후 보정 ${overrideCleared}건`);
-  if (alreadyOk)       parts.push(`이미 정상 ${alreadyOk}건`);
-  if (overrideLocked)  parts.push(`1호 자체 경쟁사 동일가 맞춤으로 고정되어 조정 불가 ${overrideLocked}건`);
-  if (skipped)         parts.push(`계산 불가 ${skipped}건`);
-  if (typeof showToast === 'function') {
-    showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', fixed ? 'success' : 'warning');
-  }
+  toast(`특호 대비 1호 ${rate}% 할인: ${changes.size}개 조정 · 1호 경쟁가 유지 ${protectedCount}개 · 계산 불가 ${skipped}개 — 표 확인 후 저장해주세요.`, changes.size ? 'success' : 'warning');
 };
 
-/* ── 경쟁사 앵커 사이 마진 선형보간(부드럽게) ──────────────────────────────
-   2026-09-10: "경쟁사 최저가 맞춤"은 경쟁사가 등록된 두께만 정확히 그 가격에
-   맞추고, 등록 안 된 두께는 원래 마진 그대로 둔다 — 크린슐라처럼 몇몇 두께만
-   가격을 올려둔 업체를 따라가다 보면, 맞춰진 두께만 확 낮아지고 바로 다음
-   두께에서 다시 원래 마진으로 튀어서 "1호대비 +100원짜리 두께 옆에 +1200원짜리
-   두께가 붙어있는" 식으로 들쭉날쭉해 보인다는 지적(사용자 발견). 경쟁사가
-   등록된(또는 오버라이드로 고정된) 두께를 "앵커"로 보고 그 값은 그대로 두되,
-   앵커와 앵커 사이에 낀 두께들의 마진만 두 앵커 사이에서 선형보간해서 자연스럽게
-   이어지도록 한다.
-   2026-09-10(2차, 사고 수정): 원래는 바깥쪽(한쪽에만 앵커가 있는 구간)을 그 앵커
-   값으로 평평하게 밀었는데, 실제로 220T 앵커 하나로 그 위(230T~300T, 앵커 없음)
-   전체를 밀어버리는 사고가 났다 — 그 구간엔 실제로 220T와 무관한 별개의 가격
-   단차(실제 네이버 등록가 기준 진짜 더 비쌈)가 있었는데, 앵커 하나만 보고 그걸
-   뭉개버린 것. 이제는 "양쪽에 진짜 앵커가 있어 확실히 사이에 낀" 두께만 보간하고,
-   바깥쪽(한쪽 앵커만 있거나 아예 없는 구간)은 아예 건드리지 않는다 — 근거 없이
-   추측성으로 값을 만들어내지 않는 쪽이 안전하다. */
-window.smoothMarginByCompAnchors = async function(tabId) {
-  if (window.currentUser?.role !== 'admin') return;
-  const gradeId = _subtabState[tabId];
-  const grade   = _gradesOf(tabId).find(g => g.id === gradeId);
-  if (!grade) return;
-  const rows = _rowsOf(tabId, grade).slice().sort((a, b) => a - b);
+// 2026-09-10: fixIsopinkGradePriceOrder("1호·특호 가격역전 보정")와
+// smoothMarginByCompAnchors("마진 보간")는 alignIsopinkGradeGap("1호·특호 비율
+// 맞춤")으로 대체되어 더 이상 어떤 버튼에서도 호출되지 않는다 — 삭제(죽은 코드
+// 정리). 특히 smoothMarginByCompAnchors는 앵커 바깥쪽 구간을 잘못 평평하게
+// 밀어버리는 사고를 낸 적이 있어(220T 앵커로 230T~300T 전체를 잘못된 값으로
+// 덮어씀), 대체된 지금 시점에 정리해두는 게 맞다.
 
-  await loadCompPrices(tabId, gradeId);
-  const excluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, gradeId) : [false, false, false];
-
-  function hasActiveComp(t) {
-    const comp = window._compCache?.[tabId]?.[gradeId]?.[t] || {};
-    const raw = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
-    return [0, 1, 2].some(i => !excluded[i] && raw[i] != null && raw[i] > 0);
-  }
-  function hasOverride(t) {
-    const el = document.getElementById(_getOverrideId(tabId, grade, t));
-    return !!(el && el.value.trim() !== '');
-  }
-  function marginAt(t) {
-    const marginId = _getMarginId(tabId, grade, t);
-    const field = marginId ? document.getElementById(marginId) : null;
-    return (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
-  }
-  // 오버라이드로 고정된 앵커는 저장된 "마진 필드" 값이 실제 표시가와 무관한 낡은/장식용
-  // 숫자일 수 있다(2026-09-10 사고: 220T 마진필드=69인데 실제가는 오버라이드 52,030원) —
-  // 보간 기준점으로 쓸 땐 실제 표시가에서 역산한 "유효 마진"을 써야 정확하다.
-  function effectiveMarginAt(t) {
-    const overrideEl = document.getElementById(_getOverrideId(tabId, grade, t));
-    const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
-    if (overrideVal) {
-      const costId = _getCostId(tabId, grade, t);
-      const cost = costId ? fieldVal(costId) : 0;
-      if (cost) return overrideVal / (t * grade.area * 1.1) - cost;
+/* 비드법 검증 전용: 종끼리는 비교하지 않고 각 종 안에서 1호 > 2호 > 3호 확인. */
+function _checkBeadHoPrices() {
+  const groups = [{ name:'1종', ids:['iiib','iia2','ia2'] }, { name:'2종', ids:['iiia2','iia1','ia1'] }];
+  const issues = [];
+  let passed = 0, incomplete = 0;
+  for (const group of groups) {
+    const grades = group.ids.map(id => BEAD_GRADES.find(g => g.id === id));
+    for (const t of BEAD_ROWS) {
+      const prices = grades.map(g => _beadRealPrice(g, t));
+      const valid = prices.map(p => Number.isFinite(p) && p > 0);
+      const problems = [];
+      for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) {
+        if (valid[i] && valid[j] && prices[i] <= prices[j]) {
+          problems.push(`${i+1}호·${j+1}호 ${prices[i] === prices[j] ? '동일가' : '역전'}`);
+        }
+      }
+      if (!valid.every(Boolean)) {
+        incomplete++;
+        problems.push('가격 확인 불가: ' + valid.map((v,i) => v ? null : (i+1)+'호').filter(Boolean).join(', '));
+      }
+      if (problems.length) issues.push({ group:group.name, t, prices, problems });
+      else passed++;
     }
-    return marginAt(t);
   }
-
-  // 경쟁사가 실제로 등록돼 있거나(활성) 오버라이드로 가격이 고정된 두께 = 앵커.
-  const anchors = rows.filter(t => hasActiveComp(t) || hasOverride(t));
-  if (anchors.length < 2) {
-    if (typeof showToast === 'function') showToast('경쟁사가 등록된(앵커) 두께가 2개 미만이라 보간할 수 없습니다.', 'warning');
-    return;
-  }
-
-  let changed = 0, outOfRange = 0;
-  rows.forEach(t => {
-    if (hasActiveComp(t) || hasOverride(t)) return; // 앵커는 그대로 둠
-    const below = [...anchors].reverse().find(a => a < t);
-    const above = anchors.find(a => a > t);
-    // 양쪽에 진짜 앵커가 있어 확실히 "사이"인 두께만 보간한다 — 한쪽 앵커만 있는
-    // 바깥쪽 구간은 그 앵커와 무관한 별개의 가격일 수 있어(2026-09-10 사고 참고)
-    // 추측해서 채우지 않고 그대로 둔다.
-    if (below == null || above == null) { outOfRange++; return; }
-    const mBelow = effectiveMarginAt(below), mAbove = effectiveMarginAt(above);
-    const newMargin = Math.round(mBelow + (mAbove - mBelow) * ((t - below) / (above - below)));
-    const marginId = _getMarginId(tabId, grade, t);
-    const field = marginId ? document.getElementById(marginId) : null;
-    if (field && parseFloat(field.value) !== newMargin) { field.value = newMargin; changed++; }
-  });
-
-  const recalcFn = { isopink: window.recalcIsopink, bead: recalcBead, pu: recalcPu, pf: recalcPf, fr: recalcFr }[tabId];
-  recalcFn?.();
-
-  if (typeof showToast === 'function') {
-    const parts = [`${anchors.length}개 앵커 기준 ${changed}개 두께 조정됨`];
-    if (outOfRange) parts.push(`양쪽 앵커가 없어 건드리지 않은 두께 ${outOfRange}건`);
-    showToast(`마진 보간: ${parts.join(' · ')} — 표 확인 후 [저장]을 눌러야 반영됩니다.`, changed ? 'success' : 'warning');
-  }
-};
-
-/* ── 비드법 1종/2종 가격역전 보정 ──────────────────────────────────────
-   2026-09-02: 같은 호수(예: 3호)끼리는 1종이 2종보다 항상 저렴해야 정상인데,
-   원가/마진을 조정하다 보면 가끔 같아지거나 역전(1종이 더 비쌈)되는 경우가 생겨서,
-   두께 30개 × 호수 3개를 일일이 비교하기 번거롭다는 요청으로 만듦. 사용자 결정:
-   역전/동일해지면 1종 쪽 마진을 낮춰서 맞춘다(2종은 안 건드림), 기준은 "얼마나
-   낮게 유지할지" 금액을 직접 입력받음(경쟁사 최저가 맞춤과 동일한 방식). */
-window.fixBeadJongPriceOrder = async function() {
-  if (window.currentUser?.role !== 'admin') return;
-  const bufferStr = prompt('1종이 2종보다 얼마나 저렴해야 할까요? (원 단위, 예: 100)', '100');
-  if (bufferStr === null) return;
-  const buffer = Number(String(bufferStr).replace(/,/g, ''));
-  if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
-
-  // 같은 호수끼리 짝(1종 id, 2종 id) — BEAD_GRADES의 sub 필드 기준(2026-09-02)
-  const PAIRS = [
-    { jong1: 'ia2',  jong2: 'ia1',   ho: '3호' },
-    { jong1: 'iia2', jong2: 'iia1',  ho: '2호' },
-    { jong1: 'iiib', jong2: 'iiia2', ho: '1호' },
-  ];
-  const gradeOf = id => BEAD_GRADES.find(g => g.id === id);
-  const priceFor = (grade, cost, margin, t) => calcSheetRow(cost, margin, t, grade.area).realPrice;
-
-  let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0;
-  PAIRS.forEach(({ jong1, jong2 }) => {
-    const g1 = gradeOf(jong1), g2 = gradeOf(jong2);
-    BEAD_ROWS.forEach(t => {
-      const cost1Id = _getCostId('bead', g1, t);
-      const cost1   = cost1Id ? fieldVal(cost1Id) : 0;
-      const price2  = _beadRealPrice(g2, t);
-      if (!cost1 || price2 == null) { skipped++; return; }
-
-      const cappedPrice = Math.floor((price2 - buffer) / 100) * 100;
-      if (cappedPrice <= 0) { skipped++; return; }
-
-      const price1 = _beadRealPrice(g1, t);
-      if (price1 != null && price1 <= cappedPrice) { alreadyOk++; return; } // 이미 조건 만족
-
-      // "동일가로만 맞춤"으로 가격이 고정된 행은 마진을 바꿔도 실제 표시가가 안 바뀌므로
-      // 건드리지 않는다(2026-09-04) — 여기서 억지로 마진을 다시 계산해봤자 나중에 오버라이드가
-      // 풀렸을 때 엉뚱한 값이 남는 문제가 생김. 대신 "오버라이드로 고정되어 조정 불가"로 집계.
-      const overrideEl1 = document.getElementById(_getOverrideId('bead', g1, t));
-      if (overrideEl1 && overrideEl1.value.trim() !== '') { overrideLocked++; return; }
-
-      let margin = Math.round(cappedPrice / (t * g1.area * 1.1) - cost1);
-      let guard = 0;
-      while (priceFor(g1, cost1, margin, t) > cappedPrice && guard < 200) { margin--; guard++; }
-      guard = 0;
-      while (priceFor(g1, cost1, margin + 1, t) <= cappedPrice && guard < 200) { margin++; guard++; }
-
-      const marginId = _getMarginId('bead', g1, t);
-      const field = marginId ? document.getElementById(marginId) : null;
-      if (field) { field.value = margin; fixed++; }
-    });
-  });
-
-  recalcBead();
-
-  const parts = [`${fixed}건 보정`];
-  if (alreadyOk)       parts.push(`이미 정상 ${alreadyOk}건`);
-  if (overrideLocked)  parts.push(`동일가 맞춤으로 고정되어 조정 불가 ${overrideLocked}건`);
-  if (skipped)         parts.push(`계산 불가 ${skipped}건`);
-  if (typeof showToast === 'function') {
-    showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', fixed ? 'success' : 'warning');
-  }
-};
-
-/* ── 경질우레탄 2종1호/2종2호 가격역전 보정 ────────────────────────────
-   2026-09-02: 단가표_2026-09(1).xlsx 검수 결과 경질우레탄은 0건이었지만, 비드법과
-   동일한 안전장치로 요청받아 추가. 규칙: 같은 두께에서 2종1호(III-A)가 2종2호(II-A)
-   보다 항상 비싸야 정상 → 위반 시 2종2호(더 저렴해야 하는 쪽) 마진을 낮춰서 맞춘다.
-   PU는 등급별로 rows(두께 범위)가 달라서 두 등급이 공통으로 가진 두께만 비교한다. */
-window.fixPuJongPriceOrder = async function() {
-  if (window.currentUser?.role !== 'admin') return;
-  const bufferStr = prompt('2종2호가 2종1호보다 얼마나 저렴해야 할까요? (원 단위, 예: 100)', '100');
-  if (bufferStr === null) return;
-  const buffer = Number(String(bufferStr).replace(/,/g, ''));
-  if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
-
-  const g1 = PU_GRADES.find(g => g.id === 'iiia'); // 2종1호 — 더 비싸야 함, 안 건드림
-  const g2 = PU_GRADES.find(g => g.id === 'iia');  // 2종2호 — 더 저렴해야 함, 마진 낮춰서 맞춤
-  const priceFor = (grade, cost, margin, t) => calcSheetRow(cost, margin, t, grade.area).realPrice;
-
-  let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0;
-  const thicknesses = g2.rows.filter(t => g1.rows.includes(t)); // 두 등급 공통 두께만
-  thicknesses.forEach(t => {
-    const cost2Id = _getCostId('pu', g2, t);
-    const cost2   = cost2Id ? fieldVal(cost2Id) : 0;
-    const price1  = _puRealPrice(g1, t);
-    if (!cost2 || price1 == null) { skipped++; return; }
-
-    const cappedPrice = Math.floor((price1 - buffer) / 100) * 100;
-    if (cappedPrice <= 0) { skipped++; return; }
-
-    const price2 = _puRealPrice(g2, t);
-    if (price2 != null && price2 <= cappedPrice) { alreadyOk++; return; } // 이미 조건 만족
-
-    // 동일가로만 맞춤 오버라이드가 걸린 행은 마진을 바꿔도 실제 표시가가 안 바뀌므로 건드리지
-    // 않는다(2026-09-04, fixBeadJongPriceOrder와 동일한 이유).
-    const overrideEl2 = document.getElementById(_getOverrideId('pu', g2, t));
-    if (overrideEl2 && overrideEl2.value.trim() !== '') { overrideLocked++; return; }
-
-    let margin = Math.round(cappedPrice / (t * g2.area * 1.1) - cost2);
-    let guard = 0;
-    while (priceFor(g2, cost2, margin, t) > cappedPrice && guard < 200) { margin--; guard++; }
-    guard = 0;
-    while (priceFor(g2, cost2, margin + 1, t) <= cappedPrice && guard < 200) { margin++; guard++; }
-
-    const marginId = _getMarginId('pu', g2, t);
-    const field = marginId ? document.getElementById(marginId) : null;
-    if (field) { field.value = margin; fixed++; }
-  });
-
-  recalcPu();
-
-  const parts = [`${fixed}건 보정`];
-  if (alreadyOk)      parts.push(`이미 정상 ${alreadyOk}건`);
-  if (overrideLocked) parts.push(`동일가 맞춤으로 고정되어 조정 불가 ${overrideLocked}건`);
-  if (skipped)        parts.push(`계산 불가 ${skipped}건`);
-  if (typeof showToast === 'function') {
-    showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', fixed ? 'success' : 'warning');
-  }
-};
-
-/* ── PF보드 브랜드 가격역전 보정 (LX > 국내산 > 수입산) ─────────────────
-   2026-09-02: 단가표_2026-09(1).xlsx 검수 결과 소형(0.6×1.2) 규격 위주로 국내산이
-   수입산보다 같거나 싸게 책정된 경우가 다수 발견되어 추가. 규칙: 같은 종류(심재
-   준불연 mk접미사 'o' / 준불연 'i')·같은 규격(_s/_l)끼리 LX > 국내산 > 수입산 순서가
-   유지돼야 함 → 위반 시 하위 브랜드(국내산, 수입산) 마진을 낮춰서 맞춘다.
-   2026-09-08: 예전엔 소형(_s)/대형(_l)이 마진 필드를 mk 단위로 공유해서 두 규격을
-   동시에 만족하는 마진 중 하나만 골라 써야 했는데(비드법 준불연에서 겪은 것과 같은
-   문제 — 크린슐라가 한쪽 규격에만 걸려있으면 반대쪽까지 끌려 내려감), 이제 소형/
-   대형 마진 필드가 완전히 독립적이라(_getMarginId 참고) 각자 따로 풀어서 각자의
-   필드에 쓰면 된다 — 서로 영향 없음. */
-function _pfSolveMargin(grade, cost, t, cappedPrice) {
-  const priceFor = m => calcSheetRow(cost, m, t, grade.area).realPrice;
-  let margin = Math.round(cappedPrice / (t * grade.area * 1.1) - cost);
-  let guard = 0;
-  while (priceFor(margin) > cappedPrice && guard < 200) { margin--; guard++; }
-  guard = 0;
-  while (priceFor(margin + 1) <= cappedPrice && guard < 200) { margin++; guard++; }
-  return margin;
+  return { issues, passed, incomplete };
 }
-window.fixPfBrandPriceOrder = async function() {
-  if (window.currentUser?.role !== 'admin') return;
-  const bufferStr = prompt('하위 브랜드가 상위 브랜드보다 얼마나 저렴해야 할까요? (원 단위, 예: 100)', '100');
-  if (bufferStr === null) return;
-  const buffer = Number(String(bufferStr).replace(/,/g, ''));
-  if (!Number.isFinite(buffer)) { if (typeof showToast === 'function') showToast('숫자를 입력해주세요.', 'warning'); return; }
+window.checkBeadHoPriceOrder = function() {
+  const { issues, passed, incomplete } = _checkBeadHoPrices();
+  document.getElementById('beadHoPriceCheck')?.remove();
+  const dialog = document.createElement('dialog');
+  dialog.id = 'beadHoPriceCheck';
+  dialog.style.cssText = 'width:min(760px,90vw);max-height:80vh;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:24px;color:#1e293b;';
+  const priceText = p => Number.isFinite(p) && p > 0 ? p.toLocaleString('ko-KR')+'원' : '—';
+  dialog.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>비드법 호수별 가격 검증</strong><button type="button" class="pricing-margin-edit-btn" id="beadHoPriceCheckClose">닫기</button></div>
+    <p>같은 종·같은 두께 기준: <b>1호 &gt; 2호 &gt; 3호</b> · 가격은 변경하지 않습니다.</p>
+    <p>정상 ${passed}개 · 확인 필요 ${issues.length}개 (가격 확인 불가 포함 ${incomplete}개)</p>
+    ${issues.length ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th>종</th><th>두께</th><th>1호</th><th>2호</th><th>3호</th><th>확인 사항</th></tr></thead><tbody>${issues.map(row => `<tr><td>${row.group}</td><td>${row.t}T</td>${row.prices.map(p => `<td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(p)}</td>`).join('')}<td style="color:#b45309;padding:8px 4px;border-top:1px solid #e2e8f0">${row.problems.join('<br>')}</td></tr>`).join('')}</tbody></table>` : '<p>모든 두께에서 1호 > 2호 > 3호 순서가 정상입니다.</p>'}`;
+  document.body.appendChild(dialog);
+  dialog.querySelector('#beadHoPriceCheckClose').onclick = () => dialog.close();
+  dialog.addEventListener('close', () => dialog.remove(), { once:true });
+  dialog.showModal();
+};
 
-  const gradeOf = id => PF_GRADES.find(g => g.id === id);
-  let fixed = 0, alreadyOk = 0, skipped = 0, overrideLocked = 0;
-
-  // 규격 하나(소형 또는 대형)만 독립적으로 보정 — upper/lower 같은 규격끼리 비교.
-  function fixOne(upperGrade, lowerGrade, t) {
-    const costLowerId = _getCostId('pf', lowerGrade, t);
-    const costLower   = costLowerId ? fieldVal(costLowerId) : 0;
-    const priceUpper   = _pfRealPrice(upperGrade, t);
-    if (!costLower || priceUpper == null) { skipped++; return; }
-
-    const cap = Math.floor((priceUpper - buffer) / 100) * 100;
-    if (cap <= 0) { skipped++; return; }
-
-    const priceLower = _pfRealPrice(lowerGrade, t);
-    if (priceLower != null && priceLower <= cap) { alreadyOk++; return; }
-
-    const overrideEl = document.getElementById(_getOverrideId('pf', lowerGrade, t));
-    if (overrideEl && overrideEl.value.trim() !== '') { overrideLocked++; return; }
-
-    const margin  = _pfSolveMargin(lowerGrade, costLower, t, cap);
-    const marginId = _getMarginId('pf', lowerGrade, t);
-    const field = marginId ? document.getElementById(marginId) : null;
-    if (field) { field.value = margin; fixed++; }
+/* 경질우레탄 검증 전용: 두 등급의 공통 두께에서 2종1호 > 2종2호 확인. */
+function _checkPuHoPrices() {
+  const g1 = PU_GRADES.find(g => g.id === 'iiia');
+  const g2 = PU_GRADES.find(g => g.id === 'iia');
+  const issues = [];
+  let passed = 0, incomplete = 0;
+  const thicknesses = g1.rows.filter(t => g2.rows.includes(t));
+  for (const t of thicknesses) {
+    const prices = [_puRealPrice(g1, t), _puRealPrice(g2, t)];
+    const valid = prices.map(p => Number.isFinite(p) && p > 0);
+    if (!valid.every(Boolean)) {
+      incomplete++;
+      issues.push({ t, prices, reason:'가격 확인 불가: ' + valid.map((v,i) => v ? null : '2종'+(i+1)+'호').filter(Boolean).join(', ') });
+    } else if (prices[0] <= prices[1]) {
+      issues.push({ t, prices, reason:prices[0] === prices[1] ? '동일가' : '가격역전' });
+    } else passed++;
   }
+  return { issues, passed, incomplete };
+}
+window.checkPuHoPriceOrder = function() {
+  const { issues, passed, incomplete } = _checkPuHoPrices();
+  document.getElementById('puHoPriceCheck')?.remove();
+  const dialog = document.createElement('dialog');
+  dialog.id = 'puHoPriceCheck';
+  dialog.style.cssText = 'width:min(700px,90vw);max-height:80vh;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:24px;color:#1e293b;';
+  const priceText = p => Number.isFinite(p) && p > 0 ? p.toLocaleString('ko-KR')+'원' : '—';
+  dialog.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>경질우레탄 호수별 가격 검증</strong><button type="button" class="pricing-margin-edit-btn" id="puHoPriceCheckClose">닫기</button></div>
+    <p>공통 두께 기준: <b>2종1호 &gt; 2종2호</b> · 가격은 변경하지 않습니다.</p>
+    <p>정상 ${passed}개 · 확인 필요 ${issues.length}개 (가격 확인 불가 포함 ${incomplete}개)</p>
+    ${issues.length ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th>두께</th><th>2종1호</th><th>2종2호</th><th>확인 사항</th></tr></thead><tbody>${issues.map(row => `<tr><td>${row.t}T</td>${row.prices.map(p => `<td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(p)}</td>`).join('')}<td style="color:#b45309;padding:8px 4px;border-top:1px solid #e2e8f0">${row.reason}</td></tr>`).join('')}</tbody></table>` : '<p>모든 공통 두께에서 2종1호 > 2종2호 순서가 정상입니다.</p>'}`;
+  document.body.appendChild(dialog);
+  dialog.querySelector('#puHoPriceCheckClose').onclick = () => dialog.close();
+  dialog.addEventListener('close', () => dialog.remove(), { once:true });
+  dialog.showModal();
+};
 
-  const GROUPS = [['lxo', 'kdo', 'imo'], ['lxi', 'kdi', 'imi']]; // [LX, 국내산, 수입산]
-  GROUPS.forEach(([lx, kd, im]) => {
-    PF_ROWS.forEach(t => {
-      ['s', 'l'].forEach(size => {
-        const lxG = gradeOf(`${lx}_${size}`), kdG = gradeOf(`${kd}_${size}`), imG = gradeOf(`${im}_${size}`);
-        if (lxG && kdG) fixOne(lxG, kdG, t); // 국내산이 LX보다 저렴하도록
-        if (kdG && imG) fixOne(kdG, imG, t); // 수입산이 국내산(보정 후)보다 저렴하도록
+/* PF 검증 전용. 대형 판 면적이 브랜드마다 달라 판매가/면적으로 비교한다. */
+function _checkPfBrandPrices() {
+  const groups = [{ name:'심재 준불연', ids:['lxo','kdo','imo'] }, { name:'준불연', ids:['lxi','kdi','imi'] }];
+  const brands = ['LX','국내산','수입산'];
+  const issues = [];
+  let passed = 0, incomplete = 0;
+  for (const group of groups) for (const size of ['s','l']) {
+    const grades = group.ids.map(id => PF_GRADES.find(g => g.id === id+'_'+size));
+    for (const t of PF_ROWS) {
+      const prices = grades.map(g => {
+        if (!g || !(g.area > 0)) return null;
+        const price = _pfRealPrice(g, t);
+        return Number.isFinite(price) && price > 0 ? price / g.area : null;
       });
-    });
-  });
-
-  recalcPf();
-
-  const parts = [`${fixed}건 보정`];
-  if (alreadyOk)      parts.push(`이미 정상 ${alreadyOk}건`);
-  if (overrideLocked) parts.push(`동일가 맞춤으로 고정되어 조정 불가 ${overrideLocked}건`);
-  if (skipped)         parts.push(`계산 불가 ${skipped}건`);
-  if (typeof showToast === 'function') {
-    showToast(parts.join(' · ') + ' — 표 확인 후 [저장]을 눌러야 반영됩니다.', fixed ? 'success' : 'warning');
+      const valid = prices.map(p => Number.isFinite(p) && p > 0);
+      const problems = [];
+      for (let i = 0; i < 3; i++) for (let j = i+1; j < 3; j++) {
+        if (valid[i] && valid[j] && prices[i] <= prices[j] + 1e-8) {
+          problems.push(brands[i]+'·'+brands[j]+' '+(Math.abs(prices[i]-prices[j]) < 1e-8 ? '동일가' : '가격역전'));
+        }
+      }
+      if (!valid.every(Boolean)) {
+        incomplete++;
+        problems.push('가격 확인 불가: '+brands.filter((_,i) => !valid[i]).join(', '));
+      }
+      if (problems.length) issues.push({ group:group.name+' '+(size === 's' ? '소형' : '대형'), t, prices, problems });
+      else passed++;
+    }
   }
+  return { issues, passed, incomplete };
+}
+window.checkPfBrandPriceOrder = function() {
+  const { issues, passed, incomplete } = _checkPfBrandPrices();
+  document.getElementById('pfBrandPriceCheck')?.remove();
+  const dialog = document.createElement('dialog');
+  dialog.id = 'pfBrandPriceCheck';
+  dialog.style.cssText = 'width:min(760px,90vw);max-height:80vh;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:24px;color:#1e293b;';
+  const priceText = p => Number.isFinite(p) && p > 0 ? Math.round(p).toLocaleString('ko-KR') : '—';
+  dialog.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>PF보드 브랜드 가격 검증</strong><button type="button" class="pricing-margin-edit-btn" id="pfBrandPriceCheckClose">닫기</button></div>
+    <p>같은 종류·두께별 ㎡당 판매가 기준: <b>LX &gt; 국내산 &gt; 수입산</b> · 규격별 면적으로 나눠 비교하며, 표시만 원 단위 반올림합니다. 가격은 변경하지 않습니다.</p>
+    <p>정상 ${passed}개 · 확인 필요 ${issues.length}개 (가격 확인 불가 포함 ${incomplete}개)</p>
+    ${issues.length ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th>종류·규격</th><th>두께</th><th>LX (원/㎡)</th><th>국내산 (원/㎡)</th><th>수입산 (원/㎡)</th><th>확인 사항</th></tr></thead><tbody>${issues.map(row => `<tr><td>${row.group}</td><td>${row.t}T</td>${row.prices.map(p => `<td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(p)}</td>`).join('')}<td style="color:#b45309;padding:8px 4px;border-top:1px solid #e2e8f0">${row.problems.join('<br>')}</td></tr>`).join('')}</tbody></table>` : '<p>모든 비교 구간에서 LX > 국내산 > 수입산 순서가 정상입니다.</p>'}`;
+  document.body.appendChild(dialog);
+  dialog.querySelector('#pfBrandPriceCheckClose').onclick = () => dialog.close();
+  dialog.addEventListener('close', () => dialog.remove(), { once:true });
+  dialog.showModal();
 };
 
 /* ═══════════════════════════════════════
@@ -1663,6 +1515,7 @@ function _migrateLegacySharedMargins(marginsData) {
   PF_ROWS.forEach(t => {
     ['lxo', 'lxi', 'kdo', 'kdi', 'imo', 'imi'].forEach(mk => {
       const legacy = marginsData[`pf_m_${mk}_t${t}`];
+      if (marginsData[`pf_base_${mk}_t${t}`] == null && legacy != null) marginsData[`pf_base_${mk}_t${t}`] = legacy;
       if (legacy == null) return;
       PF_GRADES.filter(g => g.mk === mk).forEach(g => {
         const newKey = `pf_m_${g.id}_t${t}`;
@@ -2048,7 +1901,7 @@ function buildPfModalBody() {
   // 두께50 + (마진65 + 이전대비44) × 6 = 704px → 모달 760px에 맞음
   const colW = { t:'50px', m:'65px', d:'44px' };
   let html = `<div class="pim-section-title">PF 보드 — 두께별 마진 (원/m²)</div>
-    <div class="pim-margin-hint">품종·용도별 마진. 비어있으면 기본값 사용 / 규격(소·대) 공통.</div>
+    <div class="pim-margin-hint">소·대 공통 기본 마진. 경쟁가가 없는 규격에 적용됩니다. 최초 설정 시 값을 확인해주세요. 빈칸은 표시된 기본값을 사용합니다.</div>
     <div class="pim-table-scroll-wrap">
     <table class="pim-table pim-margin-only-table pim-pf-table">
       <colgroup>
@@ -2064,7 +1917,7 @@ function buildPfModalBody() {
     groups.forEach(g => {
       const id = `pf_m_${g.mk}_t${t}`; // 대표(가상) id
       // 소형/대형 마진이 독립 필드라(2026-09-08) 실제 값은 첫 번째(소형)에서 읽어온다.
-      const realId = _modalFieldTargets('pf', id)[0];
+      const realId = `pf_base_${g.mk}_t${t}`;
       html += `<td><input type="text" inputmode="numeric" id="${_pimId(id)}" class="pim-input pim-input-margin" placeholder="${PF_FB[g.mk]?.[t]??35}" value="${_realVal(realId)}"></td>
         <td class="pim-td-diff" id="pimdiff_${id}"><span class="pcut-diff-empty">—</span></td>`;
     });
@@ -2169,7 +2022,7 @@ function _modalFieldTargets(type, repId) {
   }
   if (type === 'pf') {
     const m = repId.match(/^pf_m_([^_]+)_t(\d+)$/);
-    if (m) return [`pf_m_${m[1]}_s_t${m[2]}`, `pf_m_${m[1]}_l_t${m[2]}`];
+    if (m) return [`pf_base_${m[1]}_t${m[2]}`];
   }
   return [repId];
 }
@@ -2206,7 +2059,7 @@ window.closePricingModal = function() {
   document.getElementById('pricingInputModal').style.display = 'none';
   _pimType = null;
 };
-window.confirmPricingModal = function() {
+window.confirmPricingModal = async function() {
   if (!_pimType) return;
   // 2026-09-08: 대표(가상) 필드 하나가 실제로는 여러 필드(비드법 준불연/PF 소형·대형)에
   // 반영돼야 할 수 있어서 _modalFieldTargets로 풀어서 전부 써준다.
@@ -2215,9 +2068,10 @@ window.confirmPricingModal = function() {
     if (!modalEl) return;
     _modalFieldTargets(_pimType, id).forEach(realId => {
       const realEl = document.getElementById(realId);
-      if (realEl) realEl.value = modalEl.value;
+      if (realEl) realEl.value = _pimType === 'pf' && modalEl.value.trim() === '' ? modalEl.placeholder : modalEl.value;
     });
   });
+  if (_pimType === 'pf') await window.restorePfBaseMargins();
   const recalc = { isopink: window.recalcIsopink, bead: recalcBead, pu: recalcPu, pf: recalcPf, fr: recalcFr };
   recalc[_pimType]?.();
   renderAllInputDiff();
@@ -2271,23 +2125,24 @@ function _costCard(tabId, modalType, titleSub, tableBodyHtml, hiddenHtml) {
       <button class="pricing-margin-edit-btn" onclick="openPricingModal('${modalType}')">
         <i class="fa-solid fa-sliders"></i> 마진 편집
       </button>
-      <button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPrice()" title="두께별 경쟁사 최저가보다 100원 단위로 한 단계 낮게 마진을 맞추고, 그로 인한 두께 역전도 같이 보정합니다. 경쟁사가 아예 없는 두께는 원하면 마진을 올릴 수도 있습니다(아이소핑크/비드법/PU/PF는 지금 선택된 등급 기준)">
+      <button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPrice()" title="두께별 경쟁사 최저가보다 100원 단위로 한 단계 낮게 마진을 맞추고, 그로 인한 두께 역전도 같이 보정합니다. 비교할 경쟁가가 없는 두께는 마진을 추가 인상하지 않습니다(아이소핑크/비드법/PU/PF는 지금 선택된 등급 기준)">
         <i class="fa-solid fa-bolt"></i> 경쟁사 최저가 맞춤
       </button>
-      ${tabId === 'isopink' ? `<button class="pricing-margin-edit-btn" onclick="fixIsopinkGradePriceOrder()" title="같은 두께(30T~300T)에서 1호가 특호보다 비싸지거나 같아진 경우, 1호 마진을 낮춰서 항상 더 저렴하게 자동 보정합니다">
-        <i class="fa-solid fa-arrow-down-wide-short"></i> 1호·특호 가격역전 보정
+      ${tabId === 'isopink' ? `<span style="display:inline-flex;align-items:center;gap:6px">
+        <select id="isopinkGradeGapRate" class="pricing-margin-edit-btn" aria-label="특호 대비 1호 할인율" title="특호 대비 1호 할인율" style="width:auto;cursor:pointer">
+          <option value="1">1%</option><option value="2">2%</option><option value="3" selected>3%</option><option value="4">4%</option><option value="5">5%</option>
+        </select>
+        <button class="pricing-margin-edit-btn" onclick="alignIsopinkGradeGap()" title="특호 대비 선택한 할인율(%)로 1호 판매가를 계산하고 100원 단위로 반올림합니다. 1호 경쟁가가 있는 두께와 특호 가격은 유지합니다. 경쟁사 최저가 맞춤 후 사용하세요.">
+        <i class="fa-solid fa-arrows-left-right"></i> 1호·특호 비율 맞춤
+      </button></span>` : ''}
+      ${tabId === 'bead' ? `<button class="pricing-margin-edit-btn" onclick="checkBeadHoPriceOrder()" title="1종과 2종을 각각 검사합니다. 같은 두께에서 1호 > 2호 > 3호인지 확인하며 가격은 변경하지 않습니다.">
+        <i class="fa-solid fa-check-double"></i> 호수별 가격 검증
       </button>` : ''}
-      ${tabId === 'isopink' ? `<button class="pricing-margin-edit-btn" onclick="smoothMarginByCompAnchors('isopink')" title="경쟁사가 등록된 두께(앵커)는 그대로 두고, 그 사이 두께들의 마진을 앵커끼리 선형보간해서 채웁니다 — 경쟁사가 몇몇 두께만 등록돼 있어서 가격이 들쭉날쭉해 보일 때 씁니다">
-        <i class="fa-solid fa-chart-line"></i> 마진 보간(부드럽게)
+      ${tabId === 'pu' ? `<button class="pricing-margin-edit-btn" onclick="checkPuHoPriceOrder()" title="같은 두께에서 2종1호 > 2종2호인지 확인합니다. 가격은 변경하지 않습니다.">
+        <i class="fa-solid fa-check-double"></i> 2종1호·2종2호 가격 검증
       </button>` : ''}
-      ${tabId === 'bead' ? `<button class="pricing-margin-edit-btn" onclick="fixBeadJongPriceOrder()" title="같은 호수끼리 1종이 2종보다 비싸지거나 같아진 경우, 1종 마진을 낮춰서 항상 더 저렴하게 자동 보정합니다">
-        <i class="fa-solid fa-arrow-down-wide-short"></i> 1종·2종 가격역전 보정
-      </button>` : ''}
-      ${tabId === 'pu' ? `<button class="pricing-margin-edit-btn" onclick="fixPuJongPriceOrder()" title="2종1호가 2종2호보다 비싸지거나 같아진 경우, 2종2호 마진을 낮춰서 항상 더 저렴하게 자동 보정합니다">
-        <i class="fa-solid fa-arrow-down-wide-short"></i> 2종1호·2종2호 가격역전 보정
-      </button>` : ''}
-      ${tabId === 'pf' ? `<button class="pricing-margin-edit-btn" onclick="fixPfBrandPriceOrder()" title="같은 종류(심재준불연/준불연)·같은 규격끼리 LX > 국내산 > 수입산 순서가 무너진 경우, 하위 브랜드 마진을 낮춰서 자동 보정합니다">
-        <i class="fa-solid fa-arrow-down-wide-short"></i> 브랜드 가격역전 보정
+      ${tabId === 'pf' ? `<button class="pricing-margin-edit-btn" onclick="checkPfBrandPriceOrder()" title="같은 종류·두께의 ㎡당 판매가로 LX > 국내산 > 수입산인지 검증합니다. 가격은 변경하지 않습니다.">
+        <i class="fa-solid fa-check-double"></i> 브랜드 가격 검증
       </button>` : ''}
     </div>
     <div class="pricing-cost-card-inner">
@@ -2494,7 +2349,8 @@ function buildPfTab() {
     <thead><tr><th>품명</th><th>부위</th><th>단가 (원/m²)</th><th class="pricing-col-diff">이전대비</th></tr></thead>
     <tbody>${costRows}</tbody>
   </table>`;
-  const hiddenHtml = _hiddenFields(PF_GRADES.flatMap(g => PF_ROWS.map(t => _getMarginId('pf', g, t))),'recalcPf')
+  const hiddenHtml = _hiddenFields([...new Set(PF_GRADES.map(g => g.mk))].flatMap(mk => PF_ROWS.map(t => `pf_base_${mk}_t${t}`)), 'recalcPf')
+    + _hiddenFields(PF_GRADES.flatMap(g => PF_ROWS.map(t => _getMarginId('pf', g, t))),'recalcPf')
     + _hiddenFields(PF_GRADES.flatMap(g => PF_ROWS.map(t => _getOverrideId('pf', g, t))), 'recalcPf');
   const subtabGroups = [
     { label:'LX 국내산', cls:'pf-lx-label', tabs:[

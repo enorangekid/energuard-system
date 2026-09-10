@@ -174,6 +174,54 @@ function _compGradeKey(tabId, gradeId) { return `${tabId}:${gradeId}`; }
 function _cacheGet(tabId, gradeId, t) {
   return window._compCache?.[tabId]?.[gradeId]?.[t] || {};
 }
+// 가상 가격은 실제 경쟁가 캐시/DB에 쓰지 않는다. 실제 양끝 가격에서 매번 파생한다.
+const _virtualCompEnabled = new Set();
+function _virtualCompKey(tabId, gradeId, i) { return `pricing.virtual.v1:${tabId}:${gradeId}:${i}`; }
+function _virtualCompOn(tabId, gradeId, i) {
+  if (!['isopink', 'bead', 'pu', 'pf'].includes(tabId)) return false;
+  const key = _virtualCompKey(tabId, gradeId, i);
+  try { return localStorage.getItem(key) === '1'; } catch { return _virtualCompEnabled.has(key); }
+}
+function _virtualCompPrice(tabId, gradeId, t, i) {
+  const field = `comp${i + 1}_price`;
+  if (!_virtualCompOn(tabId, gradeId, i) || _cacheGet(tabId, gradeId, t)[field] > 0) return null;
+  const anchors = _thicknesses(tabId, gradeId).filter(a => _cacheGet(tabId, gradeId, a)[field] > 0).sort((a,b) => a-b);
+  const below = anchors.filter(a => a < t).pop(), above = anchors.find(a => a > t);
+  if (below == null || above == null) return null;
+  const low = Number(_cacheGet(tabId, gradeId, below)[field]);
+  const high = Number(_cacheGet(tabId, gradeId, above)[field]);
+  if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) return null;
+  const price = Math.round((low + (high-low) * (t-below) / (above-below)) / 100) * 100;
+  return price > low && price < high ? price : null;
+}
+window._compEffectiveRow = function(tabId, gradeId, t) {
+  const row = { ..._cacheGet(tabId, gradeId, t) };
+  for (let i = 0; i < COMP_COUNT; i++) {
+    const price = _virtualCompPrice(tabId, gradeId, t, i);
+    if (price != null) row[`comp${i + 1}_price`] = price;
+  }
+  return row;
+};
+window.toggleVirtualCompPrices = async function(i, tabId, gradeId) {
+  if (window.currentUser?.role !== 'admin' || !['isopink', 'bead', 'pu', 'pf'].includes(tabId)) return;
+  const tbody = document.getElementById(`${tabId}TableBody`);
+  if ([0,1,2].some(n => tbody?.dataset[`compEditing${n}`] === '1')) {
+    showToast('단가 편집을 마친 뒤 가상 판매가를 채워주세요.', 'warning');
+    return;
+  }
+  await loadCompPrices(tabId, gradeId);
+  if (!_compLoadedGrades.has(_compGradeKey(tabId, gradeId))) {
+    showToast('경쟁가를 불러오지 못했습니다. 다시 시도해주세요.', 'warning');
+    return;
+  }
+  const key = _virtualCompKey(tabId, gradeId, i), enabled = !_virtualCompOn(tabId, gradeId, i);
+  if (enabled) _virtualCompEnabled.add(key); else _virtualCompEnabled.delete(key);
+  try { if (enabled) localStorage.setItem(key, '1'); else localStorage.removeItem(key); } catch {}
+  const count = _thicknesses(tabId, gradeId).filter(t => _virtualCompPrice(tabId, gradeId, t, i) != null).length;
+  if (tabId === 'pf') await window.restorePfBaseMargins?.(gradeId);
+  await _injectCompColumns(tabId, gradeId, true);
+  showToast(enabled ? `가상 판매가 ${count}개 — 실제 가격 사이의 빈 두께만 계산했습니다. 최저가 맞춤에 사용됩니다.` : '가상 판매가를 해제했습니다. 이미 맞춘 우리 판매가는 유지됩니다.', 'success');
+};
 function _cacheSet(tabId, gradeId, t, compIdx, price, link) {
   window._compCache[tabId]             = window._compCache[tabId] || {};
   window._compCache[tabId][gradeId]    = window._compCache[tabId][gradeId] || {};
@@ -274,7 +322,8 @@ async function saveCompPrice(tabId, gradeId, thickness, compIdx, rawVal, rawLink
       .from('competitor_prices')
       .upsert(payload, { onConflict: 'tab_id,grade_id,thickness' });
     if (error) throw error;
-    _refreshCompCells(tabId, gradeId, thickness);
+    if (tabId === 'pf') await window.restorePfBaseMargins?.(gradeId);
+    _refreshAllCompCells(tabId, gradeId);
     if (typeof showToast === 'function') showToast('저장됨', 'success');
   } catch(e) {
     console.warn('[Comp] 저장 실패', e);
@@ -359,11 +408,22 @@ function _thicknesses(tabId, gradeId) {
 ═══════════════════════════════════════ */
 function _refreshCompCells(tabId, gradeId, t) {
   const ourPrice = _ourPrice(tabId, gradeId, t);
-  const cached   = _cacheGet(tabId, gradeId, t);
+  const cached   = window._compEffectiveRow(tabId, gradeId, t);
   for (let i = 0; i < COMP_COUNT; i++) {
     const el = document.getElementById(`cp_diff_${tabId}_${gradeId}_${i}_${t}`);
     if (el) el.innerHTML = _compDiffBadge(ourPrice, cached[`comp${i + 1}_price`]);
+    const cell = document.getElementById(`cp_value_${tabId}_${gradeId}_${i}_${t}`);
+    if (cell) cell.innerHTML = _compValueHtml(tabId, gradeId, t, i);
   }
+}
+
+function _compValueHtml(tabId, gradeId, t, i) {
+  const virtual = _virtualCompPrice(tabId, gradeId, t, i);
+  const value = virtual ?? _cacheGet(tabId, gradeId, t)[`comp${i+1}_price`];
+  const text = value != null ? Number(value).toLocaleString('ko-KR') : '—';
+  return virtual != null
+    ? `<span style="color:#94a3b8;opacity:0.65;font-weight:400">${text}</span><small style="display:block;color:#94a3b8;opacity:0.5;font-size:10px;font-weight:400;white-space:nowrap">가상 판매가</small>`
+    : text;
 }
 
 function _refreshAllCompCells(tabId, gradeId) {
@@ -403,18 +463,17 @@ function _buildCompCells(tabId, gradeId, t, linkGroupColors) {
   for (let i = 0; i < COMP_COUNT; i++) {
     const val      = cached[`comp${i + 1}_price`];
     const link     = cached[`comp${i + 1}_link`] || '';
-    const diffHtml = _compDiffBadge(ourPrice, val);
+    const diffHtml = _compDiffBadge(ourPrice, _virtualCompPrice(tabId, gradeId, t, i) ?? val);
     const color    = COMP_COLORS[i];
     const groupColor = link ? linkGroupColors?.[i]?.[link] : null;
     const groupStyle = groupColor ? ` background:${groupColor} !important;` : '';
     const groupTitle = groupColor ? ' title="같은 상품 링크가 등록된 다른 두께 행들과 같은 색"' : '';
-    const dispVal  = val != null ? Number(val).toLocaleString('ko-KR') : '—';
     const linkIcon = link
       ? `<a href="${link}" target="_blank" class="cp-link-icon" title="상품 페이지"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`
       : `<span class="cp-link-icon cp-link-empty" title="링크 없음"><i class="fa-solid fa-arrow-up-right-from-square"></i></span>`;
     html += `<td class="cp-td-price" style="--cc:${color};${groupStyle}"${groupTitle} data-comp-idx="${i}" data-tab="${tabId}" data-grade="${gradeId}" data-t="${t}" data-link="${link.replace(/"/g,'&quot;')}">
       <div class="cp-val-wrap">
-        <span class="cp-val">${dispVal}</span>
+        <span class="cp-val" id="cp_value_${tabId}_${gradeId}_${i}_${t}">${_compValueHtml(tabId, gradeId, t, i)}</span>
         ${linkIcon}
       </div>
       <div class="cp-edit-wrap" style="display:none">
@@ -476,7 +535,7 @@ window.toggleCompEdit = function(compIdx) {
       const rawLink  = linkInput?.value.trim() || '';
       saveCompPrice(tab, gr, t, compIdx, rawPrice, rawLink);
       // 표시값 갱신
-      if (span) span.textContent = rawPrice !== '' ? Number(rawPrice).toLocaleString('ko-KR') : '—';
+      if (span) span.innerHTML = _compValueHtml(tab, gr, t, compIdx);
       // 링크 아이콘 갱신
       const existingIcon = td.querySelector('.cp-link-icon');
       if (existingIcon) {
@@ -569,7 +628,8 @@ async function _injectCompColumns(tabId, gradeId, skipFetch) {
       th.innerHTML = `
         <div class="cp-th-inner">
           <span class="cp-th-name" data-ci="${i}" data-tab="${tabId}" data-grade="${gradeId}">${name}</span>
-          <div class="cp-th-actions">
+          <div class="cp-th-actions" ${['isopink', 'bead', 'pu', 'pf'].includes(tabId) ? 'style="flex-wrap:wrap;justify-content:center"' : ''}>
+            ${['isopink', 'bead', 'pu', 'pf'].includes(tabId) ? `<button class="cp-name-btn" title="실제 가격 사이의 빈 두께를 자동 계산합니다. 설정은 이 브라우저에 기억됩니다. 다시 누르면 해제합니다." onclick="toggleVirtualCompPrices(${i}, '${tabId}', '${gradeId}')" style="font-size:10px;width:auto;padding:2px 5px;${_virtualCompOn(tabId, gradeId, i) ? 'color:#a16207;background:#fef3c7;' : ''}">${_virtualCompOn(tabId, gradeId, i) ? '가상 판매가 해제' : '가상 판매가 채우기'}</button>` : ''}
             <button class="cp-name-btn" title="이름 변경" onclick="editCompName(${i}, '${tabId}', '${gradeId}')"><i class="fa-solid fa-pen-to-square"></i></button>
             <button class="cp-match-btn${isMatchOnly ? ' active' : ''}" data-ci="${i}" data-tab="${tabId}" data-grade="${gradeId}"
               title="${isMatchOnly ? '동일가로만 맞춤 — 클릭하면 다시 한 단계 낮게' : '가격을 도저히 못 낮추는 업체(제조업체 등)면 눌러서 동일가로만 맞춤'}"
@@ -684,6 +744,7 @@ window.toggleCompExcluded = async function(idx, tabId, gradeId) {
     if (typeof showToast === 'function') showToast('저장 실패 — competitor_names 테이블에 comp{n}_excluded 컬럼이 있는지 확인해주세요.', 'error');
     return;
   }
+  if (tabId === 'pf') await window.restorePfBaseMargins?.(gradeId);
   document.querySelectorAll(`.cp-exclude-btn[data-ci="${idx}"][data-tab="${tabId}"][data-grade="${gradeId}"]`).forEach(btn => {
     btn.classList.toggle('active', excluded[idx]);
     btn.title = excluded[idx] ? '가격맞춤 계산에서 제외됨 — 클릭하면 다시 포함' : '가격 도저히 못 맞추는 업체면 눌러서 가격맞춤 계산에서 제외';
@@ -737,6 +798,7 @@ window.toggleCompMatchOnly = async function(idx, tabId, gradeId) {
 /* loadPricingCosts 완료 콜백 — pricing.js가 호출함
    loadPricingCosts는 현재 활성 탭 데이터만 갱신하므로 활성 탭 플래그만 초기화 */
 window._onPricingLoaded = function() {
+  window.restorePfBaseMargins?.();
   const tabId   = window._activePricingTab || 'isopink';
   const gradeId = _activeGradeId(tabId);
   _prepareCompGrade(tabId, gradeId).then(() => _injectCompColumns(tabId, gradeId, true));
