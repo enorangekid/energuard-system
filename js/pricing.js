@@ -740,6 +740,78 @@ window.fixIsopinkGradePriceOrder = async function() {
   }
 };
 
+/* ── 경쟁사 앵커 사이 마진 선형보간(부드럽게) ──────────────────────────────
+   2026-09-10: "경쟁사 최저가 맞춤"은 경쟁사가 등록된 두께만 정확히 그 가격에
+   맞추고, 등록 안 된 두께는 원래 마진 그대로 둔다 — 크린슐라처럼 몇몇 두께만
+   가격을 올려둔 업체를 따라가다 보면, 맞춰진 두께만 확 낮아지고 바로 다음
+   두께에서 다시 원래 마진으로 튀어서 "1호대비 +100원짜리 두께 옆에 +1200원짜리
+   두께가 붙어있는" 식으로 들쭉날쭉해 보인다는 지적(사용자 발견). 경쟁사가
+   등록된(또는 오버라이드로 고정된) 두께를 "앵커"로 보고 그 값은 그대로 두되,
+   앵커와 앵커 사이에 낀 두께들의 마진만 두 앵커 사이에서 선형보간해서 자연스럽게
+   이어지도록 한다. 양 끝(바깥쪽에 앵커가 하나뿐인 구간)은 가장 가까운 앵커 값으로
+   평평하게 채운다. */
+window.smoothMarginByCompAnchors = async function(tabId) {
+  if (window.currentUser?.role !== 'admin') return;
+  const gradeId = _subtabState[tabId];
+  const grade   = _gradesOf(tabId).find(g => g.id === gradeId);
+  if (!grade) return;
+  const rows = _rowsOf(tabId, grade).slice().sort((a, b) => a - b);
+
+  await loadCompPrices(tabId, gradeId);
+  const excluded = (typeof _compExcluded === 'function') ? await _compExcluded(tabId, gradeId) : [false, false, false];
+
+  function hasActiveComp(t) {
+    const comp = window._compCache?.[tabId]?.[gradeId]?.[t] || {};
+    const raw = [comp.comp1_price, comp.comp2_price, comp.comp3_price];
+    return [0, 1, 2].some(i => !excluded[i] && raw[i] != null && raw[i] > 0);
+  }
+  function hasOverride(t) {
+    const el = document.getElementById(_getOverrideId(tabId, grade, t));
+    return !!(el && el.value.trim() !== '');
+  }
+  function marginAt(t) {
+    const marginId = _getMarginId(tabId, grade, t);
+    const field = marginId ? document.getElementById(marginId) : null;
+    return (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
+  }
+
+  // 경쟁사가 실제로 등록돼 있거나(활성) 오버라이드로 가격이 고정된 두께 = 앵커.
+  const anchors = rows.filter(t => hasActiveComp(t) || hasOverride(t));
+  if (anchors.length < 2) {
+    if (typeof showToast === 'function') showToast('경쟁사가 등록된(앵커) 두께가 2개 미만이라 보간할 수 없습니다.', 'warning');
+    return;
+  }
+
+  let changed = 0;
+  rows.forEach(t => {
+    if (hasActiveComp(t) || hasOverride(t)) return; // 앵커는 그대로 둠
+    const below = [...anchors].reverse().find(a => a < t);
+    const above = anchors.find(a => a > t);
+    let newMargin;
+    if (below != null && above != null) {
+      const mBelow = marginAt(below), mAbove = marginAt(above);
+      newMargin = mBelow + (mAbove - mBelow) * ((t - below) / (above - below));
+    } else if (below != null) {
+      newMargin = marginAt(below); // 바깥쪽 끝은 가장 가까운 앵커 값으로 평평하게
+    } else if (above != null) {
+      newMargin = marginAt(above);
+    } else {
+      return;
+    }
+    newMargin = Math.round(newMargin);
+    const marginId = _getMarginId(tabId, grade, t);
+    const field = marginId ? document.getElementById(marginId) : null;
+    if (field && parseFloat(field.value) !== newMargin) { field.value = newMargin; changed++; }
+  });
+
+  const recalcFn = { isopink: window.recalcIsopink, bead: recalcBead, pu: recalcPu, pf: recalcPf, fr: recalcFr }[tabId];
+  recalcFn?.();
+
+  if (typeof showToast === 'function') {
+    showToast(`마진 보간: ${anchors.length}개 앵커 기준 ${changed}개 두께 조정됨 — 표 확인 후 [저장]을 눌러야 반영됩니다.`, changed ? 'success' : 'warning');
+  }
+};
+
 /* ── 비드법 1종/2종 가격역전 보정 ──────────────────────────────────────
    2026-09-02: 같은 호수(예: 3호)끼리는 1종이 2종보다 항상 저렴해야 정상인데,
    원가/마진을 조정하다 보면 가끔 같아지거나 역전(1종이 더 비쌈)되는 경우가 생겨서,
@@ -2189,6 +2261,9 @@ function _costCard(tabId, modalType, titleSub, tableBodyHtml, hiddenHtml) {
       </button>
       ${tabId === 'isopink' ? `<button class="pricing-margin-edit-btn" onclick="fixIsopinkGradePriceOrder()" title="같은 두께(30T~300T)에서 1호가 특호보다 비싸지거나 같아진 경우, 1호 마진을 낮춰서 항상 더 저렴하게 자동 보정합니다">
         <i class="fa-solid fa-arrow-down-wide-short"></i> 1호·특호 가격역전 보정
+      </button>` : ''}
+      ${tabId === 'isopink' ? `<button class="pricing-margin-edit-btn" onclick="smoothMarginByCompAnchors('isopink')" title="경쟁사가 등록된 두께(앵커)는 그대로 두고, 그 사이 두께들의 마진을 앵커끼리 선형보간해서 채웁니다 — 경쟁사가 몇몇 두께만 등록돼 있어서 가격이 들쭉날쭉해 보일 때 씁니다">
+        <i class="fa-solid fa-chart-line"></i> 마진 보간(부드럽게)
       </button>` : ''}
       ${tabId === 'bead' ? `<button class="pricing-margin-edit-btn" onclick="fixBeadJongPriceOrder()" title="같은 호수끼리 1종이 2종보다 비싸지거나 같아진 경우, 1종 마진을 낮춰서 항상 더 저렴하게 자동 보정합니다">
         <i class="fa-solid fa-arrow-down-wide-short"></i> 1종·2종 가격역전 보정
