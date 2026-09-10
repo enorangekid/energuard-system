@@ -307,6 +307,16 @@
   background: #dbeafe !important; color: #1d4ed8 !important;
 }
 
+/* 아이소핑크 특호 실제판매가 아래 "1호대비" 참고 표시(2026-09-10) */
+.pricing-1ho-diff {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: #b45309;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
 /* 마진율 배지 */
 .pricing-rate-badge {
   display: inline-block; padding: 2px 8px; border-radius: 20px;

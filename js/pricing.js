@@ -302,16 +302,22 @@ function _frResultRow(t, r, badge, extraCells) {
   </tr>`;
 }
 
-/* 결과 테이블 행 HTML (비드법·PU·PF 공통) */
+/* 결과 테이블 행 HTML (비드법·PU·PF·아이소핑크 공통) */
 function _resultRow(t, r, badge, extraCells) {
   if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
   const overrideCls = r.overridden ? ' pricing-price-override' : '';
   const overrideTitle = r.overridden ? ' title="정수 마진으로는 경쟁사 가격을 정확히 못 맞춰서, 마진 계산 대신 가격 자체를 경쟁사가로 강제 고정함"' : '';
+  // 2026-09-10: 아이소핑크 특호 탭에서, 같은 두께의 1호보다 얼마나 더 비싼지 실제
+  // 장당판매가 셀 아래에 작게 표시(r.diffFrom1ho, _recalcTab에서만 채워짐) — 단품
+  // 상품마다 "1호/특호 옵션 +가격"을 직접 입력해야 해서 이 차액을 보면서 바로 옮겨
+  // 적으려는 용도.
+  const diffFrom1hoNote = r.diffFrom1ho != null
+    ? `<span class="pricing-1ho-diff">1호대비 ${r.diffFrom1ho >= 0 ? '+' : ''}${fmt(r.diffFrom1ho)}</span>` : '';
   return `<tr data-t="${t}">${extraCells}
     <td class="td-thick">${t}</td>
     <td class="td-num">${fmt(r.costPerM2)}</td><td class="td-num">${fmt(r.marginPerM2)}</td><td class="td-num">${fmt(r.sellPerM2)}</td>
     <td class="td-num">${fmt(r.costPerSheet)}</td><td class="td-num">${fmt(r.sellPerSheet)}</td>
-    <td class="td-highlight${overrideCls}"${overrideTitle}>${fmt(r.realPrice)}</td>
+    <td class="td-highlight${overrideCls}"${overrideTitle}>${fmt(r.realPrice)}${diffFrom1hoNote}</td>
     <td class="td-diff">${badge}</td>
     <td class="td-num">${fmt(r.marginAmt)}</td><td class="td-num">${fmt(r.vat)}</td><td class="td-num">${fmt(r.commission)}</td>
     <td class="td-num">${fmt(r.netMargin)}</td>
@@ -1179,6 +1185,14 @@ function _recalcTab(tabId) {
     const overrideEl  = document.getElementById(_getOverrideId(tabId, grade, t));
     const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
     if (r && overrideVal) r = _applyPriceOverride(r, overrideVal, r.costPerSheet);
+    // 2026-09-10: 특호 탭에서 같은 두께의 1호 대비 얼마나 더 비싼지 참고용으로 같이
+    // 보여준다(단품 상품마다 "1호/특호 옵션 +가격"을 손으로 맞춰야 해서 요청됨) —
+    // 특호(grade.id==='isopink')를 볼 때만 계산, 1호 탭 자체엔 표시 안 함.
+    if (r && tabId === 'isopink' && grade.id === 'isopink') {
+      const g1ho = ISOPINK_GRADES.find(g => g.id === '1ho');
+      const price1ho = _isoGradeRealPrice(g1ho, t);
+      if (price1ho != null) r.diffFrom1ho = r.realPrice - price1ho;
+    }
     const prevCost    = (_compareData && costId) ? (_compareData[costId] || 0) : null;
     const prevMargin  = _compareData ? _getMargin(tabId, grade, t, _compareData.margins ?? _compareData) : null;
     const badge       = diffBadge(r?.realPrice, prevCost ? compareRealPrice(prevCost, prevMargin, tEff, grade.area) : null);
