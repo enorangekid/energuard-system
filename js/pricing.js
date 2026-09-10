@@ -591,8 +591,6 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
   let cascadeFixed = 0;
   let ceiling = null;
   [...rows].sort((a, b) => b - a).forEach(t => {
-    // PF의 경쟁 없는 두께는 기본 마진을 유지한다. 역전 보정으로 다시 깎지 않는다.
-    if (tabId === 'pf' && targetFor(gradeId, t, excluded, matchOnly).cappedPrice == null) { ceiling = null; return; }
     const costId = _getCostId(tabId, grade, t);
     const cost   = costId ? fieldVal(costId) : 0;
     if (!cost) return; // 원가 없는 두께는 체인에서 그냥 건너뜀(끊지 않음)
@@ -604,7 +602,14 @@ window.autoMatchCompetitorPriceGeneric = async function(tabId) {
     const field = marginId ? document.getElementById(marginId) : null;
     let margin = (field && field.value.trim() !== '') ? parseFloat(field.value) : _getMarginFallback(tabId, grade, t);
     let price  = overrideVal ?? priceFor(cost, margin, t);
-    if (!overrideVal && ceiling != null && price > ceiling - MIN_STEP) {
+    // PF의 경쟁 없는 두께는 기본 마진을 유지한다(역전 보정으로 깎지 않음, 2026-09-10) —
+    // 다만 이 행의 가격은 여전히 다음(더 얇은) 두께 비교의 기준(ceiling)으로는 계속
+    // 써야 한다. 예전엔 여기서 ceiling을 null로 끊어버려서, 경쟁가 없는 두꺼운 구간이
+    // 통째로 체인에서 빠지는 바람에 그 밑(더 얇은, 경쟁사 매칭된) 두께가 오히려 더
+    // 비싸지는 역전을 못 잡는 문제가 있었다(130T가 54,800원인데 경쟁가 없는 140T가
+    // 옛 마진 그대로 53,600원이 되는 식, 사용자 발견).
+    const isPfNoComp = tabId === 'pf' && targetFor(gradeId, t, excluded, matchOnly).cappedPrice == null;
+    if (!overrideVal && !isPfNoComp && ceiling != null && price > ceiling - MIN_STEP) {
       const target = ceiling - MIN_STEP;
       let m = margin, guard = 0;
       while (priceFor(cost, m, t) > target && guard < 200) { m--; guard++; }
