@@ -889,6 +889,72 @@ window.checkPfBrandPriceOrder = function() {
   dialog.showModal();
 };
 
+/* ── 두께 역전 검증(전 제품 공통) ──────────────────────────────────────────
+   2026-09-10: 각 등급 안에서 "두께가 두꺼울수록 가격이 비싸야 정상"인데, 경쟁사
+   매칭이 일부 두께만 걸려서 그 위 두께가 오히려 더 싸지는 역전이 생길 수 있다
+   (수동으로 마진을 맞춘 뒤 빠진 곳이 없는지 확인하려는 용도, 사용자 요청). 값은
+   절대 안 건드리고 위반 구간만 다이얼로그로 보여준다. */
+function _gradeRealPriceForCheck(tabId, grade, t) {
+  if (tabId === 'isopink') return _isopinkRealPrice(grade, t);
+  if (tabId === 'bead')    return _beadRealPrice(grade, t);
+  if (tabId === 'pu')      return _puRealPrice(grade, t);
+  if (tabId === 'pf')      return _pfRealPrice(grade, t);
+  if (tabId === 'fr') {
+    const ov = document.getElementById(_getOverrideId('fr', grade, t));
+    const ovVal = ov && ov.value.trim() !== '' ? parseFloat(ov.value) : null;
+    return ovVal || _frRealPriceById(grade, t);
+  }
+  return null;
+}
+function _gradeLabelForCheck(tabId, grade) {
+  if (tabId === 'isopink') return grade.sub;
+  if (tabId === 'bead')    return `${grade.label} ${grade.sub}`;
+  if (tabId === 'pu')      return `${grade.label} ${grade.sub2 || grade.sub1}`;
+  if (tabId === 'pf')      return `${grade.pfCat} ${grade.pfGrade} ${grade.areaLabel}`;
+  if (tabId === 'fr')      return `${grade.sub1} ${grade.sub2}`;
+  return grade.id;
+}
+function _checkThicknessOrder(tabId) {
+  const issues = [];
+  let passed = 0, incomplete = 0;
+  for (const grade of _gradesOf(tabId)) {
+    const rows = (_rowsOf(tabId, grade) || []).slice().sort((a, b) => a - b);
+    let prev = null; // { t, price }
+    for (const t of rows) {
+      const price = _gradeRealPriceForCheck(tabId, grade, t);
+      if (!(Number.isFinite(price) && price > 0)) { incomplete++; continue; } // 가격 없는 두께는 건너뜀(체인은 유지)
+      if (prev) {
+        if (price <= prev.price) {
+          issues.push({
+            grade: _gradeLabelForCheck(tabId, grade),
+            from: prev.t, to: t, fromPrice: prev.price, toPrice: price,
+            kind: price === prev.price ? '동일가' : '역전',
+          });
+        } else passed++;
+      }
+      prev = { t, price };
+    }
+  }
+  return { issues, passed, incomplete };
+}
+window.checkThicknessPriceOrder = function(tabId) {
+  const names = { isopink:'아이소핑크', bead:'비드법', pu:'경질우레탄', pf:'PF보드', fr:'불연단열재' };
+  const { issues, passed, incomplete } = _checkThicknessOrder(tabId);
+  document.getElementById('thicknessPriceCheck')?.remove();
+  const dialog = document.createElement('dialog');
+  dialog.id = 'thicknessPriceCheck';
+  dialog.style.cssText = 'width:min(720px,90vw);max-height:80vh;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:24px;color:#1e293b;';
+  const priceText = p => Number.isFinite(p) && p > 0 ? p.toLocaleString('ko-KR') + '원' : '—';
+  dialog.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>${names[tabId] || tabId} 두께별 가격 역전 검증</strong><button type="button" class="pricing-margin-edit-btn" id="thicknessPriceCheckClose">닫기</button></div>
+    <p>같은 등급 안에서 <b>두께가 두꺼울수록 가격이 비싸야</b> 정상입니다 · 가격은 변경하지 않습니다.</p>
+    <p>정상 ${passed}구간 · 확인 필요 ${issues.length}구간 (가격 확인 불가 ${incomplete}건)</p>
+    ${issues.length ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th style="text-align:left">등급</th><th>구간</th><th>얇은쪽</th><th>두꺼운쪽</th><th>확인 사항</th></tr></thead><tbody>${issues.map(r => `<tr><td style="text-align:left;padding:8px 4px;border-top:1px solid #e2e8f0">${r.grade}</td><td style="padding:8px 4px;border-top:1px solid #e2e8f0">${r.from}T→${r.to}T</td><td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(r.fromPrice)}</td><td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(r.toPrice)}</td><td style="color:#b45309;padding:8px 4px;border-top:1px solid #e2e8f0">${r.to}T가 ${r.from}T보다 ${r.kind === '동일가' ? '가격이 같음' : '더 쌈'}</td></tr>`).join('')}</tbody></table>` : '<p>모든 등급에서 두께가 두꺼워질수록 가격이 정상적으로 올라갑니다.</p>'}`;
+  document.body.appendChild(dialog);
+  dialog.querySelector('#thicknessPriceCheckClose').onclick = () => dialog.close();
+  dialog.addEventListener('close', () => dialog.remove(), { once:true });
+  dialog.showModal();
+};
+
 /* ═══════════════════════════════════════
    공통 엔진 — 아이소핑크 / 비드법 / 경질우레탄 / PF보드
 ═══════════════════════════════════════ */
@@ -2158,6 +2224,9 @@ function _costCard(tabId, modalType, titleSub, tableBodyHtml, hiddenHtml) {
       ${tabId === 'pf' ? `<button class="pricing-margin-edit-btn" onclick="checkPfBrandPriceOrder()" title="같은 종류·두께의 ㎡당 판매가로 LX > 국내산 > 수입산인지 검증합니다. 가격은 변경하지 않습니다.">
         <i class="fa-solid fa-check-double"></i> 브랜드 가격 검증
       </button>` : ''}
+      <button class="pricing-margin-edit-btn" onclick="checkThicknessPriceOrder('${tabId}')" title="각 등급 안에서 두께가 두꺼울수록 가격이 비싼지(역전/동일가 없는지) 확인합니다. 가격은 변경하지 않습니다.">
+        <i class="fa-solid fa-arrow-down-1-9"></i> 두께 역전 검증
+      </button>
     </div>
     <div class="pricing-cost-card-inner">
       <div class="pricing-input-table-wrap">${tableBodyHtml}</div>
