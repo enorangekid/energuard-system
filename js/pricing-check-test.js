@@ -3,11 +3,11 @@
   // 카테고리별 상품목록 URL — 전체상품(/category/ALL)에서 찾는 대신 이 URL부터 훑는다
   // (상품 수가 적어 더 빠르고 확실함). 사장님이 카테고리별로 직접 주는 값을 채워넣음.
   const CATEGORY_LIST_URL = {
-    iso: '',
-    bead: '',
-    pu: '',
-    pf: '',
-    fr: '',
+    iso: 'https://smartstore.naver.com/energuardcompany/category/3e62f78f221c422c98cc2d7ac478f93f?cp=1',
+    bead: 'https://smartstore.naver.com/energuardcompany/category/38f210d3ece044c7a24c0bb59888f4cf?cp=1',
+    pu: 'https://smartstore.naver.com/energuardcompany/category/27e0203b3cc04dae977af6bc68cd236b?cp=1',
+    pf: 'https://smartstore.naver.com/energuardcompany/category/7aec947b2ffc4fdbb4d9259f9fd452dd?cp=1',
+    fr: 'https://smartstore.naver.com/energuardcompany/category/0b7747111429487e8d7fe05fefe1853b?cp=1',
   };
   let busy=false;
   function request(action,payload) {
