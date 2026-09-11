@@ -22,7 +22,7 @@
     dialog.style.cssText='width:min(960px,92vw);max-height:85vh;overflow:auto;padding:24px;border:1px solid #cbd5e1;border-radius:12px;color:#1e293b';
     dialog.innerHTML=`<strong>스토어 전체 가격검사</strong><button type="button" style="float:right" data-close>닫기</button>
       <p>등록된 에너가드 스토어 전체 상품 · 실제 적용 단가 기준 · 가격은 변경하지 않습니다.</p>
-      <p style="font-size:12px;color:#64748b">통합 확장 0.29.0 이상을 설치한 Chrome에서 실행하세요. 상품 탭에서 수집한 할인·옵션 가격으로 비교합니다. 직접 API 조회는 사용하지 않습니다.</p>
+      <p style="font-size:12px;color:#64748b">통합 확장 0.29.1 이상을 설치한 Chrome에서 실행하세요. 상품 탭에서 수집한 할인·옵션 가격으로 비교합니다. 직접 API 조회는 사용하지 않습니다.</p>
       <label>상품번호 또는 상품 URL (쉼표/줄바꿈 구분, 비우면 등록된 전체 상품)<textarea data-products rows="2" style="display:block;width:100%;margin:8px 0" placeholder="전체 검사 시 비워두세요"></textarea></label>
       <button type="button" class="pricing-margin-edit-btn" data-run>전체 검사 시작</button>
       <button type="button" data-pause>일시정지</button> <button type="button" data-resume>이어서 검사</button> <label><input type="checkbox" data-only checked>확인 필요한 항목만</label> <button type="button" data-export>결과 CSV 저장</button>
@@ -56,7 +56,7 @@
     dialog.querySelector('[data-run]').onclick=async()=>{
       if(busy)return;busy=true;const button=dialog.querySelector('[data-run]'),status=dialog.querySelector('[data-status]'),result=dialog.querySelector('[data-result]');button.disabled=true;result.replaceChildren();
       try {
-        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || String(extension.version)<'0.29.0')throw Error('통합 확장을 0.29.0 이상으로 업데이트·리로드해주세요.');
+        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || String(extension.version)<'0.29.1')throw Error('통합 확장을 0.29.1 이상으로 업데이트·리로드해주세요.');
         const input=dialog.querySelector('[data-products]').value.trim();
         const tokens=input ? input.split(/[\s,]+/).filter(Boolean) : [];
         const productUrls=new Map();
