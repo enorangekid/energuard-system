@@ -1,5 +1,14 @@
 /* 소수 상품 읽기 전용 검사. 가격 변경/외부 결과 저장 없이 테스트 확장과 통신한다. */
 (() => {
+  // 카테고리별 상품목록 URL — 전체상품(/category/ALL)에서 찾는 대신 이 URL부터 훑는다
+  // (상품 수가 적어 더 빠르고 확실함). 사장님이 카테고리별로 직접 주는 값을 채워넣음.
+  const CATEGORY_LIST_URL = {
+    iso: '',
+    bead: '',
+    pu: '',
+    pf: '',
+    fr: '',
+  };
   let busy=false;
   function request(action,payload) {
     return new Promise((resolve,reject)=>{
@@ -22,7 +31,7 @@
     dialog.style.cssText='width:min(960px,92vw);max-height:85vh;overflow:auto;padding:24px;border:1px solid #cbd5e1;border-radius:12px;color:#1e293b';
     dialog.innerHTML=`<strong>스토어 가격검사</strong><button type="button" style="float:right" data-close>닫기</button>
       <p>카테고리별(또는 지정 상품) · 실제 적용 단가 기준 · 가격은 변경하지 않습니다.</p>
-      <p style="font-size:12px;color:#64748b">통합 확장 0.29.3 이상을 설치한 Chrome에서 실행하세요. 상품 탭에서 수집한 할인·옵션 가격으로 비교합니다. 직접 API 조회는 사용하지 않습니다.</p>
+      <p style="font-size:12px;color:#64748b">통합 확장 0.29.4 이상을 설치한 Chrome에서 실행하세요. 상품 탭에서 수집한 할인·옵션 가격으로 비교합니다. 직접 API 조회는 사용하지 않습니다.</p>
       <label>카테고리 <select data-category style="margin:8px 0">
         <option value="all">전체</option>
         <option value="iso">아이소핑크</option>
@@ -64,7 +73,7 @@
     dialog.querySelector('[data-run]').onclick=async()=>{
       if(busy)return;busy=true;const button=dialog.querySelector('[data-run]'),status=dialog.querySelector('[data-status]'),result=dialog.querySelector('[data-result]');button.disabled=true;result.replaceChildren();
       try {
-        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || String(extension.version)<'0.29.3')throw Error('통합 확장을 0.29.3 이상으로 업데이트·리로드해주세요.');
+        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || String(extension.version)<'0.29.4')throw Error('통합 확장을 0.29.4 이상으로 업데이트·리로드해주세요.');
         const input=dialog.querySelector('[data-products]').value.trim();
         const tokens=input ? input.split(/[\s,]+/).filter(Boolean) : [];
         const productUrls=new Map();
@@ -85,7 +94,8 @@
         const selected=ids.length?ids:[...byId.keys()].filter(id=>category==='all'||byId.get(id).product_type===category);
         if(selected.some(id=>!byId.has(id)))throw Error('입력한 상품 중 매핑이 없는 상품이 있습니다.');
         if(!selected.length)throw Error('해당 카테고리에 등록된 상품 매핑이 없습니다.');
-        await request('start',{pricing:live.data[0],items:selected.map(productId=>({productId,productUrl:productUrls.get(productId)||byId.get(productId).product_url||`https://smartstore.naver.com/energuardcompany/products/${productId}`,mapping:byId.get(productId)}))});
+        const listUrl=ids.length?null:(CATEGORY_LIST_URL[category]||null);
+        await request('start',{pricing:live.data[0],listUrl,items:selected.map(productId=>({productId,productUrl:productUrls.get(productId)||byId.get(productId).product_url||`https://smartstore.naver.com/energuardcompany/products/${productId}`,mapping:byId.get(productId)}))});
         await refresh();
       } catch(error){status.textContent=error.message || '검사 실패';}
       finally{busy=false;button.disabled=!!snapshot?.running;}
