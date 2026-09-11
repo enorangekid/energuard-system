@@ -2215,6 +2215,7 @@ function _costCard(tabId, modalType, titleSub, tableBodyHtml, hiddenHtml) {
       <button class="pricing-margin-edit-btn" onclick="openPricingModal('${modalType}')">
         <i class="fa-solid fa-sliders"></i> 마진 편집
       </button>
+      <button type="button" class="pricing-margin-edit-btn" onclick="openPriceCheckTest()" title="등록된 전체 상품을 실제 적용 단가와 비교합니다">스토어 가격검사</button>
       <button class="pricing-margin-edit-btn" onclick="autoMatchCompetitorPrice()" title="두께별 경쟁사 최저가보다 100원 단위로 한 단계 낮게 마진을 맞추고, 그로 인한 두께 역전도 같이 보정합니다. 비교할 경쟁가가 없는 두께는 마진을 추가 인상하지 않습니다(아이소핑크/비드법/PU/PF는 지금 선택된 등급 기준)">
         <i class="fa-solid fa-bolt"></i> 경쟁사 최저가 맞춤
       </button>
