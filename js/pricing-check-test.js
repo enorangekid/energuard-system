@@ -50,7 +50,12 @@
     function render(){
       const state=snapshot;if(!state){status.textContent='검사 이력이 없습니다.';return;}
       const counts={};for(const row of state.rows)counts[row.status]=(counts[row.status]||0)+1;
-      status.textContent=`적용 단가 ${state.liveId} · ${state.done}/${state.total}개 상품 · ${state.running?'진행 중':state.reason||'완료'} · ${Object.entries(counts).map(([k,v])=>k+' '+v+'건').join(' / ')}`;
+      // 목록 단계가 몇 페이지까지 갔는지 · 연속으로 몇 페이지 못 맞혔는지 보여준다 —
+      // 특정 상품군이 목록에서 안 잡히고 계속 상세로 새는 게 페이지네이션이 안 가서인지
+      // (페이지 수가 안 늘어남), 3연속 무매칭으로 목록을 포기해서인지 바로 구분하려는
+      // 용도(2026-09-11, 심재준불연 상세 스캔 문제 진단 중 추가).
+      const listInfo=state.listVisited?.length ? ` · 목록 ${state.listVisited.length}페이지 확인(연속무매칭 ${state.listNoHitStreak||0})` : '';
+      status.textContent=`적용 단가 ${state.liveId} · ${state.done}/${state.total}개 상품 · ${state.running?'진행 중':state.reason||'완료'} · ${Object.entries(counts).map(([k,v])=>k+' '+v+'건').join(' / ')}${listInfo}`;
       dialog.querySelector('[data-run]').disabled=busy||state.running;
       dialog.querySelector('[data-resume]').disabled=state.running||state.done>=state.total;
       dialog.querySelector('[data-pause]').disabled=!state.running;
