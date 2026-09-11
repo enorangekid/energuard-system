@@ -59,29 +59,39 @@ async function inspect(item, pricing) {
 async function readState(){return (await chrome.storage.local.get('priceTest')).priceTest;}
 async function arm(){await chrome.alarms.create(ALARM,{delayInMinutes:0.5});}
 
-function listEligible(item){
-  const m=item.mapping||{};
-  // ISO single products may contain 1호/특호 choices; keep detailed inspection.
-  return m.product_type!=='iso' && m.product_type!=='isopink' && !m.is_bundle && Number(m.thickness)>0 && Number(m.area)>0 && !!m.grade_id && getTablePrice(m,{})!==0;
+function listMapping(item){
+  const m={...(item.mapping||{})};
+  if(['iso','isopink'].includes(m.product_type)||[true,1,'true','1'].includes(m.is_bundle)||!(Number(m.thickness)>0)||!m.grade_id)return null;
+  if(m.product_type==='pu'){
+    if(!['ic','iiia','iia','id_in','id_out'].includes(m.grade_id))return null;
+    m.area=Number(m.area)||2;
+  }else if(m.product_type==='pf'){
+    // Old single-product mappings may store a brand prefix plus a fixed area.
+    if(!PF_GRADE_AREA[m.grade_id]){
+      const candidates=Object.keys(PF_GRADE_AREA).filter(id=>id.startsWith(m.grade_id+'_') && Math.abs(PF_GRADE_AREA[id]-Number(m.area))<1e-8);
+      if(candidates.length!==1)return null;
+      m.grade_id=candidates[0];
+    }
+    m.area=PF_GRADE_AREA[m.grade_id];
+  }else if(!(Number(m.area)>0))return null;
+  m.thickness=Number(m.thickness);return m;
 }
+function listEligible(item){return listMapping(item)!=null;}
 async function readList(url){
-  const u=new URL(url);
+  const u=new URL(url);u.searchParams.delete('cp');if(!u.searchParams.has('page'))u.searchParams.set('page','1');
   if(u.origin!=='https://smartstore.naver.com'||!/^\/(energuardcompany|hkdy)\//.test(u.pathname)||u.pathname.includes('/products/'))throw Error('목록 주소 오류');
   const tab=await chrome.tabs.create({url:u.href,active:false});
   await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:u.href}});
   try{
+    let previousSignature=null;
     for(let n=0;n<15;n++){
       await delay(1000);
-      try{const data=await chrome.tabs.sendMessage(tab.id,{type:'EG_PRICE_LIST_PAGE'});if(data?.products?.length)return data;}catch{}
+      try{const data=await chrome.tabs.sendMessage(tab.id,{type:'EG_PRICE_LIST_PAGE',targetPage:Number(u.searchParams.get('page'))||1});if(data?.currentPage===(Number(u.searchParams.get('page'))||1) && data?.products?.length){const signature=data.products.map(p=>p.productId+':'+p.price).join('|');if(signature===previousSignature)return data;previousSignature=signature;}}catch{}
     }
     return {products:[],next:null};
   }finally{await chrome.tabs.remove(tab.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
 }
-// 네이버 스토어 카테고리 목록의 실제 페이지 파라미터는 "cp"(current page)다 —
-// 사장님이 준 실제 카테고리 URL(?cp=1)로 확인됨. 혹시 page= 로 들어온 URL(예전에
-// /category/ALL에 직접 붙였던 것)도 계속 동작하게, URL에 이미 있는 쪽을 우선 쓰고
-// 둘 다 없으면 cp를 기본으로 한다(2026-09-11).
-function pageParamOf(u){ return u.searchParams.has('page') ? 'page' : 'cp'; }
+function pageParamOf(u){ return 'page'; }
 async function listStep(state){
   const url=state.listQueue.shift();
   if(state.listVisited.includes(url))return;
@@ -91,37 +101,19 @@ async function listStep(state){
   const hits=[],remaining=[];
   for(const item of state.items.slice(state.done)){
     const p=listed.get(String(item.productId));
-    const expected=getTablePrice(item.mapping,state.pricing);
-    // 목록에서 찾은 단품(옵션 없는 제품군)은 대표가 = 실제 판매가이므로 일치든 불일치든
-    // 여기서 바로 확정한다(상세페이지 안 들어가 시간 절약 — 테스트 중 불일치가 많아도 빠름).
-    // 옵션 붙는 아이소핑크 단품/모음전은 listEligible=false라 이 경로 안 탐. 목록에서
-    // 못 찾았거나 이름이 모음전스러우면(remaining) 상세 스캔으로 넘긴다.
-    if(p && listEligible(item) && !/모음|선택|종합/.test(p.name||'') && Number.isFinite(p.price)){
+    const mapping=listMapping(item);
+    const expected=mapping?getTablePrice(mapping,state.pricing):null;
+    // 고정 규격·두께 단품은 목록 대표가 검사로 완료한다. 옵션 전체 판정과 구분한다.
+    if(p && mapping && Number.isFinite(p.price) && p.price>0){
       hits.push(item);
-      const status=!(expected>0)?'단가 확인 불가':p.price===expected?'일치':'불일치';
+      const status=!(expected>0)?'단가 확인 불가':p.price===expected?'대표가 일치':'대표가 불일치';
       state.rows.push({productId:item.productId,label:(p.name||'단품')+' — 대표가(옵션 미검사)',actual:p.price,expected:expected>0?expected:null,diff:expected>0?p.price-expected:null,status,source:'상품 목록'});
     } else remaining.push(item);
   }
   state.items=[...state.items.slice(0,state.done),...hits,...remaining];state.done+=hits.length;
   state.listMatched=(state.listMatched||0)+hits.length;
-  // 연속으로 몇 페이지째 하나도 못 맞히면(카테고리 상품들이 이 목록에 아예 안 걸리는
-  // 경우 — 예: PF보드처럼 카드가 옵션조합 대표가라 단품 매핑과 안 맞음) 끝까지 훑어봐야
-  // 소용없다고 보고 목록을 포기한다. 안 그러면 최대 30페이지를 전부 열었다 닫으며
-  // 진행률이 하나도 안 올라가는 것처럼 보인다(2026-09-11 PF보드 카테고리에서 실사용 중 발견).
   state.listNoHitStreak = hits.length>0 ? 0 : (state.listNoHitStreak||0)+1;
-  // 다음 페이지는 카테고리 페이지의 <a> 링크(data.next)에 의존하지 않고 이 URL의
-  // 페이지 파라미터를 직접 +1 해서 만든다 — SPA 카테고리 목록은 페이지네이션이 실제
-  // <a href>가 아니라 버튼/스크립트로 되어 있는 경우가 많아 링크 탐색이 못 찾으면
-  // 1페이지(최대 80개)만 긁고 끝나버려, 카테고리 필터로 골라낸 상품들이 뒤 페이지에
-  // 몰려있으면 전부 상세 스캔으로 새는 문제가 있었다(2026-09-11).
-  const prev=new URL(url);
-  const pageKey=pageParamOf(prev);
-  const curPage=Number(prev.searchParams.get(pageKey))||1;
-  if(data.products.length>0 && curPage<30 && state.listNoHitStreak<3 && remaining.some(listEligible)){
-    const nextUrl=new URL(url);
-    nextUrl.searchParams.set(pageKey,String(curPage+1));
-    if(!state.listVisited.includes(nextUrl.href))state.listQueue.push(nextUrl.href);
-  }
+  if(data.next && remaining.some(listEligible) && !state.listVisited.includes(data.next))state.listQueue.push(data.next);
 }
 async function processNext(){
   if(processing)return;
@@ -157,14 +149,14 @@ async function processNext(){
       if(state.running){await arm();setTimeout(processNext,3000);}else await chrome.alarms.clear(ALARM);
       return;
     }
-    state.phase='옵션 상세 검사';
+    state.phase=listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사';
     const item=state.items[state.done];
     if(!item){state.running=false;state.finishedAt=Date.now();await save(state);return;}
     state.currentProduct=item.productId;await save(state);
     // Watchdog also recovers a worker interrupted during this product.
     await arm();
     let rows,failed=false;
-    try{rows=await inspect(item,state.pricing);}catch(error){failed=true;rows=[{productId:item.productId,status:'수집 실패',label:error.message}];}
+    try{rows=listEligible(item)?[{productId:item.productId,status:'목록 수집 누락',label:'단품 매핑 — 목록에서 가격을 찾지 못했습니다.',source:'상품 목록'}]:await inspect(item,state.pricing);}catch(error){failed=true;rows=[{productId:item.productId,status:'수집 실패',label:error.message}];}
     const latest=await readState();
     if(latest?.runId!==state.runId)return;
     state=latest;state.rows.push(...rows);state.done++;state.currentProduct=null;state.updatedAt=Date.now();
@@ -185,7 +177,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   const host=new URL(sender.url||'https://invalid').hostname;
   if(!['localhost','127.0.0.1','enorangekid.github.io'].includes(host))return;
   (async()=>{
-    if(message.action==='ping')return {ok:true,version:'0.29.5'};
+    if(message.action==='ping')return {ok:true,version:chrome.runtime.getManifest().version};
     if(message.action==='status'){
       const s=await readState();
       if(!s)return {ok:true,state:null};

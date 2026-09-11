@@ -3,12 +3,23 @@
   // 카테고리별 상품목록 URL — 전체상품(/category/ALL)에서 찾는 대신 이 URL부터 훑는다
   // (상품 수가 적어 더 빠르고 확실함). 사장님이 카테고리별로 직접 주는 값을 채워넣음.
   const CATEGORY_LIST_URL = {
-    iso: 'https://smartstore.naver.com/energuardcompany/category/3e62f78f221c422c98cc2d7ac478f93f?cp=1',
-    bead: 'https://smartstore.naver.com/energuardcompany/category/38f210d3ece044c7a24c0bb59888f4cf?cp=1',
-    pu: 'https://smartstore.naver.com/energuardcompany/category/27e0203b3cc04dae977af6bc68cd236b?cp=1',
-    pf: 'https://smartstore.naver.com/energuardcompany/category/7aec947b2ffc4fdbb4d9259f9fd452dd?cp=1',
-    fr: 'https://smartstore.naver.com/energuardcompany/category/0b7747111429487e8d7fe05fefe1853b?cp=1',
+    iso: 'https://smartstore.naver.com/energuardcompany/category/3e62f78f221c422c98cc2d7ac478f93f?st=POPULAR&dt=IMAGE&page=1&size=80',
+    bead: 'https://smartstore.naver.com/energuardcompany/category/38f210d3ece044c7a24c0bb59888f4cf?st=POPULAR&dt=IMAGE&page=1&size=80',
+    pu: 'https://smartstore.naver.com/energuardcompany/category/27e0203b3cc04dae977af6bc68cd236b?st=POPULAR&dt=IMAGE&page=1&size=80',
+    pf: 'https://smartstore.naver.com/energuardcompany/category/7aec947b2ffc4fdbb4d9259f9fd452dd?st=POPULAR&dt=IMAGE&page=1&size=80',
+    fr_jun: 'https://smartstore.naver.com/energuardcompany/category/aae6c720b4294fd4b970cd1d4c1fcfe0?st=POPULAR&dt=IMAGE&page=1&size=80',
+    fr_bul: 'https://smartstore.naver.com/energuardcompany/category/0b7747111429487e8d7fe05fefe1853b?st=POPULAR&dt=IMAGE&page=1&size=80',
   };
+  function mappingMatchesCategory(mapping, category){
+    if(category==='all')return true;
+    if(category==='fr_jun'||category==='fr_bul')return mapping.product_type==='fr'&&mapping.grade_id===category;
+    return mapping.product_type===category;
+  }
+  function compareExtensionVersions(a,b){
+    const left=String(a).split('.').map(Number),right=String(b).split('.').map(Number);
+    for(let i=0;i<Math.max(left.length,right.length);i++){const diff=(left[i]||0)-(right[i]||0);if(diff)return diff;}
+    return 0;
+  }
   let busy=false;
   function request(action,payload) {
     return new Promise((resolve,reject)=>{
@@ -31,14 +42,15 @@
     dialog.style.cssText='width:min(960px,92vw);max-height:85vh;overflow:auto;padding:24px;border:1px solid #cbd5e1;border-radius:12px;color:#1e293b';
     dialog.innerHTML=`<strong>스토어 가격검사</strong><button type="button" style="float:right" data-close>닫기</button>
       <p>카테고리별(또는 지정 상품) · 실제 적용 단가 기준 · 가격은 변경하지 않습니다.</p>
-      <p style="font-size:12px;color:#64748b">통합 확장 0.29.5 이상을 설치한 Chrome에서 실행하세요. 상품 탭에서 수집한 할인·옵션 가격으로 비교합니다. 직접 API 조회는 사용하지 않습니다.</p>
+      <p style="font-size:12px;color:#64748b">통합 확장 0.29.10 이상을 설치한 Chrome에서 실행하세요. 상품 탭에서 수집한 할인·옵션 가격으로 비교합니다. 직접 API 조회는 사용하지 않습니다.</p>
       <label>카테고리 <select data-category style="margin:8px 0">
         <option value="all">전체</option>
         <option value="iso">아이소핑크</option>
         <option value="bead">비드법단열재</option>
         <option value="pu">경질우레탄보드</option>
         <option value="pf">PF보드</option>
-        <option value="fr">불연단열재</option>
+        <option value="fr_jun">준불연열반사</option>
+        <option value="fr_bul">불연열반사</option>
       </select> <span style="font-size:12px;color:#94a3b8">선택한 카테고리만 검사합니다(상품번호를 직접 넣으면 그게 우선).</span></label>
       <label>상품번호 또는 상품 URL (쉼표/줄바꿈 구분, 비우면 위 카테고리 전체)<textarea data-products rows="2" style="display:block;width:100%;margin:8px 0" placeholder="카테고리 검사 시 비워두세요"></textarea></label>
       <button type="button" class="pricing-margin-edit-btn" data-run>검사 시작</button>
@@ -59,7 +71,7 @@
       dialog.querySelector('[data-run]').disabled=busy||state.running;
       dialog.querySelector('[data-resume]').disabled=state.running||state.done>=state.total;
       dialog.querySelector('[data-pause]').disabled=!state.running;
-      const rows=state.rows.filter(row=>!dialog.querySelector('[data-only]').checked||!['일치','품절'].includes(row.status));
+      const rows=state.rows.filter(row=>!dialog.querySelector('[data-only]').checked||!['일치','대표가 일치','품절'].includes(row.status));
       const table=document.createElement('table');table.style.cssText='width:100%;font-size:12px;border-collapse:collapse';
       const header=table.insertRow();for(const text of ['상품번호','옵션 / 사유','스토어','단가표','차액','판정','수집 방식']){const th=document.createElement('th');th.textContent=text;header.appendChild(th);}
       for(const row of rows.slice(-500)){const tr=table.insertRow();for(const value of [row.productId,row.label,row.actual,row.expected,row.diff,row.status,row.source]){const td=tr.insertCell();td.textContent=value==null?'—':typeof value==='number'?value.toLocaleString('ko-KR'):String(value);td.style.cssText='padding:8px;border-top:1px solid #e2e8f0';}}
@@ -78,7 +90,7 @@
     dialog.querySelector('[data-run]').onclick=async()=>{
       if(busy)return;busy=true;const button=dialog.querySelector('[data-run]'),status=dialog.querySelector('[data-status]'),result=dialog.querySelector('[data-result]');button.disabled=true;result.replaceChildren();
       try {
-        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || String(extension.version)<'0.29.5')throw Error('통합 확장을 0.29.5 이상으로 업데이트·리로드해주세요.');
+        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || compareExtensionVersions(extension.version,'0.29.10')<0)throw Error('통합 확장을 0.29.10 이상으로 업데이트·리로드해주세요.');
         const input=dialog.querySelector('[data-products]').value.trim();
         const tokens=input ? input.split(/[\s,]+/).filter(Boolean) : [];
         const productUrls=new Map();
@@ -96,7 +108,7 @@
         if(!mappings.data?.length)throw Error('등록된 상품 매핑이 없습니다.');
         const byId=new Map(mappings.data.map(m=>[String(m.product_id),m]));
         const category=dialog.querySelector('[data-category]').value;
-        const selected=ids.length?ids:[...byId.keys()].filter(id=>category==='all'||byId.get(id).product_type===category);
+        const selected=ids.length?ids:[...byId.keys()].filter(id=>mappingMatchesCategory(byId.get(id),category));
         if(selected.some(id=>!byId.has(id)))throw Error('입력한 상품 중 매핑이 없는 상품이 있습니다.');
         if(!selected.length)throw Error('해당 카테고리에 등록된 상품 매핑이 없습니다.');
         const listUrl=ids.length?null:(CATEGORY_LIST_URL[category]||null);

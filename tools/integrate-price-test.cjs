@@ -1,6 +1,7 @@
 const fs=require('fs'),path=require('path');
 const source=path.resolve('../Naver-rank/shopping-rank-extension');
 const sample=path.resolve('tools/price-check-test-extension');
+fs.copyFileSync(path.join(sample,'checker-content.js'),path.join(source,'checker-content.js'));
 const core=fs.readFileSync(path.join(sample,'price-core.js'),'utf8');
 const worker=fs.readFileSync(path.join(sample,'worker.js'),'utf8').replace("importScripts('price-core.js');",'');
 fs.writeFileSync(path.join(source,'price-check-test-worker.js'),'(()=>{\n'+core+'\n'+worker+'\n})();\n');
@@ -18,6 +19,6 @@ const listHost=m.content_scripts.find(c=>c.js.includes('checker-content.js'));
 if(listHost){if(!listHost.js.includes('price-check-list-collector.js'))listHost.js.push('price-check-list-collector.js');}
 else m.content_scripts.push({matches:['https://smartstore.naver.com/*'],exclude_matches:['https://smartstore.naver.com/*/products/*'],js:['checker-content.js','price-check-list-collector.js'],run_at:'document_idle'});
 if(!m.permissions.includes('alarms'))m.permissions.push('alarms');
-m.minimum_chrome_version='120';m.version='0.29.5';
+m.minimum_chrome_version='120';m.version='0.29.10';
 fs.writeFileSync(path.join(source,'manifest.json'),JSON.stringify(m,null,2)+'\n');
 console.log('Integrated price test v'+m.version+' into '+source);
