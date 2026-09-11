@@ -20,11 +20,19 @@
     if(existing){existing.showModal();return;}
     const dialog=document.createElement('dialog');dialog.id='priceCheckTestDialog';
     dialog.style.cssText='width:min(960px,92vw);max-height:85vh;overflow:auto;padding:24px;border:1px solid #cbd5e1;border-radius:12px;color:#1e293b';
-    dialog.innerHTML=`<strong>스토어 전체 가격검사</strong><button type="button" style="float:right" data-close>닫기</button>
-      <p>등록된 에너가드 스토어 전체 상품 · 실제 적용 단가 기준 · 가격은 변경하지 않습니다.</p>
+    dialog.innerHTML=`<strong>스토어 가격검사</strong><button type="button" style="float:right" data-close>닫기</button>
+      <p>카테고리별(또는 지정 상품) · 실제 적용 단가 기준 · 가격은 변경하지 않습니다.</p>
       <p style="font-size:12px;color:#64748b">통합 확장 0.29.1 이상을 설치한 Chrome에서 실행하세요. 상품 탭에서 수집한 할인·옵션 가격으로 비교합니다. 직접 API 조회는 사용하지 않습니다.</p>
-      <label>상품번호 또는 상품 URL (쉼표/줄바꿈 구분, 비우면 등록된 전체 상품)<textarea data-products rows="2" style="display:block;width:100%;margin:8px 0" placeholder="전체 검사 시 비워두세요"></textarea></label>
-      <button type="button" class="pricing-margin-edit-btn" data-run>전체 검사 시작</button>
+      <label>카테고리 <select data-category style="margin:8px 0">
+        <option value="all">전체</option>
+        <option value="iso">아이소핑크</option>
+        <option value="bead">비드법단열재</option>
+        <option value="pu">경질우레탄보드</option>
+        <option value="pf">PF보드</option>
+        <option value="fr">불연단열재</option>
+      </select> <span style="font-size:12px;color:#94a3b8">선택한 카테고리만 검사합니다(상품번호를 직접 넣으면 그게 우선).</span></label>
+      <label>상품번호 또는 상품 URL (쉼표/줄바꿈 구분, 비우면 위 카테고리 전체)<textarea data-products rows="2" style="display:block;width:100%;margin:8px 0" placeholder="카테고리 검사 시 비워두세요"></textarea></label>
+      <button type="button" class="pricing-margin-edit-btn" data-run>검사 시작</button>
       <button type="button" data-pause>일시정지</button> <button type="button" data-resume>이어서 검사</button> <label><input type="checkbox" data-only checked>확인 필요한 항목만</label> <button type="button" data-export>결과 CSV 저장</button>
       <p data-status role="status">검사 전</p><div data-result></div>`;
     document.body.appendChild(dialog);dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.showModal();
@@ -73,8 +81,10 @@
         const mappings={data:mappingRows};
         if(!mappings.data?.length)throw Error('등록된 상품 매핑이 없습니다.');
         const byId=new Map(mappings.data.map(m=>[String(m.product_id),m]));
-        const selected=ids.length?ids:[...byId.keys()];
+        const category=dialog.querySelector('[data-category]').value;
+        const selected=ids.length?ids:[...byId.keys()].filter(id=>category==='all'||byId.get(id).product_type===category);
         if(selected.some(id=>!byId.has(id)))throw Error('입력한 상품 중 매핑이 없는 상품이 있습니다.');
+        if(!selected.length)throw Error('해당 카테고리에 등록된 상품 매핑이 없습니다.');
         await request('start',{pricing:live.data[0],items:selected.map(productId=>({productId,productUrl:productUrls.get(productId)||byId.get(productId).product_url||`https://smartstore.naver.com/energuardcompany/products/${productId}`,mapping:byId.get(productId)}))});
         await refresh();
       } catch(error){status.textContent=error.message || '검사 실패';}
