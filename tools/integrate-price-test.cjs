@@ -18,6 +18,6 @@ const listHost=m.content_scripts.find(c=>c.js.includes('checker-content.js'));
 if(listHost){if(!listHost.js.includes('price-check-list-collector.js'))listHost.js.push('price-check-list-collector.js');}
 else m.content_scripts.push({matches:['https://smartstore.naver.com/*'],exclude_matches:['https://smartstore.naver.com/*/products/*'],js:['checker-content.js','price-check-list-collector.js'],run_at:'document_idle'});
 if(!m.permissions.includes('alarms'))m.permissions.push('alarms');
-m.minimum_chrome_version='120';m.version='0.29.1';
+m.minimum_chrome_version='120';m.version='0.29.2';
 fs.writeFileSync(path.join(source,'manifest.json'),JSON.stringify(m,null,2)+'\n');
 console.log('Integrated price test v'+m.version+' into '+source);
