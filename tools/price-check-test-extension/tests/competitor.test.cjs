@@ -87,6 +87,51 @@ const okScan=rows=>({ok:true,benefitReady:true,detailUrl:'x',benefitUrl:'y',rows
     ]);
     assert.equal(rows[0].status,'옵션 자동 매칭 불가');
   }
+  // PF보드 브랜드 내부/외부 축 — 산일상사 [수입산 KS] 상품 실제 라벨 재현(2026-09-15):
+  // "내단열용(일면)"/"외단열용(심재)"가 같은 두께마다 겹친다. grade_id의 im[i|o]로 구분.
+  {
+    const {c}=boot(()=>okScan([
+      {label:'내단열용(일면) / 50T',optionName1:'내단열용(일면)',optionName2:'50T',finalPrice:15000,soldOut:false},
+      {label:'외단열용(심재) / 50T',optionName1:'외단열용(심재)',optionName2:'50T',finalPrice:20000,soldOut:false},
+    ]));
+    const rows=await c.inspectCompetitor('https://smartstore.naver.com/sanil/products/11042532634',[
+      {gradeId:'imi_l',thickness:50,recordedPrice:15000,compName:'산일상사'},
+      {gradeId:'imo_l',thickness:50,recordedPrice:20000,compName:'산일상사'},
+    ]);
+    assert.equal(rows[0].status,'일치');
+    assert.equal(rows[1].status,'일치');
+  }
+  // PF보드 규격(소형/대형) + 신품/B급이 동시에 겹치는 실제 케이스(산일상사, 2026-09-15).
+  // 소형은 "600X1200" 표기로 고정 판별, 대형은 "600X1200이 아닌 쪽"으로 판별한 뒤
+  // B급을 제외한다 — kdi_s/kdi_l 둘 다 같은 링크·같은 두께 후보 3개(신품 소형/신품
+  // 대형/B급 대형)에서 시작한다.
+  {
+    const {c}=boot(()=>okScan([
+      {label:'신품 단열재 / 130T / 600X1200(택배 가능)',optionName1:'신품 단열재',optionName2:'130T',optionName3:'600X1200(택배 가능)',finalPrice:316000,soldOut:false},
+      {label:'신품 단열재 / 130T / 1200X2000(택배 불가능)',optionName1:'신품 단열재',optionName2:'130T',optionName3:'1200X2000(택배 불가능)',finalPrice:376000,soldOut:false},
+      {label:'B급 단열재 / 130T / 1200X2000(택배 불가능)',optionName1:'B급 단열재',optionName2:'130T',optionName3:'1200X2000(택배 불가능)',finalPrice:346000,soldOut:false},
+    ]));
+    const rows=await c.inspectCompetitor('https://smartstore.naver.com/sanil/products/8538221202',[
+      {gradeId:'kdi_s',thickness:130,recordedPrice:316000,compName:'산일상사'},
+      {gradeId:'kdi_l',thickness:130,recordedPrice:376000,compName:'산일상사'},
+    ]);
+    assert.equal(rows[0].status,'일치');
+    assert.equal(rows[1].status,'일치');
+  }
+  // PF보드 규격만 겹치는 실제 케이스(산일상사, 2026-09-15) — optionName1이 두께,
+  // optionName2가 규격으로 축이 반대로 실린 라벨 레이아웃도 그대로 처리돼야 한다.
+  {
+    const {c}=boot(()=>okScan([
+      {label:'60T / 600X1200(택배가능)',optionName1:'60T',optionName2:'600X1200(택배가능)',finalPrice:315000,soldOut:false},
+      {label:'60T / 1200X2000(택배불가능)',optionName1:'60T',optionName2:'1200X2000(택배불가능)',finalPrice:356000,soldOut:false},
+    ]));
+    const rows=await c.inspectCompetitor('https://smartstore.naver.com/sanil/products/8523396139',[
+      {gradeId:'kdo_s',thickness:60,recordedPrice:315000,compName:'산일상사'},
+      {gradeId:'kdo_l',thickness:60,recordedPrice:356000,compName:'산일상사'},
+    ]);
+    assert.equal(rows[0].status,'일치');
+    assert.equal(rows[1].status,'일치');
+  }
   // 같은 두께가 소형/대형으로 중복되면 등급의 규격까지 함께 매칭
   {
     const {c}=boot(()=>okScan([

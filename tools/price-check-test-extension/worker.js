@@ -55,6 +55,34 @@ async function inspect(item, pricing) {
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }
 
+// 두께로 걸러도 후보가 여러 개 남을 수 있다 — 실사용 중 확인된 것만도: PF보드 브랜드
+// 내부/외부(lx/kd/im + i|o), 규격 소형/대형(_s/_l, 또는 비드법 준불연 ib_06/ib_09),
+// 신품/B급 같은 품질 등급. 셋 다 두께와는 독립된 축이라 gradeId가 뜻하는 축들로 순서대로
+// 좁혀나간다 — 어느 축이 그 상품엔 해당 없으면(라벨에 흔적이 없으면) 그냥 건너뛰고, 끝까지
+// 정확히 1개로 안 좁혀지면 추측하지 않고 null(옵션 자동 매칭 불가)을 반환한다(2026-09-15,
+// 산일상사에서 세 가지 패턴을 전부 실제로 확인).
+function narrowToOne(candidates, gradeId) {
+  if (candidates.length <= 1) return candidates[0] || null;
+  const text = r => [r.optionName1, r.optionName2, r.optionName3, r.label].filter(Boolean).join(' ');
+  let scoped = candidates;
+  const narrow = test => { const hit = scoped.filter(r => test(text(r))); if (hit.length) scoped = hit; };
+
+  // 브랜드 내부/외부 — grade_id가 lx|kd|im + i(내부)|o(외부) + _s|_l 형태일 때만 해당.
+  const io = String(gradeId || '').match(/^(?:lx|kd|im)(i|o)_/);
+  if (io) narrow(t => (io[1] === 'i' ? /내/ : /외/).test(t));
+
+  // 규격 소형/대형 — 소형은 판매자 불문 "600x1200" 표기가 같아 그걸로 고정 판별하고,
+  // 대형은 판매자마다 실제 치수가 다 달라서(900x1800/1200x2000/1000x1200 등) "600x1200이
+  // 아닌 쪽"으로 판별한다.
+  if (/_s$/.test(gradeId) || gradeId === 'ib_06') narrow(t => /600\s*[xX*×]\s*1200/.test(t));
+  else if (/_l$/.test(gradeId) || gradeId === 'ib_09') narrow(t => !/600\s*[xX*×]\s*1200/.test(t));
+
+  // 신품/B급처럼 등급과 무관하게 품질이 갈리는 경우 — 열위 표기가 있는 쪽을 제외한다.
+  if (scoped.length > 1) narrow(t => !/B급|비품|리퍼|아울렛|전시|중고|하자|스크래치|흠집|반품|불량/.test(t));
+
+  return scoped.length === 1 ? scoped[0] : null;
+}
+
 // 경쟁사 상품 검사(2026-09-15) — 같은 GET_COMPETITOR_SCAN_DATA 수집을 그대로 쓰되,
 // 대상이 우리 매핑이 아니라 admin이 competitor_prices에 직접 기록해둔 (등급,두께)별
 // 가격이다. 한 링크(모음전)에 여러 두께가 옵션으로 같이 걸려있을 수 있어 entries가
@@ -90,22 +118,7 @@ async function inspectCompetitor(link, entries) {
       if (rows.length === 1 && entries.length === 1) matched = rows[0];
       else {
         const candidates = rows.filter(r => extractThicknessMm(r.label) === entry.thickness);
-        // 심재 준불연은 산일상사 한 상품에 600x1200과 900x1800 옵션이 함께 있어
-        // 같은 두께가 두 번 나온다. 이 경우 grade_id가 뜻하는 규격까지 함께 비교한다.
-        const spec = entry.gradeId === 'ib_06' ? /600\s*[xX*×]\s*1200/
-          : entry.gradeId === 'ib_09' ? /900\s*[xX*×]\s*1800/ : null;
-        let scoped = spec ? candidates.filter(r => spec.test(String(r.label || ''))) : candidates;
-        // 규격과 무관하게 "신품/B급"처럼 등급 축이 하나 더 있어서 같은 두께가 또 겹치는
-        // 판매자도 있다(산일상사 경질우레탄, 2026-09-15 — optionName1="신품 단열재 두께"
-        // vs "B급 단열재 두께"). 열위 등급 표기가 있는 쪽을 빼고 정상품만 남긴다 — 그래도
-        // 유일하게 안 좁혀지면(둘 다 정상품처럼 보이는 등) 추측하지 않는다.
-        if (scoped.length > 1) {
-          const DOWNGRADE = /B급|비품|리퍼|아울렛|전시|중고|하자|스크래치|흠집|반품|불량/;
-          const text = r => String(r.optionName1||'')+' '+String(r.optionName2||'')+' '+String(r.optionName3||'')+' '+String(r.label||'');
-          const normal = scoped.filter(r => !DOWNGRADE.test(text(r)));
-          if (normal.length === 1) scoped = normal;
-        }
-        matched = scoped.length === 1 ? scoped[0] : candidates.length === 1 ? candidates[0] : null;
+        matched = narrowToOne(candidates, entry.gradeId);
       }
       if (!matched) return {...entry, actual:null, status:'옵션 자동 매칭 불가', diff:null};
       if (matched.soldOut) return {...entry, actual:null, status:'품절', diff:null};
