@@ -106,7 +106,9 @@
         // 섞여있으면 이 로그로 바로 확인 가능(2026-09-15, 대유물류 20T만 매칭 안 되는 문제
         // 진단 중 — 코드를 정답 데이터로 재현하면 되는데 실제론 안 되어 원본 대조가 필요함).
         if (productData.supplementProducts?.length) {
-          console.log(TAG, "추가상품 원본(" + productData.supplementProducts.length + "개):", JSON.parse(JSON.stringify(productData.supplementProducts)));
+          // console.log에 객체를 그대로 넘기면 크롬이 "Array(13)"처럼 접어서 보여줘서 복사가
+          // 안 된다 — 문자열로 직렬화해서 그대로 텍스트로 찍히게 한다(2026-09-15).
+          console.log(TAG, "추가상품 원본(" + productData.supplementProducts.length + "개):", JSON.stringify(productData.supplementProducts, null, 1));
         }
       }
     } else if (isBenefitUrl(msg.url)) {
