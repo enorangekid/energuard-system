@@ -19,7 +19,7 @@ function boot(scanByUrl){
     },
     storage:{local:{get:async key=>structuredClone({[key]:store[key]}),set:async obj=>Object.assign(store,structuredClone(obj)),remove:async key=>delete store[key]}},
     alarms:{create:async(name,data)=>alarms.set(name,data),get:async n=>alarms.get(n),clear:async n=>alarms.delete(n),onAlarm:{addListener:()=>{}}},
-    runtime:{getManifest:()=>({version:'0.29.10'}),onStartup:{addListener:()=>{}},onMessage:{addListener:f=>listener=f}},
+    runtime:{getManifest:()=>({version:'0.29.12'}),onStartup:{addListener:()=>{}},onMessage:{addListener:f=>listener=f}},
   }};
   vm.createContext(c);vm.runInContext(coreSource,c);vm.runInContext(source,c);
   return {c,call:(action,payload)=>new Promise(resolve=>listener({type:'EG_PRICE_TEST',action,payload},{url:'http://127.0.0.1:5500/index.html'},resolve))};
@@ -36,6 +36,55 @@ const okScan=rows=>({ok:true,benefitReady:true,detailUrl:'x',benefitUrl:'y',rows
     const rows2=await c.inspectCompetitor('https://smartstore.naver.com/rival/products/1',[{thickness:30,recordedPrice:9000,compName:'A'}]);
     assert.equal(rows2[0].status,'불일치');
     assert.equal(rows2[0].diff,1000);
+  }
+  // 링크 하나가 여러 두께에 재사용됐는데(entries 2개+) 페이지엔 옵션이 1개(단품)뿐이면
+  // 그 단일가를 아무 entry에나 갖다붙이지 않는다 — 라벨에서 두께를 읽어 맞는 것만 비교하고
+  // 나머지는 "옵션 자동 매칭 불가"(2026-09-15, 비드법에서 같은 링크가 30T~300T 전부에
+  // 재사용돼 전부 불일치로 잘못 뜨던 버그 재현).
+  {
+    const {c}=boot(()=>okScan([{label:'(옵션 없음)',finalPrice:4800,soldOut:false}]));
+    const rows=await c.inspectCompetitor('https://smartstore.naver.com/rival/products/30',[
+      {thickness:30,recordedPrice:4800,compName:'대유물류'},
+      {thickness:40,recordedPrice:6400,compName:'대유물류'},
+      {thickness:50,recordedPrice:8000,compName:'대유물류'},
+    ]);
+    assert.equal(rows[0].status,'옵션 자동 매칭 불가');
+    assert.equal(rows[1].status,'옵션 자동 매칭 불가');
+    assert.equal(rows[2].status,'옵션 자동 매칭 불가');
+    assert.equal(rows[0].actual,null);
+  }
+  // 위와 같은 상황이라도 라벨에 두께가 박혀있으면(예: 단품 이름에 "30T") 그 하나는 비교한다
+  {
+    const {c}=boot(()=>okScan([{label:'비드법단열재 2종3호 30T',finalPrice:4800,soldOut:false}]));
+    const rows=await c.inspectCompetitor('https://smartstore.naver.com/rival/products/31',[
+      {thickness:30,recordedPrice:4800,compName:'대유물류'},
+      {thickness:40,recordedPrice:6400,compName:'대유물류'},
+    ]);
+    assert.equal(rows[0].status,'일치');
+    assert.equal(rows[1].status,'옵션 자동 매칭 불가');
+  }
+  // 같은 두께가 소형/대형으로 중복되면 등급의 규격까지 함께 매칭
+  {
+    const {c}=boot(()=>okScan([
+      {label:'심재준불연 50T / 600x1200',finalPrice:7260,soldOut:false},
+      {label:'심재준불연 50T / 900x1800',finalPrice:16340,soldOut:false},
+    ]));
+    const rows=await c.inspectCompetitor('https://smartstore.naver.com/rival/products/20',[
+      {gradeId:'ib_06',thickness:50,recordedPrice:7260,compName:'A'},
+      {gradeId:'ib_09',thickness:50,recordedPrice:16340,compName:'A'},
+    ]);
+    assert.equal(rows[0].status,'일치');
+    assert.equal(rows[0].actual,7260);
+    assert.equal(rows[1].status,'일치');
+    assert.equal(rows[1].actual,16340);
+  }
+  // 할인 없는 상품은 benefit 응답 없이도 상세 salePrice 기반 행으로 비교
+  {
+    const {c}=boot(()=>({ok:true,benefitReady:false,detailUrl:'x',benefitUrl:null,rows:[{label:'30T',finalPrice:4800,soldOut:false}]}));
+    const rows=await c.inspectCompetitor('https://smartstore.naver.com/rival/products/21',[
+      {gradeId:'ia2',thickness:30,recordedPrice:4800,compName:'B'},
+    ]);
+    assert.equal(rows[0].status,'일치');
   }
   // 옵션 여러 개 — 두께로 유일하게 매칭되면 비교
   {
@@ -104,5 +153,5 @@ const okScan=rows=>({ok:true,benefitReady:true,detailUrl:'x',benefitUrl:'y',rows
     const status=await call('status');
     assert.equal(status.state.items,undefined);
   }
-  console.log('PASS competitor: single/matched/ambiguous/soldout options, non-store link rejected, queue integration + failure rows');
+  console.log('PASS competitor: single/reused-link-multi-thickness/spec/matched/ambiguous/soldout/no-benefit options, non-store link rejected, queue integration + failure rows');
 })().catch(e=>{console.error(e);process.exit(1)});

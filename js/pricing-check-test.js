@@ -64,7 +64,7 @@
       </div>
       <div class="pv-body">
         <div class="pv-hint"><i class="fa-solid fa-circle-info"></i>
-          <span>선택한 카테고리의 등록 상품을 실제 적용 단가 기준으로 비교합니다. 상품 탭에서 수집한 할인·옵션 가격을 쓰며, 직접 API 조회는 사용하지 않습니다.<br>통합 확장 0.29.10 이상을 설치한 Chrome에서 실행하세요.</span>
+          <span>선택한 카테고리의 등록 상품을 실제 적용 단가 기준으로 비교합니다. 상품 탭에서 수집한 할인·옵션 가격을 쓰며, 직접 API 조회는 사용하지 않습니다.<br>통합 확장 0.29.12 이상을 설치한 Chrome에서 실행하세요.</span>
         </div>
         <div class="pctd-controls">
           <label class="pctd-field">
@@ -145,7 +145,7 @@
     dialog.querySelector('[data-run]').onclick=async()=>{
       if(busy)return;busy=true;const button=dialog.querySelector('[data-run]'),status=dialog.querySelector('[data-status]'),result=dialog.querySelector('[data-result]');button.disabled=true;result.replaceChildren();
       try {
-        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || compareExtensionVersions(extension.version,'0.29.10')<0)throw Error('통합 확장을 0.29.10 이상으로 업데이트·리로드해주세요.');
+        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || compareExtensionVersions(extension.version,'0.29.12')<0)throw Error('통합 확장을 0.29.12 이상으로 업데이트·리로드해주세요.');
         const live=await supabaseClient.from('pricing_costs_history').select('*').eq('product_type','all').eq('is_live',true).limit(2);
         if(live.error)throw live.error;if(live.data?.length!==1)throw Error('실제 적용 단가가 정확히 1개 있어야 합니다.');
         const mappingRows=[];
@@ -268,7 +268,7 @@
     dialog.querySelector('[data-run]').onclick=async()=>{
       if(busy)return;busy=true;const button=dialog.querySelector('[data-run]');button.disabled=true;result.replaceChildren();
       try {
-        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || compareExtensionVersions(extension.version,'0.29.10')<0)throw Error('통합 확장을 0.29.10 이상으로 업데이트·리로드해주세요.');
+        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || compareExtensionVersions(extension.version,'0.29.12')<0)throw Error('통합 확장을 0.29.12 이상으로 업데이트·리로드해주세요.');
         status.textContent='경쟁사 링크 불러오는 중…';
         const { items, skipped } = await gatherCompetitorEntries(dialog.dataset.tabId);
         if(!items.length)throw Error(skipped ? `검사할 스마트스토어 경쟁사 링크가 없습니다(다른 사이트 링크 ${skipped}개는 건너뜀).` : '등록된 경쟁사 가격/링크가 없습니다.');

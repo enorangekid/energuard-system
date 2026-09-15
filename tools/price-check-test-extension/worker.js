@@ -72,15 +72,29 @@ async function inspectCompetitor(link, entries) {
       try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_COMPETITOR_SCAN_DATA'}); } catch {}
       if (scan?.ok && scan.benefitReady && scan.detailUrl && scan.benefitUrl) break;
     }
-    if (!scan?.benefitReady) throw Error('페이지 할인 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
-    if (!scan.ok || !Array.isArray(scan.rows) || !scan.rows.length) throw Error('페이지 판매가 확인 불가');
+    // 할인 없는 상품은 product-benefits 요청 자체가 발생하지 않을 수 있다. 수집기는 이때도
+    // 상품 상세 응답의 salePrice로 행을 만들 수 있으므로, 충분히 기다린 뒤 유효한 행이 있으면
+    // 그대로 사용한다. benefit 응답을 무조건 요구하면 정상 상품도 수집 실패가 된다.
+    if (!scan?.ok || !scan.detailUrl || !Array.isArray(scan.rows) || !scan.rows.length) {
+      throw Error('페이지 판매가 확인 불가 — 로그인·차단·삭제 여부 확인 필요');
+    }
     const rows = scan.rows;
     return entries.map(entry => {
       let matched = null;
-      if (rows.length === 1) matched = rows[0];
+      // rows.length===1(옵션 없음/단일가)이어도, 이 링크에 두께가 여러 개 묶여있으면(entries.length>1
+      // — 모음전으로 기록해둔 경우) 그 단일가가 "이 entry의" 가격이라고 단정할 수 없다. 실제로는
+      // 페이지가 딱 한 두께짜리 단품인데 나머지 두께들이 같은 링크로 잘못 기록됐을 수도 있어서,
+      // 링크가 정말 단품(entries 1개)일 때만 무조건 매칭하고 그 외엔 라벨에서 두께를 뽑아 확인한다
+      // (2026-09-15, 비드법 단품 링크가 여러 두께에 재사용돼 전부 "불일치"로 잘못 뜨던 문제 수정).
+      if (rows.length === 1 && entries.length === 1) matched = rows[0];
       else {
         const candidates = rows.filter(r => extractThicknessMm(r.label) === entry.thickness);
-        matched = candidates.length === 1 ? candidates[0] : null;
+        // 심재 준불연은 산일상사 한 상품에 600x1200과 900x1800 옵션이 함께 있어
+        // 같은 두께가 두 번 나온다. 이 경우 grade_id가 뜻하는 규격까지 함께 비교한다.
+        const spec = entry.gradeId === 'ib_06' ? /600\s*[xX*×]\s*1200/
+          : entry.gradeId === 'ib_09' ? /900\s*[xX*×]\s*1800/ : null;
+        const exact = spec ? candidates.filter(r => spec.test(String(r.label || ''))) : candidates;
+        matched = exact.length === 1 ? exact[0] : candidates.length === 1 ? candidates[0] : null;
       }
       if (!matched) return {...entry, actual:null, status:'옵션 자동 매칭 불가', diff:null};
       if (matched.soldOut) return {...entry, actual:null, status:'품절', diff:null};

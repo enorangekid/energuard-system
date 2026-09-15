@@ -53,7 +53,7 @@
     if (id && id !== lastProductId) {
       console.log(TAG, "다른 상품으로 이동 감지, 상태 초기화:", lastProductId, "→", id);
       lastProductId = id;
-      productData = null;
+      productData = null; detailUrl = null; benefitUrl = null;
       benefitData = null;
     }
   }, 800);
@@ -70,7 +70,9 @@
     const msg = event.data;
     if (!msg || msg.source !== "energuard-smartstore-network") return;
 
-    if (isProductDetailUrl(msg.url) && msg.data?.optionCombinations !== undefined) {
+    // 일반 선택옵션이 없는 단품은 optionCombinations 필드가 응답에서 생략된다.
+    // 추가 구성 상품만 있어도 기본 상품 상세 응답 자체는 유효하므로 필드 존재를 요구하지 않는다.
+    if (isProductDetailUrl(msg.url) && msg.data && typeof msg.data === "object") {
       if (!productData) {
         productData = msg.data; detailUrl = msg.url;
         console.log(TAG, "상품 상세 응답 확보(팝업에서 수집 버튼 누르면 사용됨):", productData.name);
