@@ -132,6 +132,26 @@ const okScan=rows=>({ok:true,benefitReady:true,detailUrl:'x',benefitUrl:'y',rows
     assert.equal(rows[0].status,'일치');
     assert.equal(rows[1].status,'일치');
   }
+  // 소형 옵션 자체가 없는 상품(LX, 실사용 화면 재현, 2026-09-16) — "내단열용
+  // 2000x1200"/"외단열용 2000x1200"만 팔고 600x1200 표기가 아예 없다. _l(대형)은
+  // 내/외부만으로 유일하게 좁혀지고, _s(소형)는 소형 옵션이 없으니 "대형과 같은 값"으로
+  // 잘못 매칭되지 않고 매칭 불가로 빠져야 한다 — 이전 버전(순차 narrow)의 실제 버그 재현.
+  {
+    const {c}=boot(()=>okScan([
+      {label:'선택없음 / 두께 50mm',optionName1:'선택없음',optionName2:'두께 50mm',finalPrice:600000,soldOut:false},
+      {label:'내단열용 2000x1200 / 두께 50mm',optionName1:'내단열용 2000x1200',optionName2:'두께 50mm',finalPrice:636200,soldOut:false},
+      {label:'외단열용 2000x1200 / 두께 50mm',optionName1:'외단열용 2000x1200',optionName2:'두께 50mm',finalPrice:650600,soldOut:false},
+    ]));
+    const rows=await c.inspectCompetitor('https://smartstore.naver.com/daeyuproduce/products/6037577562',[
+      {gradeId:'lxi_l',thickness:50,recordedPrice:636200,compName:'대유물류'},
+      {gradeId:'lxi_s',thickness:50,recordedPrice:10500,compName:'대유물류'},
+      {gradeId:'lxo_l',thickness:50,recordedPrice:650600,compName:'대유물류'},
+    ]);
+    assert.equal(rows[0].status,'일치'); // lxi_l → 내단열용
+    assert.equal(rows[1].status,'옵션 자동 매칭 불가'); // lxi_s → 소형 옵션 없음, lxi_l 값으로 새지 않아야 함
+    assert.equal(rows[1].actual,null);
+    assert.equal(rows[2].status,'일치'); // lxo_l → 외단열용
+  }
   // 같은 두께가 소형/대형으로 중복되면 등급의 규격까지 함께 매칭
   {
     const {c}=boot(()=>okScan([

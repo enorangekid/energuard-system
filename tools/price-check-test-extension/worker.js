@@ -57,29 +57,46 @@ async function inspect(item, pricing) {
 
 // 두께로 걸러도 후보가 여러 개 남을 수 있다 — 실사용 중 확인된 것만도: PF보드 브랜드
 // 내부/외부(lx/kd/im + i|o), 규격 소형/대형(_s/_l, 또는 비드법 준불연 ib_06/ib_09),
-// 신품/B급 같은 품질 등급. 셋 다 두께와는 독립된 축이라 gradeId가 뜻하는 축들로 순서대로
-// 좁혀나간다 — 어느 축이 그 상품엔 해당 없으면(라벨에 흔적이 없으면) 그냥 건너뛰고, 끝까지
-// 정확히 1개로 안 좁혀지면 추측하지 않고 null(옵션 자동 매칭 불가)을 반환한다(2026-09-15,
-// 산일상사에서 세 가지 패턴을 전부 실제로 확인).
+// 신품/B급 같은 품질 등급. 셋 다 두께와는 독립된 축이라 gradeId가 뜻하는 축들로 좁혀나간다.
+//
+// ⚠️ 각 축을 "적용 가능하면 걸러보고, 하나도 안 남으면 그냥 포기하고 이전 상태 유지"
+// 식으로 순서대로 적용했더니, 앞선 축(예: 내/외부)이 먼저 1개로 좁혀버리면 뒤 축(예:
+// 규격)이 그 1개를 걸러도 될지 검증할 기회가 없어서 조용히 넘어가버리는 버그가 있었다
+// (2026-09-16, LX 상품이 "대형"만 팔아서 규격 표기가 아예 없는데도 lxi_s가 lxi_l과
+// 똑같이 매칭되던 문제). 그래서 이제 "이 상품 후보들 안에 그 축이 실제로 존재하는지"부터
+// 먼저 확인하고, 존재하는 축들만 모아 동시에(AND) 걸러낸다 — 소형(_s)인데 후보 중
+// 600x1200 표기가 하나도 없으면(=이 페이지엔 소형이 아예 없음) 억지로 대형에 매칭하지
+// 않고 바로 매칭 불가로 처리한다.
 function narrowToOne(candidates, gradeId) {
   if (candidates.length <= 1) return candidates[0] || null;
   const text = r => [r.optionName1, r.optionName2, r.optionName3, r.label].filter(Boolean).join(' ');
-  let scoped = candidates;
-  const narrow = test => { const hit = scoped.filter(r => test(text(r))); if (hit.length) scoped = hit; };
+  const texts = candidates.map(text);
+  const isSmallGrade = /_s$/.test(gradeId) || gradeId === 'ib_06';
+  const isLargeGrade = /_l$/.test(gradeId) || gradeId === 'ib_09';
 
-  // 브랜드 내부/외부 — grade_id가 lx|kd|im + i(내부)|o(외부) + _s|_l 형태일 때만 해당.
+  // 규격 소형/대형 — 소형은 판매자 불문 "600x1200" 표기가 같아 그걸로 고정 판별한다.
+  // 후보 중 600x1200 표기가 하나도 없으면 이 페이지엔 소형 자체가 없다는 뜻 — 소형을
+  // 찾는 중이면 바로 매칭 불가, 대형을 찾는 중이면 규격 축 자체를 적용하지 않는다
+  // (판매자마다 대형 표기 치수가 다 달라서 "아니면 전부 대형"이라고 단정할 수 없음).
+  const hasSmallOption = texts.some(t => /600\s*[xX*×]\s*1200/.test(t));
+  if (isSmallGrade && !hasSmallOption) return null;
+
+  const checks = [];
+  // 브랜드 내부/외부 — grade_id가 lx|kd|im + i(내부)|o(외부) + _s|_l 형태고, 후보 중
+  // 실제로 "내"/"외" 표기가 존재할 때만(그런 축이 아예 없는 상품에 들이대지 않기 위함).
   const io = String(gradeId || '').match(/^(?:lx|kd|im)(i|o)_/);
-  if (io) narrow(t => (io[1] === 'i' ? /내/ : /외/).test(t));
+  if (io && texts.some(t => /내|외/.test(t))) checks.push(t => (io[1] === 'i' ? /내/ : /외/).test(t));
+  if (hasSmallOption) {
+    if (isSmallGrade) checks.push(t => /600\s*[xX*×]\s*1200/.test(t));
+    else if (isLargeGrade) checks.push(t => !/600\s*[xX*×]\s*1200/.test(t));
+  }
 
-  // 규격 소형/대형 — 소형은 판매자 불문 "600x1200" 표기가 같아 그걸로 고정 판별하고,
-  // 대형은 판매자마다 실제 치수가 다 달라서(900x1800/1200x2000/1000x1200 등) "600x1200이
-  // 아닌 쪽"으로 판별한다.
-  if (/_s$/.test(gradeId) || gradeId === 'ib_06') narrow(t => /600\s*[xX*×]\s*1200/.test(t));
-  else if (/_l$/.test(gradeId) || gradeId === 'ib_09') narrow(t => !/600\s*[xX*×]\s*1200/.test(t));
-
+  let scoped = candidates.filter((_, i) => checks.every(check => check(texts[i])));
   // 신품/B급처럼 등급과 무관하게 품질이 갈리는 경우 — 열위 표기가 있는 쪽을 제외한다.
-  if (scoped.length > 1) narrow(t => !/B급|비품|리퍼|아울렛|전시|중고|하자|스크래치|흠집|반품|불량/.test(t));
-
+  if (scoped.length > 1) {
+    const normal = scoped.filter(r => !/B급|비품|리퍼|아울렛|전시|중고|하자|스크래치|흠집|반품|불량/.test(text(r)));
+    if (normal.length) scoped = normal;
+  }
   return scoped.length === 1 ? scoped[0] : null;
 }
 
