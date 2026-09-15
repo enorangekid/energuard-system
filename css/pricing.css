@@ -1273,6 +1273,88 @@
 }
 .btn-app-save:hover { background: #047857; }
 #pricing-tab-app .pricing-table { min-width: 0; table-layout: auto; }
+
+/* 마진율 배지 — 상태 중립(품절 등, 문제 아님) */
+.pricing-rate-badge.neutral { background: #f1f5f9; color: #64748b; }
+
+/* ═══════════════════════════════════════
+   스토어 가격검사(읽기 전용 테스트) 다이얼로그
+   — pricing-input-modal-* 톤을 그대로 따르되 native <dialog>라 자체 박스로 리셋
+═══════════════════════════════════════ */
+#priceCheckTestDialog {
+  width: min(960px, 92vw);
+  max-height: 85vh;
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.22);
+  color: #1e293b;
+  overflow: hidden;
+}
+#priceCheckTestDialog[open] { display: flex; flex-direction: column; }
+#priceCheckTestDialog::backdrop { background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px); }
+.pctd-body { padding: 20px 28px 26px; overflow-y: auto; }
+
+.pctd-hint {
+  display: flex; gap: 8px; align-items: flex-start;
+  font-size: 12px; line-height: 1.6; color: #64748b;
+  background: #f8fafc; border: 1px solid #e9ecef; border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 18px;
+}
+.pctd-hint i { color: #94a3b8; margin-top: 2px; }
+
+.pctd-controls { display: grid; grid-template-columns: 200px 1fr; gap: 14px; margin-bottom: 14px; }
+.pctd-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pctd-field-label {
+  font-size: 11px; font-weight: 700; color: #94a3b8;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.pctd-field-label em {
+  font-style: normal; font-weight: 500; text-transform: none;
+  color: #cbd5e1; letter-spacing: normal; margin-left: 4px;
+}
+.pctd-field select.pim-input { text-align: left; cursor: pointer; }
+.pctd-field textarea.pim-input { resize: vertical; min-height: 38px; text-align: left; font-weight: 500; line-height: 1.5; }
+
+.pctd-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px dashed #e2e8f0;
+}
+.pctd-actions button:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.pctd-checkbox {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer;
+}
+
+.pctd-status-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin-bottom: 12px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  font-size: 12px; font-weight: 600; color: #475569; transition: all 0.15s;
+}
+.pctd-status-bar.running { border-color: #c7d2fe; background: #f5f3ff; color: #4338ca; }
+.pctd-status-bar.running::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px;
+  background: #6366f1; animation: pctd-pulse 1.2s ease-in-out infinite;
+}
+.pctd-status-bar.error { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+@keyframes pctd-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.pctd-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.pctd-summary:empty { display: none; }
+
+.pctd-table-wrap { overflow: auto; max-height: 42vh; border: 1px solid #e2e8f0; border-radius: 10px; }
+.pctd-table-wrap table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pctd-table-wrap thead th {
+  position: sticky; top: 0;
+  background: #f8fafc; color: #64748b;
+  padding: 9px 10px; border-bottom: 1px solid #e2e8f0;
+  font-weight: 700; font-size: 11px; text-align: left; white-space: nowrap;
+}
+.pctd-table-wrap tbody td { padding: 8px 10px; border-top: 1px solid #f1f5f9; color: #334155; }
+.pctd-table-wrap tbody tr:hover { background: #f8fafc; }
+.pctd-table-wrap td.pctd-num { text-align: right; font-variant-numeric: tabular-nums; }
+.pctd-note { font-size: 11px; color: #94a3b8; margin-top: 10px; }
 /* ═══════════════════════════════════════════════════════════════
    앱 공지 관리 섹션
 ═══════════════════════════════════════════════════════════════ */

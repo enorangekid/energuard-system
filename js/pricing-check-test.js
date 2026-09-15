@@ -34,48 +34,93 @@
       window.postMessage({type:'EG_PRICE_TEST_REQUEST',requestId,action,payload},location.origin);
     });
   }
+  function statusBadgeClass(status){
+    if(status==='일치'||status==='대표가 일치')return 'good';
+    if(status==='품절')return 'neutral';
+    if(status==='불일치'||status==='대표가 불일치'||status==='수집 실패')return 'low';
+    return 'mid'; // 매핑 필요 / 단가 확인 불가 / 목록 수집 누락 등
+  }
   window.openPriceCheckTest=function() {
     if(window.currentUser?.role!=='admin')return;
     const existing=document.getElementById('priceCheckTestDialog');
     if(existing){existing.showModal();return;}
     const dialog=document.createElement('dialog');dialog.id='priceCheckTestDialog';
-    dialog.style.cssText='width:min(960px,92vw);max-height:85vh;overflow:auto;padding:24px;border:1px solid #cbd5e1;border-radius:12px;color:#1e293b';
-    dialog.innerHTML=`<strong>스토어 가격검사</strong><button type="button" style="float:right" data-close>닫기</button>
-      <p>카테고리별(또는 지정 상품) · 실제 적용 단가 기준 · 가격은 변경하지 않습니다.</p>
-      <p style="font-size:12px;color:#64748b">통합 확장 0.29.10 이상을 설치한 Chrome에서 실행하세요. 상품 탭에서 수집한 할인·옵션 가격으로 비교합니다. 직접 API 조회는 사용하지 않습니다.</p>
-      <label>카테고리 <select data-category style="margin:8px 0">
-        <option value="all">전체</option>
-        <option value="iso">아이소핑크</option>
-        <option value="bead">비드법단열재</option>
-        <option value="pu">경질우레탄보드</option>
-        <option value="pf">PF보드</option>
-        <option value="fr_jun">준불연열반사</option>
-        <option value="fr_bul">불연열반사</option>
-      </select> <span style="font-size:12px;color:#94a3b8">선택한 카테고리만 검사합니다(상품번호를 직접 넣으면 그게 우선).</span></label>
-      <label>상품번호 또는 상품 URL (쉼표/줄바꿈 구분, 비우면 위 카테고리 전체)<textarea data-products rows="2" style="display:block;width:100%;margin:8px 0" placeholder="카테고리 검사 시 비워두세요"></textarea></label>
-      <button type="button" class="pricing-margin-edit-btn" data-run>검사 시작</button>
-      <button type="button" data-pause>일시정지</button> <button type="button" data-resume>이어서 검사</button> <label><input type="checkbox" data-only checked>확인 필요한 항목만</label> <button type="button" data-export>결과 CSV 저장</button>
-      <p data-status role="status">검사 전</p><div data-result></div>`;
+    dialog.innerHTML=`<div class="pricing-input-modal-header">
+        <div class="pim-header-left">
+          <span class="pim-title"><i class="fa-solid fa-magnifying-glass-dollar"></i> 스토어 가격검사</span>
+          <span class="pim-sub">읽기 전용 · 가격 변경 없음</span>
+        </div>
+        <button type="button" class="pim-close-btn" data-close><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="pctd-body">
+        <div class="pctd-hint"><i class="fa-solid fa-circle-info"></i>
+          <span>카테고리별(또는 지정 상품) · 실제 적용 단가 기준으로 비교합니다. 상품 탭에서 수집한 할인·옵션 가격을 쓰며, 직접 API 조회는 사용하지 않습니다.<br>통합 확장 0.29.10 이상을 설치한 Chrome에서 실행하세요.</span>
+        </div>
+        <div class="pctd-controls">
+          <label class="pctd-field">
+            <span class="pctd-field-label">카테고리</span>
+            <select class="pim-input" data-category>
+              <option value="all">전체</option>
+              <option value="iso">아이소핑크</option>
+              <option value="bead">비드법단열재</option>
+              <option value="pu">경질우레탄보드</option>
+              <option value="pf">PF보드</option>
+              <option value="fr_jun">준불연열반사</option>
+              <option value="fr_bul">불연열반사</option>
+            </select>
+          </label>
+          <label class="pctd-field">
+            <span class="pctd-field-label">상품번호 또는 URL <em>비우면 카테고리 전체 · 쉼표/줄바꿈 구분</em></span>
+            <textarea class="pim-input" data-products rows="2" placeholder="카테고리 검사 시 비워두세요"></textarea>
+          </label>
+        </div>
+        <div class="pctd-actions">
+          <button type="button" class="pim-btn-confirm" data-run><i class="fa-solid fa-play"></i> 검사 시작</button>
+          <button type="button" class="pim-btn-cancel" data-pause><i class="fa-solid fa-pause"></i> 일시정지</button>
+          <button type="button" class="pim-btn-cancel" data-resume><i class="fa-solid fa-forward"></i> 이어서 검사</button>
+          <label class="pctd-checkbox"><input type="checkbox" data-only checked> 확인 필요한 항목만</label>
+          <button type="button" class="pim-expand-btn" data-export><i class="fa-solid fa-file-csv"></i> CSV 저장</button>
+        </div>
+        <div class="pctd-status-bar" data-statusbar><span data-status role="status">검사 전</span></div>
+        <div class="pctd-summary" data-summary></div>
+        <div class="pctd-table-wrap" data-result></div>
+      </div>`;
     document.body.appendChild(dialog);dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.showModal();
     let snapshot=null,polling=false;
     const status=dialog.querySelector('[data-status]'),result=dialog.querySelector('[data-result]');
+    const statusBar=dialog.querySelector('[data-statusbar]'),summary=dialog.querySelector('[data-summary]');
     function render(){
-      const state=snapshot;if(!state){status.textContent='검사 이력이 없습니다.';return;}
+      const state=snapshot;
+      if(!state){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();return;}
       const counts={};for(const row of state.rows)counts[row.status]=(counts[row.status]||0)+1;
       // 목록 단계가 몇 페이지까지 갔는지 · 연속으로 몇 페이지 못 맞혔는지 보여준다 —
       // 특정 상품군이 목록에서 안 잡히고 계속 상세로 새는 게 페이지네이션이 안 가서인지
       // (페이지 수가 안 늘어남), 3연속 무매칭으로 목록을 포기해서인지 바로 구분하려는
       // 용도(2026-09-11, 심재준불연 상세 스캔 문제 진단 중 추가).
       const listInfo=state.listVisited?.length ? ` · 목록 ${state.listVisited.length}페이지 확인(연속무매칭 ${state.listNoHitStreak||0})` : '';
-      status.textContent=`적용 단가 ${state.liveId} · ${state.done}/${state.total}개 상품 · ${state.running?'진행 중':state.reason||'완료'} · ${Object.entries(counts).map(([k,v])=>k+' '+v+'건').join(' / ')}${listInfo}`;
+      status.textContent=`적용 단가 ${state.liveId} · ${state.done}/${state.total}개 상품 · ${state.running?'진행 중':state.reason||'완료'}${listInfo}`;
+      statusBar.classList.toggle('running',!!state.running);
+      statusBar.classList.toggle('error',!state.running && /실패|오류/.test(state.reason||''));
+      summary.replaceChildren(...Object.entries(counts).map(([k,v])=>{
+        const badge=document.createElement('span');badge.className='pricing-rate-badge '+statusBadgeClass(k);badge.textContent=k+' '+v+'건';return badge;
+      }));
       dialog.querySelector('[data-run]').disabled=busy||state.running;
       dialog.querySelector('[data-resume]').disabled=state.running||state.done>=state.total;
       dialog.querySelector('[data-pause]').disabled=!state.running;
       const rows=state.rows.filter(row=>!dialog.querySelector('[data-only]').checked||!['일치','대표가 일치','품절'].includes(row.status));
-      const table=document.createElement('table');table.style.cssText='width:100%;font-size:12px;border-collapse:collapse';
+      if(!rows.length){result.innerHTML='<p class="pricing-empty-msg"><i class="fa-solid fa-circle-check"></i> 표시할 항목이 없습니다.</p>';return;}
+      const table=document.createElement('table');
       const header=table.insertRow();for(const text of ['상품번호','옵션 / 사유','스토어','단가표','차액','판정','수집 방식']){const th=document.createElement('th');th.textContent=text;header.appendChild(th);}
-      for(const row of rows.slice(-500)){const tr=table.insertRow();for(const value of [row.productId,row.label,row.actual,row.expected,row.diff,row.status,row.source]){const td=tr.insertCell();td.textContent=value==null?'—':typeof value==='number'?value.toLocaleString('ko-KR'):String(value);td.style.cssText='padding:8px;border-top:1px solid #e2e8f0';}}
-      result.replaceChildren(table);if(rows.length>500){const note=document.createElement('p');note.textContent='화면은 최근 500행만 표시합니다. 전체 결과는 CSV로 저장하세요.';result.appendChild(note);}
+      for(const row of rows.slice(-500)){
+        const tr=table.insertRow();
+        for(const key of ['productId','label','actual','expected','diff','status','source']){
+          const td=tr.insertCell();const value=row[key];
+          if(key==='status'){const badge=document.createElement('span');badge.className='pricing-rate-badge '+statusBadgeClass(value);badge.textContent=value;td.appendChild(badge);}
+          else{td.textContent=value==null?'—':typeof value==='number'?value.toLocaleString('ko-KR'):String(value);if(typeof value==='number')td.classList.add('pctd-num');}
+        }
+      }
+      result.replaceChildren(table);
+      if(rows.length>500){const note=document.createElement('p');note.className='pctd-note';note.textContent='화면은 최근 500행만 표시합니다. 전체 결과는 CSV로 저장하세요.';result.appendChild(note);}
     }
     async function refresh(){if(polling)return;polling=true;try{const r=await request('status');snapshot=r.state;render();}catch(e){status.textContent=e.message;}finally{polling=false;}}
     dialog.querySelector('[data-only]').onchange=render;
