@@ -189,12 +189,20 @@
       return false;
     }
     try {
+      const rows = buildRows();
+      // 추가상품이든 선택옵션(optionCombinations)이든 방식과 무관하게, 실제로 몇 개 행을
+      // 몇 원으로 만들었는지 항상 찍는다 — 산일상사처럼 같은 "링크 하나에 두께 여러 개"
+      // 패턴인데 다른 판매자(인슈가드)와 달리 전부 매칭 실패하는 경우, 원인이 추가상품
+      // 구조가 아니라 선택옵션 라벨 표기(두께 못 읽힘) 쪽일 수 있어 방식을 안 가리고
+      // 결과만 보면 바로 구분된다(2026-09-15).
+      console.log(TAG, "최종 옵션 행(" + rows.length + "개, " + (productData?.optionCombinations?.length ? "선택옵션" : pricedSupplements(productData).length >= 2 ? "추가상품" : "단일가") + "):",
+        JSON.stringify(rows.map(r => ({ label: r.label, optionName1: r.optionName1, optionName2: r.optionName2, finalPrice: r.finalPrice, soldOut: r.soldOut })), null, 1));
       sendResponse({
         ok: true, detailUrl, benefitUrl, benefitReady: benefitData != null,
         productName: productData.name || document.title,
         storeName: productData.channel?.channelName || null,
         productUrl: location.href.split("?")[0].split("#")[0],
-        rows: buildRows(),
+        rows,
       });
     } catch (error) {
       sendResponse({ok:false,reason:"collector_error",error:error?.message || String(error),detailUrl,benefitReady:benefitData != null});
