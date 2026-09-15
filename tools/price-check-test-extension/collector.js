@@ -58,6 +58,9 @@
     }
   }, 800);
 
+  function hasOptionData(d) {
+    return !!(d?.optionCombinations?.length || d?.combinationOptions?.[0]?.options?.length || d?.standardCombinations?.length);
+  }
   function isProductDetailUrl(url) {
     return /\/i\/v2\/channels\/[^/]+\/products\/\d+(\?|$)/.test(url) && !/\/(contents|verticals|category-navigations|provided-notice)/.test(url);
   }
@@ -73,9 +76,15 @@
     // 일반 선택옵션이 없는 단품은 optionCombinations 필드가 응답에서 생략된다.
     // 추가 구성 상품만 있어도 기본 상품 상세 응답 자체는 유효하므로 필드 존재를 요구하지 않는다.
     if (isProductDetailUrl(msg.url) && msg.data && typeof msg.data === "object") {
-      if (!productData) {
+      // 스마트스토어가 같은 상품 상세를 페이지 로드 중 두 번 이상 호출할 때(프리페치 등),
+      // 먼저 잡힌 응답이 옵션 정보가 빠진 가벼운 버전일 수 있다 — 그걸 그대로 쓰면 실제로는
+      // 두께별 옵션이 있는 상품인데도 "(옵션 없음)" 단일가로 잘못 판정된다(2026-09-15, 경쟁사
+      // 가격 확인 중 옵션 상품이 단일가로 잡히던 문제). 지금 캐시에 옵션이 없고 새 응답엔
+      // 있으면 그걸로 갈아끼운다 — 그 외엔 기존 "첫 응답 고정" 규칙 그대로(선택 시 재호출되는
+      // 축소된 응답으로 되돌아가는 걸 막기 위함).
+      if (!productData || (!hasOptionData(productData) && hasOptionData(msg.data))) {
         productData = msg.data; detailUrl = msg.url;
-        console.log(TAG, "상품 상세 응답 확보(팝업에서 수집 버튼 누르면 사용됨):", productData.name);
+        console.log(TAG, "상품 상세 응답 확보(팝업에서 수집 버튼 누르면 사용됨):", productData.name, hasOptionData(productData) ? "(옵션 있음)" : "(옵션 없음)");
       }
     } else if (isBenefitUrl(msg.url)) {
       // ⚠️ 옵션을 직접 클릭하면 "선택된 옵션 기준"으로 다시 호출되어 이중계산 위험 —
