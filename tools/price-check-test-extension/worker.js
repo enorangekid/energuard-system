@@ -115,6 +115,9 @@ async function listStep(state){
   state.listNoHitStreak = hits.length>0 ? 0 : (state.listNoHitStreak||0)+1;
   if(data.next && remaining.some(listEligible) && !state.listVisited.includes(data.next))state.listQueue.push(data.next);
 }
+const NEXT_DELAY_MS = 1200; // 2026-09-15: 아이소핑크가 목록 검사를 못 타고 매번 상세 스캔을 도는
+// 탓에 유독 느리다는 피드백 — 상품 간 고정 대기를 3초에서 줄였다. 순차 처리(동시 탭 없음)라
+// 네이버 요청 빈도 자체는 안 늘어난다(직접 API 조회가 아니라 페이지 로딩 대기라 429와 무관).
 async function processNext(){
   if(processing)return;
   processing=true;
@@ -146,7 +149,7 @@ async function processNext(){
       state.running=latest.running;state.reason=latest.reason;state.phase='목록 수집';
       if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason='완료';}
       await save(state);
-      if(state.running){await arm();setTimeout(processNext,3000);}else await chrome.alarms.clear(ALARM);
+      if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
       return;
     }
     state.phase=listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사';
@@ -163,7 +166,7 @@ async function processNext(){
     if(failed){state.running=false;state.reason='수집 실패로 일시정지';}
     if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason=failed?'검사 종료 — 수집 실패 포함':'완료';}
     await save(state);
-    if(state.running){await arm();setTimeout(processNext,3000);}else await chrome.alarms.clear(ALARM);
+    if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
   }catch(error){const state=await readState();if(state){state.running=false;state.reason='실행 오류: '+error.message;await save(state);}await chrome.alarms.clear(ALARM);}
   finally{processing=false;}
 }
