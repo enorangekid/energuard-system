@@ -54,7 +54,7 @@
     const category=tabIdToCategory(tabId);
     const existing=document.getElementById('priceCheckTestDialog');
     if(existing){if(category)existing.querySelector('[data-category]').value=category;existing.showModal();return;}
-    const dialog=document.createElement('dialog');dialog.id='priceCheckTestDialog';
+    const dialog=document.createElement('dialog');dialog.id='priceCheckTestDialog';dialog.className='pv-dialog';
     dialog.innerHTML=`<div class="pricing-input-modal-header">
         <div class="pim-header-left">
           <span class="pim-title"><i class="fa-solid fa-magnifying-glass-dollar"></i> 스토어 가격검사</span>
@@ -62,8 +62,8 @@
         </div>
         <button type="button" class="pim-close-btn" data-close><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <div class="pctd-body">
-        <div class="pctd-hint"><i class="fa-solid fa-circle-info"></i>
+      <div class="pv-body">
+        <div class="pv-hint"><i class="fa-solid fa-circle-info"></i>
           <span>선택한 카테고리의 등록 상품을 실제 적용 단가 기준으로 비교합니다. 상품 탭에서 수집한 할인·옵션 가격을 쓰며, 직접 API 조회는 사용하지 않습니다.<br>통합 확장 0.29.10 이상을 설치한 Chrome에서 실행하세요.</span>
         </div>
         <div class="pctd-controls">
@@ -88,7 +88,7 @@
           <button type="button" class="pim-expand-btn" data-export><i class="fa-solid fa-file-csv"></i> CSV 저장</button>
         </div>
         <div class="pctd-status-bar" data-statusbar><span data-status role="status">검사 전</span></div>
-        <div class="pctd-summary" data-summary></div>
+        <div class="pv-summary" data-summary></div>
         <div class="pctd-table-wrap" data-result></div>
       </div>`;
     document.body.appendChild(dialog);dialog.querySelector('[data-close]').onclick=()=>dialog.close();
@@ -128,7 +128,7 @@
         }
       }
       result.replaceChildren(table);
-      if(rows.length>500){const note=document.createElement('p');note.className='pctd-note';note.textContent='화면은 최근 500행만 표시합니다. 전체 결과는 CSV로 저장하세요.';result.appendChild(note);}
+      if(rows.length>500){const note=document.createElement('p');note.className='pv-note';note.textContent='화면은 최근 500행만 표시합니다. 전체 결과는 CSV로 저장하세요.';result.appendChild(note);}
     }
     async function refresh(){if(polling)return;polling=true;try{const r=await request('status');snapshot=r.state;render();}catch(e){status.textContent=e.message;}finally{polling=false;}}
     dialog.querySelector('[data-only]').onchange=render;

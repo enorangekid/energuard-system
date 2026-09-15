@@ -782,21 +782,52 @@ function _checkBeadHoPrices() {
   }
   return { issues, passed, incomplete };
 }
-window.checkBeadHoPriceOrder = function() {
-  const { issues, passed, incomplete } = _checkBeadHoPrices();
-  document.getElementById('beadHoPriceCheck')?.remove();
+/* ── 검증 결과 팝업 공통 셸 ──────────────────────────────────────────
+   두께 역전/호수별/브랜드 가격 검증이 전부 이 구조를 쓴다 — 스토어 가격검사
+   팝업(pricing-check-test.js)과 같은 pim-/pv- 톤으로 맞췄다(2026-09-15).
+   값은 절대 안 건드리고 결과만 보여주는 읽기 전용 팝업의 공통 뼈대.
+   badges: [{text, variant:'good'|'low'|'mid'|'neutral'}, ...] — 정상/문제 건수 등
+   각 검증 함수가 자기 의미(부분집합 vs 별개 집계)에 맞게 직접 구성한다. */
+function _openVerifyDialog({ id, title, hint, badges, headers, rows, emptyMessage }) {
+  document.getElementById(id)?.remove();
   const dialog = document.createElement('dialog');
-  dialog.id = 'beadHoPriceCheck';
-  dialog.style.cssText = 'width:min(760px,90vw);max-height:80vh;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:24px;color:#1e293b;';
-  const priceText = p => Number.isFinite(p) && p > 0 ? p.toLocaleString('ko-KR')+'원' : '—';
-  dialog.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>비드법 호수별 가격 검증</strong><button type="button" class="pricing-margin-edit-btn" id="beadHoPriceCheckClose">닫기</button></div>
-    <p>같은 종·같은 두께 기준: <b>1호 &gt; 2호 &gt; 3호</b> · 가격은 변경하지 않습니다.</p>
-    <p>정상 ${passed}개 · 확인 필요 ${issues.length}개 (가격 확인 불가 포함 ${incomplete}개)</p>
-    ${issues.length ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th>종</th><th>두께</th><th>1호</th><th>2호</th><th>3호</th><th>확인 사항</th></tr></thead><tbody>${issues.map(row => `<tr><td>${row.group}</td><td>${row.t}T</td>${row.prices.map(p => `<td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(p)}</td>`).join('')}<td style="color:#b45309;padding:8px 4px;border-top:1px solid #e2e8f0">${row.problems.join('<br>')}</td></tr>`).join('')}</tbody></table>` : '<p>모든 두께에서 1호 > 2호 > 3호 순서가 정상입니다.</p>'}`;
+  dialog.id = id;
+  dialog.className = 'pv-dialog';
+  const badgeHtml = badges.map(b => `<span class="pricing-rate-badge ${b.variant}">${b.text}</span>`).join('');
+  const headHtml = headers.map(h => `<th${h.left ? ' class="pv-td-left"' : ''}>${h.label}</th>`).join('');
+  dialog.innerHTML = `<div class="pricing-input-modal-header">
+      <div class="pim-header-left">
+        <span class="pim-title"><i class="fa-solid fa-scale-balanced"></i> ${title}</span>
+        <span class="pim-sub">읽기 전용 · 가격 변경 없음</span>
+      </div>
+      <button type="button" class="pim-close-btn" data-close><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="pv-body">
+      <div class="pv-hint"><i class="fa-solid fa-circle-info"></i><span>${hint}</span></div>
+      <div class="pv-summary">${badgeHtml}</div>
+      ${rows ? `<div class="pv-table"><table><thead><tr>${headHtml}</tr></thead><tbody>${rows}</tbody></table></div>`
+             : `<p class="pricing-empty-msg"><i class="fa-solid fa-circle-check"></i> ${emptyMessage}</p>`}
+    </div>`;
   document.body.appendChild(dialog);
-  dialog.querySelector('#beadHoPriceCheckClose').onclick = () => dialog.close();
+  dialog.querySelector('[data-close]').onclick = () => dialog.close();
   dialog.addEventListener('close', () => dialog.remove(), { once:true });
   dialog.showModal();
+}
+window.checkBeadHoPriceOrder = function() {
+  const { issues, passed, incomplete } = _checkBeadHoPrices();
+  const priceText = p => Number.isFinite(p) && p > 0 ? p.toLocaleString('ko-KR')+'원' : '—';
+  const rows = issues.map(row => `<tr><td class="pv-td-left">${row.group}</td><td>${row.t}T</td>${row.prices.map(p => `<td>${priceText(p)}</td>`).join('')}<td class="pv-td-left pv-issue-text">${row.problems.join('<br>')}</td></tr>`).join('');
+  _openVerifyDialog({
+    id: 'beadHoPriceCheck', title: '비드법 호수별 가격 검증',
+    hint: '같은 종·같은 두께 기준: <b>1호 &gt; 2호 &gt; 3호</b>가 정상입니다.',
+    badges: [
+      { text: `정상 ${passed}개`, variant: 'good' },
+      { text: `확인 필요 ${issues.length}개${incomplete ? ` (불가 ${incomplete}개 포함)` : ''}`, variant: issues.length ? 'low' : 'neutral' },
+    ],
+    headers: [{ label:'종', left:true }, { label:'두께' }, { label:'1호' }, { label:'2호' }, { label:'3호' }, { label:'확인 사항', left:true }],
+    rows: issues.length ? rows : null,
+    emptyMessage: '모든 두께에서 1호 > 2호 > 3호 순서가 정상입니다.',
+  });
 };
 
 /* 경질우레탄 검증 전용: 두 등급의 공통 두께에서 2종1호 > 2종2호 확인. */
@@ -820,19 +851,19 @@ function _checkPuHoPrices() {
 }
 window.checkPuHoPriceOrder = function() {
   const { issues, passed, incomplete } = _checkPuHoPrices();
-  document.getElementById('puHoPriceCheck')?.remove();
-  const dialog = document.createElement('dialog');
-  dialog.id = 'puHoPriceCheck';
-  dialog.style.cssText = 'width:min(700px,90vw);max-height:80vh;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:24px;color:#1e293b;';
   const priceText = p => Number.isFinite(p) && p > 0 ? p.toLocaleString('ko-KR')+'원' : '—';
-  dialog.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>경질우레탄 호수별 가격 검증</strong><button type="button" class="pricing-margin-edit-btn" id="puHoPriceCheckClose">닫기</button></div>
-    <p>공통 두께 기준: <b>2종1호 &gt; 2종2호</b> · 가격은 변경하지 않습니다.</p>
-    <p>정상 ${passed}개 · 확인 필요 ${issues.length}개 (가격 확인 불가 포함 ${incomplete}개)</p>
-    ${issues.length ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th>두께</th><th>2종1호</th><th>2종2호</th><th>확인 사항</th></tr></thead><tbody>${issues.map(row => `<tr><td>${row.t}T</td>${row.prices.map(p => `<td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(p)}</td>`).join('')}<td style="color:#b45309;padding:8px 4px;border-top:1px solid #e2e8f0">${row.reason}</td></tr>`).join('')}</tbody></table>` : '<p>모든 공통 두께에서 2종1호 > 2종2호 순서가 정상입니다.</p>'}`;
-  document.body.appendChild(dialog);
-  dialog.querySelector('#puHoPriceCheckClose').onclick = () => dialog.close();
-  dialog.addEventListener('close', () => dialog.remove(), { once:true });
-  dialog.showModal();
+  const rows = issues.map(row => `<tr><td class="pv-td-left">${row.t}T</td>${row.prices.map(p => `<td>${priceText(p)}</td>`).join('')}<td class="pv-td-left pv-issue-text">${row.reason}</td></tr>`).join('');
+  _openVerifyDialog({
+    id: 'puHoPriceCheck', title: '경질우레탄 호수별 가격 검증',
+    hint: '공통 두께 기준: <b>2종1호 &gt; 2종2호</b>가 정상입니다.',
+    badges: [
+      { text: `정상 ${passed}개`, variant: 'good' },
+      { text: `확인 필요 ${issues.length}개${incomplete ? ` (불가 ${incomplete}개 포함)` : ''}`, variant: issues.length ? 'low' : 'neutral' },
+    ],
+    headers: [{ label:'두께', left:true }, { label:'2종1호' }, { label:'2종2호' }, { label:'확인 사항', left:true }],
+    rows: issues.length ? rows : null,
+    emptyMessage: '모든 공통 두께에서 2종1호 > 2종2호 순서가 정상입니다.',
+  });
 };
 
 /* PF 검증 전용. 대형 판 면적이 브랜드마다 달라 판매가/면적으로 비교한다. */
@@ -874,19 +905,19 @@ function _checkPfBrandPrices() {
 }
 window.checkPfBrandPriceOrder = function() {
   const { issues, passed, incomplete } = _checkPfBrandPrices();
-  document.getElementById('pfBrandPriceCheck')?.remove();
-  const dialog = document.createElement('dialog');
-  dialog.id = 'pfBrandPriceCheck';
-  dialog.style.cssText = 'width:min(760px,90vw);max-height:80vh;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:24px;color:#1e293b;';
   const priceText = p => Number.isFinite(p) && p > 0 ? Math.round(p).toLocaleString('ko-KR') : '—';
-  dialog.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>PF보드 브랜드 가격 검증</strong><button type="button" class="pricing-margin-edit-btn" id="pfBrandPriceCheckClose">닫기</button></div>
-    <p>같은 종류·규격(소·대)·두께별 실제 판매가(시트 가격) 기준: <b>LX &gt; 국내산 &gt; 수입산</b> · 규격별 물리적 크기가 달라도 표시된 시트 가격 그대로 비교합니다. 가격은 변경하지 않습니다.</p>
-    <p>정상 ${passed}개 · 확인 필요 ${issues.length}개 (가격 확인 불가 포함 ${incomplete}개)</p>
-    ${issues.length ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th>종류·규격</th><th>두께</th><th>LX (원)</th><th>국내산 (원)</th><th>수입산 (원)</th><th>확인 사항</th></tr></thead><tbody>${issues.map(row => `<tr><td>${row.group}</td><td>${row.t}T</td>${row.prices.map(p => `<td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(p)}</td>`).join('')}<td style="color:#b45309;padding:8px 4px;border-top:1px solid #e2e8f0">${row.problems.join('<br>')}</td></tr>`).join('')}</tbody></table>` : '<p>모든 비교 구간에서 LX > 국내산 > 수입산 순서가 정상입니다.</p>'}`;
-  document.body.appendChild(dialog);
-  dialog.querySelector('#pfBrandPriceCheckClose').onclick = () => dialog.close();
-  dialog.addEventListener('close', () => dialog.remove(), { once:true });
-  dialog.showModal();
+  const rows = issues.map(row => `<tr><td class="pv-td-left">${row.group}</td><td>${row.t}T</td>${row.prices.map(p => `<td>${priceText(p)}</td>`).join('')}<td class="pv-td-left pv-issue-text">${row.problems.join('<br>')}</td></tr>`).join('');
+  _openVerifyDialog({
+    id: 'pfBrandPriceCheck', title: 'PF보드 브랜드 가격 검증',
+    hint: '같은 종류·규격(소·대)·두께별 실제 판매가(시트 가격) 기준: <b>LX &gt; 국내산 &gt; 수입산</b>이 정상입니다. 규격별 물리적 크기가 달라도 표시된 시트 가격 그대로 비교합니다.',
+    badges: [
+      { text: `정상 ${passed}개`, variant: 'good' },
+      { text: `확인 필요 ${issues.length}개${incomplete ? ` (불가 ${incomplete}개 포함)` : ''}`, variant: issues.length ? 'low' : 'neutral' },
+    ],
+    headers: [{ label:'종류·규격', left:true }, { label:'두께' }, { label:'LX (원)' }, { label:'국내산 (원)' }, { label:'수입산 (원)' }, { label:'확인 사항', left:true }],
+    rows: issues.length ? rows : null,
+    emptyMessage: '모든 비교 구간에서 LX > 국내산 > 수입산 순서가 정상입니다.',
+  });
 };
 
 /* ── 두께 역전 검증(전 제품 공통) ──────────────────────────────────────────
@@ -940,19 +971,21 @@ function _checkThicknessOrder(tabId) {
 window.checkThicknessPriceOrder = function(tabId) {
   const names = { isopink:'아이소핑크', bead:'비드법', pu:'경질우레탄', pf:'PF보드', fr:'불연단열재' };
   const { issues, passed, incomplete } = _checkThicknessOrder(tabId);
-  document.getElementById('thicknessPriceCheck')?.remove();
-  const dialog = document.createElement('dialog');
-  dialog.id = 'thicknessPriceCheck';
-  dialog.style.cssText = 'width:min(720px,90vw);max-height:80vh;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:24px;color:#1e293b;';
   const priceText = p => Number.isFinite(p) && p > 0 ? p.toLocaleString('ko-KR') + '원' : '—';
-  dialog.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>${names[tabId] || tabId} 두께별 가격 역전 검증</strong><button type="button" class="pricing-margin-edit-btn" id="thicknessPriceCheckClose">닫기</button></div>
-    <p>같은 등급 안에서 <b>두께가 두꺼울수록 가격이 비싸야</b> 정상입니다 · 가격은 변경하지 않습니다.</p>
-    <p>정상 ${passed}구간 · 확인 필요 ${issues.length}구간 (가격 확인 불가 ${incomplete}건)</p>
-    ${issues.length ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th style="text-align:left">등급</th><th>구간</th><th>얇은쪽</th><th>두꺼운쪽</th><th>확인 사항</th></tr></thead><tbody>${issues.map(r => `<tr><td style="text-align:left;padding:8px 4px;border-top:1px solid #e2e8f0">${r.grade}</td><td style="padding:8px 4px;border-top:1px solid #e2e8f0">${r.from}T→${r.to}T</td><td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(r.fromPrice)}</td><td style="padding:8px 4px;border-top:1px solid #e2e8f0">${priceText(r.toPrice)}</td><td style="color:#b45309;padding:8px 4px;border-top:1px solid #e2e8f0">${r.to}T가 ${r.from}T보다 ${r.kind === '동일가' ? '가격이 같음' : '더 쌈'}</td></tr>`).join('')}</tbody></table>` : '<p>모든 등급에서 두께가 두꺼워질수록 가격이 정상적으로 올라갑니다.</p>'}`;
-  document.body.appendChild(dialog);
-  dialog.querySelector('#thicknessPriceCheckClose').onclick = () => dialog.close();
-  dialog.addEventListener('close', () => dialog.remove(), { once:true });
-  dialog.showModal();
+  const rows = issues.map(r => `<tr><td class="pv-td-left">${r.grade}</td><td>${r.from}T→${r.to}T</td><td>${priceText(r.fromPrice)}</td><td>${priceText(r.toPrice)}</td><td class="pv-td-left pv-issue-text">${r.to}T가 ${r.from}T보다 ${r.kind === '동일가' ? '가격이 같음' : '더 쌈'}</td></tr>`).join('');
+  const badges = [
+    { text: `정상 ${passed}구간`, variant: 'good' },
+    { text: `확인 필요 ${issues.length}구간`, variant: issues.length ? 'low' : 'neutral' },
+  ];
+  if (incomplete) badges.push({ text: `가격 확인 불가 ${incomplete}건`, variant: 'mid' });
+  _openVerifyDialog({
+    id: 'thicknessPriceCheck', title: `${names[tabId] || tabId} 두께별 가격 역전 검증`,
+    hint: '같은 등급 안에서 <b>두께가 두꺼울수록 가격이 비싸야</b> 정상입니다.',
+    badges,
+    headers: [{ label:'등급', left:true }, { label:'구간' }, { label:'얇은쪽' }, { label:'두꺼운쪽' }, { label:'확인 사항', left:true }],
+    rows: issues.length ? rows : null,
+    emptyMessage: '모든 등급에서 두께가 두꺼워질수록 가격이 정상적으로 올라갑니다.',
+  });
 };
 
 /* ═══════════════════════════════════════

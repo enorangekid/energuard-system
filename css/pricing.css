@@ -1278,10 +1278,11 @@
 .pricing-rate-badge.neutral { background: #f1f5f9; color: #64748b; }
 
 /* ═══════════════════════════════════════
-   스토어 가격검사(읽기 전용 테스트) 다이얼로그
-   — pricing-input-modal-* 톤을 그대로 따르되 native <dialog>라 자체 박스로 리셋
+   가격 검증/검사 다이얼로그 공통 셸 — 읽기 전용, pricing-input-modal-* 톤
+   (2026-09-15: 스토어 가격검사 + 두께 역전/호수별/브랜드 가격 검증 전부 공용)
+   native <dialog>라 자체 박스로 리셋한다.
 ═══════════════════════════════════════ */
-#priceCheckTestDialog {
+.pv-dialog {
   width: min(960px, 92vw);
   max-height: 85vh;
   padding: 0;
@@ -1291,18 +1292,37 @@
   color: #1e293b;
   overflow: hidden;
 }
-#priceCheckTestDialog[open] { display: flex; flex-direction: column; }
-#priceCheckTestDialog::backdrop { background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px); }
-.pctd-body { padding: 20px 28px 26px; overflow-y: auto; }
+.pv-dialog[open] { display: flex; flex-direction: column; }
+.pv-dialog::backdrop { background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px); }
+.pv-body { padding: 20px 28px 26px; overflow-y: auto; }
 
-.pctd-hint {
+.pv-hint {
   display: flex; gap: 8px; align-items: flex-start;
   font-size: 12px; line-height: 1.6; color: #64748b;
   background: #f8fafc; border: 1px solid #e9ecef; border-radius: 8px;
   padding: 10px 14px; margin-bottom: 18px;
 }
-.pctd-hint i { color: #94a3b8; margin-top: 2px; }
+.pv-hint i { color: #94a3b8; margin-top: 2px; }
 
+.pv-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.pv-summary:empty { display: none; }
+
+.pv-table { overflow: auto; max-height: 55vh; border: 1px solid #e2e8f0; border-radius: 10px; }
+.pv-table table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: right; }
+.pv-table thead th {
+  position: sticky; top: 0;
+  background: #f8fafc; color: #64748b;
+  padding: 9px 10px; border-bottom: 1px solid #e2e8f0;
+  font-weight: 700; font-size: 11px; text-align: right; white-space: nowrap;
+}
+.pv-table thead th.pv-td-left, .pv-table td.pv-td-left { text-align: left; }
+.pv-table tbody td { padding: 8px 10px; border-top: 1px solid #f1f5f9; color: #334155; }
+.pv-table tbody tr:hover { background: #f8fafc; }
+.pv-table td.pv-num { font-variant-numeric: tabular-nums; }
+.pv-issue-text { color: #b45309; text-align: left !important; }
+.pv-note { font-size: 11px; color: #94a3b8; margin-top: 10px; }
+
+/* 스토어 가격검사 전용 컨트롤(카테고리 선택·실행 버튼·상태줄) */
 .pctd-controls { display: flex; gap: 14px; margin-bottom: 14px; }
 .pctd-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; width: 220px; }
 .pctd-field-label {
@@ -1335,9 +1355,7 @@
 .pctd-status-bar.error { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
 @keyframes pctd-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
-.pctd-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-.pctd-summary:empty { display: none; }
-
+/* 스토어 가격검사 결과 테이블 — 상품번호/옵션 등 텍스트 위주라 pv-table과 달리 좌측 정렬 기본 */
 .pctd-table-wrap { overflow: auto; max-height: 42vh; border: 1px solid #e2e8f0; border-radius: 10px; }
 .pctd-table-wrap table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .pctd-table-wrap thead th {
@@ -1349,7 +1367,6 @@
 .pctd-table-wrap tbody td { padding: 8px 10px; border-top: 1px solid #f1f5f9; color: #334155; }
 .pctd-table-wrap tbody tr:hover { background: #f8fafc; }
 .pctd-table-wrap td.pctd-num { text-align: right; font-variant-numeric: tabular-nums; }
-.pctd-note { font-size: 11px; color: #94a3b8; margin-top: 10px; }
 /* ═══════════════════════════════════════════════════════════════
    앱 공지 관리 섹션
 ═══════════════════════════════════════════════════════════════ */
