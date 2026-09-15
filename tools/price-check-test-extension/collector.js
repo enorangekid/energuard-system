@@ -101,11 +101,12 @@
       if (!productData || (!hasOptionData(productData) && hasOptionData(msg.data))) {
         productData = msg.data; detailUrl = msg.url;
         console.log(TAG, "상품 상세 응답 확보(팝업에서 수집 버튼 누르면 사용됨):", productData.name, hasOptionData(productData) ? "(옵션 있음)" : "(옵션 없음)");
-        // 추가상품은 있는데 가격을 못 읽었으면(필드명 추정이 틀렸을 수 있음) 원본을 그대로
-        // 찍어둔다 — supplementPrice()가 찾는 필드(price/salePrice/dispSalePrice/optionPrice)
-        // 중 실제 필드명이 다르면 이 로그로 바로 확인 가능(2026-09-15).
-        if (productData.supplementProducts?.length && pricedSupplements(productData).length < 2) {
-          console.log(TAG, "추가상품은 있는데 가격 필드를 못 찾음 — 원본:", productData.supplementProducts);
+        // 추가상품 구조를 짐작으로 파싱하고 있어서(가격 필드명 등) 실제로 뭐가 오는지 항상
+        // 그대로 찍어둔다 — 필드명이 틀렸거나 생각 못 한 항목(예: 두께 중복, 운송비 등)이
+        // 섞여있으면 이 로그로 바로 확인 가능(2026-09-15, 대유물류 20T만 매칭 안 되는 문제
+        // 진단 중 — 코드를 정답 데이터로 재현하면 되는데 실제론 안 되어 원본 대조가 필요함).
+        if (productData.supplementProducts?.length) {
+          console.log(TAG, "추가상품 원본(" + productData.supplementProducts.length + "개):", JSON.parse(JSON.stringify(productData.supplementProducts)));
         }
       }
     } else if (isBenefitUrl(msg.url)) {
