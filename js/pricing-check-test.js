@@ -40,10 +40,20 @@
     if(status==='불일치'||status==='대표가 불일치'||status==='수집 실패')return 'low';
     return 'mid'; // 매핑 필요 / 단가 확인 불가 / 목록 수집 누락 등
   }
-  window.openPriceCheckTest=function() {
+  // 탭에서 누른 버튼의 tabId → 검사 카테고리. 불연은 탭 안에 준불연/불연 서브탭이
+  // 있어서 고정 매핑이 안 되고, 지금 선택된 서브탭(window._subtabState.fr)을 클릭
+  // 시점에 읽어야 한다(2026-09-15, 카테고리별 버튼 배치로 변경하며 추가).
+  function tabIdToCategory(tabId){
+    if(tabId==='isopink')return 'iso';
+    if(tabId==='fr')return window._subtabState?.fr || 'fr_bul';
+    if(tabId==='bead'||tabId==='pu'||tabId==='pf')return tabId;
+    return null;
+  }
+  window.openPriceCheckTest=function(tabId) {
     if(window.currentUser?.role!=='admin')return;
+    const category=tabIdToCategory(tabId);
     const existing=document.getElementById('priceCheckTestDialog');
-    if(existing){existing.showModal();return;}
+    if(existing){if(category)existing.querySelector('[data-category]').value=category;existing.showModal();return;}
     const dialog=document.createElement('dialog');dialog.id='priceCheckTestDialog';
     dialog.innerHTML=`<div class="pricing-input-modal-header">
         <div class="pim-header-left">
@@ -54,7 +64,7 @@
       </div>
       <div class="pctd-body">
         <div class="pctd-hint"><i class="fa-solid fa-circle-info"></i>
-          <span>카테고리별(또는 지정 상품) · 실제 적용 단가 기준으로 비교합니다. 상품 탭에서 수집한 할인·옵션 가격을 쓰며, 직접 API 조회는 사용하지 않습니다.<br>통합 확장 0.29.10 이상을 설치한 Chrome에서 실행하세요.</span>
+          <span>선택한 카테고리의 등록 상품을 실제 적용 단가 기준으로 비교합니다. 상품 탭에서 수집한 할인·옵션 가격을 쓰며, 직접 API 조회는 사용하지 않습니다.<br>통합 확장 0.29.10 이상을 설치한 Chrome에서 실행하세요.</span>
         </div>
         <div class="pctd-controls">
           <label class="pctd-field">
@@ -69,10 +79,6 @@
               <option value="fr_bul">불연열반사</option>
             </select>
           </label>
-          <label class="pctd-field">
-            <span class="pctd-field-label">상품번호 또는 URL <em>비우면 카테고리 전체 · 쉼표/줄바꿈 구분</em></span>
-            <textarea class="pim-input" data-products rows="2" placeholder="카테고리 검사 시 비워두세요"></textarea>
-          </label>
         </div>
         <div class="pctd-actions">
           <button type="button" class="pim-btn-confirm" data-run><i class="fa-solid fa-play"></i> 검사 시작</button>
@@ -85,7 +91,9 @@
         <div class="pctd-summary" data-summary></div>
         <div class="pctd-table-wrap" data-result></div>
       </div>`;
-    document.body.appendChild(dialog);dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.showModal();
+    document.body.appendChild(dialog);dialog.querySelector('[data-close]').onclick=()=>dialog.close();
+    if(category)dialog.querySelector('[data-category]').value=category;
+    dialog.showModal();
     let snapshot=null,polling=false;
     const status=dialog.querySelector('[data-status]'),result=dialog.querySelector('[data-result]');
     const statusBar=dialog.querySelector('[data-statusbar]'),summary=dialog.querySelector('[data-summary]');
@@ -136,28 +144,17 @@
       if(busy)return;busy=true;const button=dialog.querySelector('[data-run]'),status=dialog.querySelector('[data-status]'),result=dialog.querySelector('[data-result]');button.disabled=true;result.replaceChildren();
       try {
         status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || compareExtensionVersions(extension.version,'0.29.10')<0)throw Error('통합 확장을 0.29.10 이상으로 업데이트·리로드해주세요.');
-        const input=dialog.querySelector('[data-products]').value.trim();
-        const tokens=input ? input.split(/[\s,]+/).filter(Boolean) : [];
-        const productUrls=new Map();
-        const ids=[...new Set(tokens.map(v=>{if(/^\d+$/.test(v))return v;try{const u=new URL(v);if(u.origin==='https://smartstore.naver.com'){const m=u.pathname.match(/^\/(energuardcompany|hkdy)\/products\/(\d+)\/?$/);if(m){productUrls.set(m[2],u.origin+u.pathname);return m[2];}}}catch{}return null;}))];
-        if(ids.some(id=>!id))throw Error('에너가드 상품번호 또는 URL을 입력해주세요.');
         const live=await supabaseClient.from('pricing_costs_history').select('*').eq('product_type','all').eq('is_live',true).limit(2);
         if(live.error)throw live.error;if(live.data?.length!==1)throw Error('실제 적용 단가가 정확히 1개 있어야 합니다.');
         const mappingRows=[];
-        if(ids.length){
-          for(let offset=0;offset<ids.length;offset+=100){const r=await supabaseClient.from('product_mapping').select('*').in('product_id',ids.slice(offset,offset+100));if(r.error)throw r.error;mappingRows.push(...r.data);}
-        }else{
-          for(let offset=0;;offset+=500){const r=await supabaseClient.from('product_mapping').select('*').order('product_id').range(offset,offset+499);if(r.error)throw r.error;mappingRows.push(...r.data);if(r.data.length<500)break;}
-        }
-        const mappings={data:mappingRows};
-        if(!mappings.data?.length)throw Error('등록된 상품 매핑이 없습니다.');
-        const byId=new Map(mappings.data.map(m=>[String(m.product_id),m]));
+        for(let offset=0;;offset+=500){const r=await supabaseClient.from('product_mapping').select('*').order('product_id').range(offset,offset+499);if(r.error)throw r.error;mappingRows.push(...r.data);if(r.data.length<500)break;}
+        if(!mappingRows.length)throw Error('등록된 상품 매핑이 없습니다.');
+        const byId=new Map(mappingRows.map(m=>[String(m.product_id),m]));
         const category=dialog.querySelector('[data-category]').value;
-        const selected=ids.length?ids:[...byId.keys()].filter(id=>mappingMatchesCategory(byId.get(id),category));
-        if(selected.some(id=>!byId.has(id)))throw Error('입력한 상품 중 매핑이 없는 상품이 있습니다.');
+        const selected=[...byId.keys()].filter(id=>mappingMatchesCategory(byId.get(id),category));
         if(!selected.length)throw Error('해당 카테고리에 등록된 상품 매핑이 없습니다.');
-        const listUrl=ids.length?null:(CATEGORY_LIST_URL[category]||null);
-        await request('start',{pricing:live.data[0],listUrl,items:selected.map(productId=>({productId,productUrl:productUrls.get(productId)||byId.get(productId).product_url||`https://smartstore.naver.com/energuardcompany/products/${productId}`,mapping:byId.get(productId)}))});
+        const listUrl=CATEGORY_LIST_URL[category]||null;
+        await request('start',{pricing:live.data[0],listUrl,items:selected.map(productId=>({productId,productUrl:byId.get(productId).product_url||`https://smartstore.naver.com/energuardcompany/products/${productId}`,mapping:byId.get(productId)}))});
         await refresh();
       } catch(error){status.textContent=error.message || '검사 실패';}
       finally{busy=false;button.disabled=!!snapshot?.running;}

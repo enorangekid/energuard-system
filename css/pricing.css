@@ -1303,18 +1303,13 @@
 }
 .pctd-hint i { color: #94a3b8; margin-top: 2px; }
 
-.pctd-controls { display: grid; grid-template-columns: 200px 1fr; gap: 14px; margin-bottom: 14px; }
-.pctd-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pctd-controls { display: flex; gap: 14px; margin-bottom: 14px; }
+.pctd-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; width: 220px; }
 .pctd-field-label {
   font-size: 11px; font-weight: 700; color: #94a3b8;
   text-transform: uppercase; letter-spacing: 0.04em;
 }
-.pctd-field-label em {
-  font-style: normal; font-weight: 500; text-transform: none;
-  color: #cbd5e1; letter-spacing: normal; margin-left: 4px;
-}
 .pctd-field select.pim-input { text-align: left; cursor: pointer; }
-.pctd-field textarea.pim-input { resize: vertical; min-height: 38px; text-align: left; font-weight: 500; line-height: 1.5; }
 
 .pctd-actions {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
