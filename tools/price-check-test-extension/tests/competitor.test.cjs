@@ -63,6 +63,30 @@ const okScan=rows=>({ok:true,benefitReady:true,detailUrl:'x',benefitUrl:'y',rows
     assert.equal(rows[0].status,'일치');
     assert.equal(rows[1].status,'옵션 자동 매칭 불가');
   }
+  // 신품/B급처럼 규격과 무관한 등급 축이 하나 더 있어 같은 두께가 겹치면(산일상사
+  // 경질우레탄 재현, 2026-09-15) 열위 등급(B급) 쪽을 빼고 정상품만 비교한다.
+  {
+    const {c}=boot(()=>okScan([
+      {label:'신품 단열재 두께 / 50T',optionName1:'신품 단열재 두께',optionName2:'50T',finalPrice:26000,soldOut:false},
+      {label:'B급 단열재 두께 / 50T',optionName1:'B급 단열재 두께',optionName2:'50T',finalPrice:21800,soldOut:false},
+    ]));
+    const rows=await c.inspectCompetitor('https://smartstore.naver.com/sanil/products/8768468193',[
+      {gradeId:'id_in',thickness:50,recordedPrice:26000,compName:'산일상사'},
+    ]);
+    assert.equal(rows[0].status,'일치');
+    assert.equal(rows[0].actual,26000);
+  }
+  // 신품/B급 둘 다 정상품처럼 보이면(예: 어느 쪽도 열위 표기가 없음) 여전히 추측하지 않는다
+  {
+    const {c}=boot(()=>okScan([
+      {label:'색상A / 50T',optionName1:'색상A',optionName2:'50T',finalPrice:26000,soldOut:false},
+      {label:'색상B / 50T',optionName1:'색상B',optionName2:'50T',finalPrice:27000,soldOut:false},
+    ]));
+    const rows=await c.inspectCompetitor('https://smartstore.naver.com/rival/products/40',[
+      {gradeId:'id_in',thickness:50,recordedPrice:26000,compName:'A'},
+    ]);
+    assert.equal(rows[0].status,'옵션 자동 매칭 불가');
+  }
   // 같은 두께가 소형/대형으로 중복되면 등급의 규격까지 함께 매칭
   {
     const {c}=boot(()=>okScan([

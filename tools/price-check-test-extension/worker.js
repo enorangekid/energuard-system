@@ -94,8 +94,18 @@ async function inspectCompetitor(link, entries) {
         // 같은 두께가 두 번 나온다. 이 경우 grade_id가 뜻하는 규격까지 함께 비교한다.
         const spec = entry.gradeId === 'ib_06' ? /600\s*[xX*×]\s*1200/
           : entry.gradeId === 'ib_09' ? /900\s*[xX*×]\s*1800/ : null;
-        const exact = spec ? candidates.filter(r => spec.test(String(r.label || ''))) : candidates;
-        matched = exact.length === 1 ? exact[0] : candidates.length === 1 ? candidates[0] : null;
+        let scoped = spec ? candidates.filter(r => spec.test(String(r.label || ''))) : candidates;
+        // 규격과 무관하게 "신품/B급"처럼 등급 축이 하나 더 있어서 같은 두께가 또 겹치는
+        // 판매자도 있다(산일상사 경질우레탄, 2026-09-15 — optionName1="신품 단열재 두께"
+        // vs "B급 단열재 두께"). 열위 등급 표기가 있는 쪽을 빼고 정상품만 남긴다 — 그래도
+        // 유일하게 안 좁혀지면(둘 다 정상품처럼 보이는 등) 추측하지 않는다.
+        if (scoped.length > 1) {
+          const DOWNGRADE = /B급|비품|리퍼|아울렛|전시|중고|하자|스크래치|흠집|반품|불량/;
+          const text = r => String(r.optionName1||'')+' '+String(r.optionName2||'')+' '+String(r.optionName3||'')+' '+String(r.label||'');
+          const normal = scoped.filter(r => !DOWNGRADE.test(text(r)));
+          if (normal.length === 1) scoped = normal;
+        }
+        matched = scoped.length === 1 ? scoped[0] : candidates.length === 1 ? candidates[0] : null;
       }
       if (!matched) return {...entry, actual:null, status:'옵션 자동 매칭 불가', diff:null};
       if (matched.soldOut) return {...entry, actual:null, status:'품절', diff:null};
