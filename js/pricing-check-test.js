@@ -99,7 +99,9 @@
     const statusBar=dialog.querySelector('[data-statusbar]'),summary=dialog.querySelector('[data-summary]');
     function render(){
       const state=snapshot;
-      if(!state){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();return;}
+      // kind==='competitor'면 경쟁사 가격 확인 창이 돌려놓은 상태다 — 워커 큐(chrome.storage)가
+      // 공유라 두 도구를 동시에 못 돌리므로, 이 창엔 "이력 없음"으로 보여준다(2026-09-15).
+      if(!state || state.kind==='competitor'){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();return;}
       const counts={};for(const row of state.rows)counts[row.status]=(counts[row.status]||0)+1;
       // 목록 단계가 몇 페이지까지 갔는지 · 연속으로 몇 페이지 못 맞혔는지 보여준다 —
       // 특정 상품군이 목록에서 안 잡히고 계속 상세로 새는 게 페이지네이션이 안 가서인지
@@ -156,6 +158,123 @@
         const listUrl=CATEGORY_LIST_URL[category]||null;
         await request('start',{pricing:live.data[0],listUrl,items:selected.map(productId=>({productId,productUrl:byId.get(productId).product_url||`https://smartstore.naver.com/energuardcompany/products/${productId}`,mapping:byId.get(productId)}))});
         await refresh();
+      } catch(error){status.textContent=error.message || '검사 실패';}
+      finally{busy=false;button.disabled=!!snapshot?.running;}
+    };
+  };
+
+  // ── 경쟁사 가격 확인(2026-09-15) ──────────────────────────────────────────
+  // competitor_prices에 등급·두께별로 기록해둔 comp1~3 가격/링크가 실제 경쟁사
+  // 페이지 가격과 여전히 맞는지 확인한다. 같은 워커 큐를 그대로 쓰되(kind:'competitor'),
+  // 대상이 우리 상품이 아니라 남의 스토어 링크라 카테고리 select 없이 버튼을 누른 탭
+  // 범위로 바로 돈다. 스마트스토어 링크만 지원 — 그 외(쿠팡 등)는 건너뛰고 안내만 한다.
+  async function gatherCompetitorEntries(tabId){
+    const frGrade = tabId==='fr' ? (window._subtabState?.fr || 'fr_bul') : null;
+    let q = supabaseClient.from('competitor_prices').select('*').eq('tab_id', tabId);
+    if (frGrade) q = q.eq('grade_id', frGrade);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = data || [];
+    const gradeIds = [...new Set(rows.map(r => r.grade_id))];
+    const namesByGrade = new Map(await Promise.all(gradeIds.map(async g => [g, await _compNames(tabId, g)])));
+    const linkGroups = new Map();
+    let skipped = 0;
+    for (const row of rows) {
+      const names = namesByGrade.get(row.grade_id) || [];
+      for (let i = 0; i < 3; i++) {
+        const link = row['comp'+(i+1)+'_link'], price = row['comp'+(i+1)+'_price'];
+        if (!link || !Number.isFinite(price) || price <= 0) continue;
+        let parsed;
+        try { parsed = new URL(link); } catch { skipped++; continue; }
+        if (parsed.origin !== 'https://smartstore.naver.com' || !/^\/[^/]+\/products\/\d+\/?$/.test(parsed.pathname)) { skipped++; continue; }
+        const entry = { gradeId: row.grade_id, thickness: row.thickness, compIdx: i, compName: names[i] || `경쟁사${i+1}`, recordedPrice: price, link: parsed.href };
+        if (!linkGroups.has(parsed.href)) linkGroups.set(parsed.href, []);
+        linkGroups.get(parsed.href).push(entry);
+      }
+    }
+    return { items: [...linkGroups.entries()].map(([link, entries]) => ({ link, entries })), skipped };
+  }
+  window.openCompetitorPriceCheck=function(tabId) {
+    if(window.currentUser?.role!=='admin')return;
+    const existing=document.getElementById('competitorPriceCheckDialog');
+    if(existing){existing.dataset.tabId=tabId||'';existing.showModal();return;}
+    const dialog=document.createElement('dialog');dialog.id='competitorPriceCheckDialog';dialog.className='pv-dialog';
+    dialog.dataset.tabId=tabId||'';
+    dialog.innerHTML=`<div class="pricing-input-modal-header">
+        <div class="pim-header-left">
+          <span class="pim-title"><i class="fa-solid fa-people-arrows"></i> 경쟁사 가격 확인</span>
+          <span class="pim-sub">읽기 전용 · 가격 변경 없음</span>
+        </div>
+        <button type="button" class="pim-close-btn" data-close><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="pv-body">
+        <div class="pv-hint"><i class="fa-solid fa-circle-info"></i>
+          <span>등록해둔 경쟁사 링크를 열어 실제 판매가가 기록해둔 값과 같은지 확인합니다. 스마트스토어 링크만 지원합니다(그 외 링크는 건너뜁니다). 옵션이 여러 개인 페이지는 두께로 유일하게 매칭될 때만 비교하고, 애매하면 "옵션 자동 매칭 불가"로 표시합니다.</span>
+        </div>
+        <div class="pctd-actions">
+          <button type="button" class="pim-btn-confirm" data-run><i class="fa-solid fa-play"></i> 검사 시작</button>
+          <button type="button" class="pim-btn-cancel" data-pause><i class="fa-solid fa-pause"></i> 일시정지</button>
+          <button type="button" class="pim-btn-cancel" data-resume><i class="fa-solid fa-forward"></i> 이어서 검사</button>
+          <label class="pctd-checkbox"><input type="checkbox" data-only checked> 확인 필요한 항목만</label>
+          <button type="button" class="pim-expand-btn" data-export><i class="fa-solid fa-file-csv"></i> CSV 저장</button>
+        </div>
+        <div class="pctd-status-bar" data-statusbar><span data-status role="status">검사 전</span></div>
+        <div class="pv-summary" data-summary></div>
+        <div class="pv-table" data-result></div>
+      </div>`;
+    document.body.appendChild(dialog);dialog.querySelector('[data-close]').onclick=()=>dialog.close();
+    dialog.showModal();
+    let snapshot=null,polling=false;
+    const status=dialog.querySelector('[data-status]'),result=dialog.querySelector('[data-result]');
+    const statusBar=dialog.querySelector('[data-statusbar]'),summary=dialog.querySelector('[data-summary]');
+    function render(){
+      const state=snapshot;
+      if(!state || state.kind!=='competitor'){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();result.replaceChildren();return;}
+      const counts={};for(const row of state.rows)counts[row.status]=(counts[row.status]||0)+1;
+      status.textContent=`${state.done}/${state.total}개 링크 · ${state.running?'진행 중':state.reason||'완료'}`;
+      statusBar.classList.toggle('running',!!state.running);
+      statusBar.classList.toggle('error',!state.running && /실패|오류/.test(state.reason||''));
+      summary.replaceChildren(...Object.entries(counts).map(([k,v])=>{
+        const badge=document.createElement('span');badge.className='pricing-rate-badge '+statusBadgeClass(k);badge.textContent=k+' '+v+'건';return badge;
+      }));
+      dialog.querySelector('[data-run]').disabled=busy||state.running;
+      dialog.querySelector('[data-resume]').disabled=state.running||state.done>=state.total;
+      dialog.querySelector('[data-pause]').disabled=!state.running;
+      const rows=state.rows.filter(row=>!dialog.querySelector('[data-only]').checked||!['일치','품절'].includes(row.status));
+      if(!rows.length){result.innerHTML='<p class="pricing-empty-msg"><i class="fa-solid fa-circle-check"></i> 표시할 항목이 없습니다.</p>';return;}
+      const table=document.createElement('table');
+      const header=table.insertRow();for(const {text,left} of [{text:'경쟁사',left:true},{text:'등급·두께',left:true},{text:'기록된 가격'},{text:'실제 가격'},{text:'차액'},{text:'판정',left:true}]){const th=document.createElement('th');th.textContent=text;if(left)th.className='pv-td-left';header.appendChild(th);}
+      for(const row of rows.slice(-500)){
+        const tr=table.insertRow();
+        for(const {value,left} of [{value:row.compName,left:true},{value:`${row.gradeId} ${row.thickness}T`,left:true},{value:row.recordedPrice},{value:row.actual},{value:row.diff}]){
+          const td=tr.insertCell();td.textContent=value==null?'—':typeof value==='number'?value.toLocaleString('ko-KR'):String(value);if(left)td.className='pv-td-left';
+        }
+        const statusTd=tr.insertCell();statusTd.className='pv-td-left';
+        const badge=document.createElement('span');badge.className='pricing-rate-badge '+statusBadgeClass(row.status);badge.textContent=row.status+(row.errorMsg?` (${row.errorMsg})`:'');statusTd.appendChild(badge);
+      }
+      result.replaceChildren(table);
+      if(rows.length>500){const note=document.createElement('p');note.className='pv-note';note.textContent='화면은 최근 500행만 표시합니다. 전체 결과는 CSV로 저장하세요.';result.appendChild(note);}
+    }
+    async function refresh(){if(polling)return;polling=true;try{const r=await request('status');snapshot=r.state;render();}catch(e){status.textContent=e.message;}finally{polling=false;}}
+    dialog.querySelector('[data-only]').onchange=render;
+    for(const action of ['pause','resume'])dialog.querySelector('[data-'+action+']').onclick=async()=>{try{await request(action);await refresh();}catch(e){status.textContent=e.message;}};
+    dialog.querySelector('[data-export]').onclick=()=>{
+      if(!snapshot)return;
+      const cell=v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';
+      const lines=[['경쟁사','등급','두께','기록된 가격','실제 가격','차액','판정','링크'],...snapshot.rows.map(r=>[r.compName,r.gradeId,r.thickness,r.recordedPrice,r.actual,r.diff,r.status,r.link])];
+      const url=URL.createObjectURL(new Blob(['﻿'+lines.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='경쟁사가격검사-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    };
+    setInterval(()=>{if(dialog.open)refresh();},3000);refresh();
+    dialog.querySelector('[data-run]').onclick=async()=>{
+      if(busy)return;busy=true;const button=dialog.querySelector('[data-run]');button.disabled=true;result.replaceChildren();
+      try {
+        status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || compareExtensionVersions(extension.version,'0.29.10')<0)throw Error('통합 확장을 0.29.10 이상으로 업데이트·리로드해주세요.');
+        status.textContent='경쟁사 링크 불러오는 중…';
+        const { items, skipped } = await gatherCompetitorEntries(dialog.dataset.tabId);
+        if(!items.length)throw Error(skipped ? `검사할 스마트스토어 경쟁사 링크가 없습니다(다른 사이트 링크 ${skipped}개는 건너뜀).` : '등록된 경쟁사 가격/링크가 없습니다.');
+        await request('start',{kind:'competitor',items});
+        await refresh();
+        if(skipped)status.textContent+=` · 스마트스토어가 아닌 링크 ${skipped}개는 건너뛰었습니다.`;
       } catch(error){status.textContent=error.message || '검사 실패';}
       finally{busy=false;button.disabled=!!snapshot?.running;}
     };

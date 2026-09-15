@@ -55,6 +55,42 @@ async function inspect(item, pricing) {
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }
 
+// 경쟁사 상품 검사(2026-09-15) — 같은 GET_COMPETITOR_SCAN_DATA 수집을 그대로 쓰되,
+// 대상이 우리 매핑이 아니라 admin이 competitor_prices에 직접 기록해둔 (등급,두께)별
+// 가격이다. 한 링크(모음전)에 여러 두께가 옵션으로 같이 걸려있을 수 있어 entries가
+// 배열이다 — 옵션이 여러 개면 라벨에서 두께를 뽑아 유일하게 매칭될 때만 비교하고,
+// 애매하면(0개/2개 이상 매칭) 추측하지 않고 "옵션 자동 매칭 불가"로 넘긴다.
+async function inspectCompetitor(link, entries) {
+  const url = new URL(link);
+  if (url.origin !== 'https://smartstore.naver.com' || !/^\/[^/]+\/products\/\d+\/?$/.test(url.pathname)) throw Error('허용되지 않은 경쟁사 상품 주소');
+  const tab = await chrome.tabs.create({url:url.href,active:false});
+  await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
+  try {
+    let scan;
+    for (let n=0;n<25;n++) {
+      await delay(1000);
+      try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_COMPETITOR_SCAN_DATA'}); } catch {}
+      if (scan?.ok && scan.benefitReady && scan.detailUrl && scan.benefitUrl) break;
+    }
+    if (!scan?.benefitReady) throw Error('페이지 할인 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
+    if (!scan.ok || !Array.isArray(scan.rows) || !scan.rows.length) throw Error('페이지 판매가 확인 불가');
+    const rows = scan.rows;
+    return entries.map(entry => {
+      let matched = null;
+      if (rows.length === 1) matched = rows[0];
+      else {
+        const candidates = rows.filter(r => extractThicknessMm(r.label) === entry.thickness);
+        matched = candidates.length === 1 ? candidates[0] : null;
+      }
+      if (!matched) return {...entry, actual:null, status:'옵션 자동 매칭 불가', diff:null};
+      if (matched.soldOut) return {...entry, actual:null, status:'품절', diff:null};
+      if (!Number.isFinite(matched.finalPrice) || matched.finalPrice <= 0) return {...entry, actual:null, status:'가격 확인 불가', diff:null};
+      const status = matched.finalPrice === entry.recordedPrice ? '일치' : '불일치';
+      return {...entry, actual:matched.finalPrice, status, diff: matched.finalPrice - entry.recordedPrice};
+    });
+  } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
+}
+
 // One product per alarm; queue and fixed live snapshot survive popup/worker closure.
 async function readState(){return (await chrome.storage.local.get('priceTest')).priceTest;}
 async function arm(){await chrome.alarms.create(ALARM,{delayInMinutes:0.5});}
@@ -126,7 +162,7 @@ async function processNext(){
     if(!state || !state.running)return;
     const orphan=(await chrome.storage.local.get('priceCheckTab')).priceCheckTab;
     if(orphan){const old=await chrome.tabs.get(orphan.id).catch(()=>null);if(old?.url===orphan.url)await chrome.tabs.remove(orphan.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
-    if(!state.listVisited){
+    if(state.kind!=='competitor' && !state.listVisited){
       state.listVisited=[];
       // 카테고리별 목록 URL을 지정해뒀으면(state.listUrl, pricing-check-test.js의
       // CATEGORY_LIST_URL) 전체상품(/category/ALL)에서 찾는 대신 그 URL부터 시작한다 —
@@ -141,7 +177,7 @@ async function processNext(){
         state.listQueue=stores.map(store=>'https://smartstore.naver.com/'+store+'/category/ALL?st=TOTAL&dt=BIG_IMAGE&cp=1&size=80');
       }
     }
-    if(state.listQueue.length){
+    if(state.listQueue?.length){
       await arm();
       await listStep(state);
       const latest=await readState();
@@ -152,14 +188,20 @@ async function processNext(){
       if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
       return;
     }
-    state.phase=listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사';
+    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
     const item=state.items[state.done];
     if(!item){state.running=false;state.finishedAt=Date.now();await save(state);return;}
-    state.currentProduct=item.productId;await save(state);
+    state.currentProduct = state.kind==='competitor' ? item.link : item.productId;await save(state);
     // Watchdog also recovers a worker interrupted during this product.
     await arm();
     let rows,failed=false;
-    try{rows=listEligible(item)?[{productId:item.productId,status:'목록 수집 누락',label:'단품 매핑 — 목록에서 가격을 찾지 못했습니다.',source:'상품 목록'}]:await inspect(item,state.pricing);}catch(error){failed=true;rows=[{productId:item.productId,status:'수집 실패',label:error.message}];}
+    try{
+      if (state.kind==='competitor') rows=await inspectCompetitor(item.link,item.entries);
+      else rows=listEligible(item)?[{productId:item.productId,status:'목록 수집 누락',label:'단품 매핑 — 목록에서 가격을 찾지 못했습니다.',source:'상품 목록'}]:await inspect(item,state.pricing);
+    }catch(error){
+      failed=true;
+      rows = state.kind==='competitor' ? item.entries.map(e=>({...e,actual:null,diff:null,status:'수집 실패',errorMsg:error.message})) : [{productId:item.productId,status:'수집 실패',label:error.message}];
+    }
     const latest=await readState();
     if(latest?.runId!==state.runId)return;
     state=latest;state.rows.push(...rows);state.done++;state.currentProduct=null;state.updatedAt=Date.now();
@@ -202,6 +244,16 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       if(message.action!=='start')throw Error('지원하지 않는 요청');
       if(processing || state?.running)throw Error('검사가 이미 실행 중입니다.');
       const p=message.payload;
+      if(p?.kind==='competitor'){
+        if(!Array.isArray(p.items) || !p.items.length)throw Error('검사할 경쟁사 링크가 없습니다.');
+        for(const it of p.items){
+          const u=new URL(String(it.link||''));
+          if(u.origin!=='https://smartstore.naver.com'||!/^\/[^/]+\/products\/\d+\/?$/.test(u.pathname))throw Error('허용되지 않은 경쟁사 상품 주소');
+          if(!Array.isArray(it.entries)||!it.entries.length)throw Error('검사 데이터 오류');
+        }
+        state={runId:crypto.randomUUID(),kind:'competitor',running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items};
+        await save(state);await arm();processNext();return {ok:true};
+      }
       if(!p?.pricing?.id || p.pricing.is_live!==true || !Array.isArray(p.items) || !p.items.length || p.items.some(i=>!/^\d+$/.test(String(i.productId)) || !i.mapping))throw Error('검사 데이터 오류');
       if(new Set(p.items.map(i=>String(i.productId))).size!==p.items.length)throw Error('중복 상품번호');
       let listUrl=null;
@@ -210,7 +262,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
         if(u.origin!=='https://smartstore.naver.com'||!/^\/(energuardcompany|hkdy)\//.test(u.pathname)||u.pathname.includes('/products/'))throw Error('카테고리 목록 URL이 올바르지 않습니다.');
         listUrl=u.href;
       }
-      state={runId:crypto.randomUUID(),running:true,startedAt:Date.now(),liveId:p.pricing.id,done:0,total:p.items.length,rows:[],items:p.items,pricing:p.pricing,listUrl};
+      state={runId:crypto.randomUUID(),kind:'own',running:true,startedAt:Date.now(),liveId:p.pricing.id,done:0,total:p.items.length,rows:[],items:p.items,pricing:p.pricing,listUrl};
       await save(state);await arm();processNext();return {ok:true};
     }finally{commandBusy=false;}
   })().then(respond).catch(error=>respond({ok:false,error:error.message}));return true;
