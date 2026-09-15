@@ -58,8 +58,24 @@
     }
   }, 800);
 
+  // 추가상품(선택옵션 콤보가 아니라 "장바구니에 따로 담는" 항목)의 가격 필드는 실제 응답을
+  // 못 봐서 확실하지 않다 — 있을 법한 후보를 순서대로 시도(2026-09-15, 대유물류가 두께별
+  // 가격을 선택옵션이 아니라 추가상품으로 나눠 파는 걸 발견해서 대응).
+  function supplementPrice(sp) {
+    const v = sp?.price ?? sp?.salePrice ?? sp?.dispSalePrice ?? sp?.optionPrice;
+    return Number.isFinite(Number(v)) ? Number(v) : null;
+  }
+  function supplementName(sp) {
+    return sp?.name || sp?.productName || sp?.optionName1 || null;
+  }
+  function pricedSupplements(d) {
+    return (d?.supplementProducts || []).filter((sp) => supplementPrice(sp) != null);
+  }
   function hasOptionData(d) {
-    return !!(d?.optionCombinations?.length || d?.combinationOptions?.[0]?.options?.length || d?.standardCombinations?.length);
+    if (d?.optionCombinations?.length || d?.combinationOptions?.[0]?.options?.length || d?.standardCombinations?.length) return true;
+    // 운송비 같은 가격 없는 부가상품 하나만 있는 건 "옵션 있음"으로 안 친다 — 실제 가격이
+    // 매겨진 추가상품이 2개 이상일 때만(두께별로 나눠판다고 볼 근거가 됨).
+    return pricedSupplements(d).length >= 2;
   }
   function isProductDetailUrl(url) {
     return /\/i\/v2\/channels\/[^/]+\/products\/\d+(\?|$)/.test(url) && !/\/(contents|verticals|category-navigations|provided-notice)/.test(url);
@@ -85,6 +101,12 @@
       if (!productData || (!hasOptionData(productData) && hasOptionData(msg.data))) {
         productData = msg.data; detailUrl = msg.url;
         console.log(TAG, "상품 상세 응답 확보(팝업에서 수집 버튼 누르면 사용됨):", productData.name, hasOptionData(productData) ? "(옵션 있음)" : "(옵션 없음)");
+        // 추가상품은 있는데 가격을 못 읽었으면(필드명 추정이 틀렸을 수 있음) 원본을 그대로
+        // 찍어둔다 — supplementPrice()가 찾는 필드(price/salePrice/dispSalePrice/optionPrice)
+        // 중 실제 필드명이 다르면 이 로그로 바로 확인 가능(2026-09-15).
+        if (productData.supplementProducts?.length && pricedSupplements(productData).length < 2) {
+          console.log(TAG, "추가상품은 있는데 가격 필드를 못 찾음 — 원본:", productData.supplementProducts);
+        }
       }
     } else if (isBenefitUrl(msg.url)) {
       // ⚠️ 옵션을 직접 클릭하면 "선택된 옵션 기준"으로 다시 호출되어 이중계산 위험 —
@@ -109,6 +131,23 @@
     const base = baseFinalPrice();
 
     if (!combos.length) {
+      // 선택옵션 콤보가 아니라, 기본 상품(예: 20T) + 추가상품(예: 30T/40T/50T…)으로 두께를
+      // 나눠 파는 판매자가 있다(대유물류 확인, 2026-09-15). 추가상품은 optionCombinations의
+      // "기준가+추가금" 방식이 아니라 각자 완결된 자기 가격이라 base에 더하지 않는다.
+      const supplements = pricedSupplements(productData);
+      if (supplements.length >= 2) {
+        const rows = [{ label: productData?.name || "(기본 상품)", finalPrice: base, delta: 0, soldOut: (productData?.stockQuantity ?? 1) <= 0 }];
+        for (const sp of supplements) {
+          rows.push({
+            label: supplementName(sp) || "(추가상품)",
+            finalPrice: supplementPrice(sp),
+            delta: 0,
+            stockQuantity: sp.stockQuantity,
+            soldOut: (sp.stockQuantity ?? 1) <= 0 || sp.usable === false,
+          });
+        }
+        return rows;
+      }
       return [{ label: "(옵션 없음)", finalPrice: base, delta: 0, soldOut: (productData?.stockQuantity ?? 1) <= 0 }];
     }
     return combos.map((c) => {
