@@ -225,12 +225,20 @@
     document.body.appendChild(dialog);dialog.querySelector('[data-close]').onclick=()=>dialog.close();
     dialog.showModal();
     let snapshot=null,polling=false;
+    // "적용" 누른 항목의 (등급,두께,경쟁사) 키 — 실제 저장은 competitor_prices로 바로
+    // 들어가지만, 이 검사 결과(state.rows)는 워커가 그때 스캔한 스냅샷이라 안 바뀐다.
+    // 3초마다 도는 자동 refresh가 그 스냅샷으로 snapshot을 덮어써서 방금 적용한 행이
+    // 다시 "불일치"로 되돌아가 보이는 걸 막으려고, 렌더링 시점에 이 키에 해당하는 행만
+    // 표시상 "일치"로 보정한다(2026-09-16).
+    const appliedKeys=new Set();
+    const rowKey=r=>`${r.gradeId}:${r.thickness}:${r.compIdx}`;
     const status=dialog.querySelector('[data-status]'),result=dialog.querySelector('[data-result]');
     const statusBar=dialog.querySelector('[data-statusbar]'),summary=dialog.querySelector('[data-summary]');
     function render(){
       const state=snapshot;
       if(!state || state.kind!=='competitor'){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();result.replaceChildren();return;}
-      const counts={};for(const row of state.rows)counts[row.status]=(counts[row.status]||0)+1;
+      const displayRows=state.rows.map(r=>appliedKeys.has(rowKey(r))?{...r,recordedPrice:r.actual,diff:0,status:'일치'}:r);
+      const counts={};for(const row of displayRows)counts[row.status]=(counts[row.status]||0)+1;
       status.textContent=`${state.done}/${state.total}개 링크 · ${state.running?'진행 중':state.reason||'완료'}`;
       statusBar.classList.toggle('running',!!state.running);
       statusBar.classList.toggle('error',!state.running && /실패|오류/.test(state.reason||''));
@@ -240,7 +248,7 @@
       dialog.querySelector('[data-run]').disabled=busy||state.running;
       dialog.querySelector('[data-resume]').disabled=state.running||state.done>=state.total;
       dialog.querySelector('[data-pause]').disabled=!state.running;
-      const rows=state.rows.filter(row=>!dialog.querySelector('[data-only]').checked||!['일치','품절'].includes(row.status));
+      const rows=displayRows.filter(row=>!dialog.querySelector('[data-only]').checked||!['일치','품절'].includes(row.status));
       if(!rows.length){result.innerHTML='<p class="pricing-empty-msg"><i class="fa-solid fa-circle-check"></i> 표시할 항목이 없습니다.</p>';return;}
       const table=document.createElement('table');
       const header=table.insertRow();for(const {text,left} of [{text:'경쟁사',left:true},{text:'등급·두께',left:true},{text:'기록된 가격'},{text:'실제 가격'},{text:'차액'},{text:'판정',left:true},{text:''}]){const th=document.createElement('th');th.textContent=text;if(left)th.className='pv-td-left';header.appendChild(th);}
@@ -253,12 +261,28 @@
         const badge=document.createElement('span');badge.className='pricing-rate-badge '+statusBadgeClass(row.status);badge.textContent=row.status+(row.errorMsg?` (${row.errorMsg})`:'');statusTd.appendChild(badge);
         // 판정만 보고는 단가표 어느 칸인지 안 보인다는 피드백 — 행을 클릭하면 그 등급·두께·
         // 경쟁사 칸으로 이동해서 잠깐 강조해준다(2026-09-16).
-        const jumpTd=tr.insertCell();jumpTd.className='pv-td-left';
+        const actionTd=tr.insertCell();actionTd.className='pv-td-left pctd-action-cell';
         const jumpBtn=document.createElement('button');jumpBtn.type='button';jumpBtn.className='pctd-jump-btn';jumpBtn.title='단가표의 이 칸으로 이동';jumpBtn.innerHTML='<i class="fa-solid fa-arrow-up-right-from-square"></i>';
-        jumpBtn.onclick=()=>window.jumpToCompetitorCell?.({tabId:dialog.dataset.tabId,gradeId:row.gradeId,thickness:row.thickness,compIdx:row.compIdx});
-        jumpTd.appendChild(jumpBtn);
+        jumpBtn.onclick=(e)=>{e.stopPropagation();window.jumpToCompetitorCell?.({tabId:dialog.dataset.tabId,gradeId:row.gradeId,thickness:row.thickness,compIdx:row.compIdx});};
+        actionTd.appendChild(jumpBtn);
+        // 링크 확인 후 "지금 스캔한 실제 가격이 맞다"고 판단되면 기록값을 바로 그걸로
+        // 갱신할 수 있게 — 불일치·실제가가 유효한 행에만 노출(2026-09-16).
+        if(row.status==='불일치' && Number.isFinite(row.actual)){
+          const applyBtn=document.createElement('button');applyBtn.type='button';applyBtn.className='pctd-apply-btn';
+          applyBtn.title=`기록된 가격을 실제 가격(${row.actual.toLocaleString('ko-KR')}원)으로 바로 적용`;
+          applyBtn.innerHTML='<i class="fa-solid fa-check"></i>';
+          applyBtn.onclick=async(e)=>{
+            e.stopPropagation();
+            if(applyBtn.disabled)return;
+            applyBtn.disabled=true;applyBtn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i>';
+            const ok=await window.saveCompPrice?.(dialog.dataset.tabId,row.gradeId,row.thickness,row.compIdx,row.actual,row.link||'');
+            if(ok){appliedKeys.add(rowKey(row));render();}
+            else{applyBtn.disabled=false;applyBtn.innerHTML='<i class="fa-solid fa-check"></i>';}
+          };
+          actionTd.appendChild(applyBtn);
+        }
         tr.style.cursor='pointer';tr.title='클릭하면 단가표의 이 칸으로 이동합니다';
-        tr.onclick=(e)=>{if(e.target.closest('.pctd-jump-btn'))return;jumpBtn.click();};
+        tr.onclick=(e)=>{if(e.target.closest('.pctd-action-cell'))return;jumpBtn.click();};
       }
       result.replaceChildren(table);
       if(rows.length>500){const note=document.createElement('p');note.className='pv-note';note.textContent='화면은 최근 500행만 표시합니다. 전체 결과는 CSV로 저장하세요.';result.appendChild(note);}
@@ -269,7 +293,7 @@
     dialog.querySelector('[data-export]').onclick=()=>{
       if(!snapshot)return;
       const cell=v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';
-      const lines=[['경쟁사','등급','두께','기록된 가격','실제 가격','차액','판정','링크'],...snapshot.rows.map(r=>[r.compName,r.gradeId,r.thickness,r.recordedPrice,r.actual,r.diff,r.status,r.link])];
+      const lines=[['경쟁사','등급','두께','기록된 가격','실제 가격','차액','판정','링크'],...snapshot.rows.map(r=>appliedKeys.has(rowKey(r))?{...r,recordedPrice:r.actual,diff:0,status:'일치'}:r).map(r=>[r.compName,r.gradeId,r.thickness,r.recordedPrice,r.actual,r.diff,r.status,r.link])];
       const url=URL.createObjectURL(new Blob(['﻿'+lines.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='경쟁사가격검사-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     };
     setInterval(()=>{if(dialog.open)refresh();},3000);refresh();

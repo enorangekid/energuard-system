@@ -1346,7 +1346,8 @@
   font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer;
 }
 
-/* 경쟁사 가격 확인 결과 행 → 단가표 이동 버튼 */
+/* 경쟁사 가격 확인 결과 행 → 단가표 이동/적용 버튼 */
+.pctd-action-cell { display: flex; gap: 6px; align-items: center; }
 .pctd-jump-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; padding: 0;
@@ -1354,6 +1355,14 @@
   color: #94a3b8; font-size: 11px; cursor: pointer; transition: all 0.15s;
 }
 .pctd-jump-btn:hover { background: #ede9fe; border-color: #a5b4fc; color: #4f46e5; }
+.pctd-apply-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0;
+  border: 1px solid #bbf7d0; border-radius: 6px; background: #f0fdf4;
+  color: #16a34a; font-size: 11px; cursor: pointer; transition: all 0.15s;
+}
+.pctd-apply-btn:hover { background: #dcfce7; border-color: #86efac; }
+.pctd-apply-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .pctd-status-bar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

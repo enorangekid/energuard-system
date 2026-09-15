@@ -299,8 +299,8 @@ async function _prepareCompGrade(tabId, gradeId) {
 }
 
 async function saveCompPrice(tabId, gradeId, thickness, compIdx, rawVal, rawLink) {
-  if (window.currentUser?.role !== 'admin') return;
-  if (typeof supabaseClient === 'undefined') return;
+  if (window.currentUser?.role !== 'admin') return false;
+  if (typeof supabaseClient === 'undefined') return false;
 
   const price = (rawVal === '' || rawVal == null) ? null : Number(rawVal);
   const link  = (rawLink === '' || rawLink == null) ? null : rawLink;
@@ -325,9 +325,12 @@ async function saveCompPrice(tabId, gradeId, thickness, compIdx, rawVal, rawLink
     if (tabId === 'pf') await window.restorePfBaseMargins?.(gradeId);
     _refreshAllCompCells(tabId, gradeId);
     if (typeof showToast === 'function') showToast('저장됨', 'success');
+    return true; // 2026-09-16: 경쟁사 가격 확인 팝업의 "적용" 버튼이 성공 여부를 봐야 해서 추가.
+                 // 기존 호출부(입력창 onchange)는 반환값을 안 쓰니 그대로 호환.
   } catch(e) {
     console.warn('[Comp] 저장 실패', e);
     if (typeof showToast === 'function') showToast('저장 실패', 'error');
+    return false;
   }
 }
 
