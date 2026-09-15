@@ -577,6 +577,30 @@ function _setEditBtnState(compIdx, isEditing) {
   });
 }
 
+/* 경쟁사 가격 확인(pricing-check-test.js) 결과 행 클릭 → 단가표의 그 셀로 이동 + 강조.
+   탭/서브탭을 실제 버튼 클릭과 동일하게 전환해야 _subtabState·활성 클래스·경쟁사 데이터
+   로드가 전부 기존 경로 그대로 맞물린다(2026-09-16, "불일치가 정확히 어딘지 안 보인다"는
+   피드백으로 추가). */
+window.jumpToCompetitorCell = function({ tabId, gradeId, thickness, compIdx }) {
+  if (window.currentUser?.role !== 'admin' || !tabId || !gradeId) return;
+  document.getElementById('competitorPriceCheckDialog')?.close();
+  window.showPage?.('pricing');
+  const tabBtn = document.querySelector(`.pricing-tab[onclick*="'${tabId}'"]`);
+  window.setPricingTab?.(tabId, tabBtn);
+  const pane = document.getElementById('pricing-tab-' + tabId);
+  const subtabBtn = pane?.querySelector(`[onclick*="'${gradeId}'"]`);
+  subtabBtn?.click();
+  setTimeout(() => {
+    const valueEl = document.getElementById(`cp_value_${tabId}_${gradeId}_${compIdx}_${thickness}`);
+    const cell = valueEl?.closest('td');
+    if (!cell) return;
+    cell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    cell.classList.remove('cp-jump-highlight'); void cell.offsetWidth; // 재실행 위해 리플로우 강제
+    cell.classList.add('cp-jump-highlight');
+    setTimeout(() => cell.classList.remove('cp-jump-highlight'), 2300);
+  }, 250);
+};
+
 /* ═══════════════════════════════════════
    테이블에 경쟁사 컬럼 주입
 ═══════════════════════════════════════ */
@@ -1125,6 +1149,17 @@ document.addEventListener('DOMContentLoaded', () => {
   font-size: 9px;
   font-weight: 400;
   opacity: .75;
+}
+
+/* 경쟁사 가격 확인 결과에서 "이동" 클릭 시 단가표 해당 셀을 잠깐 강조(2026-09-16) */
+.cp-td-price.cp-jump-highlight {
+  animation: cp-jump-flash 2.2s ease-out;
+  position: relative;
+  z-index: 1;
+}
+@keyframes cp-jump-flash {
+  0%, 35%   { box-shadow: 0 0 0 3px #f59e0b inset, 0 0 0 3px #f59e0b; background: #fef3c7; }
+  100%      { box-shadow: 0 0 0 0 transparent inset, 0 0 0 0 transparent; }
 }
 
   `;

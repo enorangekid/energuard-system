@@ -243,7 +243,7 @@
       const rows=state.rows.filter(row=>!dialog.querySelector('[data-only]').checked||!['일치','품절'].includes(row.status));
       if(!rows.length){result.innerHTML='<p class="pricing-empty-msg"><i class="fa-solid fa-circle-check"></i> 표시할 항목이 없습니다.</p>';return;}
       const table=document.createElement('table');
-      const header=table.insertRow();for(const {text,left} of [{text:'경쟁사',left:true},{text:'등급·두께',left:true},{text:'기록된 가격'},{text:'실제 가격'},{text:'차액'},{text:'판정',left:true}]){const th=document.createElement('th');th.textContent=text;if(left)th.className='pv-td-left';header.appendChild(th);}
+      const header=table.insertRow();for(const {text,left} of [{text:'경쟁사',left:true},{text:'등급·두께',left:true},{text:'기록된 가격'},{text:'실제 가격'},{text:'차액'},{text:'판정',left:true},{text:''}]){const th=document.createElement('th');th.textContent=text;if(left)th.className='pv-td-left';header.appendChild(th);}
       for(const row of rows.slice(-500)){
         const tr=table.insertRow();
         for(const {value,left} of [{value:row.compName,left:true},{value:`${row.gradeId} ${row.thickness}T`,left:true},{value:row.recordedPrice},{value:row.actual},{value:row.diff}]){
@@ -251,6 +251,14 @@
         }
         const statusTd=tr.insertCell();statusTd.className='pv-td-left';
         const badge=document.createElement('span');badge.className='pricing-rate-badge '+statusBadgeClass(row.status);badge.textContent=row.status+(row.errorMsg?` (${row.errorMsg})`:'');statusTd.appendChild(badge);
+        // 판정만 보고는 단가표 어느 칸인지 안 보인다는 피드백 — 행을 클릭하면 그 등급·두께·
+        // 경쟁사 칸으로 이동해서 잠깐 강조해준다(2026-09-16).
+        const jumpTd=tr.insertCell();jumpTd.className='pv-td-left';
+        const jumpBtn=document.createElement('button');jumpBtn.type='button';jumpBtn.className='pctd-jump-btn';jumpBtn.title='단가표의 이 칸으로 이동';jumpBtn.innerHTML='<i class="fa-solid fa-arrow-up-right-from-square"></i>';
+        jumpBtn.onclick=()=>window.jumpToCompetitorCell?.({tabId:dialog.dataset.tabId,gradeId:row.gradeId,thickness:row.thickness,compIdx:row.compIdx});
+        jumpTd.appendChild(jumpBtn);
+        tr.style.cursor='pointer';tr.title='클릭하면 단가표의 이 칸으로 이동합니다';
+        tr.onclick=(e)=>{if(e.target.closest('.pctd-jump-btn'))return;jumpBtn.click();};
       }
       result.replaceChildren(table);
       if(rows.length>500){const note=document.createElement('p');note.className='pv-note';note.textContent='화면은 최근 500행만 표시합니다. 전체 결과는 CSV로 저장하세요.';result.appendChild(note);}
