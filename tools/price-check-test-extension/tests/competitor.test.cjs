@@ -19,7 +19,7 @@ function boot(scanByUrl){
     },
     storage:{local:{get:async key=>structuredClone({[key]:store[key]}),set:async obj=>Object.assign(store,structuredClone(obj)),remove:async key=>delete store[key]}},
     alarms:{create:async(name,data)=>alarms.set(name,data),get:async n=>alarms.get(n),clear:async n=>alarms.delete(n),onAlarm:{addListener:()=>{}}},
-    runtime:{getManifest:()=>({version:'0.29.12'}),onStartup:{addListener:()=>{}},onMessage:{addListener:f=>listener=f}},
+    runtime:{getManifest:()=>({version:'0.29.13'}),onStartup:{addListener:()=>{}},onMessage:{addListener:f=>listener=f}},
   }};
   vm.createContext(c);vm.runInContext(coreSource,c);vm.runInContext(source,c);
   return {c,call:(action,payload)=>new Promise(resolve=>listener({type:'EG_PRICE_TEST',action,payload},{url:'http://127.0.0.1:5500/index.html'},resolve))};

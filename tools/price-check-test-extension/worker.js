@@ -75,8 +75,9 @@ async function inspectCompetitor(link, entries) {
     // 할인 없는 상품은 product-benefits 요청 자체가 발생하지 않을 수 있다. 수집기는 이때도
     // 상품 상세 응답의 salePrice로 행을 만들 수 있으므로, 충분히 기다린 뒤 유효한 행이 있으면
     // 그대로 사용한다. benefit 응답을 무조건 요구하면 정상 상품도 수집 실패가 된다.
-    if (!scan?.ok || !scan.detailUrl || !Array.isArray(scan.rows) || !scan.rows.length) {
-      throw Error('페이지 판매가 확인 불가 — 로그인·차단·삭제 여부 확인 필요');
+    if (!scan?.ok || !Array.isArray(scan.rows) || !scan.rows.length) {
+      const detail = scan?.error || scan?.reason;
+      throw Error(`페이지 판매가 확인 불가${detail ? ` (${detail})` : ''} — 로그인·차단·삭제 여부 확인 필요`);
     }
     const rows = scan.rows;
     return entries.map(entry => {

@@ -68,8 +68,13 @@
   function supplementName(sp) {
     return sp?.name || sp?.productName || sp?.optionName1 || null;
   }
+  function thicknessOf(text) {
+    const m = String(text || "").match(/(\d+)\s*T\b/i) || String(text || "").match(/(\d+)\s*(?:mm|밀리|미리)\b/i);
+    return m ? Number(m[1]) : null;
+  }
   function pricedSupplements(d) {
-    return (d?.supplementProducts || []).filter((sp) => supplementPrice(sp) != null);
+    // 운송비 선결제처럼 가격은 있지만 두께 상품이 아닌 추가 구성은 판매가 검사에서 제외한다.
+    return (d?.supplementProducts || []).filter((sp) => supplementPrice(sp) > 0 && thicknessOf(supplementName(sp)) != null);
   }
   function hasOptionData(d) {
     if (d?.optionCombinations?.length || d?.combinationOptions?.[0]?.options?.length || d?.standardCombinations?.length) return true;
@@ -140,7 +145,10 @@
       const supplements = pricedSupplements(productData);
       if (supplements.length >= 2) {
         const rows = [{ label: productData?.name || "(기본 상품)", finalPrice: base, delta: 0, soldOut: (productData?.stockQuantity ?? 1) <= 0 }];
+        const baseThickness = thicknessOf(productData?.name);
         for (const sp of supplements) {
+          // 대유물류처럼 기본 20T를 추가상품에도 같은 가격으로 한 번 더 넣은 경우 중복 제거.
+          if (thicknessOf(supplementName(sp)) === baseThickness && supplementPrice(sp) === base) continue;
           rows.push({
             label: supplementName(sp) || "(추가상품)",
             finalPrice: supplementPrice(sp),
@@ -180,13 +188,17 @@
       sendResponse({ ok: false, reason: "not_ready" });
       return false;
     }
-    sendResponse({
-      ok: true, detailUrl, benefitUrl, benefitReady: benefitData != null,
-      productName: productData.name || document.title,
-      storeName: productData.channel?.channelName || null,
-      productUrl: location.href.split("?")[0].split("#")[0],
-      rows: buildRows(),
-    });
+    try {
+      sendResponse({
+        ok: true, detailUrl, benefitUrl, benefitReady: benefitData != null,
+        productName: productData.name || document.title,
+        storeName: productData.channel?.channelName || null,
+        productUrl: location.href.split("?")[0].split("#")[0],
+        rows: buildRows(),
+      });
+    } catch (error) {
+      sendResponse({ok:false,reason:"collector_error",error:error?.message || String(error),detailUrl,benefitReady:benefitData != null});
+    }
     return false;
   });
 })();

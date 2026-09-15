@@ -82,3 +82,22 @@ console.log('PASS collector upgrades sparse-then-rich product detail, never down
   assert.equal(response4.rows[3].finalPrice,8000);
 }
 console.log('PASS collector splits base+priced-supplement listing into one row per thickness');
+
+// 실제 대유물류 응답: 기본 20T가 추가상품에도 중복되고 마지막에는 운송비가 섞여 있다.
+// 두께 상품만 남기고 기본상품과 같은 20T는 한 번만 반환해야 한다.
+{
+  const window5={addEventListener:(type,fn)=>{if(type==='message')networkListener=fn;}};
+  const context5={window:window5,location:{href:'https://smartstore.naver.com/daeyuproduce/products/13494466829'},document:{title:'대유물류'},console,setInterval:()=>0,chrome:{runtime:{onMessage:{addListener:fn=>{messageListener=fn;}}}}};
+  vm.createContext(context5);vm.runInContext(source,context5);
+  const thicknesses=[20,30,40,50,60,70,80,90,100,200,300,600];
+  const supplementProducts=thicknesses.map(t=>({groupName:'비드법1종3호 두께 및 크기(mm)',name:`비드법1종3호 ${t}T 900X1800`,stockQuantity:99999,price:t*160,productStatusType:'SALE'}));
+  supplementProducts.push({groupName:'운송비 선결재(전화문의 후 수량기입)',name:'운송비 (부가세 포함 금액)',stockQuantity:99999,price:1000,productStatusType:'SALE'});
+  networkListener({source:window5,data:{source:'energuard-smartstore-network',url:'https://smartstore.naver.com/i/v2/channels/c/products/13494466829?withWindow=false',data:{name:'비드법 1종 3호 20T 900x1800',salePrice:3200,stockQuantity:99999,supplementProducts}}});
+  let response5;messageListener({type:'GET_COMPETITOR_SCAN_DATA'},null,value=>{response5=value;});
+  assert.equal(response5.ok,true);
+  assert.equal(response5.rows.length,12);
+  assert.equal(response5.rows.filter(r=>/20T/i.test(r.label)).length,1);
+  assert.equal(response5.rows.some(r=>/운송비/.test(r.label)),false);
+  assert.equal(response5.rows.find(r=>/30T/i.test(r.label)).finalPrice,4800);
+}
+console.log('PASS collector filters shipping and deduplicates base thickness from real supplement payload');
