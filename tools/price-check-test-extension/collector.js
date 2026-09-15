@@ -115,6 +115,11 @@
           // 안 된다 — 문자열로 직렬화해서 그대로 텍스트로 찍히게 한다(2026-09-15).
           console.log(TAG, "추가상품 원본(" + productData.supplementProducts.length + "개):", JSON.stringify(productData.supplementProducts, null, 1));
         }
+        // 실제 검사(GET_COMPETITOR_SCAN_DATA)가 오기 전, 페이지만 열어봐도 최종 옵션 행이
+        // 바로 찍히게 한다 — 산일상사처럼 optionCombinations(진짜 선택옵션, 예: "단열재 종류"
+        // +"단열재 두께" 2단 드롭다운)를 쓰는 상품은 검사를 실제로 돌리지 않고 페이지만
+        // 봐도 라벨이 어떻게 나오는지 바로 확인돼야 진단이 빠르다(2026-09-15).
+        logFinalRows("페이지 로드 시점", buildRows());
       }
     } else if (isBenefitUrl(msg.url)) {
       // ⚠️ 옵션을 직접 클릭하면 "선택된 옵션 기준"으로 다시 호출되어 이중계산 위험 —
@@ -125,6 +130,12 @@
       }
     }
   });
+
+  function logFinalRows(when, rows) {
+    const kind = productData?.optionCombinations?.length ? "선택옵션" : pricedSupplements(productData).length >= 2 ? "추가상품" : "단일가";
+    console.log(TAG, `최종 옵션 행(${when}, ${rows.length}개, ${kind}):`,
+      JSON.stringify(rows.map(r => ({ label: r.label, optionName1: r.optionName1, optionName2: r.optionName2, finalPrice: r.finalPrice, soldOut: r.soldOut })), null, 1));
+  }
 
   function baseFinalPrice() {
     const fromBenefit = benefitData?.optimalDiscount?.totalDiscountResult?.summary?.totalPayAmount;
@@ -190,13 +201,7 @@
     }
     try {
       const rows = buildRows();
-      // 추가상품이든 선택옵션(optionCombinations)이든 방식과 무관하게, 실제로 몇 개 행을
-      // 몇 원으로 만들었는지 항상 찍는다 — 산일상사처럼 같은 "링크 하나에 두께 여러 개"
-      // 패턴인데 다른 판매자(인슈가드)와 달리 전부 매칭 실패하는 경우, 원인이 추가상품
-      // 구조가 아니라 선택옵션 라벨 표기(두께 못 읽힘) 쪽일 수 있어 방식을 안 가리고
-      // 결과만 보면 바로 구분된다(2026-09-15).
-      console.log(TAG, "최종 옵션 행(" + rows.length + "개, " + (productData?.optionCombinations?.length ? "선택옵션" : pricedSupplements(productData).length >= 2 ? "추가상품" : "단일가") + "):",
-        JSON.stringify(rows.map(r => ({ label: r.label, optionName1: r.optionName1, optionName2: r.optionName2, finalPrice: r.finalPrice, soldOut: r.soldOut })), null, 1));
+      logFinalRows("검사 요청 시점", rows);
       sendResponse({
         ok: true, detailUrl, benefitUrl, benefitReady: benefitData != null,
         productName: productData.name || document.title,
