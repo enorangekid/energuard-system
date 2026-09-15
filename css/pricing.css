@@ -1307,16 +1307,21 @@
 .pv-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .pv-summary:empty { display: none; }
 
+/* table-layout:fixed — auto 레이아웃은 컬럼마다 내용 길이로 폭을 따로 계산해서
+   헤더와 본문 폭이 어긋나 보이는 문제가 있었다(2026-09-15, 경쟁사 가격 확인 표에서
+   "판정" 헤더만 오른쪽 끝으로 밀려 보이던 버그). 고정 폭이면 모든 열이 항상
+   헤더=본문 폭으로 맞아떨어진다 — 컬럼 수가 표마다 달라 개별 폭 대신 균등 분할. */
 .pv-table { overflow: auto; max-height: 55vh; border: 1px solid #e2e8f0; border-radius: 10px; }
-.pv-table table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: right; }
+.pv-table table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; text-align: right; }
 .pv-table thead th {
   position: sticky; top: 0;
   background: #f8fafc; color: #64748b;
   padding: 9px 10px; border-bottom: 1px solid #e2e8f0;
-  font-weight: 700; font-size: 11px; text-align: right; white-space: nowrap;
+  font-weight: 700; font-size: 11px; text-align: right;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .pv-table thead th.pv-td-left, .pv-table td.pv-td-left { text-align: left; }
-.pv-table tbody td { padding: 8px 10px; border-top: 1px solid #f1f5f9; color: #334155; }
+.pv-table tbody td { padding: 8px 10px; border-top: 1px solid #f1f5f9; color: #334155; overflow-wrap: break-word; }
 .pv-table tbody tr:hover { background: #f8fafc; }
 .pv-table td.pv-num { font-variant-numeric: tabular-nums; }
 .pv-issue-text { color: #b45309; text-align: left !important; }
@@ -1357,14 +1362,15 @@
 
 /* 스토어 가격검사 결과 테이블 — 상품번호/옵션 등 텍스트 위주라 pv-table과 달리 좌측 정렬 기본 */
 .pctd-table-wrap { overflow: auto; max-height: 42vh; border: 1px solid #e2e8f0; border-radius: 10px; }
-.pctd-table-wrap table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pctd-table-wrap table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
 .pctd-table-wrap thead th {
   position: sticky; top: 0;
   background: #f8fafc; color: #64748b;
   padding: 9px 10px; border-bottom: 1px solid #e2e8f0;
-  font-weight: 700; font-size: 11px; text-align: left; white-space: nowrap;
+  font-weight: 700; font-size: 11px; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.pctd-table-wrap tbody td { padding: 8px 10px; border-top: 1px solid #f1f5f9; color: #334155; }
+.pctd-table-wrap tbody td { padding: 8px 10px; border-top: 1px solid #f1f5f9; color: #334155; overflow-wrap: break-word; }
 .pctd-table-wrap tbody tr:hover { background: #f8fafc; }
 .pctd-table-wrap td.pctd-num { text-align: right; font-variant-numeric: tabular-nums; }
 /* ═══════════════════════════════════════════════════════════════
