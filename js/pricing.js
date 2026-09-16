@@ -3523,14 +3523,22 @@ function buildAutoPriceTable(tabId) {
   let rows = '';
 
   if (tabId === 'isopink') {
-    ISOPINK_ROWS.forEach(t => {
-      const r = _isoCalcRow(t);
-      const grade = (t === 10 || t === 20) ? '1호' : '특호';
-      rows += `<tr>
-        <td style="text-align:left;font-weight:600;">아이소핑크 압출법단열재</td>
-        <td style="text-align:center;">${grade}</td><td style="text-align:center;">900×1800</td><td class="td-thick">${t}T</td>
-        <td class="td-highlight">${fmt(r?.realPrice)}</td><td style="text-align:center;">장</td>
-      </tr>`;
+    // 2026-09-08 1호 신설(10T~300T 전 구간) 이전엔 두께 하나에 상품이 하나뿐이라
+    // (10·20T=1호 전용, 30T 이상=특호 전용) _isoCalcRow(t) 하나로 계산해도 맞았다.
+    // 지금은 30T~300T 구간에 1호·특호가 각자 다른 원가/마진 필드로 독립 존재하는데
+    // 이 표는 여전히 두께당 한 줄만 만들고 30T 이상은 전부 "특호"로만 찍어서, 1호가
+    // 앱가격엔 10·20T만 있고 30T 이상은 아예 안 보이던 버그였다(사용자 발견,
+    // 2026-09-16) — ISOPINK_GRADES 두 등급을 각자의 실제 계산 함수(_isoGradeRealPrice,
+    // 단가표·스마트스토어 export와 동일 소스)로 따로 돌려서 등급별 줄을 전부 만든다.
+    ISOPINK_GRADES.forEach(grade => {
+      grade.rows.forEach(t => {
+        const price = _isoGradeRealPrice(grade, t);
+        rows += `<tr>
+          <td style="text-align:left;font-weight:600;">아이소핑크 압출법단열재</td>
+          <td style="text-align:center;">${grade.sub}</td><td style="text-align:center;">900×1800</td><td class="td-thick">${t}T</td>
+          <td class="td-highlight">${fmt(price)}</td><td style="text-align:center;">장</td>
+        </tr>`;
+      });
     });
   }
 
