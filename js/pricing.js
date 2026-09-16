@@ -1472,18 +1472,31 @@ async function syncAppProductPrices(source) {
     updates.push({ product_code, price });
   }
 
-  /* 1. 아이소핑크 */
-  ISOPINK_ROWS.forEach(t => {
-    const cost = _isoGetCost_fromData(costsData, t);
-    if (!cost) return;
-    const margin = _isoGetMargin(t, marginsData);
-    // "동일가로만 맞춤" 오버라이드도 margins JSON에 같이 저장돼 있으니(2026-09-04,
-    // ALL_PRICE_OVERRIDE_FIELDS 참고) 여기서도 반영 — 안 그러면 화면엔 파란색으로
-    // 표시된 강제 가격이 실제 앱/견적서에는 마진 계산값으로 새는 문제가 생김.
-    const overrideVal = marginsData?.[`iso_price_override_t${t}`];
-    const sellPerSheet = Math.round(t * (cost + margin) * 1.1);
-    const realPrice = overrideVal ? overrideVal : Math.ceil(sellPerSheet / 100) * 100;
-    push(`Iso_900_1800_${t}_E`, realPrice);
+  /* 1. 아이소핑크
+     2026-09-16: 1호/특호가 30T~300T 구간에서 서로 다른 원가·마진(및 오버라이드)을
+     쓰는데, 예전 코드는 등급 구분 없이 ISOPINK_ROWS 한 번만 돌면서 항상 특호의
+     원가 필드(cost_900_1800_mid/thick)로 계산해 특호 코드(Iso_900_1800_{t}_E)에만
+     썼다 — 그래서 1호는 앱 DB(app_product_prices)에 30T~300T 행 자체가 없었다
+     (사용자 발견). ISOPINK_GRADES 두 등급을 각자의 실제 필드(_getCostId/_getMargin/
+     _getOverrideId, 단가표·앱가격 미리보기와 동일 소스)로 따로 돌려서 등급별로
+     동기화한다 — 특호는 기존 코드를 그대로 쓰고, 1호가 특호와 겹치는 t>=30 구간만
+     별도 코드(Iso_1ho_900_1800_{t}_E)를 쓴다(10·20T는 원래부터 1호 전용이라 겹치지
+     않음). */
+  ISOPINK_GRADES.forEach(grade => {
+    grade.rows.forEach(t => {
+      const costId = _getCostId('isopink', grade, t);
+      const cost = costId ? cval(costId) : 0;
+      if (!cost) return;
+      const margin = _getMargin('isopink', grade, t, marginsData);
+      // "동일가로만 맞춤" 오버라이드도 margins JSON에 같이 저장돼 있으니(2026-09-04,
+      // ALL_PRICE_OVERRIDE_FIELDS 참고) 여기서도 반영 — 안 그러면 화면엔 파란색으로
+      // 표시된 강제 가격이 실제 앱/견적서에는 마진 계산값으로 새는 문제가 생김.
+      const overrideVal = marginsData?.[_getOverrideId('isopink', grade, t)];
+      const sellPerSheet = Math.round(t * (cost + margin) * 1.1);
+      const realPrice = overrideVal ? overrideVal : Math.ceil(sellPerSheet / 100) * 100;
+      const code = (grade.id === '1ho' && t >= 30) ? `Iso_1ho_900_1800_${t}_E` : `Iso_900_1800_${t}_E`;
+      push(code, realPrice);
+    });
   });
 
   /* 2. 비드법단열재 */
