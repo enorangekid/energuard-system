@@ -22,6 +22,8 @@
    카드 맨 밑에 빈 여백으로 남는다 — 업무노트/미디어콘텐츠에서 이미 겪은 것과 같은
    문제(2026-08-18). */
 #page-pricing .card.input-panel h3:last-child { margin-bottom: 0; }
+.pricing-tabs-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.hk-tab-divider { width: 1px; align-self: stretch; min-height: 22px; background: var(--border); }
 .pricing-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .pricing-tab {
   padding: 8px 18px; border-radius: 8px;
@@ -897,6 +899,259 @@
   box-shadow: 0 3px 8px rgba(79,70,229,0.15);
 }
 
+/* ═══════════════════════════════════════
+   한국단열 아이소핑크 — 상위 탭(일반/접착식/쿠팡 위너) + 아코디언
+═══════════════════════════════════════ */
+.hk-iso-super-pane { display: none; }
+.hk-iso-super-pane.active { display: block; }
+.hk-iso-super-pane .pricing-coming-soon { min-height: 240px; }
+
+.hk-iso-accordion-list { display: flex; flex-direction: column; gap: 10px; }
+.hk-iso-accordion {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+.hk-iso-accordion-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 18px;
+  border: none;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  text-align: left;
+}
+.hk-iso-accordion-head:hover { background: #f1f5f9; }
+.hk-iso-accordion.open .hk-iso-accordion-head { background: #eef2ff; }
+.hk-iso-accordion-title { flex: 1; display: flex; align-items: baseline; gap: 8px; }
+.hk-iso-accordion-sub { font-size: 12px; font-weight: 500; color: #94a3b8; }
+.hk-iso-accordion-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4f46e5;
+  background: #eef2ff;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.hk-iso-accordion.open .hk-iso-accordion-count { background: #fff; }
+.hk-iso-accordion-chevron { color: #94a3b8; transition: transform .15s ease; }
+.hk-iso-accordion.open .hk-iso-accordion-chevron { transform: rotate(180deg); color: #4f46e5; }
+.hk-iso-accordion-body { display: none; padding: 16px; }
+.hk-iso-accordion.open .hk-iso-accordion-body { display: block; }
+.hk-iso-draft-table { min-width: 1620px; }
+.hk-iso-draft-table th,
+.hk-iso-draft-table td { white-space: nowrap; text-align: center; }
+.hk-iso-draft-table thead th { padding-top: 13px; padding-bottom: 13px; }
+.hk-iso-draft-table tbody td { padding-top: 15px; padding-bottom: 15px; }
+.hk-iso-draft-table .hk-iso-draft-name { text-align: left; font-weight: 700; }
+.hk-iso-draft-table .hk-iso-draft-expected-price {
+  font-weight: 800;
+  color: #92400e;
+  background: #fffbeb;
+}
+.hk-iso-draft-table .hk-iso-draft-price { background: #fff7ed; }
+.hk-iso-draft-table .hk-iso-sheet-price-muted {
+  opacity: .42;
+}
+.hk-iso-draft-table thead th.hk-iso-sheet-price-muted-head {
+  color: rgba(255, 255, 255, .5);
+}
+.hk-iso-final-price-input {
+  width: 82px;
+  margin: 0 auto;
+  text-align: right;
+  font-weight: 800;
+  color: #9a3412;
+  border-color: #fdba74;
+  background: #fff;
+}
+.hk-iso-final-price-input:disabled {
+  color: #9a3412;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  opacity: 1;
+  cursor: default;
+}
+.hk-iso-final-price-input:focus {
+  border-color: #ea580c;
+  box-shadow: 0 0 0 2px rgba(234,88,12,0.12);
+}
+.hk-iso-final-price-edit-btn.editing {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+}
+.hk-iso-draft-margin-card { margin-bottom: 16px; }
+.hk-iso-base-cost-table { width: auto; min-width: 430px; }
+.hk-iso-base-cost-table th,
+.hk-iso-base-cost-table td { text-align: center; }
+.hk-iso-base-cost-input { width: 92px; text-align: right; }
+.hk-iso-shared-cost-controls { justify-content: flex-start; }
+.hk-iso-base-cost-preview,
+.hk-iso-applied-cost-preview { font-weight: 700; color: #334155; }
+.hk-iso-margin-modal-table { width: 100%; min-width: 420px; }
+.hk-iso-margin-modal-table th,
+.hk-iso-margin-modal-table td { text-align: center; }
+.hk-iso-draft-margin-table { width: auto; min-width: 430px; }
+.hk-iso-draft-margin-table th,
+.hk-iso-draft-margin-table td { text-align: center; }
+.hk-iso-draft-margin-input { width: 82px; text-align: right; }
+.hk-iso-adhesive-fee-wrap { margin: 0 0 14px; padding: 0 0 12px; }
+.hk-iso-adhesive-fee-input { width: 100px; text-align: right; }
+.hk-iso-adhesive-fee-note { color: #b45309; font-size: 12px; font-weight: 700; }
+.hk-iso-calc-cell {
+  cursor: help;
+  text-decoration: underline dotted rgba(71,85,105,0.45);
+  text-underline-offset: 3px;
+}
+.hk-iso-draft-table thead th.hk-iso-head-base {
+  color: #e2e8f0;
+  background: #1e293b;
+}
+.hk-iso-draft-table thead th.hk-iso-head-sale-price {
+  color: #fde68a;
+  background: #92400e;
+}
+.hk-iso-draft-table thead th.hk-iso-head-size {
+  color: #dbeafe;
+  background: #334e68;
+}
+.hk-iso-draft-table thead th.hk-iso-head-code {
+  color: #ede9fe;
+  background: #4338ca;
+}
+.hk-iso-draft-table thead th.hk-iso-head-plus {
+  color: #451a03;
+  background: #fde68a;
+}
+
+/* 한국단열 아이소핑크 — 2단계(상품번호별 배송비/실판매가) */
+.hk-iso-header-actions { display: flex; align-items: center; gap: 8px; }
+.hk-iso-shipping-toggle-btn.open {
+  background: #eef2ff;
+  border-color: #818cf8;
+  color: #4338ca;
+}
+.hk-iso-shipping-section:not([hidden]) { margin-top: 16px; display: flex; flex-direction: column; gap: 16px; }
+.hk-iso-shipping-block .pricing-result-header { border-radius: 12px 12px 0 0; }
+.hk-iso-shipping-table { min-width: 1280px; }
+.hk-iso-shipping-table .hk-iso-ship-base-price { font-weight: 700; color: #334155; }
+.hk-iso-shipping-table .hk-iso-ship-diff,
+.hk-iso-shipping-table .hk-iso-ship-per-unit { color: #64748b; }
+.hk-iso-shipping-table .hk-iso-ship-plus-cell { background: #fffbeb; }
+.hk-iso-shipping-table .hk-iso-ship-plus-input { background: #fef3c7; border-color: #fcd34d; text-align: right; }
+.hk-iso-shipping-table .hk-iso-ship-final-price {
+  color: #be123c;
+  background: #fff1f2;
+  border-left: 2px solid #fecdd3;
+  font-weight: 800;
+}
+.hk-iso-shipping-table .hk-iso-ship-base-input,
+.hk-iso-shipping-table .hk-iso-ship-actual-input { width: 90px; text-align: right; }
+/* per1Coupon(900x1800류) 배송비 블록 전용 */
+.hk-iso-ship-perunit-input,
+.hk-iso-ship-coupon-input { width: 80px; text-align: right; }
+.hk-iso-ship-actual-text-input { width: 90px; text-align: center; }
+.hk-iso-ship-blank-cell { color: #cbd5e1; }
+.hk-iso-ship-free-label {
+  display: inline-block;
+  font-size: 11px; font-weight: 700; color: #059669;
+  background: #d1fae5; padding: 4px 10px; border-radius: 6px;
+}
+.hk-iso-free-badge {
+  font-size: 11px; font-weight: 700; color: #065f46;
+  background: #a7f3d0; padding: 3px 9px; border-radius: 20px;
+}
+
+/* 한국단열 아이소핑크 — 3단계(채널별 실제 등록 상품) */
+.hk-iso-channel-listing-section { margin-top: 16px; }
+.hk-iso-listing-table { min-width: 1600px; }
+.hk-iso-listing-table .hk-iso-draft-code { white-space: normal; word-break: break-all; }
+/* 3단계 표는 전부 가운데 정렬로 통일해달라는 요청(2026-09-16). 기본
+   `.pricing-table tbody td`가 text-align:right를 이미 깔고 있고 그게
+   `.hk-iso-draft-table td`의 center보다 명시도가 높아서 이겨버리는 바람에
+   (칼럼 폭이 넓은 상품ID에서 특히 티가 남) 제대로 안 먹히고 있었다 — 그
+   right 규칙을 확실히 이기도록 선택자를 클래스 2개+타입 2개로 잡았다. */
+.hk-iso-listing-table.pricing-table tbody td { text-align: center; }
+/* 상품ID가 같은 상품(옵션 묶음)임을 rowspan 병합 셀 + 새 상품 시작 행의 굵은
+   윗선으로 보여준다 — 빈 칸으로만 표시하면 병합처럼 안 보이고 데이터 누락처럼
+   보였다는 피드백으로 추가(2026-09-16). 그룹별 배경 줄무늬도 같이 넣었었는데
+   안 써도 된다는 피드백으로 굵은 윗선만 남김. */
+.hk-iso-listing-table.pricing-table tbody tr.hk-iso-listing-group-start td { border-top: 3px solid #6366f1; }
+.hk-iso-listing-id {
+  font-weight: 800;
+  background: #e0e7ff;
+  border-left: 3px solid #6366f1;
+  border-right: 3px solid #6366f1;
+  vertical-align: middle;
+}
+.hk-iso-listing-id a {
+  color: #3730a3;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.hk-iso-listing-id a:hover { color: #4f46e5; }
+.hk-iso-draft-table thead th.hk-iso-head-prev { color: #14532d; background: #86efac; }
+.hk-iso-draft-table thead th.hk-iso-head-diff { color: #7c2d12; background: #fdba74; }
+.hk-iso-listing-prev-price { background: #f0fdf4; color: #166534; font-weight: 700; }
+.hk-iso-listing-diff { background: #fff7ed; color: #c2410c; font-weight: 700; }
+.hk-iso-listing-prev-shipping { background: #fef2e8; color: #9a3412; }
+.hk-iso-draft-table thead th.hk-iso-head-margin {
+  color: #bbf7d0;
+  background: #166534;
+}
+.hk-iso-draft-table thead th.hk-iso-head-rate {
+  color: #dcfce7;
+  background: #15803d;
+}
+.hk-iso-draft-table thead th.hk-iso-ref-margin-head {
+  color: #fff;
+  background: #991b1b;
+  border-left: 2px solid #991b1b;
+}
+/* :not(.hk-iso-listing-table) — 이 위치 기준 규칙들은 원래 기준단가/배송비
+   표(16칸 고정)를 겨냥한 것이다. 3단계 표(hk-iso-listing-table)는 칼럼 수가
+   다르고, 게다가 상품ID 칸에 rowspan을 써서 같은 상품의 2번째 행부터는 그
+   칸 자체가 없어 뒤 칸들의 nth-child 순번이 한 칸씩 밀린다 — 그 상태로 이
+   규칙을 공유하면 밀린 순번이 엉뚱한 칸(예: 네이버판매가, 재고수량)에 파란
+   줄무늬로 덧씌워진다(2026-09-16, 사용자가 스크린샷으로 발견). 그래서 3단계
+   표는 이 규칙들에서 제외한다. */
+.hk-iso-draft-table:not(.hk-iso-listing-table) tbody td:nth-child(16) {
+  color: #be123c;
+  background: #fff1f2;
+  border-left: 2px solid #fecdd3;
+  font-weight: 800;
+}
+.hk-iso-draft-table:not(.hk-iso-listing-table) tbody td:nth-child(3) {
+  color: #2563eb;
+  font-weight: 700;
+}
+.hk-iso-draft-table:not(.hk-iso-listing-table) tbody td:nth-child(6) {
+  color: #1d4ed8;
+  background: #f1f5f9;
+  font-weight: 700;
+}
+.hk-iso-draft-table:not(.hk-iso-listing-table) tbody td:nth-child(15) {
+  color: #15803d;
+  background: #f0fdf4;
+  font-weight: 800;
+}
+.hk-iso-draft-table:not(.hk-iso-listing-table) tbody tr:hover td:nth-child(16) { background: #ffe4e6; }
+.hk-iso-draft-code {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 11px;
+  color: #6366f1;
+  background: #f5f3ff;
+}
+.hk-iso-draft-table .hk-iso-draft-unit-row th { padding-top: 7px; padding-bottom: 7px; font-size: 10px; color: #94a3b8; }
 /* ═══════════════════════════════════════
    원가·마진 입력 모달
 ═══════════════════════════════════════ */

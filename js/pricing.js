@@ -2654,6 +2654,7 @@ window.setPricingCompany = function(company) {
         appHeaderRight.style.display = 'none';
         if (hkTabsBar)  hkTabsBar.style.display = '';
         if (hkBodyWrap) hkBodyWrap.style.display = '';
+        if (typeof window.resetHkPricingView === 'function') window.resetHkPricingView();
         return;
     }
 

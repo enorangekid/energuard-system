@@ -1687,6 +1687,25 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="hkIsoMarginModal" style="display:none; z-index:8100;">
+    <div class="pricing-input-modal-box" style="width:520px">
+      <div class="pricing-input-modal-header">
+        <div class="pim-header-left">
+          <span class="pim-title">한국단열 아이소핑크 마진 편집</span>
+          <span class="pim-sub">두께별 추가마진 · 원/mm</span>
+        </div>
+        <button class="pim-close-btn" onclick="closeHkIsoDraftMarginModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="pricing-input-modal-body" id="hkIsoMarginModalBody"></div>
+      <div class="pricing-input-modal-footer">
+        <button class="pim-btn-cancel" onclick="closeHkIsoDraftMarginModal()">닫기</button>
+        <button class="pim-btn-confirm" onclick="confirmHkIsoDraftMarginModal()">
+          <i class="fa-solid fa-check"></i> 확인
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- 토스트 알림 컨테이너 -->
   <div id="toast-container"></div>
 
