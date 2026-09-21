@@ -354,6 +354,8 @@ function renderHkCategoryPane(tabId) {
   if (tabId === 'hk_isopink') return renderHkIsopinkPane();
   // 스티로폼(비드법)은 아이소핑크 표 엔진을 그대로 쓰고 데이터·화면은 js/pricing-hankook-bead.js가 맡는다.
   if (tabId === 'hk_bead' && typeof renderHkBeadPane === 'function') return renderHkBeadPane();
+  // 부자재는 두께·규격 그룹이 없는 상품코드별 평면 표라 전용 파일에서 렌더한다.
+  if (tabId === 'hk_sub' && typeof renderHkSubPane === 'function') return renderHkSubPane();
 
   // 카테고리가 채워지면 여기에 전용 렌더 함수를 추가하면 됨 (renderHkIsopinkPane와 같은 패턴).
 
@@ -1912,6 +1914,7 @@ function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item
   if (config && config.layout === 'coupang') return _hkCoupangPriceParts(categoryId, productCode, config, item, product)?.registered ?? null;
   if (config && config.markupPercent) return _hkEsmPriceParts(categoryId, productCode, config)?.finalPrice ?? null;
   if (categoryId === 'hk_isopink') return _hkIsoLookupFinalPriceByCode(productCode);
+  if (categoryId === 'hk_sub' && typeof window.hkSubPriceByCode === 'function') return window.hkSubPriceByCode(productCode);
   return null;
 }
 

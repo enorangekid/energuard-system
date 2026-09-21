@@ -82,6 +82,8 @@ function _hkDbProductIndex() {
   });
   // 스티로폼(js/pricing-hankook-bead.js)은 2단계 배송 블록이 아직 없어 1단계 행에서 바로 코드를 만든다.
   if (typeof window.hkBeadProductIndex === 'function') list.push(...window.hkBeadProductIndex());
+  // 부자재는 각 행에 이미 고유 상품코드가 있어 평면 표의 행을 그대로 저장한다.
+  if (typeof window.hkSubProductIndex === 'function') list.push(...window.hkSubProductIndex());
   return list;
 }
 

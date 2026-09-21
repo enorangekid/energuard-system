@@ -1343,6 +1343,38 @@
    (칼럼 폭이 넓은 상품ID에서 특히 티가 남) 제대로 안 먹히고 있었다 — 그
    right 규칙을 확실히 이기도록 선택자를 클래스 2개+타입 2개로 잡았다. */
 .hk-iso-listing-table.pricing-table tbody td { text-align: center; }
+
+/* 한국단열 부자재 — 상품코드별 평면 단가표 */
+.hk-sub-card { overflow: hidden; }
+.hk-sub-table { min-width: 1630px; }
+.hk-sub-table th,
+.hk-sub-table td { text-align: center; white-space: nowrap; }
+.hk-sub-table tbody td { padding-top: 12px; padding-bottom: 12px; }
+.hk-sub-table .hk-sub-name {
+  min-width: 245px;
+  max-width: 245px;
+  text-align: left;
+  white-space: normal;
+  word-break: keep-all;
+  line-height: 1.35;
+  font-weight: 750;
+  color: #334155;
+}
+.hk-sub-table .hk-iso-draft-code { min-width: 125px; font-size: 10px; }
+.hk-sub-table .hk-sub-supplier { color: #64748b; }
+.hk-sub-table .hk-sub-cost { background: #f8fafc; font-weight: 700; }
+.hk-sub-table .hk-sub-previous { color: #64748b; background: #f8fafc; }
+.hk-sub-table .hk-sub-previous small { display: block; margin-top: 3px; color: #94a3b8; font-size: 10px; }
+.hk-sub-table .hk-sub-previous small.up { color: #dc2626; }
+.hk-sub-table .hk-sub-previous small.down { color: #2563eb; }
+.hk-sub-table .hk-sub-price-cell { min-width: 122px; background: #fff7ed; }
+.hk-sub-table .hk-sub-margin,
+.hk-sub-table .hk-sub-margin-rate,
+.hk-sub-table .hk-sub-fee,
+.hk-sub-table .hk-sub-vat,
+.hk-sub-table .hk-sub-net-margin { background: #f0fdf4; }
+.hk-sub-table .hk-sub-net-rate { color: #047857; background: #ecfdf5; font-weight: 850; }
+.hk-sub-table .hk-sub-ref-margin { color: #b91c1c; background: #fff1f2; font-weight: 850; }
 /* 상품ID가 같은 상품(옵션 묶음)임을 rowspan 병합 셀 + 새 상품 시작 행의 굵은
    윗선으로 보여준다 — 빈 칸으로만 표시하면 병합처럼 안 보이고 데이터 누락처럼
    보였다는 피드백으로 추가(2026-09-16). 그룹별 배경 줄무늬도 같이 넣었었는데
