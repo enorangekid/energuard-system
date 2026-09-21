@@ -51,6 +51,7 @@ const HK_ISO_SUPER_TABS = [
   {
     id: 'general',
     label: '일반 아이소핑크',
+    sub: '600x900 · 900x1800 · 고티',
     accordions: [
       { id: 'iso_600x900',         label: '600x900 일반' },
       { id: 'iso_600x900_high_t',  label: '600 계열 고티', sub: '600×860 · 600×430' },
@@ -62,6 +63,7 @@ const HK_ISO_SUPER_TABS = [
   {
     id: 'adhesive',
     label: '접착식 아이소핑크',
+    sub: '600x900 · 900x1800',
     accordions: [
       { id: 'adhesive_600x900_a',       label: '600x900' },
       { id: 'adhesive_900x1800_single', label: '900x1800 단품' },
@@ -71,6 +73,7 @@ const HK_ISO_SUPER_TABS = [
   {
     id: 'coupang',
     label: '쿠팡 위너',
+    sub: '쿠팡 전용',
     accordions: [
       { id: 'iso_coupang_winner', label: '쿠팡 위너 전체' },
     ],
@@ -197,7 +200,11 @@ const HK_ISO_DRAFT_EXTRA_MARGINS = {
   10:-10, 20:-10, 30:27, 40:27, 50:22,
   70:22, 100:22, 250:29, 500:29,
 };
-const HK_ISO_DRAFT_ADHESIVE_ADDON = 1350;
+// DB에 저장된 값을 불러올 때 js/pricing-hankook-db.js가 바꿀 수 있어 let이다.
+let HK_ISO_DRAFT_ADHESIVE_ADDON = 1350;
+// 단가 기준 년월(YYYY-MM) — 에너가드 단가표의 "단가 기준 년월"과 같은 역할. 저장할 때
+// 이 값이 이력 이름이 되고, 같은 년월로 다시 저장하면 그 년월 이력을 덮어쓴다.
+let HK_ISO_DRAFT_BASE_MONTH = '';
 
 const HK_ISO_CONNECTED_DRAFTS = {
   iso_600x900: {
@@ -267,22 +274,37 @@ function initHkPricingTabs() {
   const bodyWrap = document.getElementById('hkPricingBodyWrap');
   if (!tabsBar || !bodyWrap) return;
 
-  tabsBar.innerHTML = `<div class="pricing-tabs-row">
-    <div class="pricing-tabs" id="hkCategoryTabs">${HK_CATEGORIES.map((c, i) =>
-      `<button class="pricing-tab${i === 0 ? ' active' : ''}" onclick="setHkPricingTab('${c.id}',this)">${c.label}</button>`
-    ).join('')}</div>
-    <span class="hk-tab-divider"></span>
-    <div class="pricing-tabs" id="hkChannelTabs">${HK_CHANNELS.map(c =>
-      `<button class="pricing-tab" onclick="setHkChannel('${c.id}',this)">${c.label}</button>`
-    ).join('')}</div>
-  </div>`;
+  // 두 줄로 나눈 이유: 윗줄은 제품 카테고리별 "단가 정리", 아랫줄은 그 단가를 몰(채널)
+  // 단위로 적용·검증하는 화면이라 성격이 다르다. 줄마다 이름표와 색(인디고/청록)을 달리해서
+  // 구분한다. 선택 표시가 두 줄에서 동시에 켜지지 않는 규칙은 그대로다(setHkPricingTab/setHkChannel).
+  tabsBar.innerHTML = `
+    <div class="hk-tab-group hk-tab-group-category">
+      <div class="hk-tab-group-label"><i class="fa-solid fa-table-list"></i><span><strong>제품별 단가</strong><small>카테고리</small></span></div>
+      <div class="pricing-tabs" id="hkCategoryTabs">${HK_CATEGORIES.map((c, i) =>
+        `<button class="pricing-tab${i === 0 ? ' active' : ''}" onclick="setHkPricingTab('${c.id}',this)">${c.label}</button>`
+      ).join('')}</div>
+    </div>
+    <div class="hk-tab-group hk-tab-group-channel">
+      <div class="hk-tab-group-label"><i class="fa-solid fa-store"></i><span><strong>몰별 적용</strong><small>판매 채널</small></span></div>
+      <div class="pricing-tabs" id="hkChannelTabs">${HK_CHANNELS.map(c =>
+        `<button class="pricing-tab" onclick="setHkChannel('${c.id}',this)">${c.label}</button>`
+      ).join('')}</div>
+    </div>`;
 
+  window._hkRenderBody();
+}
+
+/* 본문(카테고리 패널 + 채널 목록 영역)만 다시 그린다. 초기 렌더와, DB에서 불러온 값을
+   화면에 반영할 때(js/pricing-hankook-db.js) 함께 쓴다. */
+window._hkRenderBody = function() {
+  const bodyWrap = document.getElementById('hkPricingBodyWrap');
+  if (!bodyWrap) return;
   bodyWrap.innerHTML = HK_CATEGORIES.map((c, i) =>
     `<div id="pricing-tab-${c.id}" class="pricing-tab-pane${i === 0 ? ' active' : ''}">${renderHkCategoryPane(c.id)}</div>`
   ).join('') + '<div class="hk-channel-catalog-section" id="hkChannelListingSection" hidden></div>';
 
   _hkIsoDraftRefreshAllTooltips();
-}
+};
 document.addEventListener('DOMContentLoaded', initHkPricingTabs);
 
 /* ═══════════════════════════════════════
@@ -468,15 +490,20 @@ function _hkIsoDraftMarginCard() {
   </tr>`).join('');
 
   return `<div class="card pricing-cost-card hk-iso-draft-margin-card" data-draft-tab="shared">
-    <div class="pricing-section-title">공통 원가 입력 <span class="pricing-section-sub">— 두께구간 기본 원가 + 두께별 추가마진</span></div>
+    <div class="pricing-section-title">공통 원가·배송 설정 <span class="pricing-section-sub">— 두께구간 기본 원가 + 두께별 추가마진 · 배송 정책</span></div>
     <div class="pricing-cost-footer hk-iso-shared-cost-controls">
-      <label class="pricing-base-month-wrap">
-        <span class="pricing-base-month-label">접착 가공비(원장당)</span>
-        <input type="text" inputmode="numeric" class="pricing-input-field pricing-month-field hk-iso-adhesive-fee-input" value="${HK_ISO_DRAFT_ADHESIVE_ADDON.toLocaleString()}" title="접착식 원장 한 장마다 원가에 더하는 고정 가공비입니다." oninput="updateHkIsoDraftFixedCost('shared',this)" onblur="formatHkIsoDraftPrice(this)">
-        <span class="hk-iso-adhesive-fee-note">원 추가</span>
-      </label>
+      <div class="pricing-base-month-wrap">
+        <label class="pricing-base-month-label" for="hkIsoBaseMonth">단가 기준 년월</label>
+        <input type="month" id="hkIsoBaseMonth" class="pricing-input-field pricing-month-field" value="${HK_ISO_DRAFT_BASE_MONTH}" oninput="hkIsoSetBaseMonth(this.value)">
+      </div>
       <button type="button" class="pricing-margin-edit-btn" onclick="openHkIsoDraftMarginModal()">
         <i class="fa-solid fa-sliders"></i> 마진 편집
+      </button>
+      <button type="button" class="pricing-margin-edit-btn" onclick="openHkIsoAdhesiveModal()" title="접착식 원장 한 장마다 원가에 더하는 가공비를 수정합니다.">
+        <i class="fa-solid fa-layer-group"></i> 접착 가공비
+      </button>
+      <button type="button" class="pricing-margin-edit-btn" onclick="toggleHkIsoShippingSection()" title="규격 그룹별 배송비·쿠폰·무료배송 정책을 수정합니다(일반·접착식·쿠팡 위너 전체).">
+        <i class="fa-solid fa-truck-fast"></i> 배송 세부설정
       </button>
     </div>
     <div class="pricing-cost-card-inner">
@@ -550,7 +577,7 @@ function _hkIsoUnifiedShippingCells(info) {
   const adjustmentText = info.applyAdjustment
     ? `${info.adjustment > 0 ? '+' : ''}${_hkIsoDraftNumber(info.adjustment)}`
     : `참고 ${info.adjustment > 0 ? '+' : ''}${_hkIsoDraftNumber(info.adjustment)}`;
-  return `<td class="hk-iso-unified-shipping" title="${info.policy}">
+  return `<td class="hk-iso-unified-shipping" title="${info.policy} — 눌러서 배송 세부설정 열기" onclick="openHkIsoShippingFor(this)">
       <span class="hk-iso-shipping-mode">${info.mode}</span>
       <span class="hk-iso-shipping-policy">${info.policy}</span>
     </td>
@@ -648,11 +675,11 @@ function _hkIsoAccordionSectionHtml(acc, isOpen) {
         <span>구조 연결 전</span>
       </div>`;
   return `<div class="hk-iso-accordion${isOpen ? ' open' : ''}" id="hkIsoAcc-${acc.id}">
-    <button type="button" class="hk-iso-accordion-head" onclick="toggleHkIsoAccordion('${acc.id}')">
+    <div class="hk-iso-accordion-head">
       <span class="hk-iso-accordion-title">${acc.label}${acc.sub ? `<span class="hk-iso-accordion-sub">${acc.sub}</span>` : ''}</span>
       <span class="hk-iso-accordion-count">기준단가 ${count}개</span>
-      <i class="fa-solid fa-chevron-down hk-iso-accordion-chevron"></i>
-    </button>
+      <button type="button" class="hk-iso-accordion-toggle" onclick="toggleHkIsoAccordion('${acc.id}')" title="펼치기 / 접기" aria-label="${acc.label} 펼치기 또는 접기"><i class="fa-solid fa-chevron-down hk-iso-accordion-chevron"></i></button>
+    </div>
     <div class="hk-iso-accordion-body">${bodyHtml}</div>
   </div>`;
 }
@@ -670,7 +697,7 @@ function _hkIsoRefreshUnifiedRowElement(row) {
   row.dataset.shippingApply = info.applyAdjustment ? '1' : '0';
   const shippingCell = row.querySelector('.hk-iso-unified-shipping');
   if (shippingCell) {
-    shippingCell.title = info.policy;
+    shippingCell.title = `${info.policy} — 눌러서 배송 세부설정 열기`;
     shippingCell.querySelector('.hk-iso-shipping-mode').textContent = info.mode;
     shippingCell.querySelector('.hk-iso-shipping-policy').textContent = info.policy;
   }
@@ -1206,6 +1233,20 @@ window.toggleHkIsoShippingSection = function() {
   modal.style.display = 'flex';
 };
 
+/* 기준 판매가 표의 "배송 정책" 칸을 누르면 배송 세부설정을 열고, 그 행이 속한 그룹의
+   같은 행(상품코드)으로 이동해서 잠깐 강조한다. */
+window.openHkIsoShippingFor = function(cell) {
+  const row = cell?.closest('tr');
+  if (!row) return;
+  window.toggleHkIsoShippingSection();
+  const target = document.querySelector(
+    `#hkIsoShippingSection tr[data-source-accordion="${row.dataset.draftTab}"][data-row-index="${row.dataset.rowIndex}"]`);
+  if (!target) return;
+  target.scrollIntoView({ block: 'center', inline: 'nearest' });
+  target.classList.add('hk-iso-ship-focus');
+  setTimeout(() => target.classList.remove('hk-iso-ship-focus'), 2500);
+};
+
 window.closeHkIsoShippingModal = function() {
   const modal = document.getElementById('hkIsoShippingModal');
   if (modal) modal.style.display = 'none';
@@ -1506,6 +1547,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const basePrice = baseByProduct[product.productId];
       const optionAdd = (targetPrice != null && basePrice != null) ? targetPrice - basePrice : null;
       const priceDiff = (targetPrice != null && item.prevPrice != null) ? targetPrice - item.prevPrice : null;
+      const shippingChanged = item.prevShipping != null && product.baseShipping != null && item.prevShipping !== product.baseShipping;
       const productLink = _hkChannelProductLink(channelId, product);
       const productIdValue = productLink
         ? `<a href="${productLink}" target="_blank" rel="noopener noreferrer">${product.productId}</a>`
@@ -1518,7 +1560,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
         <td class="hk-iso-draft-code">${item.productCode}</td>
         ${productIdCell}
-        <td class="hk-iso-ship-final-price">${_hkIsoDraftNumber(targetPrice)}</td>
+        <td class="hk-iso-ship-final-price${priceDiff ? ' is-changed' : ''}">${_hkIsoDraftNumber(targetPrice)}</td>
         <td>${_hkIsoDraftNumber(basePrice)}</td>
         <td>${optionAdd == null ? '—' : _hkIsoDraftNumber(optionAdd)}</td>
         <td>${_hkIsoDraftNumber(item.stock ?? 99999999)}</td>
@@ -1527,8 +1569,8 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
         <td>${_hkIsoDraftNumber(product.jejuShipping)}</td>
         <td>${product.returnExchange || '—'}</td>
         <td class="hk-iso-listing-prev-price">${_hkIsoDraftNumber(item.prevPrice)}</td>
-        <td class="hk-iso-listing-diff">${priceDiff == null ? '—' : _hkIsoDraftNumber(priceDiff)}</td>
-        <td class="hk-iso-listing-prev-shipping">${_hkIsoDraftNumber(item.prevShipping)}</td>
+        <td class="hk-iso-listing-diff${priceDiff ? ' is-changed' : ''}">${priceDiff == null ? '—' : (priceDiff > 0 ? '+' : '') + _hkIsoDraftNumber(priceDiff)}</td>
+        <td class="hk-iso-listing-prev-shipping${shippingChanged ? ' is-changed' : ''}">${_hkIsoDraftNumber(item.prevShipping)}</td>
       </tr>`;
     });
   });
@@ -1570,6 +1612,51 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
   </div>`;
 }
 
+/* 현재 판매가·배송비가 "수정 전" 값과 달라서 스토어에 반영해야 하는 옵션 목록.
+   categoryId를 주면 그 제품 종류만 센다. */
+function _hkChannelPendingItems(channelId, categoryId = 'all') {
+  const pending = [];
+  (HK_CHANNEL_LISTINGS[channelId] || []).forEach(product => {
+    if (categoryId !== 'all' && product.categoryId !== categoryId) return;
+    product.items.forEach(item => {
+      const target = _hkChannelTargetPrice(product.categoryId, item.productCode);
+      const priceChanged = target != null && item.prevPrice != null && target !== item.prevPrice;
+      const shippingChanged = item.prevShipping != null && product.baseShipping != null && item.prevShipping !== product.baseShipping;
+      if (priceChanged || shippingChanged) pending.push({ product, item, target });
+    });
+  });
+  return pending;
+}
+
+function _hkChannelPendingCount(channelId) {
+  return _hkChannelPendingItems(channelId).length;
+}
+
+/* "적용 완료" — 스토어에 새 값을 실제로 반영했다는 뜻이다. 수정 전 판매가·배송비를 지금의
+   현재 판매가·배송비로 바꿔서 차액을 0으로 되돌리고, 이후 단가를 고치면 그때부터의 차액이
+   다시 쌓인다. 지금 보고 있는 제품 종류 필터(전체/아이소핑크 등) 범위에만 적용한다. */
+window.hkChannelMarkApplied = function(channelId) {
+  const categoryId = _activeHkChannelCategory;
+  const scope = categoryId === 'all' ? '이 채널 전체' : (HK_CATEGORIES.find(c => c.id === categoryId)?.label || categoryId);
+  const pending = _hkChannelPendingItems(channelId, categoryId);
+  if (!pending.length) {
+    if (typeof showToast === 'function') showToast('반영 대기 중인 옵션이 없습니다.', 'info');
+    return;
+  }
+  if (!window.confirm(`${scope}의 수정 전 판매가·배송비를 지금의 현재 값으로 바꿉니다. (반영 대기 ${pending.length}개 옵션)\n스마트스토어에 새 값을 실제로 반영한 뒤에 누르세요. 계속할까요?`)) return;
+  (HK_CHANNEL_LISTINGS[channelId] || []).forEach(product => {
+    if (categoryId !== 'all' && product.categoryId !== categoryId) return;
+    product.items.forEach(item => {
+      const target = _hkChannelTargetPrice(product.categoryId, item.productCode);
+      if (target != null) item.prevPrice = target;
+      if (product.baseShipping != null) item.prevShipping = product.baseShipping;
+    });
+  });
+  window._hkRefreshChannelListing();
+  if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
+  if (typeof showToast === 'function') showToast(`${pending.length}개 옵션의 수정 전 값을 현재 값으로 바꿨습니다. 단가표 저장을 눌러 주세요.`, 'success');
+};
+
 function _hkChannelListingHtml(channelId) {
   const channelLabel = HK_CHANNELS.find(c => c.id === channelId)?.label || channelId;
   const products = HK_CHANNEL_LISTINGS[channelId] || [];
@@ -1589,11 +1676,17 @@ function _hkChannelListingHtml(channelId) {
   const filterButtons = filters.map(filter => `<button type="button" class="hk-channel-category-filter${_activeHkChannelCategory === filter.id ? ' active' : ''}" onclick="setHkChannelCategory('${filter.id}',this)">${filter.label}<span>${filter.count}</span></button>`).join('');
   const visibleCategories = HK_CATEGORIES.filter(category => counts[category.id] && (_activeHkChannelCategory === 'all' || _activeHkChannelCategory === category.id));
   const optionCount = products.reduce((sum, product) => sum + product.items.length, 0);
+  const pending = _hkChannelPendingCount(channelId);
 
   return `<div class="hk-channel-catalog-header card pricing-cost-card">
       <div class="pricing-result-header">
-        <div class="pricing-result-title">${channelLabel} — 몰별 적용·검증<span class="pricing-spec-badge">전체 상품 ${products.length} · 옵션 ${optionCount}</span></div>
-        <span class="pricing-result-hint">제품 종류별 기준 판매가를 상품코드로 연결합니다.</span>
+        <div class="pricing-result-title">${channelLabel} — 몰별 적용·검증<span class="pricing-spec-badge">전체 상품 ${products.length} · 옵션 ${optionCount}</span><span class="hk-channel-pending-badge${pending ? ' has-pending' : ''}">반영 대기 ${pending}</span></div>
+        <div class="hk-iso-header-actions">
+          <span class="pricing-result-hint">수정 전 판매가·배송비 = 스마트스토어에 마지막으로 반영한 값</span>
+          <button type="button" class="pricing-margin-edit-btn" onclick="hkChannelMarkApplied('${channelId}')" title="스마트스토어에 새 판매가·배송비를 실제로 반영한 뒤 누르세요. 수정 전 판매가·배송비가 지금의 현재 값으로 바뀌고 차액이 0이 됩니다(저장을 눌러야 DB에 남습니다).">
+            <i class="fa-solid fa-check-double"></i> 적용 완료
+          </button>
+        </div>
       </div>
       <div class="hk-channel-category-filters">${filterButtons}</div>
     </div>
@@ -1615,7 +1708,7 @@ window._hkRefreshChannelListing = function() {
 function renderHkIsopinkPane() {
   const marginCard = _hkIsoDraftMarginCard();
   const superTabs = HK_ISO_SUPER_TABS.map((s, index) => `
-    <button class="bead-subtab${index === 0 ? ' active' : ''}" onclick="setHkIsoSuperTab('${s.id}',this)">${s.label}</button>`
+    <button class="bead-subtab${index === 0 ? ' active' : ''}" onclick="setHkIsoSuperTab('${s.id}',this)">${s.label}<span class="bead-subtab-sub">${s.sub}</span></button>`
   ).join('');
   const superPanes = HK_ISO_SUPER_TABS.map((s, index) => `
     <div id="hkIsoSuper-${s.id}" class="hk-iso-super-pane${index === 0 ? ' active' : ''}">
@@ -1629,11 +1722,6 @@ function renderHkIsopinkPane() {
     ${marginCard}<div class="card pricing-result-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">한국단열 아이소핑크 기준 판매가<span class="pricing-spec-badge">원가·배송 통합</span></div>
-        <div class="hk-iso-header-actions">
-          <button type="button" class="pricing-margin-edit-btn hk-iso-shipping-toggle-btn" id="hkIsoShippingToggleBtn" onclick="toggleHkIsoShippingSection()">
-            <i class="fa-solid fa-truck-fast"></i> 배송 세부설정
-          </button>
-        </div>
       </div>
       <div class="bead-subtab-bar" id="hkIsoSuperTabBar">${superTabs}</div>
       ${superPanes}
@@ -1703,6 +1791,7 @@ window.revertHkIsoRowPrice = function(button) {
   window.updateHkIsoPriceHistory(input);
   input.readOnly = true;
   cell.classList.remove('editing');
+  if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
 };
 
 window.handleHkIsoRowPriceKey = function(event, input) {
@@ -1744,6 +1833,41 @@ window.closeHkIsoDraftMarginModal = function() {
   if (modal) modal.style.display = 'none';
 };
 
+/* 접착 가공비(접착식 원장 한 장당 원가에 더하는 고정 금액) 편집 창 */
+window.openHkIsoAdhesiveModal = function() {
+  const modal = document.getElementById('hkIsoAdhesiveModal');
+  const input = document.getElementById('hkIsoAdhesiveFeeInput');
+  if (!modal || !input) return;
+  input.value = HK_ISO_DRAFT_ADHESIVE_ADDON.toLocaleString();
+  modal.style.display = 'flex';
+  input.focus();
+  input.select();
+};
+
+window.closeHkIsoAdhesiveModal = function() {
+  const modal = document.getElementById('hkIsoAdhesiveModal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.confirmHkIsoAdhesiveModal = function() {
+  const input = document.getElementById('hkIsoAdhesiveFeeInput');
+  if (!input) return;
+  const fee = _hkIsoDraftParseNumber(input.value);
+  if (fee !== HK_ISO_DRAFT_ADHESIVE_ADDON) {
+    HK_ISO_DRAFT_ADHESIVE_ADDON = fee;
+    Object.values(HK_ISO_CONNECTED_DRAFTS).forEach(draft => {
+      if (Number(draft.fixedCostAddon) > 0) draft.fixedCostAddon = fee;
+    });
+    window.updateHkIsoDraftFixedCost('shared', { value: fee });
+    if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
+  }
+  closeHkIsoAdhesiveModal();
+};
+
+window.hkIsoSetBaseMonth = function(value) {
+  HK_ISO_DRAFT_BASE_MONTH = String(value || '');
+};
+
 window.previewHkIsoDraftMargin = function(thickness, input) {
   const preview = document.querySelector(`.hk-iso-applied-cost-preview[data-modal-thickness="${thickness}"]`);
   if (preview) preview.textContent = _hkIsoDraftNumber(_hkIsoDraftBaseCost(thickness) + _hkIsoDraftParseNumber(input.value));
@@ -1756,6 +1880,7 @@ window.confirmHkIsoDraftMarginModal = function() {
   });
   Object.keys(HK_ISO_DRAFT_EXTRA_MARGINS).forEach(thickness => _hkIsoDraftApplySharedCost(Number(thickness)));
   closeHkIsoDraftMarginModal();
+  if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
 };
 
 function _hkIsoDraftApplySharedCost(thickness) {
@@ -1860,6 +1985,8 @@ window.formatHkIsoDraftPrice = function(input) {
 document.addEventListener('click', function(event) {
   const modal = document.getElementById('hkIsoMarginModal');
   if (modal && event.target === modal) closeHkIsoDraftMarginModal();
+  const adhesiveModal = document.getElementById('hkIsoAdhesiveModal');
+  if (adhesiveModal && event.target === adhesiveModal) closeHkIsoAdhesiveModal();
   const shippingModal = document.getElementById('hkIsoShippingModal');
   if (shippingModal && event.target === shippingModal) closeHkIsoShippingModal();
 });
@@ -1879,4 +2006,6 @@ window.resetHkPricingView = function() {
     });
   }
   _lockHkIsoRowPriceEditors();
+  // 처음 들어올 때 한 번 DB에서 저장값을 불러온다(js/pricing-hankook-db.js).
+  if (typeof window.hkDbEnsureLoaded === 'function') window.hkDbEnsureLoaded();
 };

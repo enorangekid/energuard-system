@@ -22,8 +22,46 @@
    카드 맨 밑에 빈 여백으로 남는다 — 업무노트/미디어콘텐츠에서 이미 겪은 것과 같은
    문제(2026-08-18). */
 #page-pricing .card.input-panel h3:last-child { margin-bottom: 0; }
-.pricing-tabs-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.hk-tab-divider { width: 1px; align-self: stretch; min-height: 22px; background: var(--border); }
+/* 한국단열 탭바 — 위: 제품별 단가(카테고리, 인디고) / 아래: 몰별 적용(판매 채널, 청록).
+   줄마다 이름표를 두고 아랫줄은 배경색을 깔아서 서로 다른 영역임을 보여준다. */
+#hkPricingTabsBar { padding: 0; overflow: hidden; }
+.hk-tab-group { display: flex; align-items: center; gap: 18px; padding: 13px 24px; }
+.hk-tab-group-label {
+  display: flex; align-items: center; gap: 10px; flex: 0 0 132px;
+  font-size: 13px; color: #4f46e5;
+}
+.hk-tab-group-label i {
+  width: 30px; height: 30px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; background: #eef2ff; font-size: 13px;
+}
+.hk-tab-group-label span { display: flex; flex-direction: column; line-height: 1.25; }
+.hk-tab-group-label strong { font-size: 13px; font-weight: 800; }
+.hk-tab-group-label small { font-size: 11px; font-weight: 500; opacity: 0.7; }
+.hk-tab-group-channel {
+  background: #f0fdfa; border-top: 1px solid #ccfbf1;
+}
+.hk-tab-group-channel .hk-tab-group-label { color: #0f766e; }
+.hk-tab-group-channel .hk-tab-group-label i { background: #ccfbf1; }
+.hk-tab-group-channel .pricing-tab { background: #fff; border-color: #ccfbf1; }
+.hk-tab-group-channel .pricing-tab:hover { background: #f0fdfa; color: #0f766e; }
+.hk-tab-group-channel .pricing-tab.active {
+  background: #0d9488; border-color: #0d9488; color: #fff;
+  box-shadow: 0 4px 10px rgba(13,148,136,0.25);
+}
+@media (max-width: 900px) {
+  .hk-tab-group { flex-wrap: wrap; gap: 10px; }
+  .hk-tab-group-label { flex-basis: 100%; }
+}
+/* 한국단열 헤드 우측 — 최근 저장 문구 상태 색과 저장 버튼 */
+#hkPricingHeaderRight { flex-wrap: nowrap; min-width: 0; }
+#hkPricingHeaderRight > *, #hkPricingHeaderRight .pricing-history-btn { white-space: nowrap; flex-shrink: 0; }
+/* 폭이 모자랄 때(실제 적용가 경고 문구가 길 때)는 최근 저장 문구만 줄여서 버튼이 카드 밖으로 안 나가게 한다. */
+#hkPricingHeaderRight > #hkDbLastSaved { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#hkDbLastSaved.is-dirty { color: #b45309; font-weight: 600; }
+#hkDbLastSaved.is-error { color: #b91c1c; font-weight: 600; }
+#hkDbSaveBtn:disabled { opacity: 0.55; cursor: default; }
+#hkDbSaveBtn.is-dirty { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35); }
 .pricing-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .pricing-tab {
   padding: 8px 18px; border-radius: 8px;
@@ -906,29 +944,32 @@
 .hk-iso-super-pane.active { display: block; }
 .hk-iso-super-pane .pricing-coming-soon { min-height: 240px; }
 
-.hk-iso-accordion-list { display: flex; flex-direction: column; gap: 10px; }
-.hk-iso-accordion {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: #fff;
-}
+/* 규격 그룹 머리글은 카드가 아니라 위아래 구분선만 둔다. 펼치고 접는 건 오른쪽 화살표
+   버튼만 담당한다(머리글 나머지 영역은 클릭해도 반응하지 않음). */
+.hk-iso-accordion-list { display: flex; flex-direction: column; }
+.hk-iso-accordion { border-bottom: 1px solid var(--border); background: #fff; }
 .hk-iso-accordion-head {
-  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 15px 18px;
-  border: none;
-  background: #f8fafc;
-  cursor: pointer;
+  padding: 10px 16px;
   font-size: 14px;
   font-weight: 700;
   color: #1e293b;
-  text-align: left;
 }
-.hk-iso-accordion-head:hover { background: #f1f5f9; }
-.hk-iso-accordion.open .hk-iso-accordion-head { background: #eef2ff; }
+.hk-iso-accordion-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+.hk-iso-accordion-toggle:hover { background: #eef2ff; }
+.hk-iso-accordion-toggle:hover .hk-iso-accordion-chevron { color: #4f46e5; }
 .hk-iso-accordion-title { flex: 1; display: flex; align-items: baseline; gap: 8px; }
 .hk-iso-accordion-sub { font-size: 12px; font-weight: 500; color: #94a3b8; }
 .hk-iso-accordion-count {
@@ -940,7 +981,6 @@
   border-radius: 999px;
   white-space: nowrap;
 }
-.hk-iso-accordion.open .hk-iso-accordion-count { background: #fff; }
 .hk-iso-accordion-chevron { color: #94a3b8; transition: transform .15s ease; }
 .hk-iso-accordion.open .hk-iso-accordion-chevron { transform: rotate(180deg); color: #4f46e5; }
 .hk-iso-accordion-body { display: none; padding: 16px; }
@@ -1082,9 +1122,10 @@
 .hk-iso-draft-margin-table th,
 .hk-iso-draft-margin-table td { text-align: center; }
 .hk-iso-draft-margin-input { width: 82px; text-align: right; }
-.hk-iso-adhesive-fee-wrap { margin: 0 0 14px; padding: 0 0 12px; }
-.hk-iso-adhesive-fee-input { width: 100px; text-align: right; }
-.hk-iso-adhesive-fee-note { color: #b45309; font-size: 12px; font-weight: 700; }
+.hk-iso-adhesive-modal-field { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.hk-iso-adhesive-modal-field span { font-size: 13px; font-weight: 700; color: #334155; white-space: nowrap; }
+.hk-iso-adhesive-modal-field .pim-input { width: 130px; text-align: right; }
+.hk-iso-adhesive-modal-field em { font-style: normal; color: #b45309; font-size: 12px; font-weight: 700; }
 .hk-iso-calc-cell {
   cursor: help;
   text-decoration: underline dotted rgba(71,85,105,0.45);
@@ -1111,13 +1152,29 @@
   background: #fde68a;
 }
 
+/* 몰별 화면 — 스토어에 반영해야 하는(차액이 있는) 값 강조와 "반영 대기" 배지 */
+.hk-iso-listing-table td.hk-iso-ship-final-price.is-changed,
+.hk-iso-listing-table td.hk-iso-listing-diff.is-changed,
+.hk-iso-listing-table td.hk-iso-listing-prev-shipping.is-changed {
+  color: #dc2626; font-weight: 800; background: #fee2e2;
+  box-shadow: inset 0 0 0 2px #f87171;
+}
+.hk-channel-pending-badge {
+  margin-left: 8px; padding: 2px 9px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; background: #f1f5f9; color: #64748b;
+}
+.hk-channel-pending-badge.has-pending { background: #fee2e2; color: #dc2626; }
+
+/* 기준 판매가 표의 배송 정책 칸은 누르면 배송 세부설정이 열린다 */
+.hk-iso-draft-table td.hk-iso-unified-shipping { cursor: pointer; }
+.hk-iso-draft-table td.hk-iso-unified-shipping:hover { background: #eef2ff; }
+/* 배송 세부설정 팝업에서 방금 누른 행을 잠깐 강조 */
+.hk-iso-shipping-table tr.hk-iso-ship-focus td {
+  box-shadow: inset 0 3px 0 #4f46e5, inset 0 -3px 0 #4f46e5;
+}
+
 /* 한국단열 아이소핑크 — 2단계(상품번호별 배송비/실판매가) */
 .hk-iso-header-actions { display: flex; align-items: center; gap: 8px; }
-.hk-iso-shipping-toggle-btn.open {
-  background: #eef2ff;
-  border-color: #818cf8;
-  color: #4338ca;
-}
 .hk-iso-shipping-section:not([hidden]) { margin-top: 16px; display: flex; flex-direction: column; gap: 16px; }
 .hk-iso-shipping-block .pricing-result-header { border-radius: 12px 12px 0 0; }
 .hk-iso-shipping-table { min-width: 1280px; }

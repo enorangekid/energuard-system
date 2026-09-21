@@ -1121,6 +1121,27 @@
                 <i class="fa-solid fa-store"></i> 모음전 옵션
               </button>
             </div>
+            <!-- 한국단열 전용 — 에너가드와 같은 자리(헤드 우측)에 최근 저장 / 실제 적용가 / 이력 /
+                 단가표 저장을 둔다. 동작은 js/pricing-hankook-db.js가 전담(2026-09-21). -->
+            <div class="pricing-header-right" id="hkPricingHeaderRight" style="display:none;">
+              <span class="pricing-last-saved" id="hkDbLastSaved"></span>
+              <span class="pricing-live-badge" id="hkDbLiveBadge"></span>
+              <div class="pricing-history-wrap" id="hkDbHistoryWrap">
+                <button type="button" class="pricing-history-btn" id="hkDbHistoryBtn" onclick="hkDbToggleHistory()">
+                  <i class="fa-solid fa-clock-rotate-left"></i> 이력
+                  <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:2px;"></i>
+                </button>
+                <div class="pricing-history-dropdown" id="hkDbHistoryDropdown">
+                  <div class="pricing-history-header">저장된 단가 이력 (단가 기준 년월)</div>
+                  <div id="hkDbHistoryList" class="pricing-history-list">
+                    <div class="pricing-history-empty">저장된 이력이 없습니다</div>
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="btn-server" id="hkDbSaveBtn" onclick="hkDbSave()" style="background:#4f46e5;">
+                <i class="fa-solid fa-cloud-arrow-up"></i> 단가표 저장
+              </button>
+            </div>
             <!-- 앱가격 전용 — "앱에 저장" 버튼을 카드 안 제목줄에서 헤드 우측으로 이동(2026-08-18) -->
             <div class="pricing-header-right" id="pricingAppHeaderRight" style="display:none;">
               <span class="pricing-last-saved" id="appPriceSaveStatus"></span>
@@ -1706,6 +1727,32 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="hkIsoAdhesiveModal" style="display:none; z-index:8100;">
+    <div class="pricing-input-modal-box hk-iso-adhesive-modal-box" style="width:420px">
+      <div class="pricing-input-modal-header">
+        <div class="pim-header-left">
+          <span class="pim-title">접착 가공비 편집</span>
+          <span class="pim-sub">접착식 원장당 · 원</span>
+        </div>
+        <button class="pim-close-btn" onclick="closeHkIsoAdhesiveModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="pricing-input-modal-body">
+        <div class="pim-margin-hint">접착식 아이소핑크 원장 한 장의 원가에 더해지는 고정 가공비입니다. 바꾸면 접착식 전 규격의 원가와 마진이 다시 계산됩니다.</div>
+        <label class="hk-iso-adhesive-modal-field">
+          <span>접착 가공비</span>
+          <input type="text" inputmode="numeric" id="hkIsoAdhesiveFeeInput" class="pim-input" onblur="formatHkIsoDraftPrice(this)" onkeydown="if(event.key==='Enter')confirmHkIsoAdhesiveModal()">
+          <em>원 추가</em>
+        </label>
+      </div>
+      <div class="pricing-input-modal-footer">
+        <button class="pim-btn-cancel" onclick="closeHkIsoAdhesiveModal()">닫기</button>
+        <button class="pim-btn-confirm" onclick="confirmHkIsoAdhesiveModal()">
+          <i class="fa-solid fa-check"></i> 확인
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="hkIsoShippingModal" style="display:none; z-index:8150;">
     <div class="pricing-input-modal-box hk-iso-shipping-modal-box">
       <div class="pricing-input-modal-header">
@@ -1742,6 +1789,7 @@
 <script src="js/pricing-highlight.js"></script>
 <script src="js/pricing-danpum-code.js"></script>
 <script src="js/pricing-hankook.js"></script>
+<script src="js/pricing-hankook-db.js"></script>
 <script src="js/dashboard.js?v=20260820-authfix2"></script>
 <script>
 /* ── 아이디 입력창 X 아이콘 제어 ── */

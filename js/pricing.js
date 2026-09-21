@@ -2647,6 +2647,10 @@ window.setPricingCompany = function(company) {
 
     comingSoon.style.display = 'none'; // 더 이상 안 씀, 하위호환으로만 유지
 
+    // 한국단열 헤드 우측(최근 저장/실제 적용가/이력/단가표 저장)은 한국단열일 때만 보인다.
+    const hkHeaderRight = document.getElementById('hkPricingHeaderRight');
+    if (hkHeaderRight) hkHeaderRight.style.display = company === 'hkd' ? '' : 'none';
+
     if (company === 'hkd') {
         tabsBar.style.display = 'none';
         bodyWrap.style.display = 'none';
