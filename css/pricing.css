@@ -943,6 +943,13 @@
 .hk-iso-super-pane { display: none; }
 .hk-iso-super-pane.active { display: block; }
 .hk-iso-super-pane .pricing-coming-soon { min-height: 240px; }
+/* 스티로폼(js/pricing-hankook-bead.js)도 같은 모양의 상위 탭을 쓴다 — 아이소핑크 탭 전환이 건드리지 않게 클래스만 따로 둔다. */
+.hk-bead-super-pane { display: none; }
+.hk-bead-super-pane.active { display: block; }
+/* 마진 편집 팝업의 원장 규격 옆 면적 표시 */
+.hk-bead-area { margin-left: 6px; color: #94a3b8; font-size: 11px; font-weight: 500; }
+/* 배송비 칸이 참고용인 표(스티로폼): 계산에 쓰이지 않는 값이라 흐리게 */
+.hk-iso-draft-table td.hk-iso-ref-only { color: #94a3b8; }
 
 /* 규격 그룹 머리글은 카드가 아니라 위아래 구분선만 둔다. 펼치고 접는 건 오른쪽 화살표
    버튼만 담당한다(머리글 나머지 영역은 클릭해도 반응하지 않음). */
@@ -1111,6 +1118,8 @@
 .hk-iso-base-cost-table { width: auto; min-width: 430px; }
 .hk-iso-base-cost-table th,
 .hk-iso-base-cost-table td { text-align: center; }
+/* 원가 표 좌하단 라운드 — 공통 규칙(.pricing-cost-unified-table)에는 우하단만 있어서 좌하단이 각져 있었다(2026-09-21). */
+.hk-iso-base-cost-table tbody tr:last-child td:first-child { border-radius: 0 0 0 8px; }
 .hk-iso-base-cost-input { width: 92px; text-align: right; }
 .hk-iso-shared-cost-controls { justify-content: flex-start; }
 .hk-iso-base-cost-preview,
@@ -1170,6 +1179,10 @@
 }
 .hk-memo-input { width: 100%; min-width: 180px; text-align: left; }
 .hk-channel-status-badge.is-manual { background: #fef3c7; color: #b45309; }
+
+/* 쿠팡 표 — 옵션 ID 링크(쿠팡 상품 페이지에서 그 옵션을 선택해 열기) */
+.hk-option-link { color: #2563eb; text-decoration: underline; text-underline-offset: 2px; }
+.hk-option-link:hover { color: #1d4ed8; }
 
 /* 쿠팡 표 — 쿠폰 할인율 칸: 10%는 연한 파랑, 12%는 주황으로 눈에 띄게 구분 */
 .hk-esm-table td.hk-coupon-off { font-weight: 800; }
@@ -1373,7 +1386,9 @@
    규칙을 공유하면 밀린 순번이 엉뚱한 칸(예: 네이버판매가, 재고수량)에 파란
    줄무늬로 덧씌워진다(2026-09-16, 사용자가 스크린샷으로 발견). 그래서 3단계
    표는 이 규칙들에서 제외한다. */
-.hk-iso-draft-table:not(.hk-iso-listing-table):not(.hk-iso-shipping-table) tbody td:nth-child(19) {
+/* 참고마진(19번째)·순수마진율(18번째)은 칸 이름으로 꾸민다 — 스티로폼 표는 배송 정책·가격 조정·현재 판매가
+   열이 없어 순번이 3칸 당겨지므로 위치(nth-child)로 잡으면 스타일이 빠진다(2026-09-21). */
+.hk-iso-draft-table:not(.hk-iso-listing-table):not(.hk-iso-shipping-table) tbody td.hk-iso-draft-ref-margin {
   color: #be123c;
   background: #fff1f2;
   border-left: 2px solid #fecdd3;
@@ -1388,12 +1403,12 @@
   background: #f1f5f9;
   font-weight: 700;
 }
-.hk-iso-draft-table:not(.hk-iso-listing-table):not(.hk-iso-shipping-table) tbody td:nth-child(18) {
+.hk-iso-draft-table:not(.hk-iso-listing-table):not(.hk-iso-shipping-table) tbody td.hk-iso-draft-rate {
   color: #15803d;
   background: #f0fdf4;
   font-weight: 800;
 }
-.hk-iso-draft-table:not(.hk-iso-listing-table):not(.hk-iso-shipping-table) tbody tr:hover td:nth-child(19) { background: #ffe4e6; }
+.hk-iso-draft-table:not(.hk-iso-listing-table):not(.hk-iso-shipping-table) tbody tr:hover td.hk-iso-draft-ref-margin { background: #ffe4e6; }
 
 /* 기본 .pricing-input-modal-box(width:780px)가 이 파일 뒤쪽에 나와서 선택자 우선순위가
    같으면 그쪽이 이겨 팝업이 780px로 고정돼 표가 잘렸다(2026-09-21) — 클래스를 겹쳐서

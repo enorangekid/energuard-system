@@ -352,9 +352,10 @@ function renderHkCategoryPane(tabId) {
   if (!cat) return '';
 
   if (tabId === 'hk_isopink') return renderHkIsopinkPane();
+  // 스티로폼(비드법)은 아이소핑크 표 엔진을 그대로 쓰고 데이터·화면은 js/pricing-hankook-bead.js가 맡는다.
+  if (tabId === 'hk_bead' && typeof renderHkBeadPane === 'function') return renderHkBeadPane();
 
-  // 카테고리가 채워지면 여기 if(tabId==='hk_bead'){...} 식으로
-  // 전용 렌더 함수를 추가하면 됨 (renderHkIsopinkPane와 같은 패턴).
+  // 카테고리가 채워지면 여기에 전용 렌더 함수를 추가하면 됨 (renderHkIsopinkPane와 같은 패턴).
 
   return `
     <div class="pricing-coming-soon">
@@ -377,6 +378,8 @@ function _hkIsoDraftDivisor(saleSize) {
   if (String(saleSize).startsWith('600*430')) return 6;
   if (String(saleSize).startsWith('600*860')) return 3;
   if (String(saleSize).startsWith('600*900')) return 3;
+  // 900*1800 원장을 반으로 자른 1200*900(스티로폼) — 정확히 1.5장분이라 1.5로 나눈다.
+  if (String(saleSize).startsWith('1200*900') || String(saleSize).startsWith('900*1200')) return 1.5;
   return 1;
 }
 
@@ -417,8 +420,10 @@ function _hkIsoDraftUpdateRowTooltip(row) {
     : `${_hkIsoDraftNumber(saleCost)}원`;
 
   const addonText = fixedCostAddon ? ` + 접착 가공비 ${fixedCostAddon.toLocaleString()}원` : '';
-  _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-margin-per-mm'),
-    `적용 원가: ${marginPerMm.toLocaleString()}원/mm\n구간 기본 원가 ${_hkIsoDraftBaseCost(thickness).toLocaleString()}원/mm + 두께별 추가마진으로 계산됩니다.`);
+  const isBead = row.dataset.line === 'bead';
+  _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-margin-per-mm'), isBead
+    ? `적용 원가: ${marginPerMm.toLocaleString()}원/mm\n기본 원가(원/㎡·mm) × 원장 면적 + 추가마진(공통 원가 설정 카드)이고 두께와 관계없이 같습니다.`
+    : `적용 원가: ${marginPerMm.toLocaleString()}원/mm\n구간 기본 원가 ${_hkIsoDraftBaseCost(thickness).toLocaleString()}원/mm + 두께별 추가마진으로 계산됩니다.`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-sheet-cost'),
     `원가 = 적용 원가 ${marginPerMm.toLocaleString()}원/mm × ${thickness}T${addonText}\n= ${sheetCost.toLocaleString()}원`);
   _hkIsoDraftSetTooltip(row.children[4],
@@ -438,8 +443,10 @@ function _hkIsoDraftUpdateRowTooltip(row) {
     `판매수수료 = 최종 판매가 ${finalPrice.toLocaleString()}원 × 6%\n= ${fee.toLocaleString()}원`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-vat'),
     `부가세 = 최종 판매가 ${finalPrice.toLocaleString()}원 × 10%\n= ${vat.toLocaleString()}원`);
-  _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-shipping'),
-    shipping ? `판매 시 차감하는 배송비\n= ${shipping.toLocaleString()}원` : '차감할 배송비가 없습니다.');
+  const refShipping = _hkIsoDraftParseNumber(row.dataset.refShipping);
+  _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-shipping'), isBead
+    ? (refShipping ? `참고용 배송비 ${refShipping.toLocaleString()}원\n원본 엑셀과 같이 장당마진에서는 빼지 않습니다.` : '표시할 배송비가 없습니다.')
+    : (shipping ? `판매 시 차감하는 배송비\n= ${shipping.toLocaleString()}원` : '차감할 배송비가 없습니다.'));
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-net-margin'),
     `장당마진 = 마진 ${_hkIsoDraftNumber(rawMargin)}원 - 수수료 ${fee.toLocaleString()}원 - 부가세 ${vat.toLocaleString()}원${shipping ? ` - 배송비 ${shipping.toLocaleString()}원` : ''}\n= ${_hkIsoDraftNumber(rawNetMargin)}원${rawNetMargin !== netMargin ? ` → 반올림 ${netMargin.toLocaleString()}원` : ''}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-rate'),
@@ -535,7 +542,8 @@ function _hkIsoDraftProductCode(saleSize, thickness, isAdhesive, codePrefix) {
 function _hkIsoUnifiedShippingInfo(tabId, rowIndex, row, thickness, basePrice) {
   const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.sourceAccordion === tabId);
   if (!block) {
-    const fallbackCode = _hkIsoDraftProductCode(row.saleSize, thickness, false);
+    // 2단계 배송 블록이 아직 없는 그룹(스티로폼 등) — 코드는 그룹의 접두어(St/StA/Neo)로 만든다.
+    const fallbackCode = _hkIsoDraftProductCode(row.saleSize, thickness, false, HK_ISO_CONNECTED_DRAFTS[tabId]?.codePrefix);
     return { code:fallbackCode, mode:'미설정', policy:'배송 설정 없음', adjustment:0, applyAdjustment:false, targetPrice:basePrice };
   }
 
@@ -585,8 +593,16 @@ function _hkIsoUnifiedShippingCells(info) {
     <td class="hk-iso-unified-target">${_hkIsoDraftNumber(info.targetPrice)}</td>`;
 }
 
-function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, fixedCostAddon = 0) {
-  const isAdhesive = Number(fixedCostAddon) > 0;
+/* draft(선택): 스티로폼처럼 아이소핑크와 계산 규칙이 조금 다른 그룹의 옵션.
+   line:'bead' → 행에 data-line/data-unit-key를 달아 아이소핑크의 공통 원가 갱신이 건드리지 않게 하고,
+   isAdhesive → 접착식 여부를 명시, deductShipping:false → 배송비 칸은 참고용(장당마진에서 안 뺌),
+   hideUnifiedShipping → 2단계 배송 연결 전이라 배송 정책·가격 조정·현재 판매가 열을 숨김. */
+function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, fixedCostAddon = 0, draft = null) {
+  const isAdhesive = draft && draft.isAdhesive != null ? !!draft.isAdhesive : Number(fixedCostAddon) > 0;
+  const lineAttr = draft && draft.line ? ` data-line="${draft.line}" data-unit-key="${draft.unitKey || ''}"` : '';
+  const showUnified = !(draft && draft.hideUnifiedShipping);
+  const deductShipping = !(draft && draft.deductShipping === false);
+  const shippingHeader = (draft && draft.shippingHeader) || '배송비';
   let currentThickness = null;
   let currentSheetCost = null;
   let currentMarginPerMm = null;
@@ -602,9 +618,10 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, f
     const quantity = Number(row.saleSize.split('-').pop()) || 1;
     const rawSaleCost = currentSheetCost / divisor * quantity;
     const saleCost = Math.round(rawSaleCost);
-    const expectedPrice = _hkIsoDraftExpectedPrice(rawSaleCost, row.refMargin, row.shipping);
+    const calcShipping = deductShipping ? Number(row.shipping || 0) : 0;
+    const expectedPrice = _hkIsoDraftExpectedPrice(rawSaleCost, row.refMargin, calcShipping);
     const shippingInfo = _hkIsoUnifiedShippingInfo(tabId, rowIndex, row, currentThickness, Number(row.price));
-    return `<tr data-draft-tab="${tabId}" data-row-index="${rowIndex}" data-product-code="${shippingInfo.code}" data-thickness="${currentThickness}" data-size-group="${sizeGroup}" data-sale-cost="${saleCost}" data-sale-cost-raw="${rawSaleCost}" data-sheet-cost="${currentSheetCost}" data-fixed-cost-addon="${fixedCostAddon}" data-margin-per-mm="${currentMarginPerMm}" data-reference-margin="${row.refMargin}" data-sale-size="${row.saleSize}" data-shipping="${row.shipping || 0}" data-shipping-adjustment="${shippingInfo.adjustment}" data-shipping-apply="${shippingInfo.applyAdjustment ? 1 : 0}" data-is-adhesive="${isAdhesive ? 1 : 0}">
+    return `<tr data-draft-tab="${tabId}" data-row-index="${rowIndex}" data-product-code="${shippingInfo.code}" data-thickness="${currentThickness}" data-size-group="${sizeGroup}" data-sale-cost="${saleCost}" data-sale-cost-raw="${rawSaleCost}" data-sheet-cost="${currentSheetCost}" data-fixed-cost-addon="${fixedCostAddon}" data-margin-per-mm="${currentMarginPerMm}" data-reference-margin="${row.refMargin}" data-sale-size="${row.saleSize}" data-shipping="${calcShipping}" data-ref-shipping="${row.shipping || 0}" data-shipping-adjustment="${shippingInfo.adjustment}" data-shipping-apply="${shippingInfo.applyAdjustment ? 1 : 0}" data-is-adhesive="${isAdhesive ? 1 : 0}"${row.sheetFollow ? ' data-sheet-follow="1"' : ''}${lineAttr}>
     <td class="hk-iso-draft-name">${row.name || '　'}</td>
     <td class="hk-iso-draft-margin-per-mm">${_hkIsoDraftNumber(row.unit)}</td>
     <td>${row.spec || '—'}</td>
@@ -620,11 +637,11 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, f
       </div>
       <div class="hk-iso-price-history" hidden>변경 전 <span>${Number(row.price).toLocaleString()}원</span><button type="button" onclick="revertHkIsoRowPrice(this)" title="변경 전 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
     </td>
-    ${_hkIsoUnifiedShippingCells(shippingInfo)}
+    ${showUnified ? _hkIsoUnifiedShippingCells(shippingInfo) : ''}
     <td class="hk-iso-draft-margin">${_hkIsoDraftNumber(row.margin)}</td>
     <td class="hk-iso-draft-fee">${_hkIsoDraftNumber(row.fee)}</td>
     <td class="hk-iso-draft-vat">${_hkIsoDraftNumber(row.vat)}</td>
-    <td class="hk-iso-draft-shipping">${row.shipping ? _hkIsoDraftNumber(row.shipping) : '—'}</td>
+    <td class="hk-iso-draft-shipping${deductShipping ? '' : ' hk-iso-ref-only'}">${row.shipping ? _hkIsoDraftNumber(row.shipping) : '—'}</td>
     <td class="hk-iso-draft-net-margin">${_hkIsoDraftNumber(row.netMargin)}</td>
     <td class="hk-iso-draft-rate">${_hkIsoDraftNumber(row.rate, '%')}</td>
     <td class="hk-iso-draft-ref-margin">${_hkIsoDraftNumber(row.refMargin, '%')}</td>
@@ -643,13 +660,13 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, f
           <th rowspan="2" class="hk-iso-head-size">판매사이즈</th>
           <th rowspan="2" class="hk-iso-head-base">판매원가</th>
           <th colspan="2" class="hk-iso-head-sale-price">${saleGroupLabel}</th>
-          <th rowspan="2" class="hk-iso-head-shipping">배송 정책</th>
+          ${showUnified ? `<th rowspan="2" class="hk-iso-head-shipping">배송 정책</th>
           <th rowspan="2" class="hk-iso-head-shipping">가격 조정</th>
-          <th rowspan="2" class="hk-iso-head-target">현재 판매가</th>
+          <th rowspan="2" class="hk-iso-head-target">현재 판매가</th>` : ''}
           <th class="hk-iso-head-margin">마진</th>
           <th rowspan="2" class="hk-iso-head-margin">판매수수료 6%</th>
           <th rowspan="2" class="hk-iso-head-margin">부가세<br>10%</th>
-          <th rowspan="2" class="hk-iso-head-margin">배송비</th>
+          <th rowspan="2" class="hk-iso-head-margin">${shippingHeader}</th>
           <th rowspan="2" class="hk-iso-head-margin">장당마진</th>
           <th rowspan="2" class="hk-iso-head-rate">순수마진율</th>
           <th rowspan="2" class="hk-iso-ref-margin-head">참고마진</th>
@@ -668,7 +685,7 @@ function _hkIsoAccordionSectionHtml(acc, isOpen) {
   const draft = HK_ISO_CONNECTED_DRAFTS[acc.id];
   const count = draft ? draft.rows.length : 0;
   const bodyHtml = draft
-    ? _hkIsoDraftSalesTable(acc.id, draft.rows, draft.priceHeader, draft.saleGroupLabel, draft.fixedCostAddon)
+    ? _hkIsoDraftSalesTable(acc.id, draft.rows, draft.priceHeader, draft.saleGroupLabel, draft.fixedCostAddon, draft)
     : `<div class="pricing-coming-soon">
         <i class="fa-solid fa-table-list"></i>
         <p>${acc.label}</p>
@@ -1912,6 +1929,8 @@ function _hkChannelProductLink(channelId, product) {
   // ESM 채널의 상품번호는 지마켓 상품코드(goodscode)다.
   if (channelId === 'esm') return `https://item.gmarket.co.kr/Item?goodscode=${product.productId}`;
   if (channelId === '11st') return `https://www.11st.co.kr/products/${product.productId}`;
+  // 쿠팡: Product ID(노출상품ID)로 상품 페이지, 옵션은 뒤에 ?vendorItemId=옵션ID를 붙인다(_hkCoupangOptionLink).
+  if (channelId === 'coupang') return `https://www.coupang.com/vp/products/${product.productId}`;
   return '';
 }
 
@@ -1948,6 +1967,12 @@ function _hkChannelBaseIndex(product) {
 
 function _hkChannelFindProduct(channelId, productId) {
   return (HK_CHANNEL_LISTINGS[channelId] || []).find(product => String(product.productId) === String(productId));
+}
+
+/* 쿠팡 옵션 링크 — 상품 페이지에서 그 옵션(vendorItemId)이 선택된 상태로 열린다. */
+function _hkCoupangOptionLink(channelId, product, item) {
+  const base = _hkChannelProductLink(channelId, product);
+  return base && item.optionId ? `${base}?vendorItemId=${item.optionId}` : '';
 }
 
 /* 한 카테고리의 상품표. 상품코드 해석은 카테고리별 가격 엔진에 맡기므로
@@ -2091,7 +2116,7 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
         : '<td class="hk-manual-cell is-none">—</td>';
       rowsHtml += `<tr class="${rowClass}">
         ${idCell}
-        <td>${item.optionId || '—'}</td>
+        <td>${_hkCoupangOptionLink(channelId, product, item) ? `<a class="hk-option-link" href="${_hkCoupangOptionLink(channelId, product, item)}" target="_blank" rel="noopener noreferrer" title="쿠팡에서 이 옵션 열기">${item.optionId}</a>` : (item.optionId || '—')}</td>
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
         <td class="hk-iso-draft-code">${item.productCode}</td>
         <td class="hk-iso-listing-status"><select class="hk-channel-status-select${inactive ? ' is-' + item.status : ''}" onchange="hkChannelSetStatus('${channelId}','${product.productId}',${i},this.value)" title="옵션 판매상태">${statusOptions}</select></td>
@@ -2664,6 +2689,8 @@ window.confirmHkIsoAdhesiveModal = function() {
       if (Number(draft.fixedCostAddon) > 0) draft.fixedCostAddon = fee;
     });
     window.updateHkIsoDraftFixedCost('shared', { value: fee });
+    // 스티로폼 접착식 행도 같은 접착 가공비를 쓴다(js/pricing-hankook-bead.js).
+    if (typeof window.hkBeadApplyUnits === 'function') window.hkBeadApplyUnits();
     if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
   }
   closeHkIsoAdhesiveModal();
@@ -2671,6 +2698,11 @@ window.confirmHkIsoAdhesiveModal = function() {
 
 window.hkIsoSetBaseMonth = function(value) {
   HK_ISO_DRAFT_BASE_MONTH = String(value || '');
+  // 단가 기준 년월은 한국단열 전체에 하나다 — 아이소핑크·스티로폼 카드의 입력칸을 같이 맞춘다.
+  ['hkIsoBaseMonth', 'hkBeadBaseMonth'].forEach(id => {
+    const input = document.getElementById(id);
+    if (input && input.value !== HK_ISO_DRAFT_BASE_MONTH) input.value = HK_ISO_DRAFT_BASE_MONTH;
+  });
 };
 
 window.previewHkIsoDraftMargin = function(thickness, input) {
@@ -2707,35 +2739,42 @@ window.updateHkIsoDraftBaseCost = function(band) {
   });
 };
 
+/* 행 하나의 원가(mm당 원가 × 두께 + 접착 가공비)를 새로 계산해서 판매원가·예상판매가·마진을 갱신한다.
+   아이소핑크(두께별 추가마진)와 스티로폼(등급·원장별 원가)이 함께 쓴다. */
+function _hkIsoDraftApplyRowCost(row, thickness, marginPerMm) {
+  const saleSize = row.dataset.saleSize;
+  const divisor = _hkIsoDraftDivisor(saleSize);
+  const quantity = Number(saleSize.split('-').pop()) || 1;
+  const fixedCostAddon = _hkIsoDraftParseNumber(row.dataset.fixedCostAddon);
+  const sheetCost = marginPerMm * Number(thickness) + fixedCostAddon;
+  const rawSaleCost = sheetCost / divisor * quantity;
+  const saleCost = Math.round(rawSaleCost);
+  const referenceMargin = _hkIsoDraftParseNumber(row.dataset.referenceMargin);
+  const shipping = _hkIsoDraftParseNumber(row.dataset.shipping);
+  const expectedPrice = _hkIsoDraftExpectedPrice(rawSaleCost, referenceMargin, shipping);
+  row.dataset.saleCost = saleCost;
+  row.dataset.saleCostRaw = rawSaleCost;
+  row.dataset.sheetCost = sheetCost;
+  row.dataset.marginPerMm = marginPerMm;
+  row.querySelector('.hk-iso-draft-sale-cost').textContent = _hkIsoDraftNumber(saleCost);
+  row.querySelector('.hk-iso-draft-expected-price').textContent = _hkIsoDraftNumber(expectedPrice);
+  if (row.querySelector('.hk-iso-draft-name').textContent.trim()) {
+    row.querySelector('.hk-iso-draft-sheet-cost').textContent = _hkIsoDraftNumber(sheetCost);
+    row.querySelector('.hk-iso-draft-margin-per-mm').textContent = _hkIsoDraftNumber(marginPerMm);
+  }
+  // 원장 판매가 칸이 원가와 같은 표(스티로폼 KS 표)는 원가를 따라간다.
+  if (row.dataset.sheetFollow === '1') row.children[4].textContent = _hkIsoDraftNumber(sheetCost);
+  const finalPriceInput = row.querySelector('.hk-iso-final-price-input');
+  if (finalPriceInput) window.recalcHkIsoDraftRow(finalPriceInput);
+}
+
 window.updateHkIsoDraftMargin = function(tabId, thickness, input) {
   const marginPerMm = _hkIsoDraftParseNumber(input.value);
+  // 'shared'는 아이소핑크 공통 원가 — 스티로폼 행(data-line="bead")은 자기 원가를 따로 쓰니 건드리지 않는다.
   const rowSelector = tabId === 'shared'
-    ? `.hk-iso-draft-table tbody tr[data-thickness="${thickness}"]`
+    ? `.hk-iso-draft-table tbody tr[data-thickness="${thickness}"]:not([data-line="bead"])`
     : `.hk-iso-draft-table tbody tr[data-draft-tab="${tabId}"][data-thickness="${thickness}"]`;
-  document.querySelectorAll(rowSelector).forEach(row => {
-    const saleSize = row.dataset.saleSize;
-    const divisor = _hkIsoDraftDivisor(saleSize);
-    const quantity = Number(saleSize.split('-').pop()) || 1;
-    const fixedCostAddon = _hkIsoDraftParseNumber(row.dataset.fixedCostAddon);
-    const sheetCost = marginPerMm * Number(thickness) + fixedCostAddon;
-    const rawSaleCost = sheetCost / divisor * quantity;
-    const saleCost = Math.round(rawSaleCost);
-    const referenceMargin = _hkIsoDraftParseNumber(row.dataset.referenceMargin);
-    const shipping = _hkIsoDraftParseNumber(row.dataset.shipping);
-    const expectedPrice = _hkIsoDraftExpectedPrice(rawSaleCost, referenceMargin, shipping);
-    row.dataset.saleCost = saleCost;
-    row.dataset.saleCostRaw = rawSaleCost;
-    row.dataset.sheetCost = sheetCost;
-    row.dataset.marginPerMm = marginPerMm;
-    row.querySelector('.hk-iso-draft-sale-cost').textContent = _hkIsoDraftNumber(saleCost);
-    row.querySelector('.hk-iso-draft-expected-price').textContent = _hkIsoDraftNumber(expectedPrice);
-    if (row.querySelector('.hk-iso-draft-name').textContent.trim()) {
-      row.querySelector('.hk-iso-draft-sheet-cost').textContent = _hkIsoDraftNumber(sheetCost);
-      row.querySelector('.hk-iso-draft-margin-per-mm').textContent = _hkIsoDraftNumber(marginPerMm);
-    }
-    const finalPriceInput = row.querySelector('.hk-iso-final-price-input');
-    if (finalPriceInput) window.recalcHkIsoDraftRow(finalPriceInput);
-  });
+  document.querySelectorAll(rowSelector).forEach(row => _hkIsoDraftApplyRowCost(row, thickness, marginPerMm));
 };
 
 window.updateHkIsoDraftFixedCost = function(tabId, input) {

@@ -77,9 +77,11 @@ function _hkDbProductIndex() {
       const ship = block.rows[rowIndex];
       const code = (ship && ship.codeOverride)
         || _hkIsoDraftProductCode(row.saleSize, thickness, block.isAdhesive, block.codePrefix);
-      list.push({ code, block, row, rowIndex, ship, accordionId: block.sourceAccordion });
+      list.push({ code, block, row, rowIndex, ship, accordionId: block.sourceAccordion, categoryId: 'hk_isopink' });
     });
   });
+  // 스티로폼(js/pricing-hankook-bead.js)은 2단계 배송 블록이 아직 없어 1단계 행에서 바로 코드를 만든다.
+  if (typeof window.hkBeadProductIndex === 'function') list.push(...window.hkBeadProductIndex());
   return list;
 }
 
@@ -145,7 +147,7 @@ function hkDbCollectState() {
     const ship = JSON.parse(JSON.stringify(entry.ship || {}));
     delete ship.codeOverride; // 코드 규칙은 구조(JS)에 속하고 값이 아니다
     products[entry.code] = {
-      categoryId: 'hk_isopink',
+      categoryId: entry.categoryId || 'hk_isopink',
       accordionId: entry.accordionId,
       rowIndex: entry.rowIndex,
       price,
@@ -162,6 +164,11 @@ function hkDbCollectState() {
       baseMonth,
       blockBaseShipping,
       channelOptions: _hkDbCollectChannelOptions(),
+      // 스티로폼 원가 — 등급별 기본 원가(원/㎡·mm)와 원장 규격별 추가마진. 적용 원가는 여기서 다시 계산한다.
+      // hk_settings에 key 하나로 들어가서 SQL 변경이 필요 없다.
+      beadCosts: typeof HK_BEAD_BASE_COSTS !== 'undefined'
+        ? { base: { ...HK_BEAD_BASE_COSTS }, margins: { ...HK_BEAD_UNIT_MARGINS } }
+        : {},
     },
     products,
     channels: JSON.parse(JSON.stringify(HK_CHANNEL_LISTINGS)),
@@ -179,6 +186,7 @@ function _hkDbStateToRows(state) {
     { key: 'base_month', value: s.baseMonth || '', updated_at: now },
     { key: 'block_base_shipping', value: s.blockBaseShipping, updated_at: now },
     { key: 'channel_options', value: s.channelOptions || {}, updated_at: now },
+    { key: 'bead_costs', value: s.beadCosts || {}, updated_at: now },
   ];
   const products = Object.entries(state.products).map(([code, p]) => ({
     product_code: code,
@@ -271,6 +279,7 @@ function _hkDbRowsToState(settingsRows, productRows, channelProductRows, channel
       baseMonth: map.base_month,
       blockBaseShipping: map.block_base_shipping,
       channelOptions: map.channel_options,
+      beadCosts: map.bead_costs,
     },
     products,
     channels,
@@ -299,6 +308,15 @@ function _hkDbApplyState(state) {
     });
   }
   if (typeof s.baseMonth === 'string') HK_ISO_DRAFT_BASE_MONTH = s.baseMonth;
+  if (s.beadCosts && typeof HK_BEAD_BASE_COSTS !== 'undefined') {
+    Object.keys(HK_BEAD_BASE_COSTS).forEach(key => {
+      if (finite(s.beadCosts.base?.[key])) HK_BEAD_BASE_COSTS[key] = Number(s.beadCosts.base[key]);
+    });
+    Object.keys(HK_BEAD_UNIT_MARGINS).forEach(key => {
+      if (finite(s.beadCosts.margins?.[key])) HK_BEAD_UNIT_MARGINS[key] = Number(s.beadCosts.margins[key]);
+    });
+    window.hkBeadRefreshDerived?.(); // 적용 원가를 새 기본 원가·추가마진으로 다시 만든다
+  }
   // 채널 옵션 설정(기준가 옵션·판매상태)은 저장된 값이 있을 때만 덮어쓰고, 덮어쓰기 전에 모두 기본값으로 되돌린다.
   if (s.channelOptions && typeof s.channelOptions === 'object') {
     Object.entries(HK_CHANNEL_LISTINGS).forEach(([channelId, products]) => {
@@ -332,7 +350,7 @@ function _hkDbApplyState(state) {
     const saved = state.products?.[entry.code];
     if (!saved) return;
     if (finite(saved.price)) entry.row.price = Number(saved.price);
-    const target = entry.block.rows[entry.rowIndex];
+    const target = entry.block ? entry.block.rows[entry.rowIndex] : null;
     if (target && saved.ship && typeof saved.ship === 'object') {
       const { codeOverride, ...values } = saved.ship;
       Object.assign(target, values);
@@ -365,6 +383,8 @@ function _hkDbRerender() {
   const openAccordions = [...document.querySelectorAll('.hk-iso-accordion.open')].map(el => el.id);
   const superButtons = [...document.querySelectorAll('#hkIsoSuperTabBar .bead-subtab')];
   const activeSuperIndex = superButtons.findIndex(button => button.classList.contains('active'));
+  const activeBeadSuperIndex = [...document.querySelectorAll('#hkBeadSuperTabBar .bead-subtab')]
+    .findIndex(button => button.classList.contains('active'));
   const channelButton = document.querySelector('#hkChannelTabs .pricing-tab.active');
   const categoryButton = document.querySelector('#hkCategoryTabs .pricing-tab.active');
 
@@ -376,6 +396,10 @@ function _hkDbRerender() {
   if (activeSuperIndex > 0) {
     const button = document.querySelectorAll('#hkIsoSuperTabBar .bead-subtab')[activeSuperIndex];
     window.setHkIsoSuperTab(HK_ISO_SUPER_TABS[activeSuperIndex].id, button);
+  }
+  if (activeBeadSuperIndex > 0 && typeof HK_BEAD_SUPER_TABS !== 'undefined') {
+    const button = document.querySelectorAll('#hkBeadSuperTabBar .bead-subtab')[activeBeadSuperIndex];
+    window.setHkBeadSuperTab(HK_BEAD_SUPER_TABS[activeBeadSuperIndex].id, button);
   }
 
   // 그려진 표는 JS 기본 원가(적용원가 seed)로 계산돼 있으니 저장된 원가·마진으로 다시 계산한다.
@@ -727,8 +751,10 @@ window.hkDbSave = async function() {
     _hkDb.dirty = false;
     _hkDb.lastSavedAt = new Date();
     HK_ISO_DRAFT_BASE_MONTH = month;
-    const monthInput = document.getElementById('hkIsoBaseMonth');
-    if (monthInput) monthInput.value = month;
+    ['hkIsoBaseMonth', 'hkBeadBaseMonth'].forEach(id => {
+      const monthInput = document.getElementById(id);
+      if (monthInput) monthInput.value = month;
+    });
     _hkDb.loadedMonth = month;
     _hkDbSetMessage('');
     _hkDbToast(`한국단열 단가(${month} 기준)를 저장했습니다.`, 'success');

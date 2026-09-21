@@ -1727,6 +1727,25 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="hkBeadMarginModal" style="display:none; z-index:8100;">
+    <div class="pricing-input-modal-box" style="width:560px">
+      <div class="pricing-input-modal-header">
+        <div class="pim-header-left">
+          <span class="pim-title">한국단열 스티로폼 마진 편집</span>
+          <span class="pim-sub">원장 규격별 추가마진 · 원/mm</span>
+        </div>
+        <button class="pim-close-btn" onclick="closeHkBeadMarginModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="pricing-input-modal-body" id="hkBeadMarginModalBody"></div>
+      <div class="pricing-input-modal-footer">
+        <button class="pim-btn-cancel" onclick="closeHkBeadMarginModal()">닫기</button>
+        <button class="pim-btn-confirm" onclick="confirmHkBeadMarginModal()">
+          <i class="fa-solid fa-check"></i> 확인
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="hkIsoAdhesiveModal" style="display:none; z-index:8100;">
     <div class="pricing-input-modal-box hk-iso-adhesive-modal-box" style="width:420px">
       <div class="pricing-input-modal-header">
@@ -1789,6 +1808,7 @@
 <script src="js/pricing-highlight.js"></script>
 <script src="js/pricing-danpum-code.js"></script>
 <script src="js/pricing-hankook.js"></script>
+<script src="js/pricing-hankook-bead.js"></script>
 <script src="js/pricing-hankook-db.js"></script>
 <script src="js/dashboard.js?v=20260820-authfix2"></script>
 <script>
