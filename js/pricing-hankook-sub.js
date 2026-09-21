@@ -117,11 +117,15 @@ function _hkSubRowHtml(product, rowIndex) {
     <td class="hk-sub-name">${product.name}</td>
     <td class="hk-iso-draft-code">${product.code}</td>
     <td class="hk-sub-cost hk-sub-cost-cell">
-      <div class="hk-iso-price-edit-wrap">
-        <input type="text" inputmode="numeric" class="pricing-input-field hk-sub-cost-input" value="${Number(product.cost).toLocaleString()}" data-original-cost="${Number(product.cost)}" onclick="beginHkSubCostEdit(this)" onblur="finishHkSubCostEdit(this)" onkeydown="handleHkSubCostKey(event,this)" readonly>
-        <button type="button" class="hk-iso-row-price-edit-btn" onclick="beginHkSubCostEdit(this)" title="공급원가 조정 (+100/-100 입력 가능)"><i class="fa-solid fa-pen"></i></button>
+      <div class="hk-iso-price-edit-wrap hk-sub-cost-direct-wrap">
+        <input type="text" inputmode="numeric" class="pricing-input-field hk-sub-cost-input" value="${Number(product.cost).toLocaleString()}" data-original-cost="${Number(product.cost)}" onblur="finishHkSubCostEdit(this)" onkeydown="handleHkSubCostKey(event,this)" readonly aria-label="공급원가">
+        <button type="button" class="hk-iso-row-price-edit-btn" onclick="beginHkSubCostEdit(this)" title="공급원가를 직접 수정"><i class="fa-solid fa-pen"></i></button>
       </div>
-      <div class="hk-sub-cost-history" hidden>변경 전 <span>${Number(product.cost).toLocaleString()}원</span> · <strong></strong><button type="button" onclick="revertHkSubCost(this)" title="변경 전 원가와 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
+      <div class="hk-sub-adjust-wrap">
+        <input type="text" inputmode="numeric" class="pricing-input-field hk-sub-cost-adjust-input" placeholder="+200" aria-label="공급원가 조정액" onkeydown="handleHkSubCostAdjustmentKey(event,this)">
+        <button type="button" class="hk-sub-cost-adjust-btn" onclick="applyHkSubCostAdjustment(this)" title="입력한 금액을 공급원가와 판매가에 더합니다">적용</button>
+      </div>
+      <div class="hk-sub-cost-history" data-original-cost="${Number(product.cost)}" hidden>변경 전 <span>${Number(product.cost).toLocaleString()}원</span> · <strong></strong><button type="button" onclick="revertHkSubCost(this)" title="변경 전 원가와 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
     </td>
     <td class="hk-sub-previous">${_hkIsoDraftNumber(product.previousPrice)}<small class="${difference > 0 ? 'up' : difference < 0 ? 'down' : ''}">${difference ? `${difference > 0 ? '+' : ''}${_hkIsoDraftNumber(difference)}` : '동일'}</small></td>
     <td class="hk-iso-draft-price hk-sub-price-cell">
@@ -144,7 +148,7 @@ function renderHkSubPane() {
   return `<div id="hkIsoAcc-sub_all" class="card pricing-result-card hk-sub-card">
     <div class="pricing-result-header">
       <div class="pricing-result-title">부자재 기준 판매가<span class="pricing-spec-badge">2026.06.09 · ${HK_SUB_PRODUCTS.length}개</span></div>
-      <span class="pricing-result-hint">공급원가에 +100/-100 입력 가능 · 원가 변동분만큼 판매가 자동 조정 · 배송비는 순수마진 계산에서 제외</span>
+      <span class="pricing-result-hint">연필: 공급원가 직접 수정 · 조정액: +200/-100처럼 빠르게 반영 · 판매가도 같은 금액만큼 자동 조정</span>
     </div>
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-sub-table">
@@ -220,20 +224,19 @@ window.beginHkSubCostEdit = function(source) {
 };
 
 window.finishHkSubCostEdit = function(input) {
+  if (input.readOnly) return;
   const row = input.closest('tr');
   const product = HK_SUB_PRODUCTS[Number(row?.dataset.rowIndex)];
   if (!row || !product) return;
   const startCost = Number(input.dataset.editStartCost ?? product.cost) || 0;
   const startPrice = Number(input.dataset.editStartPrice ?? product.price) || 0;
-  const raw = String(input.value || '').replace(/,/g, '').trim();
-  const relative = /^[+-]\s*\d+$/.test(raw);
-  const parsed = Number(raw.replace(/\s/g, ''));
-  const nextCost = Number.isFinite(parsed) ? Math.max(0, Math.round(relative ? startCost + parsed : parsed)) : startCost;
+  const parsed = _hkIsoDraftParseNumber(input.value);
+  const nextCost = Math.max(0, Math.round(parsed));
   const delta = nextCost - startCost;
   product.cost = nextCost;
   product.price = Math.max(0, startPrice + delta);
-  row.dataset.cost = String(nextCost);
-  input.value = nextCost.toLocaleString();
+  row.dataset.cost = String(product.cost);
+  input.value = product.cost.toLocaleString();
   input.readOnly = true;
   input.closest('.hk-sub-cost-cell')?.classList.remove('editing');
   const priceInput = row.querySelector('.hk-iso-final-price-input');
@@ -250,6 +253,51 @@ window.handleHkSubCostKey = function(event, input) {
     input.value = Number(input.dataset.editStartCost || 0).toLocaleString();
     input.blur();
   }
+};
+
+window.applyHkSubCostAdjustment = function(source) {
+  const cell = source.closest('.hk-sub-cost-cell');
+  const row = cell?.closest('tr');
+  const input = cell?.querySelector('.hk-sub-cost-adjust-input');
+  const product = HK_SUB_PRODUCTS[Number(row?.dataset.rowIndex)];
+  if (!row || !input || !product) return;
+  const raw = String(input.value || '').replace(/,/g, '').trim();
+  if (!/^[+-]?\s*\d+$/.test(raw)) {
+    input.classList.add('invalid');
+    input.focus();
+    return;
+  }
+  const delta = Math.round(Number(raw.replace(/\s/g, '')));
+  if (!Number.isFinite(delta) || delta === 0) {
+    input.classList.add('invalid');
+    input.focus();
+    return;
+  }
+  const currentCost = Number(product.cost || 0);
+  const nextCost = Math.max(0, currentCost + delta);
+  const appliedDelta = nextCost - currentCost;
+  product.cost = nextCost;
+  product.price = Math.max(0, Number(product.price || 0) + appliedDelta);
+  row.dataset.cost = String(product.cost);
+  const costInput = row.querySelector('.hk-sub-cost-input');
+  if (costInput) costInput.value = product.cost.toLocaleString();
+  const priceInput = row.querySelector('.hk-iso-final-price-input');
+  if (priceInput) {
+    priceInput.value = product.price.toLocaleString();
+    window.recalcHkSubRow(priceInput);
+  }
+  input.value = '';
+  input.classList.remove('invalid');
+  _hkSubUpdateHistory(row);
+};
+
+window.handleHkSubCostAdjustmentKey = function(event, input) {
+  input.classList.remove('invalid');
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    window.applyHkSubCostAdjustment(input);
+  }
+  if (event.key === 'Escape') input.value = '';
 };
 
 window.revertHkSubCost = function(button) {
