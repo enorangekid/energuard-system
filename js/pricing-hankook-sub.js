@@ -152,9 +152,10 @@ function renderHkSubPane() {
           <col class="hk-sub-col-net"><col class="hk-sub-col-rate"><col class="hk-sub-col-rate">
         </colgroup>
         <thead><tr>
-          <th>업체명</th><th>제품명</th><th>상품코드</th><th>개당 원가</th><th>이전 판매가</th><th>개당 판매가</th><th>배송비</th>
-          <th>마진</th><th>마진율</th><th>판매수수료<br><small>6%</small></th><th>부가세<br><small>10%</small></th>
-          <th>개당 마진</th><th>순수마진율</th><th>참고마진율</th>
+          <th class="hk-sub-head-base">업체명</th><th class="hk-sub-head-base">제품명</th><th class="hk-sub-head-code">상품코드</th>
+          <th class="hk-sub-head-base">개당 원가</th><th class="hk-sub-head-prev">이전 판매가</th><th class="hk-sub-head-sale-price">개당 판매가</th><th class="hk-sub-head-shipping">배송비</th>
+          <th class="hk-sub-head-margin">마진</th><th class="hk-sub-head-margin">마진율</th><th class="hk-sub-head-margin">판매수수료<br><small>6%</small></th><th class="hk-sub-head-margin">부가세<br><small>10%</small></th>
+          <th class="hk-sub-head-margin">개당 마진</th><th class="hk-sub-head-rate">순수마진율</th><th class="hk-sub-ref-margin-head">참고마진율</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>

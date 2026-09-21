@@ -1359,6 +1359,18 @@
 .hk-sub-table .hk-sub-col-fee { width: 86px; }
 .hk-sub-table .hk-sub-col-vat { width: 82px; }
 .hk-sub-table .hk-sub-col-net { width: 94px; }
+.hk-sub-table thead th.hk-sub-head-base { color: #e2e8f0; background: #1e293b; }
+.hk-sub-table thead th.hk-sub-head-code { color: #ede9fe; background: #4338ca; }
+.hk-sub-table thead th.hk-sub-head-prev { color: #14532d; background: #86efac; }
+.hk-sub-table thead th.hk-sub-head-sale-price { color: #fde68a; background: #92400e; }
+.hk-sub-table thead th.hk-sub-head-shipping { color: #dbeafe; background: #1e40af; }
+.hk-sub-table thead th.hk-sub-head-margin { color: #bbf7d0; background: #166534; }
+.hk-sub-table thead th.hk-sub-head-rate { color: #dcfce7; background: #15803d; }
+.hk-sub-table thead th.hk-sub-ref-margin-head {
+  color: #fff;
+  background: #991b1b;
+  border-left: 2px solid #991b1b;
+}
 .hk-sub-table th,
 .hk-sub-table td { text-align: center; white-space: nowrap; }
 .hk-sub-table tbody td { padding-top: 12px; padding-bottom: 12px; }
