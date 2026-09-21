@@ -88,6 +88,39 @@ function _hkDbLivePrice(entry) {
   return input ? _hkIsoDraftParseNumber(input.value) : Number(entry.row.price);
 }
 
+/* 채널 옵션 설정 — 사용자가 지정한 기준가 옵션(product.baseCode)과 품절/판매중지 상태(item.status),
+   쿠팡 위너 옵션의 수동 판매가(item.manualPrice)·옵션 메모(item.memo).
+   기본값(첫 판매중 옵션이 기준, 전부 판매중, 수동 판매가·메모 없음)에서 벗어난 것만 담는다:
+   { 채널ID: { 상품ID: { base: 상품코드, status: { 상품코드: 'soldout'|'stopped' },
+                         manualPrice: { 상품코드: 숫자 }, memo: { 상품코드: 글 } } } }
+   hk_settings.channel_options 한 줄로 저장하므로 별도 테이블/컬럼(SQL)이 필요 없다. */
+function _hkDbCollectChannelOptions() {
+  const result = {};
+  Object.entries(HK_CHANNEL_LISTINGS).forEach(([channelId, products]) => {
+    (products || []).forEach(product => {
+      const entry = {};
+      // 코드에 미리 적어둔 기준가 옵션(seedBaseCode)과 같으면 기본값이라 저장하지 않는다.
+      if (product.baseCode && product.baseCode !== product.seedBaseCode) entry.base = product.baseCode;
+      const status = {};
+      const manual = {};
+      const memo = {};
+      product.items.forEach(item => {
+        if (item.status) status[item.productCode] = item.status;
+        // 쿠팡 위너 옵션의 수동 판매가와 옵션 메모(2026-09-21)
+        if (item.manualPrice != null) manual[item.productCode] = item.manualPrice;
+        if (item.memo) memo[item.productCode] = item.memo;
+      });
+      if (Object.keys(status).length) entry.status = status;
+      if (Object.keys(manual).length) entry.manualPrice = manual;
+      if (Object.keys(memo).length) entry.memo = memo;
+      if (!Object.keys(entry).length) return;
+      if (!result[channelId]) result[channelId] = {};
+      result[channelId][product.productId] = entry;
+    });
+  });
+  return result;
+}
+
 /* ─── 현재 화면 상태 → state ─── */
 function hkDbCollectState() {
   const baseCosts = {};
@@ -128,6 +161,7 @@ function hkDbCollectState() {
       adhesiveFee,
       baseMonth,
       blockBaseShipping,
+      channelOptions: _hkDbCollectChannelOptions(),
     },
     products,
     channels: JSON.parse(JSON.stringify(HK_CHANNEL_LISTINGS)),
@@ -144,6 +178,7 @@ function _hkDbStateToRows(state) {
     { key: 'adhesive_fee', value: s.adhesiveFee, updated_at: now },
     { key: 'base_month', value: s.baseMonth || '', updated_at: now },
     { key: 'block_base_shipping', value: s.blockBaseShipping, updated_at: now },
+    { key: 'channel_options', value: s.channelOptions || {}, updated_at: now },
   ];
   const products = Object.entries(state.products).map(([code, p]) => ({
     product_code: code,
@@ -235,6 +270,7 @@ function _hkDbRowsToState(settingsRows, productRows, channelProductRows, channel
       adhesiveFee: map.adhesive_fee,
       baseMonth: map.base_month,
       blockBaseShipping: map.block_base_shipping,
+      channelOptions: map.channel_options,
     },
     products,
     channels,
@@ -263,6 +299,27 @@ function _hkDbApplyState(state) {
     });
   }
   if (typeof s.baseMonth === 'string') HK_ISO_DRAFT_BASE_MONTH = s.baseMonth;
+  // 채널 옵션 설정(기준가 옵션·판매상태)은 저장된 값이 있을 때만 덮어쓰고, 덮어쓰기 전에 모두 기본값으로 되돌린다.
+  if (s.channelOptions && typeof s.channelOptions === 'object') {
+    Object.entries(HK_CHANNEL_LISTINGS).forEach(([channelId, products]) => {
+      (products || []).forEach(product => {
+        if (product.seedBaseCode) product.baseCode = product.seedBaseCode;
+        else delete product.baseCode;
+        product.items.forEach(item => { delete item.status; delete item.manualPrice; delete item.memo; });
+        const saved = s.channelOptions[channelId]?.[product.productId];
+        if (!saved) return;
+        if (saved.base && product.items.some(item => item.productCode === saved.base)) product.baseCode = saved.base;
+        product.items.forEach(item => {
+          const status = saved.status?.[item.productCode];
+          if (status && HK_CHANNEL_STATUS[status]) item.status = status;
+          const manual = saved.manualPrice?.[item.productCode];
+          if (manual != null && Number.isFinite(Number(manual))) item.manualPrice = Number(manual);
+          const memo = saved.memo?.[item.productCode];
+          if (typeof memo === 'string' && memo) item.memo = memo;
+        });
+      });
+    });
+  }
   if (s.blockBaseShipping) {
     HK_ISO_SHIPPING_BLOCKS.forEach(block => {
       if (block.sharedBaseShipping && finite(s.blockBaseShipping[block.id])) {
@@ -638,6 +695,11 @@ window.hkDbSave = async function() {
   }
   state.settings.baseMonth = month;
 
+  // 몰별 화면의 "수정 전 판매가·배송비"는 마지막으로 저장한 값이다 — 저장하는 이 시점의 현재
+  // 판매가·배송비로 맞춘다(별도 "적용 완료" 버튼 없이 자동). 저장이 실패하면 아래 catch에서 되돌린다.
+  const undoBaselines = typeof window.hkChannelAlignBaselines === 'function' ? window.hkChannelAlignBaselines() : null;
+  state.channels = JSON.parse(JSON.stringify(HK_CHANNEL_LISTINGS));
+
   _hkDb.saving = true;
   _hkDbSetMessage('');
   try {
@@ -659,6 +721,7 @@ window.hkDbSave = async function() {
       window.updateHkIsoPriceHistory(input);
     });
 
+    if (typeof window._hkRefreshChannelListing === 'function') window._hkRefreshChannelListing(); // 차액·반영 대기를 0으로 다시 그림
     _hkDb.tablesMissing = false;
     _hkDb.hasSavedData = true;
     _hkDb.dirty = false;
@@ -679,6 +742,7 @@ window.hkDbSave = async function() {
     await _hkDbRefreshHistoryList();
   } catch (error) {
     console.error('[한국단열 DB] 저장 실패', error);
+    if (undoBaselines) undoBaselines(); // 저장이 안 됐으니 수정 전 값도 원래대로
     if (_hkDbIsMissingTable(error)) {
       _hkDb.tablesMissing = true;
       _hkDbToast(HK_DB_SETUP_HINT, 'error');

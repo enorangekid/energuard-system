@@ -1152,6 +1152,87 @@
   background: #fde68a;
 }
 
+/* 몰별 표 머리글 — 제목(카테고리·상품/옵션 수)은 줄바꿈 없이, 긴 설명은 옆에서 줄바꿈 */
+.hk-iso-channel-listing .pricing-result-header { gap: 14px; }
+.hk-iso-channel-listing .pricing-result-title { white-space: nowrap; flex-shrink: 0; }
+.hk-iso-channel-listing .pricing-result-hint { text-align: right; }
+
+/* 쿠팡 표 — 수동 판매가(위너 옵션 입력칸)·메모 칸과 "수동" 표시 */
+.hk-iso-draft-table thead th.hk-iso-head-manual { color: #fef3c7; background: #b45309; }
+.hk-coupang-table td.hk-manual-cell { padding-left: 6px; padding-right: 6px; }
+.hk-coupang-table td.hk-manual-cell.is-none { color: #cbd5e1; }
+.hk-coupang-table td.hk-manual-cell.is-manual { background: #fef3c7; }
+.hk-manual-input { width: 96px; text-align: right; }
+.hk-manual-gap { display: block; margin-top: 2px; font-size: 11px; font-weight: 700; color: #b45309; }
+.hk-manual-tag {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+  font-size: 10px; font-weight: 800; background: #f59e0b; color: #fff;
+}
+.hk-memo-input { width: 100%; min-width: 180px; text-align: left; }
+.hk-channel-status-badge.is-manual { background: #fef3c7; color: #b45309; }
+
+/* 쿠팡 표 — 쿠폰 할인율 칸: 10%는 연한 파랑, 12%는 주황으로 눈에 띄게 구분 */
+.hk-esm-table td.hk-coupon-off { font-weight: 800; }
+.hk-esm-table td.hk-coupon-off.is-off-10 { background: #e0f2fe; color: #0369a1; }
+.hk-esm-table td.hk-coupon-off.is-off-12 { background: #ffedd5; color: #c2410c; }
+
+/* 쿠팡 표 틀 고정 — 상품코드 열까지는 좌우 스크롤해도 남는다(_hkFreezeListingColumns가 열마다 left를 정함).
+   머리글 칸이 본문 고정 칸보다 위에 오도록 z-index를 나누고, 마지막 고정 열 오른쪽에 경계선을 둔다. */
+.hk-iso-listing-table .hk-freeze { position: sticky; z-index: 2; }
+.hk-iso-listing-table thead .hk-freeze { z-index: 4; }
+.hk-iso-listing-table .hk-freeze-last { box-shadow: inset -3px 0 0 #94a3b8; }
+
+/* ESM 표 — 그룹명 칸은 줄바꿈을 허용한다(표 전체는 nowrap이라 그대로 두면 칸 밖으로 넘친다) */
+.hk-esm-table td.hk-iso-listing-id { white-space: normal; word-break: keep-all; line-height: 1.45; padding-left: 8px; padding-right: 8px; }
+
+/* 몰별 화면 — 채널마다 "현재 판매가 / 최종 판매가"(등록·적용되는 가격) 칸을 연한 초록 배경으로 강조한다.
+   머리글의 초록(hk-iso-head-rate)과 같은 색 계열. 기준가 옵션(파랑)·차액(빨강)·품절/판매중지 행 색이
+   이 배경보다 우선한다(선택자 우선순위). */
+.hk-iso-listing-table td.hk-iso-ship-final-price,
+.hk-iso-listing-table td.hk-price-final {
+  background: #dcfce7; color: #166534; font-weight: 800;
+}
+
+/* 쿠팡 표 — 등록 가격 칸(일반: 쿠폰 적용 전 판매가, 위너: 판매가)은 다른 채널과 같은 강조색(연한 초록,
+   위의 .hk-iso-ship-final-price 규칙)을 그대로 쓰고, 쿠폰 적용 최종 판매가는 그보다 더 연한 초록으로 덜 띄게 한다. */
+.hk-coupang-table td.hk-price-final { background: #f0fdf4; color: #15803d; font-weight: 600; }
+/* 위너 상품은 쿠폰이 없어 최종 판매가 = 판매가 — 같은 숫자를 또 강조하지 않고 평범하게 보여준다 */
+.hk-coupang-table td.hk-price-final.is-plain { background: transparent; color: inherit; font-weight: 400; }
+.hk-coupang-table td.hk-coupon-off.is-off-none { color: #94a3b8; font-weight: 500; }
+.hk-iso-draft-table.hk-coupang-table thead th.hk-head-final { background: #4ade80; color: #14532d; }
+
+/* 몰별 화면 — 옵션 판매상태(품절/판매중지): 표에서 흐리게, 상태 선택칸과 헤드 배지 */
+.hk-iso-listing-table tr.is-soldout td { background: #fff7ed; color: #b45309; }
+.hk-iso-listing-table tr.is-stopped td { background: #f1f5f9; color: #94a3b8; }
+.hk-iso-listing-table tr.is-inactive td.hk-iso-draft-name { text-decoration: line-through; }
+.hk-iso-listing-table tr.is-inactive td.hk-stock-zero { color: #dc2626; font-weight: 800; }
+.hk-channel-status-select {
+  padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer;
+}
+.hk-channel-status-select.is-soldout { background: #ffedd5; border-color: #fdba74; color: #c2410c; }
+.hk-channel-status-select.is-stopped { background: #e2e8f0; border-color: #cbd5e1; color: #475569; }
+.hk-channel-status-badge {
+  margin-left: 6px; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700;
+}
+.hk-channel-status-badge.is-soldout { background: #ffedd5; color: #c2410c; }
+.hk-channel-status-badge.is-stopped { background: #e2e8f0; color: #475569; }
+
+/* 몰별 화면 — 옵션이 여럿인 상품의 기준가 옵션 선택(라디오) */
+.hk-base-pick { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.hk-base-pick input { accent-color: #2563eb; cursor: pointer; margin: 0; }
+.hk-iso-listing-table td.hk-iso-ship-final-price.is-base-inactive {
+  outline: 2px dashed #f97316; outline-offset: -3px;
+}
+
+/* 몰별 화면 — 상품의 기준가가 되는 옵션의 현재 판매가 칸은 파란 배경(차액 붉은색이 우선) */
+.hk-iso-listing-table td.hk-iso-ship-final-price.is-base-option {
+  background: #dbeafe; color: #1d4ed8; font-weight: 800;
+}
+.hk-base-legend {
+  display: inline-block; padding: 0 7px; border-radius: 4px;
+  background: #dbeafe; color: #1d4ed8; font-weight: 700;
+}
 /* 몰별 화면 — 스토어에 반영해야 하는(차액이 있는) 값 강조와 "반영 대기" 배지 */
 .hk-iso-listing-table td.hk-iso-ship-final-price.is-changed,
 .hk-iso-listing-table td.hk-iso-listing-diff.is-changed,
