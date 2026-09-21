@@ -197,7 +197,7 @@ const HK_ISO_DRAFT_EXTRA_MARGINS = {
   10:-10, 20:-10, 30:27, 40:27, 50:22,
   70:22, 100:22, 250:29, 500:29,
 };
-const HK_ISO_DRAFT_ADHESIVE_ADDON = 1350;
+const HK_ISO_DRAFT_ADHESIVE_ADDON = 1500;
 
 const HK_ISO_CONNECTED_DRAFTS = {
   iso_600x900: {
@@ -558,7 +558,8 @@ function _hkIsoUnifiedShippingCells(info) {
     <td class="hk-iso-unified-target">${_hkIsoDraftNumber(info.targetPrice)}</td>`;
 }
 
-function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, isAdhesive = false) {
+function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, fixedCostAddon = 0) {
+  const isAdhesive = Number(fixedCostAddon) > 0;
   let currentThickness = null;
   let currentSheetCost = null;
   let currentMarginPerMm = null;
@@ -566,24 +567,24 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, i
     const thicknessMatch = row.name.match(/(\d+)T/);
     if (thicknessMatch) {
       currentThickness = Number(thicknessMatch[1]);
-      currentSheetCost = Number(row.sheetCost);
       currentMarginPerMm = Number(row.unit);
+      currentSheetCost = currentMarginPerMm * currentThickness + Number(fixedCostAddon);
     }
     const sizeGroup = row.saleSize.split('-')[0].replaceAll('*', 'x');
     const divisor = _hkIsoDraftDivisor(row.saleSize);
     const quantity = Number(row.saleSize.split('-').pop()) || 1;
     const rawSaleCost = currentSheetCost / divisor * quantity;
-    const fixedCostAddon = currentSheetCost - currentMarginPerMm * currentThickness;
+    const saleCost = Math.round(rawSaleCost);
     const expectedPrice = _hkIsoDraftExpectedPrice(rawSaleCost, row.refMargin, row.shipping);
     const shippingInfo = _hkIsoUnifiedShippingInfo(tabId, rowIndex, row, currentThickness, Number(row.price));
-    return `<tr data-draft-tab="${tabId}" data-row-index="${rowIndex}" data-product-code="${shippingInfo.code}" data-thickness="${currentThickness}" data-size-group="${sizeGroup}" data-sale-cost="${row.saleCost}" data-sale-cost-raw="${rawSaleCost}" data-sheet-cost="${currentSheetCost}" data-fixed-cost-addon="${fixedCostAddon}" data-margin-per-mm="${currentMarginPerMm}" data-reference-margin="${row.refMargin}" data-sale-size="${row.saleSize}" data-shipping="${row.shipping || 0}" data-shipping-adjustment="${shippingInfo.adjustment}" data-shipping-apply="${shippingInfo.applyAdjustment ? 1 : 0}" data-is-adhesive="${isAdhesive ? 1 : 0}">
+    return `<tr data-draft-tab="${tabId}" data-row-index="${rowIndex}" data-product-code="${shippingInfo.code}" data-thickness="${currentThickness}" data-size-group="${sizeGroup}" data-sale-cost="${saleCost}" data-sale-cost-raw="${rawSaleCost}" data-sheet-cost="${currentSheetCost}" data-fixed-cost-addon="${fixedCostAddon}" data-margin-per-mm="${currentMarginPerMm}" data-reference-margin="${row.refMargin}" data-sale-size="${row.saleSize}" data-shipping="${row.shipping || 0}" data-shipping-adjustment="${shippingInfo.adjustment}" data-shipping-apply="${shippingInfo.applyAdjustment ? 1 : 0}" data-is-adhesive="${isAdhesive ? 1 : 0}">
     <td class="hk-iso-draft-name">${row.name || '　'}</td>
     <td class="hk-iso-draft-margin-per-mm">${_hkIsoDraftNumber(row.unit)}</td>
     <td>${row.spec || '—'}</td>
     <td class="hk-iso-draft-sheet-cost">${_hkIsoDraftNumber(row.sheetCost)}</td>
     <td class="hk-iso-sheet-price-muted">${_hkIsoDraftNumber(row.sheetPrice)}</td>
     <td class="hk-iso-unified-size"><span>${row.saleSize}</span><small>${shippingInfo.code}</small></td>
-    <td class="hk-iso-draft-sale-cost">${_hkIsoDraftNumber(row.saleCost)}</td>
+    <td class="hk-iso-draft-sale-cost">${_hkIsoDraftNumber(saleCost)}</td>
     <td class="hk-iso-draft-expected-price">${_hkIsoDraftNumber(expectedPrice)}</td>
     <td class="hk-iso-draft-price"><input type="text" inputmode="numeric" class="pricing-input-field hk-iso-final-price-input" value="${Number(row.price).toLocaleString()}" oninput="recalcHkIsoDraftRow(this)" onblur="formatHkIsoDraftPrice(this)" disabled></td>
     ${_hkIsoUnifiedShippingCells(shippingInfo)}
@@ -634,7 +635,7 @@ function _hkIsoAccordionSectionHtml(acc, isOpen) {
   const draft = HK_ISO_CONNECTED_DRAFTS[acc.id];
   const count = draft ? draft.rows.length : 0;
   const bodyHtml = draft
-    ? _hkIsoDraftSalesTable(acc.id, draft.rows, draft.priceHeader, draft.saleGroupLabel, draft.fixedCostAddon > 0)
+    ? _hkIsoDraftSalesTable(acc.id, draft.rows, draft.priceHeader, draft.saleGroupLabel, draft.fixedCostAddon)
     : `<div class="pricing-coming-soon">
         <i class="fa-solid fa-table-list"></i>
         <p>${acc.label}</p>
