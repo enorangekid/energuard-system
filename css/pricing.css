@@ -1225,7 +1225,10 @@
 }
 .hk-iso-draft-table:not(.hk-iso-listing-table):not(.hk-iso-shipping-table) tbody tr:hover td:nth-child(19) { background: #ffe4e6; }
 
-.hk-iso-shipping-modal-box {
+/* 기본 .pricing-input-modal-box(width:780px)가 이 파일 뒤쪽에 나와서 선택자 우선순위가
+   같으면 그쪽이 이겨 팝업이 780px로 고정돼 표가 잘렸다(2026-09-21) — 클래스를 겹쳐서
+   확실히 이기게 한다. */
+.pricing-input-modal-box.hk-iso-shipping-modal-box {
   width: min(1800px, 96vw);
   max-width: 96vw;
 }

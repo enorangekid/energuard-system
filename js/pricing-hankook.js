@@ -611,7 +611,7 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, i
           <th colspan="2" class="hk-iso-head-sale-price">${saleGroupLabel}</th>
           <th rowspan="2" class="hk-iso-head-shipping">배송 정책</th>
           <th rowspan="2" class="hk-iso-head-shipping">가격 조정</th>
-          <th rowspan="2" class="hk-iso-head-target">최종 목표가</th>
+          <th rowspan="2" class="hk-iso-head-target">현재 판매가</th>
           <th class="hk-iso-head-margin">마진</th>
           <th rowspan="2" class="hk-iso-head-margin">판매수수료 6%</th>
           <th rowspan="2" class="hk-iso-head-margin">부가세<br>10%</th>
@@ -1530,7 +1530,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
   return `<div class="card pricing-cost-card hk-iso-channel-listing">
     <div class="pricing-result-header">
       <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${products.length} · 옵션 ${optionCount}</span></div>
-      <span class="pricing-result-hint">상품코드 기준 목표 판매가와 현재 몰 판매가 비교</span>
+      <span class="pricing-result-hint">상품코드 기준 현재 판매가와 수정 전 판매가 비교</span>
     </div>
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-iso-draft-table hk-iso-listing-table">
@@ -1545,7 +1545,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
           <th class="hk-iso-head-base">상품명</th>
           <th class="hk-iso-head-code">상품코드</th>
           <th class="hk-iso-head-base">상품ID</th>
-          <th class="hk-iso-head-rate">목표 판매가</th>
+          <th class="hk-iso-head-rate">현재 판매가</th>
           <th class="hk-iso-head-base">기준가</th>
           <th class="hk-iso-head-base">옵션추가금</th>
           <th class="hk-iso-head-base">재고수량</th>
@@ -1553,9 +1553,9 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
           <th class="hk-iso-head-base">배송비 기준</th>
           <th class="hk-iso-head-base">제주배송비</th>
           <th class="hk-iso-head-base">편도/교환</th>
-          <th class="hk-iso-head-prev">현재 몰 판매가</th>
-          <th class="hk-iso-head-diff">가격차이</th>
-          <th class="hk-iso-head-prev">현재 배송비</th>
+          <th class="hk-iso-head-prev">수정 전 판매가</th>
+          <th class="hk-iso-head-diff">차액</th>
+          <th class="hk-iso-head-prev">수정 전 배송비</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
