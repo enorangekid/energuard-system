@@ -1706,6 +1706,27 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="hkIsoShippingModal" style="display:none; z-index:8150;">
+    <div class="pricing-input-modal-box hk-iso-shipping-modal-box">
+      <div class="pricing-input-modal-header">
+        <div class="pim-header-left">
+          <span class="pim-title">아이소핑크 배송 세부설정</span>
+          <span class="pim-sub">기준 판매가에 반영되는 배송 정책</span>
+        </div>
+        <button class="pim-close-btn" onclick="closeHkIsoShippingModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="pricing-input-modal-body hk-iso-shipping-modal-body">
+        <div class="hk-iso-shipping-section" id="hkIsoShippingSection"></div>
+      </div>
+      <div class="pricing-input-modal-footer">
+        <span class="pricing-result-hint">변경값은 기준 판매가와 몰별 목표 판매가에 즉시 반영됩니다.</span>
+        <button class="pim-btn-confirm" onclick="closeHkIsoShippingModal()">
+          <i class="fa-solid fa-check"></i> 확인
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- 토스트 알림 컨테이너 -->
   <div id="toast-container"></div>
 

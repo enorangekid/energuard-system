@@ -26,10 +26,9 @@ const HK_CATEGORIES = [
   { id: 'hk_sub',        label: '부자재' },
 ];
 
-// 판매 채널 — 카테고리 탭 옆에 구분선으로 나눠서 표시만 한다(2026-09-16).
-// 같은 원가/재고를 여러 채널(스마트스토어 2개 + 홈페이지 + 오픈마켓들)에
-// 나눠 파는 걸 구분하기 위한 선택 상태만 우선 만들어둠 — 채널별로 화면
-// 내용을 다르게 보여주는 연결은 아직 없다.
+// 판매 채널 — 특정 카테고리에 속하지 않는 전사 상품 보기다. 한 채널 안에
+// 아이소핑크·스티로폼·PF보드 등 그 몰에서 판매하는 모든 제품을 모으고,
+// categoryId로 필터링한다(2026-09-21).
 const HK_CHANNELS = [
   { id: 'hkd',         label: '한국단열' },
   { id: 'hkd_life',    label: '한국단열라이프' },
@@ -41,6 +40,7 @@ const HK_CHANNELS = [
 ];
 let _activeHkChannel = HK_CHANNELS[0].id;
 window._activeHkChannel = _activeHkChannel;
+let _activeHkChannelCategory = 'all';
 
 // 한국단열 아이소핑크 — 상위 탭(일반/접착식/쿠팡 위너) 안에 사이즈·판매방식별
 // 아코디언을 두는 구조(2026-09-16). 아코디언은 각각 독립적으로 열고 닫으며,
@@ -279,7 +279,7 @@ function initHkPricingTabs() {
 
   bodyWrap.innerHTML = HK_CATEGORIES.map((c, i) =>
     `<div id="pricing-tab-${c.id}" class="pricing-tab-pane${i === 0 ? ' active' : ''}">${renderHkCategoryPane(c.id)}</div>`
-  ).join('');
+  ).join('') + '<div class="hk-channel-catalog-section" id="hkChannelListingSection" hidden></div>';
 
   _hkIsoDraftRefreshAllTooltips();
 }
@@ -309,15 +309,16 @@ window.setHkPricingTab = function(tabId, el) {
 window.setHkChannel = function(channelId, el) {
   _activeHkChannel = channelId;
   window._activeHkChannel = channelId;
+  _activeHkChannelCategory = 'all';
   document.querySelectorAll('#hkChannelTabs .pricing-tab').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
   // 카테고리 탭 쪽 선택 표시도 지운다 — 지금은 채널 모드라 카테고리 탭 내용이
   // 안 보이는데 그 탭만 계속 눌려 보이면(파란 강조) 헷갈린다.
   document.querySelectorAll('#hkCategoryTabs .pricing-tab').forEach(b => b.classList.remove('active'));
-  document.getElementById('hkIsoBaseDataSection')?.setAttribute('hidden', '');
+  document.querySelectorAll('#hkPricingBodyWrap .pricing-tab-pane').forEach(pane => pane.classList.remove('active'));
   const listingSection = document.getElementById('hkChannelListingSection');
   if (listingSection) listingSection.hidden = false;
-  if (typeof window._hkIsoRefreshChannelListing === 'function') window._hkIsoRefreshChannelListing();
+  if (typeof window._hkRefreshChannelListing === 'function') window._hkRefreshChannelListing();
 };
 
 /* ═══════════════════════════════════════
@@ -502,11 +503,66 @@ function _hkIsoDraftProductCode(saleSize, thickness, isAdhesive, codePrefix) {
   return `${prefix}_${sizeCode}_${thickness}_${qtyPart}`;
 }
 
+/* 1단계 행에 대응하는 배송 정책을 상품코드 기준의 한 개 요약으로 만든다.
+   기존 2단계의 계산 규칙은 그대로 유지하고 화면만 기준가격 표 안으로 합친다. */
+function _hkIsoUnifiedShippingInfo(tabId, rowIndex, row, thickness, basePrice) {
+  const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.sourceAccordion === tabId);
+  if (!block) {
+    const fallbackCode = _hkIsoDraftProductCode(row.saleSize, thickness, false);
+    return { code:fallbackCode, mode:'미설정', policy:'배송 설정 없음', adjustment:0, applyAdjustment:false, targetPrice:basePrice };
+  }
+
+  const ship = block.rows[rowIndex] || {};
+  const code = ship.codeOverride || _hkIsoDraftProductCode(row.saleSize, thickness, block.isAdhesive, block.codePrefix);
+  const adjustment = Number(ship.plusAmount || 0);
+  if (block.schema === 'per1Coupon') {
+    const applyAdjustment = !!block.isFreeShipping;
+    const policy = block.isFreeShipping
+      ? `실제배송비 ${_hkIsoDraftNumber(ship.actualShipping || 0)}원`
+      : `별도 ${_hkIsoDraftNumber(ship.perUnitShipping || 0)}원 · ${ship.actualShippingText || '기준 미정'}`;
+    return {
+      code,
+      mode: block.isFreeShipping ? '무료배송' : '유료배송',
+      policy,
+      adjustment,
+      applyAdjustment,
+      targetPrice: basePrice + (applyAdjustment ? adjustment : 0),
+    };
+  }
+
+  const hasBase = ship.baseShipping !== null;
+  const baseShipping = hasBase ? Number(ship.baseShipping ?? block.baseShipping5 ?? 0) : null;
+  const actualShipping = Number(ship.actualShipping5 || 0);
+  const isIncluded = baseShipping === 0 || !hasBase;
+  return {
+    code,
+    mode: isIncluded ? '배송비 포함' : '배송 보정',
+    policy: hasBase
+      ? `${_hkIsoDraftNumber(baseShipping)} → ${_hkIsoDraftNumber(actualShipping)}원`
+      : `실제배송비 ${_hkIsoDraftNumber(actualShipping)}원`,
+    adjustment,
+    applyAdjustment: true,
+    targetPrice: basePrice + adjustment,
+  };
+}
+
+function _hkIsoUnifiedShippingCells(info) {
+  const adjustmentText = info.applyAdjustment
+    ? `${info.adjustment > 0 ? '+' : ''}${_hkIsoDraftNumber(info.adjustment)}`
+    : `참고 ${info.adjustment > 0 ? '+' : ''}${_hkIsoDraftNumber(info.adjustment)}`;
+  return `<td class="hk-iso-unified-shipping" title="${info.policy}">
+      <span class="hk-iso-shipping-mode">${info.mode}</span>
+      <span class="hk-iso-shipping-policy">${info.policy}</span>
+    </td>
+    <td class="hk-iso-unified-adjustment${info.applyAdjustment ? '' : ' is-reference'}">${adjustmentText}</td>
+    <td class="hk-iso-unified-target">${_hkIsoDraftNumber(info.targetPrice)}</td>`;
+}
+
 function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, isAdhesive = false) {
   let currentThickness = null;
   let currentSheetCost = null;
   let currentMarginPerMm = null;
-  const rows = sourceRows.map(row => {
+  const rows = sourceRows.map((row, rowIndex) => {
     const thicknessMatch = row.name.match(/(\d+)T/);
     if (thicknessMatch) {
       currentThickness = Number(thicknessMatch[1]);
@@ -519,16 +575,18 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, i
     const rawSaleCost = currentSheetCost / divisor * quantity;
     const fixedCostAddon = currentSheetCost - currentMarginPerMm * currentThickness;
     const expectedPrice = _hkIsoDraftExpectedPrice(rawSaleCost, row.refMargin, row.shipping);
-    return `<tr data-draft-tab="${tabId}" data-thickness="${currentThickness}" data-size-group="${sizeGroup}" data-sale-cost="${row.saleCost}" data-sale-cost-raw="${rawSaleCost}" data-sheet-cost="${currentSheetCost}" data-fixed-cost-addon="${fixedCostAddon}" data-margin-per-mm="${currentMarginPerMm}" data-reference-margin="${row.refMargin}" data-sale-size="${row.saleSize}" data-shipping="${row.shipping || 0}" data-is-adhesive="${isAdhesive ? 1 : 0}">
+    const shippingInfo = _hkIsoUnifiedShippingInfo(tabId, rowIndex, row, currentThickness, Number(row.price));
+    return `<tr data-draft-tab="${tabId}" data-row-index="${rowIndex}" data-product-code="${shippingInfo.code}" data-thickness="${currentThickness}" data-size-group="${sizeGroup}" data-sale-cost="${row.saleCost}" data-sale-cost-raw="${rawSaleCost}" data-sheet-cost="${currentSheetCost}" data-fixed-cost-addon="${fixedCostAddon}" data-margin-per-mm="${currentMarginPerMm}" data-reference-margin="${row.refMargin}" data-sale-size="${row.saleSize}" data-shipping="${row.shipping || 0}" data-shipping-adjustment="${shippingInfo.adjustment}" data-shipping-apply="${shippingInfo.applyAdjustment ? 1 : 0}" data-is-adhesive="${isAdhesive ? 1 : 0}">
     <td class="hk-iso-draft-name">${row.name || '　'}</td>
     <td class="hk-iso-draft-margin-per-mm">${_hkIsoDraftNumber(row.unit)}</td>
     <td>${row.spec || '—'}</td>
     <td class="hk-iso-draft-sheet-cost">${_hkIsoDraftNumber(row.sheetCost)}</td>
     <td class="hk-iso-sheet-price-muted">${_hkIsoDraftNumber(row.sheetPrice)}</td>
-    <td>${row.saleSize}</td>
+    <td class="hk-iso-unified-size"><span>${row.saleSize}</span><small>${shippingInfo.code}</small></td>
     <td class="hk-iso-draft-sale-cost">${_hkIsoDraftNumber(row.saleCost)}</td>
     <td class="hk-iso-draft-expected-price">${_hkIsoDraftNumber(expectedPrice)}</td>
     <td class="hk-iso-draft-price"><input type="text" inputmode="numeric" class="pricing-input-field hk-iso-final-price-input" value="${Number(row.price).toLocaleString()}" oninput="recalcHkIsoDraftRow(this)" onblur="formatHkIsoDraftPrice(this)" disabled></td>
+    ${_hkIsoUnifiedShippingCells(shippingInfo)}
     <td class="hk-iso-draft-margin">${_hkIsoDraftNumber(row.margin)}</td>
     <td class="hk-iso-draft-fee">${_hkIsoDraftNumber(row.fee)}</td>
     <td class="hk-iso-draft-vat">${_hkIsoDraftNumber(row.vat)}</td>
@@ -551,6 +609,9 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, i
           <th rowspan="2" class="hk-iso-head-size">판매사이즈</th>
           <th rowspan="2" class="hk-iso-head-base">판매원가</th>
           <th colspan="2" class="hk-iso-head-sale-price">${saleGroupLabel}</th>
+          <th rowspan="2" class="hk-iso-head-shipping">배송 정책</th>
+          <th rowspan="2" class="hk-iso-head-shipping">가격 조정</th>
+          <th rowspan="2" class="hk-iso-head-target">최종 목표가</th>
           <th class="hk-iso-head-margin">마진</th>
           <th rowspan="2" class="hk-iso-head-margin">판매수수료 6%</th>
           <th rowspan="2" class="hk-iso-head-margin">부가세<br>10%</th>
@@ -587,6 +648,43 @@ function _hkIsoAccordionSectionHtml(acc, isOpen) {
     </button>
     <div class="hk-iso-accordion-body">${bodyHtml}</div>
   </div>`;
+}
+
+function _hkIsoRefreshUnifiedRowElement(row) {
+  if (!row) return;
+  const tabId = row.dataset.draftTab;
+  const rowIndex = Number(row.dataset.rowIndex);
+  const sourceRow = HK_ISO_CONNECTED_DRAFTS[tabId]?.rows?.[rowIndex];
+  const basePrice = _hkIsoDraftParseNumber(row.querySelector('.hk-iso-final-price-input')?.value);
+  if (!sourceRow) return;
+  const info = _hkIsoUnifiedShippingInfo(tabId, rowIndex, sourceRow, Number(row.dataset.thickness), basePrice);
+  row.dataset.productCode = info.code;
+  row.dataset.shippingAdjustment = info.adjustment;
+  row.dataset.shippingApply = info.applyAdjustment ? '1' : '0';
+  const shippingCell = row.querySelector('.hk-iso-unified-shipping');
+  if (shippingCell) {
+    shippingCell.title = info.policy;
+    shippingCell.querySelector('.hk-iso-shipping-mode').textContent = info.mode;
+    shippingCell.querySelector('.hk-iso-shipping-policy').textContent = info.policy;
+  }
+  const adjustmentCell = row.querySelector('.hk-iso-unified-adjustment');
+  if (adjustmentCell) {
+    adjustmentCell.classList.toggle('is-reference', !info.applyAdjustment);
+    adjustmentCell.textContent = info.applyAdjustment
+      ? `${info.adjustment > 0 ? '+' : ''}${_hkIsoDraftNumber(info.adjustment)}`
+      : `참고 ${info.adjustment > 0 ? '+' : ''}${_hkIsoDraftNumber(info.adjustment)}`;
+  }
+  const targetCell = row.querySelector('.hk-iso-unified-target');
+  if (targetCell) targetCell.textContent = _hkIsoDraftNumber(info.targetPrice);
+}
+
+function _hkIsoSyncUnifiedShippingRow(sourceAccordion, rowIndex) {
+  const row = document.querySelector(`#hkIsoAcc-${sourceAccordion} tr[data-row-index="${rowIndex}"]`);
+  _hkIsoRefreshUnifiedRowElement(row);
+  const listingSection = document.getElementById('hkChannelListingSection');
+  if (listingSection && !listingSection.hidden && typeof window._hkRefreshChannelListing === 'function') {
+    window._hkRefreshChannelListing();
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -859,7 +957,7 @@ function _hkIsoShippingBlockHtml(block) {
     const thicknessMatch = row.name.match(/(\d+)T/);
     if (thicknessMatch) currentThickness = Number(thicknessMatch[1]);
     const ship = block.rows[i] || {};
-    const code = _hkIsoDraftProductCode(row.saleSize, currentThickness, block.isAdhesive, block.codePrefix);
+    const code = ship.codeOverride || _hkIsoDraftProductCode(row.saleSize, currentThickness, block.isAdhesive, block.codePrefix);
     const basePrice = livePriceInputs[i] ? _hkIsoDraftParseNumber(livePriceInputs[i].value) : Number(row.price);
     // 행마다 기준배송비가 다른 블록(쿠팡 위너 — 수량 많으면 기준배송비도 배수로
     // 올라감)을 위해 행별 baseShipping을 우선 쓴다. null이면 "이 규격은 5장당
@@ -876,7 +974,7 @@ function _hkIsoShippingBlockHtml(block) {
     const baseShippingCell = hasBase
       ? `<input type="text" inputmode="numeric" class="pricing-input-field hk-iso-ship-base-input" value="${baseShipping.toLocaleString()}" oninput="recalcHkIsoShippingRow(this)" onblur="formatHkIsoDraftPrice(this)">`
       : `<span class="hk-iso-ship-blank-cell">—</span>`;
-    return `<tr data-base-price="${basePrice}" data-base-shipping="${baseShipping ?? ''}" data-has-base="${hasBase ? 1 : 0}" data-divisor="${rowDivisor}">
+    return `<tr data-source-accordion="${block.sourceAccordion}" data-row-index="${i}" data-product-code="${code}" data-base-price="${basePrice}" data-base-shipping="${baseShipping ?? ''}" data-has-base="${hasBase ? 1 : 0}" data-divisor="${rowDivisor}">
       <td class="hk-iso-draft-name">${row.name || '　'}</td>
       <td>${_hkIsoDraftNumber(row.unit)}</td>
       <td>${row.spec || '—'}</td>
@@ -894,11 +992,11 @@ function _hkIsoShippingBlockHtml(block) {
 
   return `<div class="card pricing-cost-card hk-iso-shipping-block">
     <div class="pricing-result-header">
-      <div class="pricing-result-title">${block.title}<span class="pricing-spec-badge">2단계</span></div>
+      <div class="pricing-result-title">${block.title}<span class="pricing-spec-badge">배송 상세</span></div>
       <div class="hk-iso-header-actions">
         <span class="pricing-result-hint">${block.productNumbers.length ? '상품번호 ' + block.productNumbers.join(' // ') : '상품번호 미지정(기본값)'}</span>
-        <button type="button" class="pricing-margin-edit-btn hk-iso-ship-refresh-btn" onclick="_hkIsoRefreshShippingSection()" title="1단계에서 판매가를 바꿨으면 눌러서 다시 불러오기">
-          <i class="fa-solid fa-rotate"></i> 1단계 판매가 새로고침
+        <button type="button" class="pricing-margin-edit-btn hk-iso-ship-refresh-btn" onclick="_hkIsoRefreshShippingSection()" title="기준 판매가를 바꿨으면 눌러서 다시 불러옵니다">
+          <i class="fa-solid fa-rotate"></i> 기준 판매가 새로고침
         </button>
       </div>
     </div>
@@ -910,7 +1008,7 @@ function _hkIsoShippingBlockHtml(block) {
           <th class="hk-iso-head-base">규 격</th>
           <th class="hk-iso-head-size">판매사이즈</th>
           <th class="hk-iso-head-code">상품코드</th>
-          <th class="hk-iso-head-base">${block.saleGroupLabel}<br><span class="pricing-th-tiny">판매가(1단계)</span></th>
+          <th class="hk-iso-head-base">${block.saleGroupLabel}<br><span class="pricing-th-tiny">기준 판매가</span></th>
           <th class="hk-iso-head-sale-price">${shippingLabel}</th>
           <th class="hk-iso-head-sale-price">${actualLabel}</th>
           <th class="hk-iso-head-margin">배송비차액</th>
@@ -933,6 +1031,10 @@ window.recalcHkIsoShippingRow = function(input) {
   const hasBase = row.dataset.hasBase === '1';
   const actualShipping = _hkIsoDraftParseNumber(row.querySelector('.hk-iso-ship-actual-input')?.value);
   const plusAmount = _hkIsoDraftParseNumber(row.querySelector('.hk-iso-ship-plus-input')?.value);
+  const sourceAccordion = row.dataset.sourceAccordion;
+  const rowIndex = Number(row.dataset.rowIndex);
+  const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.sourceAccordion === sourceAccordion);
+  const ship = block?.rows?.[rowIndex];
   if (hasBase) {
     const baseShipping = _hkIsoDraftParseNumber(row.querySelector('.hk-iso-ship-base-input')?.value);
     row.dataset.baseShipping = baseShipping;
@@ -940,8 +1042,14 @@ window.recalcHkIsoShippingRow = function(input) {
     const perUnitDiff = shippingDiff / divisor;
     row.querySelector('.hk-iso-ship-diff').textContent = _hkIsoDraftNumber(shippingDiff);
     row.querySelector('.hk-iso-ship-per-unit').textContent = _hkIsoDraftNumber(perUnitDiff);
+    if (ship) ship.baseShipping = baseShipping;
+  }
+  if (ship) {
+    ship.actualShipping5 = actualShipping;
+    ship.plusAmount = plusAmount;
   }
   row.querySelector('.hk-iso-ship-final-price').textContent = _hkIsoDraftNumber(basePrice + plusAmount);
+  _hkIsoSyncUnifiedShippingRow(sourceAccordion, rowIndex);
 };
 
 /* 900x1800류(schema:'per1Coupon') 배송비 블록 렌더러 — 600x900류와 표 구조 자체가
@@ -965,7 +1073,7 @@ function _hkIsoShippingBlockHtmlPerUnit(block) {
     const actualShippingHtml = block.isFreeShipping
       ? `<input type="text" inputmode="numeric" class="pricing-input-field hk-iso-ship-actual-input" value="${(ship.actualShipping ?? 0).toLocaleString()}" oninput="recalcHkIsoShippingRowPerUnit(this)" onblur="formatHkIsoDraftPrice(this)">`
       : `<input type="text" class="pricing-input-field hk-iso-ship-actual-text-input" value="${ship.actualShippingText ?? ''}" oninput="recalcHkIsoShippingRowPerUnit(this)">`;
-    return `<tr data-base-price="${basePrice}" data-free-shipping="${block.isFreeShipping ? 1 : 0}">
+    return `<tr data-source-accordion="${block.sourceAccordion}" data-row-index="${i}" data-product-code="${code}" data-base-price="${basePrice}" data-free-shipping="${block.isFreeShipping ? 1 : 0}">
       <td class="hk-iso-draft-name">${row.name || '　'}</td>
       <td>${_hkIsoDraftNumber(row.unit)}</td>
       <td>${row.spec || '—'}</td>
@@ -983,11 +1091,11 @@ function _hkIsoShippingBlockHtmlPerUnit(block) {
 
   return `<div class="card pricing-cost-card hk-iso-shipping-block">
     <div class="pricing-result-header">
-      <div class="pricing-result-title">${block.title}<span class="pricing-spec-badge">2단계</span>${block.isFreeShipping ? '<span class="hk-iso-free-badge">무료배송</span>' : ''}</div>
+      <div class="pricing-result-title">${block.title}<span class="pricing-spec-badge">배송 상세</span>${block.isFreeShipping ? '<span class="hk-iso-free-badge">무료배송</span>' : ''}</div>
       <div class="hk-iso-header-actions">
         <span class="pricing-result-hint">${block.productNumbers.length ? '상품번호 ' + block.productNumbers.join(' // ') : '상품번호 미지정(기본값)'}</span>
-        <button type="button" class="pricing-margin-edit-btn hk-iso-ship-refresh-btn" onclick="_hkIsoRefreshShippingSection()" title="1단계에서 판매가를 바꿨으면 눌러서 다시 불러오기">
-          <i class="fa-solid fa-rotate"></i> 1단계 판매가 새로고침
+        <button type="button" class="pricing-margin-edit-btn hk-iso-ship-refresh-btn" onclick="_hkIsoRefreshShippingSection()" title="기준 판매가를 바꿨으면 눌러서 다시 불러옵니다">
+          <i class="fa-solid fa-rotate"></i> 기준 판매가 새로고침
         </button>
       </div>
     </div>
@@ -999,7 +1107,7 @@ function _hkIsoShippingBlockHtmlPerUnit(block) {
           <th class="hk-iso-head-base">규 격</th>
           <th class="hk-iso-head-size">판매사이즈</th>
           <th class="hk-iso-head-code">상품코드</th>
-          <th class="hk-iso-head-base">${block.saleGroupLabel}<br><span class="pricing-th-tiny">판매가(1단계)</span></th>
+          <th class="hk-iso-head-base">${block.saleGroupLabel}<br><span class="pricing-th-tiny">기준 판매가</span></th>
           <th class="hk-iso-head-sale-price">${block.isFreeShipping ? '배송비' : '1장당<br>배송비'}</th>
           <th class="hk-iso-head-sale-price">실제배송비</th>
           <th class="hk-iso-head-margin">알림 쿠폰</th>
@@ -1021,11 +1129,26 @@ window.recalcHkIsoShippingRowPerUnit = function(input) {
   const basePrice = Number(row.dataset.basePrice);
   const isFree = row.dataset.freeShipping === '1';
   const plusAmount = _hkIsoDraftParseNumber(row.querySelector('.hk-iso-ship-plus-input')?.value);
+  const sourceAccordion = row.dataset.sourceAccordion;
+  const rowIndex = Number(row.dataset.rowIndex);
+  const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.sourceAccordion === sourceAccordion);
+  const ship = block?.rows?.[rowIndex];
+  if (ship) {
+    ship.plusAmount = plusAmount;
+    ship.coupon = _hkIsoDraftParseNumber(row.querySelector('.hk-iso-ship-coupon-input')?.value);
+    if (isFree) {
+      ship.actualShipping = _hkIsoDraftParseNumber(row.querySelector('.hk-iso-ship-actual-input')?.value);
+    } else {
+      ship.perUnitShipping = _hkIsoDraftParseNumber(row.querySelector('.hk-iso-ship-perunit-input')?.value);
+      ship.actualShippingText = row.querySelector('.hk-iso-ship-actual-text-input')?.value || '';
+    }
+  }
   row.querySelector('.hk-iso-ship-final-price').textContent = _hkIsoDraftNumber(isFree ? basePrice + plusAmount : basePrice);
+  _hkIsoSyncUnifiedShippingRow(sourceAccordion, rowIndex);
 };
 
-/* 2단계 섹션 내용을 지금 1단계 화면 값 기준으로 다시 그린다 — "1단계 판매가
-   새로고침" 버튼과 섹션을 열 때 호출한다. 블록의 schema에 따라 렌더러를 나눈다. */
+/* 배송 상세를 현재 기준 판매가로 다시 그린다. 새로고침 버튼과 팝업을 열 때
+   호출하며, 블록의 schema에 따라 렌더러를 나눈다. */
 window._hkIsoRefreshShippingSection = function() {
   const section = document.getElementById('hkIsoShippingSection');
   if (!section) return;
@@ -1034,20 +1157,22 @@ window._hkIsoRefreshShippingSection = function() {
     .join('');
 };
 
-/* 2단계 섹션 통째로 열고 닫기 — 평소엔 숨겨두고 필요할 때만 연다. 열 때마다
-   1단계의 현재 판매가를 다시 읽어와서 그린다(그새 편집됐을 수 있으므로). */
+/* 배송 상세값은 통합 기준가격 표에서 버튼을 눌렀을 때 팝업으로 연다. */
 window.toggleHkIsoShippingSection = function() {
+  const modal = document.getElementById('hkIsoShippingModal');
   const section = document.getElementById('hkIsoShippingSection');
-  const btn = document.getElementById('hkIsoShippingToggleBtn');
-  if (!section) return;
-  const show = section.hidden;
-  if (show) window._hkIsoRefreshShippingSection();
-  section.hidden = !show;
-  if (btn) btn.classList.toggle('open', show);
+  if (!modal || !section) return;
+  window._hkIsoRefreshShippingSection();
+  modal.style.display = 'flex';
+};
+
+window.closeHkIsoShippingModal = function() {
+  const modal = document.getElementById('hkIsoShippingModal');
+  if (modal) modal.style.display = 'none';
 };
 
 /* ═══════════════════════════════════════
-   3단계 — 채널별 실제 등록 상품(최종 확인용)
+   몰별 적용·검증 — 채널별 실제 등록 상품
 
    상품코드를 키로 2단계 실판매가를 그대로 가져와서(엑셀에서 VLOOKUP으로 하던
    것과 같은 방식, 2026-09-16) "네이버판매가"를 만들고, 같은 상품ID 안에서
@@ -1059,9 +1184,10 @@ window.toggleHkIsoShippingSection = function() {
 
    채널(HK_CHANNELS)별로 키를 나눠서 관리한다 — 지금은 'hkd'(한국단열)만
    실제 자료가 있고 나머지는 준비중으로 뜬다. */
-const HK_ISO_CHANNEL_LISTINGS = {
+const HK_CHANNEL_LISTINGS = {
   hkd: [
     {
+      categoryId: 'hk_isopink',
       productId: '439103571',
       baseShipping: 6000,
       shippingBasis: '5개마다',
@@ -1083,6 +1209,7 @@ const HK_ISO_CHANNEL_LISTINGS = {
       ],
     },
     {
+      categoryId: 'hk_isopink',
       productId: '2229818356',
       baseShipping: 6000,
       shippingBasis: '5개마다',
@@ -1105,6 +1232,7 @@ const HK_ISO_CHANNEL_LISTINGS = {
     },
     // ── 아래는 2026-09-21에 추가(엑셀 3단계 원본 그대로) ──
     {
+      categoryId: 'hk_isopink',
       productId: '3020442618',
       baseShipping: 6000,
       shippingBasis: '5개마다',
@@ -1120,6 +1248,7 @@ const HK_ISO_CHANNEL_LISTINGS = {
       ],
     },
     {
+      categoryId: 'hk_isopink',
       productId: '439904706',
       baseShipping: 6000,
       shippingBasis: '5개마다',
@@ -1145,6 +1274,7 @@ const HK_ISO_CHANNEL_LISTINGS = {
       ],
     },
     {
+      categoryId: 'hk_isopink',
       productId: '3736232926',
       baseShipping: 6000,
       shippingBasis: '5개마다',
@@ -1159,6 +1289,7 @@ const HK_ISO_CHANNEL_LISTINGS = {
       ],
     },
     {
+      categoryId: 'hk_isopink',
       productId: '442086644',
       baseShipping: 6000,
       shippingBasis: '5개마다',
@@ -1173,6 +1304,7 @@ const HK_ISO_CHANNEL_LISTINGS = {
       ],
     },
     {
+      categoryId: 'hk_isopink',
       productId: '4995022274',
       baseShipping: 0,
       shippingBasis: '-',
@@ -1187,6 +1319,7 @@ const HK_ISO_CHANNEL_LISTINGS = {
       ],
     },
     {
+      categoryId: 'hk_isopink',
       productId: '5695312387',
       baseShipping: 0,
       shippingBasis: '-',
@@ -1209,6 +1342,7 @@ const HK_ISO_CHANNEL_LISTINGS = {
       ],
     },
     {
+      categoryId: 'hk_isopink',
       productId: '5697937041',
       baseShipping: 0,
       shippingBasis: '-',
@@ -1223,37 +1357,37 @@ const HK_ISO_CHANNEL_LISTINGS = {
     },
     // ── 2026-09-21 추가 2차: 900x1800 단품은 옵션 하나마다 상품ID가 따로(상품당 옵션 1개),
     //    배송비/배송비기준/제주/편도교환도 상품마다 다르다(엑셀 원본 그대로).
-    { productId: '8324406068',  baseShipping: 10400, shippingBasis: '5개마다', jejuShipping: 20000, returnExchange: '21000/42000',
+    { categoryId: 'hk_isopink', productId: '8324406068',  baseShipping: 10400, shippingBasis: '5개마다', jejuShipping: 20000, returnExchange: '21000/42000',
       items: [{ productCode: 'Iso_900_1800_10_1',   prevPrice: 3800,  prevShipping: 10400 }] },
-    { productId: '8456757485',  baseShipping: 11700, shippingBasis: '3개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '8456757485',  baseShipping: 11700, shippingBasis: '3개마다', jejuShipping: 20000, returnExchange: '14000/28000',
       items: [{ productCode: 'Iso_900_1800_20_1',   prevPrice: 7700,  prevShipping: 11700 }] },
-    { productId: '11097629335', baseShipping: 11700, shippingBasis: '2개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '11097629335', baseShipping: 11700, shippingBasis: '2개마다', jejuShipping: 20000, returnExchange: '14000/28000',
       items: [{ productCode: 'Iso_900_1800_30_1',   prevPrice: 11000, prevShipping: 11700 }] },
-    { productId: '8324375715',  baseShipping: 10000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
+    { categoryId: 'hk_isopink', productId: '8324375715',  baseShipping: 10000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
       items: [{ productCode: 'Iso_900_1800_40_1',   prevPrice: 15800, prevShipping: 10000 }] },
-    { productId: '8131395351',  baseShipping: 10400, shippingBasis: '1개마다', jejuShipping: 30000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '8131395351',  baseShipping: 10400, shippingBasis: '1개마다', jejuShipping: 30000, returnExchange: '14000/28000',
       items: [{ productCode: 'Iso_900_1800_50_1',   prevPrice: 17300, prevShipping: 10400 }] },
-    { productId: '8324347562',  baseShipping: 13000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '8324347562',  baseShipping: 13000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '14000/28000',
       items: [{ productCode: 'Iso_900_1800_70_1',   prevPrice: 29000, prevShipping: 13000 }] },
-    { productId: '8324352040',  baseShipping: 17000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
+    { categoryId: 'hk_isopink', productId: '8324352040',  baseShipping: 17000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
       items: [{ productCode: 'Iso_900_1800_100_1',  prevPrice: 35500, prevShipping: 17000 }] },
-    { productId: '10181453964', baseShipping: 10400, shippingBasis: '5개마다', jejuShipping: 20000, returnExchange: '21000/42000',
+    { categoryId: 'hk_isopink', productId: '10181453964', baseShipping: 10400, shippingBasis: '5개마다', jejuShipping: 20000, returnExchange: '21000/42000',
       items: [{ productCode: 'IsoA_900_1800_10_1',  prevPrice: 8500,  prevShipping: 10400 }] },
-    { productId: '10181564057', baseShipping: 11700, shippingBasis: '3개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '10181564057', baseShipping: 11700, shippingBasis: '3개마다', jejuShipping: 20000, returnExchange: '14000/28000',
       items: [{ productCode: 'IsoA_900_1800_20_1',  prevPrice: 14250, prevShipping: 11700 }] },
-    { productId: '10181571912', baseShipping: 11700, shippingBasis: '2개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '10181571912', baseShipping: 11700, shippingBasis: '2개마다', jejuShipping: 20000, returnExchange: '14000/28000',
       items: [{ productCode: 'IsoA_900_1800_30_1',  prevPrice: 20200, prevShipping: 11700 }] },
-    { productId: '10181582241', baseShipping: 10000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
+    { categoryId: 'hk_isopink', productId: '10181582241', baseShipping: 10000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
       items: [{ productCode: 'IsoA_900_1800_40_1',  prevPrice: 23750, prevShipping: 10000 }] },
-    { productId: '10181586522', baseShipping: 10400, shippingBasis: '1개마다', jejuShipping: 30000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '10181586522', baseShipping: 10400, shippingBasis: '1개마다', jejuShipping: 30000, returnExchange: '14000/28000',
       items: [{ productCode: 'IsoA_900_1800_50_1',  prevPrice: 31300, prevShipping: 10400 }] },
     // 600 계열 고티: 상품 하나에 옵션 2개(600x430, 600x860) — 기준가는 첫 옵션(600x430)
-    { productId: '10185646787', baseShipping: 0, shippingBasis: '-', jejuShipping: 30000, returnExchange: '20000/40000',
+    { categoryId: 'hk_isopink', productId: '10185646787', baseShipping: 0, shippingBasis: '-', jejuShipping: 30000, returnExchange: '20000/40000',
       items: [
         { productCode: 'Iso_600_430_250_1', prevPrice: 38000, prevShipping: 0 },
         { productCode: 'Iso_600_860_250_1', prevPrice: 65000, prevShipping: 0 },
       ] },
-    { productId: '10185649832', baseShipping: 0, shippingBasis: '-', jejuShipping: 30000, returnExchange: '20000/40000',
+    { categoryId: 'hk_isopink', productId: '10185649832', baseShipping: 0, shippingBasis: '-', jejuShipping: 30000, returnExchange: '20000/40000',
       items: [
         { productCode: 'Iso_600_430_500_1', prevPrice: 72000,  prevShipping: 0 },
         { productCode: 'Iso_600_860_500_1', prevPrice: 126000, prevShipping: 0 },
@@ -1298,73 +1432,72 @@ function _hkIsoLookupFinalPriceByCode(code) {
   return null;
 }
 
-/* 채널 하나의 3단계 표 전체를 그린다. */
-function _hkIsoChannelListingHtml(channelId) {
-  const channelLabel = HK_CHANNELS.find(c => c.id === channelId)?.label || channelId;
-  const products = HK_ISO_CHANNEL_LISTINGS[channelId];
+function _hkChannelTargetPrice(categoryId, productCode) {
+  if (categoryId === 'hk_isopink') return _hkIsoLookupFinalPriceByCode(productCode);
+  return null;
+}
 
-  if (!products || !products.length) {
-    return `<div class="card pricing-cost-card hk-iso-channel-listing">
-      <div class="pricing-result-header">
-        <div class="pricing-result-title">${channelLabel} — 실제 등록 상품<span class="pricing-spec-badge">3단계</span></div>
-      </div>
-      <div class="pricing-coming-soon">
-        <i class="fa-solid fa-store"></i>
-        <p>${channelLabel} 채널의 실제 등록 상품 자료는 아직 입력 전입니다.</p>
-      </div>
-    </div>`;
-  }
+function _hkChannelItemName(categoryId, product, item) {
+  if (item.productName) return item.productName;
+  if (categoryId === 'hk_isopink') return _hkIsoProductNameFromCode(item.productCode);
+  return product.productName || item.productCode;
+}
 
-  // 기준가 = 그 상품의 "첫 번째 옵션" 네이버판매가. 처음엔 최저가로 잡았는데
-  // 3736232926·5695312387처럼 첫 옵션보다 싼 옵션이 있는 상품에서 옵션추가금이
-  // 음수로 나오는 실제 엑셀 값과 안 맞아서 첫 옵션 기준으로 바로잡음(2026-09-21).
+function _hkChannelProductLink(channelId, product) {
+  if (product.productUrl) return product.productUrl;
+  if (channelId === 'hkd') return `https://smartstore.naver.com/hkdy/products/${product.productId}`;
+  if (channelId === 'hkd_life') return `https://smartstore.naver.com/hkdylife/products/${product.productId}`;
+  return '';
+}
+
+/* 한 카테고리의 상품표. 상품코드 해석은 카테고리별 가격 엔진에 맡기므로
+   한국단열 탭 하나에 아이소핑크 외 모든 제품을 같은 형식으로 추가할 수 있다. */
+function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
+  const categoryLabel = HK_CATEGORIES.find(c => c.id === categoryId)?.label || categoryId;
   const baseByProduct = {};
   products.forEach(product => {
-    baseByProduct[product.productId] = _hkIsoLookupFinalPriceByCode(product.items[0]?.productCode);
+    baseByProduct[product.productId] = _hkChannelTargetPrice(categoryId, product.items[0]?.productCode);
   });
 
   let rowsHtml = '';
   products.forEach((product, groupIndex) => {
     product.items.forEach((item, i) => {
-      const naverPrice = _hkIsoLookupFinalPriceByCode(item.productCode);
+      const targetPrice = _hkChannelTargetPrice(categoryId, item.productCode);
       const basePrice = baseByProduct[product.productId];
-      const optionAdd = (naverPrice != null && basePrice != null) ? naverPrice - basePrice : null;
-      const priceDiff = naverPrice != null ? naverPrice - item.prevPrice : null;
-      // 상품ID는 같은 상품 안의 옵션들을 묶어 보여주는 값이라, 첫 행에만 값을
-      // 넣고 rowspan으로 그 상품의 행 수만큼 세로로 걸쳐서(엑셀 병합 셀과 같은
-      // 방식) "이 옵션들이 전부 같은 상품이다"를 실제로 보이게 한다. 빈 셀로
-      // 남겨두면 병합처럼 안 보이고 그냥 데이터 누락처럼 보여서 이렇게 바꿈
-      // (2026-09-16, 사용자 피드백).
+      const optionAdd = (targetPrice != null && basePrice != null) ? targetPrice - basePrice : null;
+      const priceDiff = (targetPrice != null && item.prevPrice != null) ? targetPrice - item.prevPrice : null;
+      const productLink = _hkChannelProductLink(channelId, product);
+      const productIdValue = productLink
+        ? `<a href="${productLink}" target="_blank" rel="noopener noreferrer">${product.productId}</a>`
+        : product.productId;
       const productIdCell = i === 0
-        ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}"><a href="https://smartstore.naver.com/hkdy/products/${product.productId}" target="_blank" rel="noopener noreferrer">${product.productId}</a></td>`
+        ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${productIdValue}</td>`
         : '';
-      // 새 상품이 시작하는 첫 행에 굵은 윗선을 그어서 경계를 명확하게 한다
-      // (맨 첫 상품은 제외) — 배경 줄무늬로 구분하는 건 안 써도 된다는
-      // 피드백으로 이 선만 남김(2026-09-16).
       const groupStartClass = (i === 0 && groupIndex > 0) ? ' hk-iso-listing-group-start' : '';
       rowsHtml += `<tr class="${groupStartClass.trim()}">
-        <td class="hk-iso-draft-name">${_hkIsoProductNameFromCode(item.productCode)}</td>
+        <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
         <td class="hk-iso-draft-code">${item.productCode}</td>
         ${productIdCell}
-        <td class="hk-iso-ship-final-price">${_hkIsoDraftNumber(naverPrice)}</td>
+        <td class="hk-iso-ship-final-price">${_hkIsoDraftNumber(targetPrice)}</td>
         <td>${_hkIsoDraftNumber(basePrice)}</td>
-        <td>${optionAdd ? _hkIsoDraftNumber(optionAdd) : '—'}</td>
+        <td>${optionAdd == null ? '—' : _hkIsoDraftNumber(optionAdd)}</td>
         <td>${_hkIsoDraftNumber(item.stock ?? 99999999)}</td>
         <td>${_hkIsoDraftNumber(product.baseShipping)}</td>
-        <td>${product.shippingBasis}</td>
+        <td>${product.shippingBasis || '—'}</td>
         <td>${_hkIsoDraftNumber(product.jejuShipping)}</td>
-        <td>${product.returnExchange}</td>
+        <td>${product.returnExchange || '—'}</td>
         <td class="hk-iso-listing-prev-price">${_hkIsoDraftNumber(item.prevPrice)}</td>
-        <td class="hk-iso-listing-diff">${priceDiff ? _hkIsoDraftNumber(priceDiff) : '—'}</td>
+        <td class="hk-iso-listing-diff">${priceDiff == null ? '—' : _hkIsoDraftNumber(priceDiff)}</td>
         <td class="hk-iso-listing-prev-shipping">${_hkIsoDraftNumber(item.prevShipping)}</td>
       </tr>`;
     });
   });
 
+  const optionCount = products.reduce((sum, product) => sum + product.items.length, 0);
   return `<div class="card pricing-cost-card hk-iso-channel-listing">
     <div class="pricing-result-header">
-      <div class="pricing-result-title">${channelLabel} — 실제 등록 상품<span class="pricing-spec-badge">3단계</span></div>
-      <span class="pricing-result-hint">상품코드로 2단계 실판매가를 그대로 가져옵니다(VLOOKUP과 같은 방식)</span>
+      <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${products.length} · 옵션 ${optionCount}</span></div>
+      <span class="pricing-result-hint">상품코드 기준 목표 판매가와 현재 몰 판매가 비교</span>
     </div>
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-iso-draft-table hk-iso-listing-table">
@@ -1379,7 +1512,7 @@ function _hkIsoChannelListingHtml(channelId) {
           <th class="hk-iso-head-base">상품명</th>
           <th class="hk-iso-head-code">상품코드</th>
           <th class="hk-iso-head-base">상품ID</th>
-          <th class="hk-iso-head-rate">네이버판매가<br><span class="pricing-th-tiny">기본가</span></th>
+          <th class="hk-iso-head-rate">목표 판매가</th>
           <th class="hk-iso-head-base">기준가</th>
           <th class="hk-iso-head-base">옵션추가금</th>
           <th class="hk-iso-head-base">재고수량</th>
@@ -1387,9 +1520,9 @@ function _hkIsoChannelListingHtml(channelId) {
           <th class="hk-iso-head-base">배송비 기준</th>
           <th class="hk-iso-head-base">제주배송비</th>
           <th class="hk-iso-head-base">편도/교환</th>
-          <th class="hk-iso-head-prev">수정 전 판매가</th>
+          <th class="hk-iso-head-prev">현재 몰 판매가</th>
           <th class="hk-iso-head-diff">가격차이</th>
-          <th class="hk-iso-head-prev">수정전 배송비</th>
+          <th class="hk-iso-head-prev">현재 배송비</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
@@ -1397,11 +1530,46 @@ function _hkIsoChannelListingHtml(channelId) {
   </div>`;
 }
 
-/* 채널 탭을 바꿀 때마다 그 채널의 3단계 표를 다시 그린다 — setHkChannel에서 호출. */
-window._hkIsoRefreshChannelListing = function() {
+function _hkChannelListingHtml(channelId) {
+  const channelLabel = HK_CHANNELS.find(c => c.id === channelId)?.label || channelId;
+  const products = HK_CHANNEL_LISTINGS[channelId] || [];
+  if (!products.length) {
+    return `<div class="card pricing-cost-card hk-iso-channel-listing">
+      <div class="pricing-result-header"><div class="pricing-result-title">${channelLabel} — 몰별 적용·검증</div></div>
+      <div class="pricing-coming-soon"><i class="fa-solid fa-store"></i><p>${channelLabel} 채널의 실제 등록 상품 자료는 아직 입력 전입니다.</p></div>
+    </div>`;
+  }
+
+  const counts = products.reduce((result, product) => {
+    result[product.categoryId] = (result[product.categoryId] || 0) + 1;
+    return result;
+  }, {});
+  const filters = [{ id:'all', label:'전체', count:products.length }]
+    .concat(HK_CATEGORIES.filter(category => counts[category.id]).map(category => ({ ...category, count:counts[category.id] })));
+  const filterButtons = filters.map(filter => `<button type="button" class="hk-channel-category-filter${_activeHkChannelCategory === filter.id ? ' active' : ''}" onclick="setHkChannelCategory('${filter.id}',this)">${filter.label}<span>${filter.count}</span></button>`).join('');
+  const visibleCategories = HK_CATEGORIES.filter(category => counts[category.id] && (_activeHkChannelCategory === 'all' || _activeHkChannelCategory === category.id));
+  const optionCount = products.reduce((sum, product) => sum + product.items.length, 0);
+
+  return `<div class="hk-channel-catalog-header card pricing-cost-card">
+      <div class="pricing-result-header">
+        <div class="pricing-result-title">${channelLabel} — 몰별 적용·검증<span class="pricing-spec-badge">전체 상품 ${products.length} · 옵션 ${optionCount}</span></div>
+        <span class="pricing-result-hint">제품 종류별 기준 판매가를 상품코드로 연결합니다.</span>
+      </div>
+      <div class="hk-channel-category-filters">${filterButtons}</div>
+    </div>
+    ${visibleCategories.map(category => _hkChannelCategoryTableHtml(channelId, category.id, products.filter(product => product.categoryId === category.id))).join('')}`;
+}
+
+window.setHkChannelCategory = function(categoryId) {
+  _activeHkChannelCategory = categoryId;
+  window._hkRefreshChannelListing();
+};
+
+/* 채널 탭은 특정 품목 화면과 무관한 전사 상품 목록이다. */
+window._hkRefreshChannelListing = function() {
   const section = document.getElementById('hkChannelListingSection');
   if (!section) return;
-  section.innerHTML = _hkIsoChannelListingHtml(window._activeHkChannel);
+  section.innerHTML = _hkChannelListingHtml(window._activeHkChannel);
 };
 
 function renderHkIsopinkPane() {
@@ -1420,10 +1588,10 @@ function renderHkIsopinkPane() {
   return `<div id="hkIsoBaseDataSection">
     ${marginCard}<div class="card pricing-result-card">
       <div class="pricing-result-header">
-        <div class="pricing-result-title">한국단열 아이소핑크 단가표<span class="pricing-spec-badge">재구성 중</span></div>
+        <div class="pricing-result-title">한국단열 아이소핑크 기준 판매가<span class="pricing-spec-badge">원가·배송 통합</span></div>
         <div class="hk-iso-header-actions">
           <button type="button" class="pricing-margin-edit-btn hk-iso-shipping-toggle-btn" id="hkIsoShippingToggleBtn" onclick="toggleHkIsoShippingSection()">
-            <i class="fa-solid fa-truck-fast"></i> 배송비·실판매가(2단계)
+            <i class="fa-solid fa-truck-fast"></i> 배송 세부설정
           </button>
           <button type="button" class="pricing-margin-edit-btn hk-iso-final-price-edit-btn" id="hkIsoFinalPriceEditBtn" onclick="toggleHkIsoFinalPriceEdit()">
             <i class="fa-solid fa-pen"></i> 판매가 편집
@@ -1433,9 +1601,7 @@ function renderHkIsopinkPane() {
       <div class="bead-subtab-bar" id="hkIsoSuperTabBar">${superTabs}</div>
       ${superPanes}
     </div>
-    <div class="hk-iso-shipping-section" id="hkIsoShippingSection" hidden></div>
-  </div>
-  <div class="hk-iso-channel-listing-section" id="hkChannelListingSection" hidden></div>`;
+  </div>`;
 }
 
 /* 상위 탭(일반/접착식/쿠팡 위너) 전환 — 각 탭 안 아코디언은 열고 닫은 상태를
@@ -1607,6 +1773,7 @@ window.recalcHkIsoDraftRow = function(input) {
   row.querySelector('.hk-iso-draft-net-margin').textContent = _hkIsoDraftNumber(netMargin);
   row.querySelector('.hk-iso-draft-rate').textContent = _hkIsoDraftNumber(rate, '%');
   _hkIsoDraftUpdateRowTooltip(row);
+  _hkIsoRefreshUnifiedRowElement(row);
 };
 
 window.formatHkIsoDraftPrice = function(input) {
@@ -1617,6 +1784,8 @@ window.formatHkIsoDraftPrice = function(input) {
 document.addEventListener('click', function(event) {
   const modal = document.getElementById('hkIsoMarginModal');
   if (modal && event.target === modal) closeHkIsoDraftMarginModal();
+  const shippingModal = document.getElementById('hkIsoShippingModal');
+  if (shippingModal && event.target === shippingModal) closeHkIsoShippingModal();
 });
 
 /* 한국단열 단가표에 진입할 때 항상 맨 앞의 아이소핑크(일반 > 600x900 일반)부터
