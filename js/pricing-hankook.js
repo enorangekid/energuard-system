@@ -715,6 +715,7 @@ const HK_ISO_SHIPPING_BLOCKS = [
     saleGroupLabel: '600*900',
     isAdhesive: false,
     schema: 'per5',
+    sharedBaseShipping: true,
     baseShipping5: 6000,
     // HK_ISO_DRAFT_600X900_ROWS와 같은 순서(10T 430*430-3, 10T 600*900-3, 20T ... )
     rows: [
@@ -971,10 +972,13 @@ function _hkIsoShippingBlockHtml(block) {
     const perUnitDiff = hasBase ? shippingDiff / rowDivisor : null;
     const plusAmount = ship.plusAmount ?? 0;
     const finalPrice = basePrice + plusAmount;
+    const usesSharedBase = !!block.sharedBaseShipping && hasBase;
     const baseShippingCell = hasBase
-      ? `<input type="text" inputmode="numeric" class="pricing-input-field hk-iso-ship-base-input" value="${baseShipping.toLocaleString()}" oninput="recalcHkIsoShippingRow(this)" onblur="formatHkIsoDraftPrice(this)">`
+      ? (usesSharedBase
+        ? `<span class="hk-iso-shared-base-value">${_hkIsoDraftNumber(baseShipping)}</span>`
+        : `<input type="text" inputmode="numeric" class="pricing-input-field hk-iso-ship-base-input" value="${baseShipping.toLocaleString()}" oninput="recalcHkIsoShippingRow(this)" onblur="formatHkIsoDraftPrice(this)">`)
       : `<span class="hk-iso-ship-blank-cell">—</span>`;
-    return `<tr data-source-accordion="${block.sourceAccordion}" data-row-index="${i}" data-product-code="${code}" data-base-price="${basePrice}" data-base-shipping="${baseShipping ?? ''}" data-has-base="${hasBase ? 1 : 0}" data-divisor="${rowDivisor}">
+    return `<tr data-shipping-block-id="${block.id}" data-source-accordion="${block.sourceAccordion}" data-row-index="${i}" data-product-code="${code}" data-base-price="${basePrice}" data-base-shipping="${baseShipping ?? ''}" data-has-base="${hasBase ? 1 : 0}" data-shared-base="${usesSharedBase ? 1 : 0}" data-divisor="${rowDivisor}">
       <td class="hk-iso-draft-name">${row.name || '　'}</td>
       <td>${_hkIsoDraftNumber(row.unit)}</td>
       <td>${row.spec || '—'}</td>
@@ -990,10 +994,19 @@ function _hkIsoShippingBlockHtml(block) {
     </tr>`;
   }).join('');
 
+  const sharedBaseEditor = block.sharedBaseShipping
+    ? `<label class="hk-iso-shared-shipping-editor">
+        <span>판매 시 ${divisor}장당 배송비</span>
+        <input type="text" inputmode="numeric" class="pricing-input-field" value="${Number(block.baseShipping5 || 0).toLocaleString()}" oninput="recalcHkIsoSharedBaseShipping('${block.id}',this)" onblur="formatHkIsoDraftPrice(this)">
+        <em>원</em>
+      </label>`
+    : '';
+
   return `<div class="card pricing-cost-card hk-iso-shipping-block">
     <div class="pricing-result-header">
       <div class="pricing-result-title">${block.title}<span class="pricing-spec-badge">배송 상세</span></div>
       <div class="hk-iso-header-actions">
+        ${sharedBaseEditor}
         <span class="pricing-result-hint">${block.productNumbers.length ? '상품번호 ' + block.productNumbers.join(' // ') : '상품번호 미지정(기본값)'}</span>
         <button type="button" class="pricing-margin-edit-btn hk-iso-ship-refresh-btn" onclick="_hkIsoRefreshShippingSection()" title="기준 판매가를 바꿨으면 눌러서 다시 불러옵니다">
           <i class="fa-solid fa-rotate"></i> 기준 판매가 새로고침
@@ -1036,13 +1049,16 @@ window.recalcHkIsoShippingRow = function(input) {
   const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.sourceAccordion === sourceAccordion);
   const ship = block?.rows?.[rowIndex];
   if (hasBase) {
-    const baseShipping = _hkIsoDraftParseNumber(row.querySelector('.hk-iso-ship-base-input')?.value);
+    const baseInput = row.querySelector('.hk-iso-ship-base-input');
+    const baseShipping = baseInput
+      ? _hkIsoDraftParseNumber(baseInput.value)
+      : Number(row.dataset.baseShipping || 0);
     row.dataset.baseShipping = baseShipping;
     const shippingDiff = actualShipping - baseShipping;
     const perUnitDiff = shippingDiff / divisor;
     row.querySelector('.hk-iso-ship-diff').textContent = _hkIsoDraftNumber(shippingDiff);
     row.querySelector('.hk-iso-ship-per-unit').textContent = _hkIsoDraftNumber(perUnitDiff);
-    if (ship) ship.baseShipping = baseShipping;
+    if (ship && row.dataset.sharedBase !== '1') ship.baseShipping = baseShipping;
   }
   if (ship) {
     ship.actualShipping5 = actualShipping;
@@ -1050,6 +1066,23 @@ window.recalcHkIsoShippingRow = function(input) {
   }
   row.querySelector('.hk-iso-ship-final-price').textContent = _hkIsoDraftNumber(basePrice + plusAmount);
   _hkIsoSyncUnifiedShippingRow(sourceAccordion, rowIndex);
+};
+
+/* 판매 시 N장당 배송비는 상품군 공통 정책이다. 한 번 수정하면 해당 표의
+   모든 규격에 같은 기준배송비를 적용하고, 실제배송비 차액만 행별로 다시 계산한다. */
+window.recalcHkIsoSharedBaseShipping = function(blockId, input) {
+  const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.id === blockId);
+  if (!block) return;
+  const baseShipping = _hkIsoDraftParseNumber(input.value);
+  block.baseShipping5 = baseShipping;
+  document.querySelectorAll(`#hkIsoShippingSection tr[data-shipping-block-id="${blockId}"]`).forEach(row => {
+    if (row.dataset.hasBase !== '1') return;
+    row.dataset.baseShipping = baseShipping;
+    const value = row.querySelector('.hk-iso-shared-base-value');
+    if (value) value.textContent = _hkIsoDraftNumber(baseShipping);
+    const actualInput = row.querySelector('.hk-iso-ship-actual-input');
+    if (actualInput) window.recalcHkIsoShippingRow(actualInput);
+  });
 };
 
 /* 900x1800류(schema:'per1Coupon') 배송비 블록 렌더러 — 600x900류와 표 구조 자체가
