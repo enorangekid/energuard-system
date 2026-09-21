@@ -1350,7 +1350,7 @@
 .hk-sub-table .hk-sub-col-supplier { width: 86px; }
 .hk-sub-table .hk-sub-col-name { width: 320px; }
 .hk-sub-table .hk-sub-col-code { width: 76px; }
-.hk-sub-table .hk-sub-col-cost { width: 86px; }
+.hk-sub-table .hk-sub-col-cost { width: 96px; }
 .hk-sub-table .hk-sub-col-previous { width: 94px; }
 .hk-sub-table .hk-sub-col-price { width: 108px; }
 .hk-sub-table .hk-sub-col-shipping { width: 72px; }
@@ -1383,6 +1383,23 @@
 .hk-sub-table .hk-iso-draft-code { padding-left: 3px; padding-right: 3px; font-size: 9px; letter-spacing: -0.25px; }
 .hk-sub-table .hk-sub-supplier { color: #64748b; }
 .hk-sub-table .hk-sub-cost { background: #f8fafc; font-weight: 700; }
+.hk-sub-table .hk-sub-cost-cell { padding-left: 4px; padding-right: 4px; }
+.hk-sub-cost-input { width: 60px; text-align: right; font-weight: 800; color: #334155; background: transparent; border-color: transparent; }
+.hk-sub-table .hk-sub-cost-input:read-only {
+  cursor: pointer;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.hk-sub-cost-cell:hover .hk-iso-row-price-edit-btn,
+.hk-sub-cost-cell.editing .hk-iso-row-price-edit-btn { opacity: 1; background: #e2e8f0; border-color: #cbd5e1; color: #334155; }
+.hk-sub-cost-input:focus { background: #fff; border-color: #64748b; box-shadow: 0 0 0 2px rgba(100,116,139,.14); }
+.hk-sub-cost-history { margin-top: 4px; color: #94a3b8; font-size: 10px; font-weight: 600; }
+.hk-sub-cost-history span { color: #64748b; }
+.hk-sub-cost-history strong { color: #2563eb; }
+.hk-sub-cost-history button { margin-left: 3px; padding: 1px 3px; border: 0; background: transparent; color: #6366f1; cursor: pointer; }
+.hk-sub-cost-cell.changed { box-shadow: inset 0 0 0 1px #cbd5e1; }
+.hk-sub-derived-price-input { cursor: default !important; }
 .hk-sub-table .hk-sub-previous { color: #64748b; background: #f8fafc; }
 .hk-sub-table .hk-sub-previous small { display: block; margin-top: 3px; color: #94a3b8; font-size: 10px; }
 .hk-sub-table .hk-sub-previous small.up { color: #dc2626; }

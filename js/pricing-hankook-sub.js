@@ -116,14 +116,17 @@ function _hkSubRowHtml(product, rowIndex) {
     <td class="hk-sub-supplier">${product.supplier || '승현기업'}</td>
     <td class="hk-sub-name">${product.name}</td>
     <td class="hk-iso-draft-code">${product.code}</td>
-    <td class="hk-sub-cost">${_hkIsoDraftNumber(product.cost)}</td>
+    <td class="hk-sub-cost hk-sub-cost-cell">
+      <div class="hk-iso-price-edit-wrap">
+        <input type="text" inputmode="numeric" class="pricing-input-field hk-sub-cost-input" value="${Number(product.cost).toLocaleString()}" data-original-cost="${Number(product.cost)}" onclick="beginHkSubCostEdit(this)" onblur="finishHkSubCostEdit(this)" onkeydown="handleHkSubCostKey(event,this)" readonly>
+        <button type="button" class="hk-iso-row-price-edit-btn" onclick="beginHkSubCostEdit(this)" title="공급원가 조정 (+100/-100 입력 가능)"><i class="fa-solid fa-pen"></i></button>
+      </div>
+      <div class="hk-sub-cost-history" hidden>변경 전 <span>${Number(product.cost).toLocaleString()}원</span> · <strong></strong><button type="button" onclick="revertHkSubCost(this)" title="변경 전 원가와 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
+    </td>
     <td class="hk-sub-previous">${_hkIsoDraftNumber(product.previousPrice)}<small class="${difference > 0 ? 'up' : difference < 0 ? 'down' : ''}">${difference ? `${difference > 0 ? '+' : ''}${_hkIsoDraftNumber(difference)}` : '동일'}</small></td>
     <td class="hk-iso-draft-price hk-sub-price-cell">
-      <div class="hk-iso-price-edit-wrap">
-        <input type="text" inputmode="numeric" class="pricing-input-field hk-iso-final-price-input" value="${Number(product.price).toLocaleString()}" data-original-price="${Number(product.price)}" onclick="beginHkIsoRowPriceEdit(this)" oninput="recalcHkSubRow(this);updateHkIsoPriceHistory(this)" onblur="finishHkIsoRowPriceEdit(this)" onkeydown="handleHkSubRowPriceKey(event,this)" readonly>
-        <button type="button" class="hk-iso-row-price-edit-btn" onclick="beginHkIsoRowPriceEdit(this)" title="이 판매가만 수정"><i class="fa-solid fa-pen"></i></button>
-      </div>
-      <div class="hk-iso-price-history" hidden>변경 전 <span>${Number(product.price).toLocaleString()}원</span><button type="button" onclick="revertHkSubRowPrice(this)" title="변경 전 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
+      <input type="text" class="pricing-input-field hk-iso-final-price-input hk-sub-derived-price-input" value="${Number(product.price).toLocaleString()}" data-original-price="${Number(product.price)}" readonly tabindex="-1" aria-label="공급원가 연동 판매가">
+      <div class="hk-iso-price-history" hidden>변경 전 <span>${Number(product.price).toLocaleString()}원</span></div>
     </td>
     <td class="hk-sub-shipping">${product.shipping ? _hkIsoDraftNumber(product.shipping) : '—'}</td>
     <td class="hk-sub-margin">${_hkIsoDraftNumber(metrics.margin)}</td>
@@ -141,7 +144,7 @@ function renderHkSubPane() {
   return `<div id="hkIsoAcc-sub_all" class="card pricing-result-card hk-sub-card">
     <div class="pricing-result-header">
       <div class="pricing-result-title">부자재 기준 판매가<span class="pricing-spec-badge">2026.06.09 · ${HK_SUB_PRODUCTS.length}개</span></div>
-      <span class="pricing-result-hint">배송비는 별도 청구 · 순수마진 계산에서 제외</span>
+      <span class="pricing-result-hint">공급원가에 +100/-100 입력 가능 · 원가 변동분만큼 판매가 자동 조정 · 배송비는 순수마진 계산에서 제외</span>
     </div>
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-sub-table">
@@ -153,7 +156,7 @@ function renderHkSubPane() {
         </colgroup>
         <thead><tr>
           <th class="hk-sub-head-base">업체명</th><th class="hk-sub-head-base">제품명</th><th class="hk-sub-head-code">상품코드</th>
-          <th class="hk-sub-head-base">개당 원가</th><th class="hk-sub-head-prev">이전 판매가</th><th class="hk-sub-head-sale-price">개당 판매가</th><th class="hk-sub-head-shipping">배송비</th>
+          <th class="hk-sub-head-base">공급원가</th><th class="hk-sub-head-prev">이전 판매가</th><th class="hk-sub-head-sale-price">개당 판매가</th><th class="hk-sub-head-shipping">배송비</th>
           <th class="hk-sub-head-margin">마진</th><th class="hk-sub-head-margin">마진율</th><th class="hk-sub-head-margin">판매수수료<br><small>6%</small></th><th class="hk-sub-head-margin">부가세<br><small>10%</small></th>
           <th class="hk-sub-head-margin">개당 마진</th><th class="hk-sub-head-rate">순수마진율</th><th class="hk-sub-ref-margin-head">참고마진율</th>
         </tr></thead>
@@ -181,32 +184,94 @@ window.recalcHkSubRow = function(input) {
   if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
 };
 
-window.handleHkSubRowPriceKey = function(event, input) {
+function _hkSubUpdateHistory(row) {
+  const costInput = row.querySelector('.hk-sub-cost-input');
+  const priceInput = row.querySelector('.hk-iso-final-price-input');
+  const costHistory = row.querySelector('.hk-sub-cost-history');
+  const priceHistory = row.querySelector('.hk-iso-price-history');
+  if (!costInput || !priceInput) return;
+  const originalCost = Number(costInput.dataset.originalCost || 0);
+  const currentCost = _hkIsoDraftParseNumber(costInput.value);
+  const originalPrice = Number(priceInput.dataset.originalPrice || 0);
+  const currentPrice = _hkIsoDraftParseNumber(priceInput.value);
+  const costDelta = currentCost - originalCost;
+  if (costHistory) {
+    costHistory.hidden = costDelta === 0;
+    const delta = costHistory.querySelector('strong');
+    if (delta) delta.textContent = `${costDelta > 0 ? '+' : ''}${costDelta.toLocaleString()}원`;
+  }
+  if (priceHistory) priceHistory.hidden = currentPrice === originalPrice;
+  row.querySelector('.hk-sub-cost-cell')?.classList.toggle('changed', costDelta !== 0);
+  row.querySelector('.hk-sub-price-cell')?.classList.toggle('changed', currentPrice !== originalPrice);
+}
+
+window.beginHkSubCostEdit = function(source) {
+  const cell = source.closest('.hk-sub-cost-cell');
+  const input = cell?.querySelector('.hk-sub-cost-input');
+  const row = cell?.closest('tr');
+  if (!input || !row) return;
+  const product = HK_SUB_PRODUCTS[Number(row.dataset.rowIndex)];
+  input.dataset.editStartCost = String(product?.cost ?? _hkIsoDraftParseNumber(input.value));
+  input.dataset.editStartPrice = String(product?.price ?? 0);
+  input.readOnly = false;
+  cell.classList.add('editing');
+  input.focus();
+  input.select();
+};
+
+window.finishHkSubCostEdit = function(input) {
+  const row = input.closest('tr');
+  const product = HK_SUB_PRODUCTS[Number(row?.dataset.rowIndex)];
+  if (!row || !product) return;
+  const startCost = Number(input.dataset.editStartCost ?? product.cost) || 0;
+  const startPrice = Number(input.dataset.editStartPrice ?? product.price) || 0;
+  const raw = String(input.value || '').replace(/,/g, '').trim();
+  const relative = /^[+-]\s*\d+$/.test(raw);
+  const parsed = Number(raw.replace(/\s/g, ''));
+  const nextCost = Number.isFinite(parsed) ? Math.max(0, Math.round(relative ? startCost + parsed : parsed)) : startCost;
+  const delta = nextCost - startCost;
+  product.cost = nextCost;
+  product.price = Math.max(0, startPrice + delta);
+  row.dataset.cost = String(nextCost);
+  input.value = nextCost.toLocaleString();
+  input.readOnly = true;
+  input.closest('.hk-sub-cost-cell')?.classList.remove('editing');
+  const priceInput = row.querySelector('.hk-iso-final-price-input');
+  if (priceInput) {
+    priceInput.value = product.price.toLocaleString();
+    window.recalcHkSubRow(priceInput);
+  }
+  _hkSubUpdateHistory(row);
+};
+
+window.handleHkSubCostKey = function(event, input) {
   if (event.key === 'Enter') input.blur();
   if (event.key === 'Escape') {
-    input.value = Number(input.dataset.editStartPrice || input.dataset.originalPrice || 0).toLocaleString();
-    window.recalcHkSubRow(input);
-    window.updateHkIsoPriceHistory(input);
+    input.value = Number(input.dataset.editStartCost || 0).toLocaleString();
     input.blur();
   }
 };
 
-window.revertHkSubRowPrice = function(button) {
-  const cell = button.closest('.hk-iso-draft-price');
-  const input = cell?.querySelector('.hk-iso-final-price-input');
-  if (!input) return;
-  input.value = Number(input.dataset.originalPrice || 0).toLocaleString();
-  window.recalcHkSubRow(input);
-  window.updateHkIsoPriceHistory(input);
-  input.readOnly = true;
-  cell.classList.remove('editing');
+window.revertHkSubCost = function(button) {
+  const row = button.closest('tr');
+  const costInput = row?.querySelector('.hk-sub-cost-input');
+  const priceInput = row?.querySelector('.hk-iso-final-price-input');
+  const product = HK_SUB_PRODUCTS[Number(row?.dataset.rowIndex)];
+  if (!row || !costInput || !priceInput || !product) return;
+  product.cost = Number(costInput.dataset.originalCost || 0);
+  product.price = Number(priceInput.dataset.originalPrice || 0);
+  row.dataset.cost = String(product.cost);
+  costInput.value = product.cost.toLocaleString();
+  priceInput.value = product.price.toLocaleString();
+  window.recalcHkSubRow(priceInput);
+  _hkSubUpdateHistory(row);
 };
 
 window.hkSubProductIndex = function() {
   return HK_SUB_PRODUCTS.map((row, rowIndex) => ({
     code: row.code,
     block: null,
-    ship: null,
+    ship: { subCost: Number(row.cost) },
     row,
     rowIndex,
     accordionId: 'sub_all',

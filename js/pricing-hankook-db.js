@@ -352,6 +352,9 @@ function _hkDbApplyState(state) {
     const saved = state.products?.[entry.code];
     if (!saved) return;
     if (finite(saved.price)) entry.row.price = Number(saved.price);
+    // 부자재 공급원가는 hk_products.shipping JSON에 함께 둔다. 기존 DB 스키마를 바꾸지 않고
+    // 판매가와 원가를 같은 상품 이력에서 복원하기 위한 전용 값이다.
+    if (entry.categoryId === 'hk_sub' && finite(saved.ship?.subCost)) entry.row.cost = Number(saved.ship.subCost);
     const target = entry.block ? entry.block.rows[entry.rowIndex] : null;
     if (target && saved.ship && typeof saved.ship === 'object') {
       const { codeOverride, ...values } = saved.ship;
