@@ -40,6 +40,29 @@ const HK_SUB_PRODUCTS = [
   { name:'타이거폼건-전문가용',                code:'T_GUN_PRO',    cost:19500,  previousPrice:44000,  price:37000,  shipping:3000, refMargin:40 },
   { name:'타이거폼건-프리미엄',                code:'T_GUN_PRM',    cost:30000,  previousPrice:74000,  price:61000,  shipping:3000, refMargin:43 },
   { name:'타이거 스프레이폼+251폼건',            code:'T_SF_251SET',  cost:14850,  previousPrice:25500,  price:25500,  shipping:3000, refMargin:26 },
+  { supplier:'함일셀레나', name:'월드 스프레이폼',             code:'W_SF_G',       cost:6350,   previousPrice:9600,   price:10500,  shipping:3000, refMargin:25 },
+  { supplier:'함일셀레나', name:'월드 스프레이폼-박스',          code:'W_SF_G_B',     cost:95250,  previousPrice:145000, price:150000, shipping:7800, refMargin:22 },
+  { supplier:'함일셀레나', name:'월드스피드 폼본드',             code:'W_SFB_G',      cost:6300,   previousPrice:9800,   price:10500,  shipping:3000, refMargin:25 },
+  { supplier:'함일셀레나', name:'월드스피드 폼본드_깜짝할인',       code:'W_SFB_G_S',    cost:6300,   previousPrice:7800,   price:9100,   shipping:3000, refMargin:15 },
+  { supplier:'함일셀레나', name:'월드스피드 폼본드-박스',          code:'W_SFB_G_B',    cost:94500,  previousPrice:135000, price:149000, shipping:7800, refMargin:20 },
+  { supplier:'함일셀레나', name:'월드폼본드B2',                code:'W_B2_G',       cost:5700,   previousPrice:7500,   price:9500,   shipping:3000, refMargin:25 },
+  { supplier:'함일셀레나', name:'월드폼본드B2_깜짝할인',          code:'W_B2_G_S',     cost:5700,   previousPrice:6800,   price:8300,   shipping:3000, refMargin:15 },
+  { supplier:'함일셀레나', name:'월드폼본드B2-박스',             code:'W_B2_G_B',     cost:85500,  previousPrice:105000, price:135000, shipping:7800, refMargin:20 },
+  { supplier:'함일셀레나', name:'월드 폼크리너',                code:'W_FC',         cost:2500,   previousPrice:3000,   price:4000,   shipping:3000, refMargin:27 },
+  { supplier:'함일셀레나', name:'월드 폼크리너_깜짝할인',          code:'W_FC_S',       cost:2500,   previousPrice:2500,   price:3500,   shipping:3000, refMargin:15 },
+  { supplier:'함일셀레나', name:'월드251폼건',                code:'W_GUN_251',    cost:9500,   previousPrice:16500,  price:16500,  shipping:3000, refMargin:26 },
+  { supplier:'함일셀레나', name:'월드 스프레이폼+251폼건',         code:'W_SF_251SET',  cost:16200,  previousPrice:26100,  price:28000,  shipping:3000, refMargin:26 },
+  { supplier:'투원테크',   name:'라이트폼 경질세트',             code:'TW_LF_H',      cost:280000, previousPrice:290000, price:380000, shipping:0,    refMargin:9 },
+  { supplier:'투원테크',   name:'라이트폼 연질세트',             code:'TW_LF_S',      cost:320000, previousPrice:340000, price:430000, shipping:0,    refMargin:10 },
+  { supplier:'투원테크',   name:'라이트폼-팁노즐(10개)',          code:'TW_TP',        cost:10000,  previousPrice:20000,  price:20000,  shipping:0,    refMargin:59 },
+  { supplier:'투원테크',   name:'라이트폼-건세트(노즐세트)',        code:'TW_NZ',        cost:50000,  previousPrice:70000,  price:90000,  shipping:0,    refMargin:27 },
+  { supplier:'유니산업',   name:'유니 패스트본드',              code:'U_FB',         cost:4700,   previousPrice:6500,   price:7400,   shipping:3000, refMargin:20 },
+  { supplier:'유니산업',   name:'유니 패스트본드_깜짝할인',        code:'U_FB_S',       cost:4700,   previousPrice:6500,   price:6800,   shipping:3000, refMargin:15 },
+  { supplier:'유니산업',   name:'유니폼건',                   code:'U_GUN',        cost:6000,   previousPrice:12600,  price:12600,  shipping:3000, refMargin:36 },
+  { supplier:'유니산업',   name:'유니 패스트본드+유니 폼건',        code:'U_FB_SET',     cost:10700,  previousPrice:18500,  price:19500,  shipping:3000, refMargin:32 },
+  { supplier:'형제산업',   name:'하이테크접착제',               code:'H_HT',         cost:13950,  previousPrice:23000,  price:28000,  shipping:3000, refMargin:33 },
+  { supplier:'형제산업',   name:'바인더접착제',                code:'H_025',        cost:1980,   previousPrice:4500,   price:4500,   shipping:3000, refMargin:40 },
+  { supplier:'형제산업',   name:'도배용접착제',                code:'H_542',        cost:1250,   previousPrice:3500,   price:3500,   shipping:3000, refMargin:48 },
 ];
 
 function _hkSubMetrics(product, price = Number(product.price) || 0) {
@@ -62,7 +85,7 @@ function _hkSubRowHtml(product, rowIndex) {
   const metrics = _hkSubMetrics(product);
   const difference = Number(product.price) - Number(product.previousPrice);
   return `<tr data-row-index="${rowIndex}" data-product-code="${product.code}" data-cost="${product.cost}">
-    <td class="hk-sub-supplier">승현기업</td>
+    <td class="hk-sub-supplier">${product.supplier || '승현기업'}</td>
     <td class="hk-sub-name">${product.name}</td>
     <td class="hk-iso-draft-code">${product.code}</td>
     <td class="hk-sub-cost">${_hkIsoDraftNumber(product.cost)}</td>
