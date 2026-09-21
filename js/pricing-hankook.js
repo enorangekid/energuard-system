@@ -43,8 +43,8 @@ let _activeHkChannel = HK_CHANNELS[0].id;
 window._activeHkChannel = _activeHkChannel;
 
 // 한국단열 아이소핑크 — 상위 탭(일반/접착식/쿠팡 위너) 안에 사이즈·판매방식별
-// 아코디언을 두는 구조(2026-09-16). 상위 탭 하나 안에서는 아코디언이 하나만
-// 펼쳐지고, 상위 탭을 바꾸면 그 탭의 첫 아코디언이 기본으로 펼쳐진다.
+// 아코디언을 두는 구조(2026-09-16). 아코디언은 각각 독립적으로 열고 닫으며,
+// 상위 탭을 바꿔도 그 탭에서 열어둔 상태를 유지한다.
 // accordions[].id는 HK_ISO_CONNECTED_DRAFTS의 키와 그대로 맞물린다 — 이후
 // 실제 상품 매핑의 기준키로 쓸 값이라 바꾸지 않는다.
 const HK_ISO_SUPER_TABS = [
@@ -370,6 +370,9 @@ function _hkIsoDraftUpdateRowTooltip(row) {
   const fixedCostAddon = _hkIsoDraftParseNumber(row.dataset.fixedCostAddon);
   const sheetCost = _hkIsoDraftParseNumber(row.dataset.sheetCost);
   const saleCost = _hkIsoDraftParseNumber(row.dataset.saleCost);
+  const rawSaleCost = row.dataset.saleCostRaw !== undefined
+    ? _hkIsoDraftParseNumber(row.dataset.saleCostRaw)
+    : saleCost;
   const shipping = _hkIsoDraftParseNumber(row.dataset.shipping);
   const referenceMargin = _hkIsoDraftParseNumber(row.dataset.referenceMargin);
   const saleSize = row.dataset.saleSize || '';
@@ -377,12 +380,18 @@ function _hkIsoDraftUpdateRowTooltip(row) {
   const quantity = Number(saleSize.split('-').pop()) || 1;
   const finalPriceInput = row.querySelector('.hk-iso-final-price-input');
   const finalPrice = _hkIsoDraftParseNumber(finalPriceInput?.value);
-  const margin = finalPrice - saleCost;
+  const rawMargin = finalPrice - rawSaleCost;
+  const margin = Math.round(rawMargin);
   const fee = Math.round(finalPrice * 0.06);
   const vat = Math.round(finalPrice * 0.10);
-  const netMargin = margin - fee - vat - shipping;
-  const rate = finalPrice > 0 ? Math.round(netMargin / finalPrice * 100) : 0;
-  const expectedPrice = _hkIsoDraftExpectedPrice(saleCost, referenceMargin, shipping);
+  const rawNetMargin = rawMargin - fee - vat - shipping;
+  const netMargin = Math.round(rawNetMargin);
+  const rate = finalPrice > 0 ? Math.round(rawNetMargin / finalPrice * 100) : 0;
+  const expectedPrice = _hkIsoDraftExpectedPrice(rawSaleCost, referenceMargin, shipping);
+  const hasFractionalSaleCost = rawSaleCost !== saleCost;
+  const saleCostFormulaResult = hasFractionalSaleCost
+    ? `${_hkIsoDraftNumber(rawSaleCost)}원 (표시는 ${_hkIsoDraftNumber(saleCost)}원으로 반올림)`
+    : `${_hkIsoDraftNumber(saleCost)}원`;
 
   const addonText = fixedCostAddon ? ` + 접착 가공비 ${fixedCostAddon.toLocaleString()}원` : '';
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-margin-per-mm'),
@@ -394,14 +403,14 @@ function _hkIsoDraftUpdateRowTooltip(row) {
   _hkIsoDraftSetTooltip(row.children[5],
     `판매사이즈 ${saleSize}\n원장 ${divisor}분할 × ${quantity}장 묶음`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-sale-cost'),
-    `판매원가 = 원가 ${sheetCost.toLocaleString()}원 ÷ ${divisor} × ${quantity}장\n= ${saleCost.toLocaleString()}원`);
+    `판매원가 = 원가 ${sheetCost.toLocaleString()}원 ÷ ${divisor} × ${quantity}장\n= ${saleCostFormulaResult}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-expected-price'),
-    `예상판매가 = 참고마진 ${referenceMargin}%를 달성하는 최소 가격\n판매원가 ${saleCost.toLocaleString()}원에서 수수료 6%, 부가세 10%${shipping ? `, 배송비 ${shipping.toLocaleString()}원` : ''}를 차감한 순수마진율 기준\n100원 단위 올림 = ${_hkIsoDraftNumber(expectedPrice)}`);
+    `예상판매가 = 참고마진 ${referenceMargin}%를 달성하는 최소 가격\n판매원가 ${saleCostFormulaResult}에서 수수료 6%, 부가세 10%${shipping ? `, 배송비 ${shipping.toLocaleString()}원` : ''}를 차감한 순수마진율 기준\n100원 단위 올림 = ${_hkIsoDraftNumber(expectedPrice)}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-price'),
     `최종 판매가: ${finalPrice.toLocaleString()}원\n예상판매가를 참고해 직접 정한 값입니다. '판매가 편집' 버튼을 누르면 수정할 수 있습니다.`);
   if (finalPriceInput) finalPriceInput.title = row.querySelector('.hk-iso-draft-price').title;
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-margin'),
-    `마진 = 최종 판매가 ${finalPrice.toLocaleString()}원 - 판매원가 ${saleCost.toLocaleString()}원\n= ${margin.toLocaleString()}원`);
+    `마진 = 최종 판매가 ${finalPrice.toLocaleString()}원 - 판매원가 ${saleCostFormulaResult}\n= ${_hkIsoDraftNumber(rawMargin)}원${rawMargin !== margin ? ` → 반올림 ${margin.toLocaleString()}원` : ''}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-fee'),
     `판매수수료 = 최종 판매가 ${finalPrice.toLocaleString()}원 × 6%\n= ${fee.toLocaleString()}원`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-vat'),
@@ -409,7 +418,7 @@ function _hkIsoDraftUpdateRowTooltip(row) {
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-shipping'),
     shipping ? `판매 시 차감하는 배송비\n= ${shipping.toLocaleString()}원` : '차감할 배송비가 없습니다.');
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-net-margin'),
-    `장당마진 = 마진 ${margin.toLocaleString()}원 - 수수료 ${fee.toLocaleString()}원 - 부가세 ${vat.toLocaleString()}원${shipping ? ` - 배송비 ${shipping.toLocaleString()}원` : ''}\n= ${netMargin.toLocaleString()}원`);
+    `장당마진 = 마진 ${_hkIsoDraftNumber(rawMargin)}원 - 수수료 ${fee.toLocaleString()}원 - 부가세 ${vat.toLocaleString()}원${shipping ? ` - 배송비 ${shipping.toLocaleString()}원` : ''}\n= ${_hkIsoDraftNumber(rawNetMargin)}원${rawNetMargin !== netMargin ? ` → 반올림 ${netMargin.toLocaleString()}원` : ''}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-rate'),
     `순수마진율 = 장당마진 ${netMargin.toLocaleString()}원 ÷ 최종 판매가 ${finalPrice.toLocaleString()}원 × 100\n= ${rate}%`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-ref-margin'),
@@ -505,9 +514,12 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, i
       currentMarginPerMm = Number(row.unit);
     }
     const sizeGroup = row.saleSize.split('-')[0].replaceAll('*', 'x');
+    const divisor = _hkIsoDraftDivisor(row.saleSize);
+    const quantity = Number(row.saleSize.split('-').pop()) || 1;
+    const rawSaleCost = currentSheetCost / divisor * quantity;
     const fixedCostAddon = currentSheetCost - currentMarginPerMm * currentThickness;
-    const expectedPrice = _hkIsoDraftExpectedPrice(row.saleCost, row.refMargin, row.shipping);
-    return `<tr data-draft-tab="${tabId}" data-thickness="${currentThickness}" data-size-group="${sizeGroup}" data-sale-cost="${row.saleCost}" data-sheet-cost="${currentSheetCost}" data-fixed-cost-addon="${fixedCostAddon}" data-margin-per-mm="${currentMarginPerMm}" data-reference-margin="${row.refMargin}" data-sale-size="${row.saleSize}" data-shipping="${row.shipping || 0}" data-is-adhesive="${isAdhesive ? 1 : 0}">
+    const expectedPrice = _hkIsoDraftExpectedPrice(rawSaleCost, row.refMargin, row.shipping);
+    return `<tr data-draft-tab="${tabId}" data-thickness="${currentThickness}" data-size-group="${sizeGroup}" data-sale-cost="${row.saleCost}" data-sale-cost-raw="${rawSaleCost}" data-sheet-cost="${currentSheetCost}" data-fixed-cost-addon="${fixedCostAddon}" data-margin-per-mm="${currentMarginPerMm}" data-reference-margin="${row.refMargin}" data-sale-size="${row.saleSize}" data-shipping="${row.shipping || 0}" data-is-adhesive="${isAdhesive ? 1 : 0}">
     <td class="hk-iso-draft-name">${row.name || '　'}</td>
     <td class="hk-iso-draft-margin-per-mm">${_hkIsoDraftNumber(row.unit)}</td>
     <td>${row.spec || '—'}</td>
@@ -1039,7 +1051,8 @@ window.toggleHkIsoShippingSection = function() {
 
    상품코드를 키로 2단계 실판매가를 그대로 가져와서(엑셀에서 VLOOKUP으로 하던
    것과 같은 방식, 2026-09-16) "네이버판매가"를 만들고, 같은 상품ID 안에서
-   제일 싼 옵션을 "기준가"로 잡아 옵션추가금을 계산한다. "수정 전 판매가"는
+   첫 번째 옵션 가격을 "기준가"로 잡아 옵션추가금을 계산한다(첫 옵션보다 싼
+   옵션이 있으면 옵션추가금이 음수). "수정 전 판매가"는
    실제 스토어에 지금 올라가 있던 값(사람이 확인해서 넣어둠)이고, 가격차이는
    그것과 새로 계산한 네이버판매가의 차이 — 이 값 보고 실제 스토어 옵션가를
    얼마나 고쳐야 하는지 판단한다.
@@ -1090,6 +1103,161 @@ const HK_ISO_CHANNEL_LISTINGS = {
         { productCode: 'IsoA_600_900_40_1', prevPrice: 10600, prevShipping: 6000 },
       ],
     },
+    // ── 아래는 2026-09-21에 추가(엑셀 3단계 원본 그대로) ──
+    {
+      productId: '3020442618',
+      baseShipping: 6000,
+      shippingBasis: '5개마다',
+      jejuShipping: 10000,
+      returnExchange: '8500/17000',
+      items: [
+        { productCode: 'Iso_430_430_10_3',  prevPrice: 2500,  prevShipping: 6000 },
+        { productCode: 'Iso_600_900_10_3',  prevPrice: 6500,  prevShipping: 6000 },
+        { productCode: 'Iso_430_430_20_3',  prevPrice: 5400,  prevShipping: 6000 },
+        { productCode: 'Iso_600_900_20_1',  prevPrice: 4000,  prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_10_3', prevPrice: 11500, prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_20_1', prevPrice: 6000,  prevShipping: 6000 },
+      ],
+    },
+    {
+      productId: '439904706',
+      baseShipping: 6000,
+      shippingBasis: '5개마다',
+      jejuShipping: 10000,
+      returnExchange: '8500/17000',
+      items: [
+        { productCode: 'Iso_600_900_20_1',   prevPrice: 4000,  prevShipping: 6000 },
+        { productCode: 'Iso_430_430_30_2',   prevPrice: 5300,  prevShipping: 6000 },
+        { productCode: 'Iso_600_900_30_1',   prevPrice: 6700,  prevShipping: 6000 },
+        { productCode: 'Iso_430_430_40_2',   prevPrice: 7100,  prevShipping: 6000 },
+        { productCode: 'Iso_600_900_40_1',   prevPrice: 8300,  prevShipping: 6000 },
+        { productCode: 'Iso_430_430_50_2',   prevPrice: 8700,  prevShipping: 6000 },
+        { productCode: 'Iso_600_900_50_1',   prevPrice: 11000, prevShipping: 6000 },
+        { productCode: 'Iso_430_430_70_1',   prevPrice: 6000,  prevShipping: 6000 },
+        { productCode: 'Iso_600_900_70_1',   prevPrice: 14950, prevShipping: 6000 },
+        { productCode: 'Iso_430_430_100_1',  prevPrice: 8700,  prevShipping: 6000 },
+        { productCode: 'Iso_600_900_100_1',  prevPrice: 21850, prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_10_3',  prevPrice: 11500, prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_20_1',  prevPrice: 6000,  prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_30_1',  prevPrice: 8200,  prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_40_1',  prevPrice: 10600, prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_50_1',  prevPrice: 13650, prevShipping: 6000 },
+      ],
+    },
+    {
+      productId: '3736232926',
+      baseShipping: 6000,
+      shippingBasis: '5개마다',
+      jejuShipping: 10000,
+      returnExchange: '8500/17000',
+      items: [
+        { productCode: 'IsoA_600_900_10_3', prevPrice: 11500, prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_20_1', prevPrice: 6000,  prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_30_1', prevPrice: 9000,  prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_40_1', prevPrice: 10600, prevShipping: 6000 },
+        { productCode: 'IsoA_600_900_50_1', prevPrice: 15000, prevShipping: 6000 },
+      ],
+    },
+    {
+      productId: '442086644',
+      baseShipping: 6000,
+      shippingBasis: '5개마다',
+      jejuShipping: 10000,
+      returnExchange: '8500/17000',
+      // 이 상품만 "수정 전 배송비"가 6500(현재 배송비 6000과 다름)
+      items: [
+        { productCode: 'Iso_430_430_70_1',  prevPrice: 6000,  prevShipping: 6500 },
+        { productCode: 'Iso_600_900_70_1',  prevPrice: 13900, prevShipping: 6500 },
+        { productCode: 'Iso_430_430_100_1', prevPrice: 8500,  prevShipping: 6500 },
+        { productCode: 'Iso_600_900_100_1', prevPrice: 20300, prevShipping: 6500 },
+      ],
+    },
+    {
+      productId: '4995022274',
+      baseShipping: 0,
+      shippingBasis: '-',
+      jejuShipping: 30000,
+      returnExchange: '20000/40000',
+      items: [
+        { productCode: 'Iso_600_860_100_1', prevPrice: 29500,  prevShipping: 0 },
+        { productCode: 'Iso_600_430_250_1', prevPrice: 38000,  prevShipping: 0 },
+        { productCode: 'Iso_600_860_250_1', prevPrice: 65000,  prevShipping: 0 },
+        { productCode: 'Iso_600_430_500_1', prevPrice: 72000,  prevShipping: 0 },
+        { productCode: 'Iso_600_860_500_1', prevPrice: 126000, prevShipping: 0 },
+      ],
+    },
+    {
+      productId: '5695312387',
+      baseShipping: 0,
+      shippingBasis: '-',
+      jejuShipping: 30000,
+      returnExchange: '31000/62000',
+      // 70T·100T 코드가 "IIso_"(I 두 번)인 건 실제 등록 코드 그대로(2단계와 동일).
+      items: [
+        { productCode: 'Iso_900_1800_10_10',   prevPrice: 51500, prevShipping: 0 },
+        { productCode: 'Iso_900_1800_20_5',    prevPrice: 52000, prevShipping: 0 },
+        { productCode: 'Iso_900_1800_30_3',    prevPrice: 46900, prevShipping: 0 },
+        { productCode: 'Iso_900_1800_40_2',    prevPrice: 42600, prevShipping: 0 },
+        { productCode: 'Iso_900_1800_50_2',    prevPrice: 50100, prevShipping: 0 },
+        { productCode: 'IIso_900_1800_70_1',   prevPrice: 39500, prevShipping: 0 },
+        { productCode: 'IIso_900_1800_100_1',  prevPrice: 49500, prevShipping: 0 },
+        { productCode: 'IsoA_900_1800_10_10',  prevPrice: 98500, prevShipping: 0 },
+        { productCode: 'IsoA_900_1800_20_5',   prevPrice: 85000, prevShipping: 0 },
+        { productCode: 'IsoA_900_1800_30_3',   prevPrice: 75000, prevShipping: 0 },
+        { productCode: 'IsoA_900_1800_40_2',   prevPrice: 58500, prevShipping: 0 },
+        { productCode: 'IsoA_900_1800_50_2',   prevPrice: 77500, prevShipping: 0 },
+      ],
+    },
+    {
+      productId: '5697937041',
+      baseShipping: 0,
+      shippingBasis: '-',
+      jejuShipping: 70000,
+      returnExchange: '40000/80000',
+      items: [
+        { productCode: 'Iso_900_1800_70_3',  prevPrice: 111000, prevShipping: 0 },
+        { productCode: 'Iso_900_1800_100_3', prevPrice: 141000, prevShipping: 0 },
+        { productCode: 'Iso_900_1800_250_1', prevPrice: 178000, prevShipping: 0 },
+        { productCode: 'Iso_900_1800_500_1', prevPrice: 353000, prevShipping: 0 },
+      ],
+    },
+    // ── 2026-09-21 추가 2차: 900x1800 단품은 옵션 하나마다 상품ID가 따로(상품당 옵션 1개),
+    //    배송비/배송비기준/제주/편도교환도 상품마다 다르다(엑셀 원본 그대로).
+    { productId: '8324406068',  baseShipping: 10400, shippingBasis: '5개마다', jejuShipping: 20000, returnExchange: '21000/42000',
+      items: [{ productCode: 'Iso_900_1800_10_1',   prevPrice: 3800,  prevShipping: 10400 }] },
+    { productId: '8456757485',  baseShipping: 11700, shippingBasis: '3개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+      items: [{ productCode: 'Iso_900_1800_20_1',   prevPrice: 7700,  prevShipping: 11700 }] },
+    { productId: '11097629335', baseShipping: 11700, shippingBasis: '2개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+      items: [{ productCode: 'Iso_900_1800_30_1',   prevPrice: 11000, prevShipping: 11700 }] },
+    { productId: '8324375715',  baseShipping: 10000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
+      items: [{ productCode: 'Iso_900_1800_40_1',   prevPrice: 15800, prevShipping: 10000 }] },
+    { productId: '8131395351',  baseShipping: 10400, shippingBasis: '1개마다', jejuShipping: 30000, returnExchange: '14000/28000',
+      items: [{ productCode: 'Iso_900_1800_50_1',   prevPrice: 17300, prevShipping: 10400 }] },
+    { productId: '8324347562',  baseShipping: 13000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+      items: [{ productCode: 'Iso_900_1800_70_1',   prevPrice: 29000, prevShipping: 13000 }] },
+    { productId: '8324352040',  baseShipping: 17000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
+      items: [{ productCode: 'Iso_900_1800_100_1',  prevPrice: 35500, prevShipping: 17000 }] },
+    { productId: '10181453964', baseShipping: 10400, shippingBasis: '5개마다', jejuShipping: 20000, returnExchange: '21000/42000',
+      items: [{ productCode: 'IsoA_900_1800_10_1',  prevPrice: 8500,  prevShipping: 10400 }] },
+    { productId: '10181564057', baseShipping: 11700, shippingBasis: '3개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+      items: [{ productCode: 'IsoA_900_1800_20_1',  prevPrice: 14250, prevShipping: 11700 }] },
+    { productId: '10181571912', baseShipping: 11700, shippingBasis: '2개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+      items: [{ productCode: 'IsoA_900_1800_30_1',  prevPrice: 20200, prevShipping: 11700 }] },
+    { productId: '10181582241', baseShipping: 10000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
+      items: [{ productCode: 'IsoA_900_1800_40_1',  prevPrice: 23750, prevShipping: 10000 }] },
+    { productId: '10181586522', baseShipping: 10400, shippingBasis: '1개마다', jejuShipping: 30000, returnExchange: '14000/28000',
+      items: [{ productCode: 'IsoA_900_1800_50_1',  prevPrice: 31300, prevShipping: 10400 }] },
+    // 600 계열 고티: 상품 하나에 옵션 2개(600x430, 600x860) — 기준가는 첫 옵션(600x430)
+    { productId: '10185646787', baseShipping: 0, shippingBasis: '-', jejuShipping: 30000, returnExchange: '20000/40000',
+      items: [
+        { productCode: 'Iso_600_430_250_1', prevPrice: 38000, prevShipping: 0 },
+        { productCode: 'Iso_600_860_250_1', prevPrice: 65000, prevShipping: 0 },
+      ] },
+    { productId: '10185649832', baseShipping: 0, shippingBasis: '-', jejuShipping: 30000, returnExchange: '20000/40000',
+      items: [
+        { productCode: 'Iso_600_430_500_1', prevPrice: 72000,  prevShipping: 0 },
+        { productCode: 'Iso_600_860_500_1', prevPrice: 126000, prevShipping: 0 },
+      ] },
   ],
 };
 
@@ -1097,7 +1265,8 @@ const HK_ISO_CHANNEL_LISTINGS = {
    품목·규격·두께·수량을 다 담고 있어서 상품명을 따로 안 적어도 만들어낼 수 있다. */
 function _hkIsoProductNameFromCode(code) {
   const isAdhesive = code.startsWith('IsoA_');
-  const body = code.replace(/^IsoA?_/, '');
+  // 실제 등록 코드에 "IIso_"(I 두 번) 오타가 있어서 앞의 I 반복을 허용한다.
+  const body = code.replace(/^I+soA?_/, '');
   const [w, h, thickness, qty] = body.split('_');
   const prefix = isAdhesive ? '접착식_아이소핑크' : '아이소핑크';
   return `${prefix} ${w}x${h} ${thickness}T_${qty}장`;
@@ -1146,10 +1315,12 @@ function _hkIsoChannelListingHtml(channelId) {
     </div>`;
   }
 
+  // 기준가 = 그 상품의 "첫 번째 옵션" 네이버판매가. 처음엔 최저가로 잡았는데
+  // 3736232926·5695312387처럼 첫 옵션보다 싼 옵션이 있는 상품에서 옵션추가금이
+  // 음수로 나오는 실제 엑셀 값과 안 맞아서 첫 옵션 기준으로 바로잡음(2026-09-21).
   const baseByProduct = {};
   products.forEach(product => {
-    const prices = product.items.map(item => _hkIsoLookupFinalPriceByCode(item.productCode)).filter(p => p != null);
-    baseByProduct[product.productId] = prices.length ? Math.min(...prices) : null;
+    baseByProduct[product.productId] = _hkIsoLookupFinalPriceByCode(product.items[0]?.productCode);
   });
 
   let rowsHtml = '';
@@ -1375,11 +1546,13 @@ window.updateHkIsoDraftMargin = function(tabId, thickness, input) {
     const quantity = Number(saleSize.split('-').pop()) || 1;
     const fixedCostAddon = _hkIsoDraftParseNumber(row.dataset.fixedCostAddon);
     const sheetCost = marginPerMm * Number(thickness) + fixedCostAddon;
-    const saleCost = Math.round(sheetCost / divisor * quantity);
+    const rawSaleCost = sheetCost / divisor * quantity;
+    const saleCost = Math.round(rawSaleCost);
     const referenceMargin = _hkIsoDraftParseNumber(row.dataset.referenceMargin);
     const shipping = _hkIsoDraftParseNumber(row.dataset.shipping);
-    const expectedPrice = _hkIsoDraftExpectedPrice(saleCost, referenceMargin, shipping);
+    const expectedPrice = _hkIsoDraftExpectedPrice(rawSaleCost, referenceMargin, shipping);
     row.dataset.saleCost = saleCost;
+    row.dataset.saleCostRaw = rawSaleCost;
     row.dataset.sheetCost = sheetCost;
     row.dataset.marginPerMm = marginPerMm;
     row.querySelector('.hk-iso-draft-sale-cost').textContent = _hkIsoDraftNumber(saleCost);
@@ -1416,14 +1589,18 @@ window.updateHkIsoDraftFixedCost = function(tabId, input) {
 window.recalcHkIsoDraftRow = function(input) {
   const row = input.closest('tr');
   if (!row) return;
-  const saleCost = _hkIsoDraftParseNumber(row.dataset.saleCost);
+  const saleCost = row.dataset.saleCostRaw !== undefined
+    ? _hkIsoDraftParseNumber(row.dataset.saleCostRaw)
+    : _hkIsoDraftParseNumber(row.dataset.saleCost);
   const shipping = _hkIsoDraftParseNumber(row.dataset.shipping);
   const price = _hkIsoDraftParseNumber(input.value);
-  const margin = price - saleCost;
+  const rawMargin = price - saleCost;
+  const margin = Math.round(rawMargin);
   const fee = Math.round(price * 0.06);
   const vat = Math.round(price * 0.10);
-  const netMargin = margin - fee - vat - shipping;
-  const rate = price > 0 ? Math.round(netMargin / price * 100) : 0;
+  const rawNetMargin = rawMargin - fee - vat - shipping;
+  const netMargin = Math.round(rawNetMargin);
+  const rate = price > 0 ? Math.round(rawNetMargin / price * 100) : 0;
   row.querySelector('.hk-iso-draft-margin').textContent = _hkIsoDraftNumber(margin);
   row.querySelector('.hk-iso-draft-fee').textContent = _hkIsoDraftNumber(fee);
   row.querySelector('.hk-iso-draft-vat').textContent = _hkIsoDraftNumber(vat);
