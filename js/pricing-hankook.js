@@ -408,7 +408,7 @@ function _hkIsoDraftUpdateRowTooltip(row) {
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-expected-price'),
     `예상판매가 = 참고마진 ${referenceMargin}%를 달성하는 최소 가격\n판매원가 ${saleCostFormulaResult}에서 수수료 6%, 부가세 10%${shipping ? `, 배송비 ${shipping.toLocaleString()}원` : ''}를 차감한 순수마진율 기준\n100원 단위 올림 = ${_hkIsoDraftNumber(expectedPrice)}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-price'),
-    `최종 판매가: ${finalPrice.toLocaleString()}원\n예상판매가를 참고해 직접 정한 값입니다. '판매가 편집' 버튼을 누르면 수정할 수 있습니다.`);
+    `판매가: ${finalPrice.toLocaleString()}원\n예상판매가를 참고해 직접 정한 값입니다. 금액이나 연필 버튼을 누르면 이 행만 수정할 수 있습니다.`);
   if (finalPriceInput) finalPriceInput.title = row.querySelector('.hk-iso-draft-price').title;
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-margin'),
     `마진 = 최종 판매가 ${finalPrice.toLocaleString()}원 - 판매원가 ${saleCostFormulaResult}\n= ${_hkIsoDraftNumber(rawMargin)}원${rawMargin !== margin ? ` → 반올림 ${margin.toLocaleString()}원` : ''}`);
@@ -586,7 +586,13 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, f
     <td class="hk-iso-unified-size"><span>${row.saleSize}</span><small>${shippingInfo.code}</small></td>
     <td class="hk-iso-draft-sale-cost">${_hkIsoDraftNumber(saleCost)}</td>
     <td class="hk-iso-draft-expected-price">${_hkIsoDraftNumber(expectedPrice)}</td>
-    <td class="hk-iso-draft-price"><input type="text" inputmode="numeric" class="pricing-input-field hk-iso-final-price-input" value="${Number(row.price).toLocaleString()}" oninput="recalcHkIsoDraftRow(this)" onblur="formatHkIsoDraftPrice(this)" disabled></td>
+    <td class="hk-iso-draft-price">
+      <div class="hk-iso-price-edit-wrap">
+        <input type="text" inputmode="numeric" class="pricing-input-field hk-iso-final-price-input" value="${Number(row.price).toLocaleString()}" data-original-price="${Number(row.price)}" onclick="beginHkIsoRowPriceEdit(this)" oninput="recalcHkIsoDraftRow(this);updateHkIsoPriceHistory(this)" onblur="finishHkIsoRowPriceEdit(this)" onkeydown="handleHkIsoRowPriceKey(event,this)" readonly>
+        <button type="button" class="hk-iso-row-price-edit-btn" onclick="beginHkIsoRowPriceEdit(this)" title="이 판매가만 수정"><i class="fa-solid fa-pen"></i></button>
+      </div>
+      <div class="hk-iso-price-history" hidden>변경 전 <span>${Number(row.price).toLocaleString()}원</span><button type="button" onclick="revertHkIsoRowPrice(this)" title="변경 전 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
+    </td>
     ${_hkIsoUnifiedShippingCells(shippingInfo)}
     <td class="hk-iso-draft-margin">${_hkIsoDraftNumber(row.margin)}</td>
     <td class="hk-iso-draft-fee">${_hkIsoDraftNumber(row.fee)}</td>
@@ -1627,9 +1633,6 @@ function renderHkIsopinkPane() {
           <button type="button" class="pricing-margin-edit-btn hk-iso-shipping-toggle-btn" id="hkIsoShippingToggleBtn" onclick="toggleHkIsoShippingSection()">
             <i class="fa-solid fa-truck-fast"></i> 배송 세부설정
           </button>
-          <button type="button" class="pricing-margin-edit-btn hk-iso-final-price-edit-btn" id="hkIsoFinalPriceEditBtn" onclick="toggleHkIsoFinalPriceEdit()">
-            <i class="fa-solid fa-pen"></i> 판매가 편집
-          </button>
         </div>
       </div>
       <div class="bead-subtab-bar" id="hkIsoSuperTabBar">${superTabs}</div>
@@ -1645,32 +1648,71 @@ window.setHkIsoSuperTab = function(superId, el) {
   document.querySelectorAll('.hk-iso-super-pane').forEach(pane => pane.classList.remove('active'));
   if (el) el.classList.add('active');
   document.getElementById('hkIsoSuper-' + superId)?.classList.add('active');
-  _setHkIsoFinalPriceEditing(false);
+  _lockHkIsoRowPriceEditors();
 };
 
 /* 아코디언 머리글 클릭 — 그 아코디언만 독립적으로 열고 닫는다(다 접을 수도,
    다 펼칠 수도 있음. 다른 아코디언 상태에는 영향 없음). */
 window.toggleHkIsoAccordion = function(accId) {
   document.getElementById('hkIsoAcc-' + accId)?.classList.toggle('open');
-  _setHkIsoFinalPriceEditing(false);
+  _lockHkIsoRowPriceEditors();
 };
 
-function _setHkIsoFinalPriceEditing(editing) {
-  document.querySelectorAll('.hk-iso-final-price-input').forEach(input => { input.disabled = true; });
-  if (editing) {
-    document.querySelectorAll('.hk-iso-super-pane.active .hk-iso-accordion.open .hk-iso-final-price-input').forEach(input => { input.disabled = false; });
-  }
-  const button = document.getElementById('hkIsoFinalPriceEditBtn');
-  if (!button) return;
-  button.classList.toggle('editing', editing);
-  button.innerHTML = editing
-    ? '<i class="fa-solid fa-check"></i> 편집 완료'
-    : '<i class="fa-solid fa-pen"></i> 판매가 편집';
+function _lockHkIsoRowPriceEditors() {
+  document.querySelectorAll('.hk-iso-final-price-input').forEach(input => {
+    input.readOnly = true;
+    input.closest('.hk-iso-draft-price')?.classList.remove('editing');
+  });
 }
 
-window.toggleHkIsoFinalPriceEdit = function() {
-  const button = document.getElementById('hkIsoFinalPriceEditBtn');
-  _setHkIsoFinalPriceEditing(!button?.classList.contains('editing'));
+window.beginHkIsoRowPriceEdit = function(source) {
+  const cell = source.closest('.hk-iso-draft-price');
+  const input = cell?.querySelector('.hk-iso-final-price-input');
+  if (!input) return;
+  input.dataset.editStartPrice = String(_hkIsoDraftParseNumber(input.value));
+  input.readOnly = false;
+  cell.classList.add('editing');
+  input.focus();
+  input.select();
+};
+
+window.finishHkIsoRowPriceEdit = function(input) {
+  window.formatHkIsoDraftPrice(input);
+  input.readOnly = true;
+  input.closest('.hk-iso-draft-price')?.classList.remove('editing');
+  window.updateHkIsoPriceHistory(input);
+};
+
+window.updateHkIsoPriceHistory = function(input) {
+  const cell = input.closest('.hk-iso-draft-price');
+  const history = cell?.querySelector('.hk-iso-price-history');
+  if (!history) return;
+  const originalPrice = Number(input.dataset.originalPrice || 0);
+  const currentPrice = _hkIsoDraftParseNumber(input.value);
+  const changed = currentPrice !== originalPrice;
+  history.hidden = !changed;
+  cell.classList.toggle('changed', changed);
+};
+
+window.revertHkIsoRowPrice = function(button) {
+  const cell = button.closest('.hk-iso-draft-price');
+  const input = cell?.querySelector('.hk-iso-final-price-input');
+  if (!input) return;
+  input.value = Number(input.dataset.originalPrice || 0).toLocaleString();
+  window.recalcHkIsoDraftRow(input);
+  window.updateHkIsoPriceHistory(input);
+  input.readOnly = true;
+  cell.classList.remove('editing');
+};
+
+window.handleHkIsoRowPriceKey = function(event, input) {
+  if (event.key === 'Enter') input.blur();
+  if (event.key === 'Escape') {
+    input.value = Number(input.dataset.editStartPrice || input.dataset.originalPrice || 0).toLocaleString();
+    window.recalcHkIsoDraftRow(input);
+    window.updateHkIsoPriceHistory(input);
+    input.blur();
+  }
 };
 
 window.openHkIsoDraftMarginModal = function() {
@@ -1836,5 +1878,5 @@ window.resetHkPricingView = function() {
       section.classList.toggle('open', section.id === 'hkIsoAcc-' + firstSuperTab.accordions[0].id);
     });
   }
-  _setHkIsoFinalPriceEditing(false);
+  _lockHkIsoRowPriceEditors();
 };

@@ -964,22 +964,59 @@
   color: rgba(255, 255, 255, .5);
 }
 .hk-iso-final-price-input {
-  width: 82px;
-  margin: 0 auto;
+  width: 78px;
+  margin: 0;
   text-align: right;
   font-weight: 800;
   color: #9a3412;
   border-color: #fdba74;
   background: #fff;
 }
-.hk-iso-final-price-input:disabled {
+.hk-iso-final-price-input:read-only {
   color: #9a3412;
   background: transparent;
   border-color: transparent;
   box-shadow: none;
   opacity: 1;
-  cursor: default;
+  cursor: pointer;
 }
+.hk-iso-price-edit-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.hk-iso-row-price-edit-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #c2410c;
+  cursor: pointer;
+  opacity: .48;
+}
+.hk-iso-draft-price:hover .hk-iso-row-price-edit-btn,
+.hk-iso-draft-price.editing .hk-iso-row-price-edit-btn { opacity: 1; background: #ffedd5; border-color: #fdba74; }
+.hk-iso-price-history {
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+}
+.hk-iso-price-history span { color: #64748b; }
+.hk-iso-price-history button {
+  margin-left: 3px;
+  padding: 1px 3px;
+  border: 0;
+  background: transparent;
+  color: #6366f1;
+  cursor: pointer;
+}
+.hk-iso-draft-price.changed { box-shadow: inset 0 0 0 1px #fed7aa; }
 .hk-iso-unified-size small {
   display: block;
   margin-top: 4px;
@@ -1029,11 +1066,6 @@
 .hk-iso-final-price-input:focus {
   border-color: #ea580c;
   box-shadow: 0 0 0 2px rgba(234,88,12,0.12);
-}
-.hk-iso-final-price-edit-btn.editing {
-  color: #047857;
-  background: #ecfdf5;
-  border-color: #6ee7b7;
 }
 .hk-iso-draft-margin-card { margin-bottom: 16px; }
 .hk-iso-base-cost-table { width: auto; min-width: 430px; }
