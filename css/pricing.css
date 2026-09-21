@@ -1346,21 +1346,29 @@
 
 /* 한국단열 부자재 — 상품코드별 평면 단가표 */
 .hk-sub-card { overflow: hidden; }
-.hk-sub-table { min-width: 1630px; }
+.hk-sub-table { min-width: 1540px; table-layout: fixed; }
+.hk-sub-table .hk-sub-col-supplier { width: 86px; }
+.hk-sub-table .hk-sub-col-name { width: 320px; }
+.hk-sub-table .hk-sub-col-code { width: 76px; }
+.hk-sub-table .hk-sub-col-cost { width: 86px; }
+.hk-sub-table .hk-sub-col-previous { width: 94px; }
+.hk-sub-table .hk-sub-col-price { width: 108px; }
+.hk-sub-table .hk-sub-col-shipping { width: 72px; }
+.hk-sub-table .hk-sub-col-margin { width: 86px; }
+.hk-sub-table .hk-sub-col-rate { width: 70px; }
+.hk-sub-table .hk-sub-col-fee { width: 86px; }
+.hk-sub-table .hk-sub-col-vat { width: 82px; }
+.hk-sub-table .hk-sub-col-net { width: 94px; }
 .hk-sub-table th,
 .hk-sub-table td { text-align: center; white-space: nowrap; }
 .hk-sub-table tbody td { padding-top: 12px; padding-bottom: 12px; }
 .hk-sub-table .hk-sub-name {
-  min-width: 245px;
-  max-width: 245px;
   text-align: left;
-  white-space: normal;
-  word-break: keep-all;
-  line-height: 1.35;
+  white-space: nowrap;
   font-weight: 750;
   color: #334155;
 }
-.hk-sub-table .hk-iso-draft-code { min-width: 125px; font-size: 10px; }
+.hk-sub-table .hk-iso-draft-code { padding-left: 3px; padding-right: 3px; font-size: 9px; letter-spacing: -0.25px; }
 .hk-sub-table .hk-sub-supplier { color: #64748b; }
 .hk-sub-table .hk-sub-cost { background: #f8fafc; font-weight: 700; }
 .hk-sub-table .hk-sub-previous { color: #64748b; background: #f8fafc; }

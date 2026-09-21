@@ -145,6 +145,12 @@ function renderHkSubPane() {
     </div>
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-sub-table">
+        <colgroup>
+          <col class="hk-sub-col-supplier"><col class="hk-sub-col-name"><col class="hk-sub-col-code">
+          <col class="hk-sub-col-cost"><col class="hk-sub-col-previous"><col class="hk-sub-col-price"><col class="hk-sub-col-shipping">
+          <col class="hk-sub-col-margin"><col class="hk-sub-col-rate"><col class="hk-sub-col-fee"><col class="hk-sub-col-vat">
+          <col class="hk-sub-col-net"><col class="hk-sub-col-rate"><col class="hk-sub-col-rate">
+        </colgroup>
         <thead><tr>
           <th>업체명</th><th>제품명</th><th>상품코드</th><th>개당 원가</th><th>이전 판매가</th><th>개당 판매가</th><th>배송비</th>
           <th>마진</th><th>마진율</th><th>판매수수료<br><small>6%</small></th><th>부가세<br><small>10%</small></th>
