@@ -2702,7 +2702,7 @@ window.confirmHkIsoAdhesiveModal = function() {
 window.hkIsoSetBaseMonth = function(value) {
   HK_ISO_DRAFT_BASE_MONTH = String(value || '');
   // 단가 기준 년월은 한국단열 전체에 하나다 — 아이소핑크·스티로폼 카드의 입력칸을 같이 맞춘다.
-  ['hkIsoBaseMonth', 'hkBeadBaseMonth'].forEach(id => {
+  ['hkIsoBaseMonth', 'hkBeadBaseMonth', 'hkSubBaseMonth'].forEach(id => {
     const input = document.getElementById(id);
     if (input && input.value !== HK_ISO_DRAFT_BASE_MONTH) input.value = HK_ISO_DRAFT_BASE_MONTH;
   });

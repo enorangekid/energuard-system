@@ -1746,6 +1746,25 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="hkSubIncreaseModal" style="display:none; z-index:8100;">
+    <div class="pricing-input-modal-box" style="width:520px">
+      <div class="pricing-input-modal-header">
+        <div class="pim-header-left">
+          <span class="pim-title" id="hkSubIncreaseModalTitle">가격 인상 이력</span>
+          <span class="pim-sub">부자재 · 인상일과 올린 금액</span>
+        </div>
+        <button class="pim-close-btn" onclick="closeHkSubIncreaseModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="pricing-input-modal-body" id="hkSubIncreaseModalBody"></div>
+      <div class="pricing-input-modal-footer">
+        <button class="pim-btn-cancel" onclick="closeHkSubIncreaseModal()">닫기</button>
+        <button class="pim-btn-confirm" onclick="confirmHkSubIncreaseModal()">
+          <i class="fa-solid fa-check"></i> 확인
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="hkIsoAdhesiveModal" style="display:none; z-index:8100;">
     <div class="pricing-input-modal-box hk-iso-adhesive-modal-box" style="width:420px">
       <div class="pricing-input-modal-header">

@@ -1346,11 +1346,12 @@
 
 /* 한국단열 부자재 — 상품코드별 평면 단가표 */
 .hk-sub-card { overflow: hidden; }
-.hk-sub-table { min-width: 1540px; table-layout: fixed; }
-.hk-sub-table .hk-sub-col-supplier { width: 86px; }
-.hk-sub-table .hk-sub-col-name { width: 320px; }
-.hk-sub-table .hk-sub-col-code { width: 76px; }
-.hk-sub-table .hk-sub-col-cost { width: 132px; }
+/* 아이소핑크·스티로폼과 같은 규칙(업체별 아코디언, 머리글·칸 색, 행 높이)에 맞춘다(2026-09-22). */
+.hk-sub-table { min-width: 1730px; table-layout: fixed; }
+.hk-sub-table .hk-sub-col-name { width: 290px; }
+.hk-sub-table .hk-sub-col-code { width: 122px; }
+.hk-sub-table .hk-sub-col-cost { width: 232px; }
+.hk-sub-table .hk-sub-col-increase { width: 230px; }
 .hk-sub-table .hk-sub-col-previous { width: 94px; }
 .hk-sub-table .hk-sub-col-price { width: 108px; }
 .hk-sub-table .hk-sub-col-shipping { width: 72px; }
@@ -1361,7 +1362,6 @@
 .hk-sub-table .hk-sub-col-net { width: 94px; }
 .hk-sub-table thead th.hk-sub-head-base { color: #e2e8f0; background: #1e293b; }
 .hk-sub-table thead th.hk-sub-head-code { color: #ede9fe; background: #4338ca; }
-.hk-sub-table thead th.hk-sub-head-prev { color: #14532d; background: #86efac; }
 .hk-sub-table thead th.hk-sub-head-sale-price { color: #fde68a; background: #92400e; }
 .hk-sub-table thead th.hk-sub-head-shipping { color: #dbeafe; background: #1e40af; }
 .hk-sub-table thead th.hk-sub-head-margin { color: #bbf7d0; background: #166534; }
@@ -1373,24 +1373,34 @@
 }
 .hk-sub-table th,
 .hk-sub-table td { text-align: center; white-space: nowrap; }
-.hk-sub-table tbody td { padding-top: 12px; padding-bottom: 12px; }
-.hk-sub-table .hk-sub-name {
+.hk-sub-table thead th { padding-top: 13px; padding-bottom: 13px; }
+.hk-sub-table tbody td { padding-top: 15px; padding-bottom: 15px; }
+/* 제품명이 첫 열이 되면서 `.pricing-table tbody td:nth-child(1)`의 가운데 정렬이 이기므로 #page-pricing으로 명시도를 올린다. */
+#page-pricing .hk-sub-table tbody td.hk-sub-name {
   text-align: left;
   white-space: nowrap;
-  font-weight: 750;
+  font-weight: 700;
   color: #334155;
 }
-.hk-sub-table .hk-iso-draft-code { padding-left: 3px; padding-right: 3px; font-size: 9px; letter-spacing: -0.25px; }
-.hk-sub-table .hk-sub-supplier { color: #64748b; }
+/* 상품코드 칸 — 기본 표 규칙(오른쪽 정렬·회색 글자)을 이겨서 아이소핑크 코드 칸(보라 모노스페이스, 가운데)과 맞춘다. */
+#page-pricing .hk-sub-table tbody td.hk-iso-draft-code {
+  padding-left: 8px;
+  padding-right: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: #6366f1;
+}
 .hk-sub-table .hk-sub-cost { background: #f8fafc; font-weight: 700; }
-.hk-sub-table .hk-sub-cost-cell { padding-left: 4px; padding-right: 4px; }
+.hk-sub-table .hk-sub-cost-cell { padding-left: 8px; padding-right: 8px; }
+/* 공급원가 직접 수정과 조정액 입력을 한 줄에 둬서 행 높이를 아이소핑크·스티로폼 표와 맞춘다. */
+.hk-sub-cost-line { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .hk-sub-cost-direct-wrap { justify-content: center; }
 .hk-sub-cost-input { width: 72px; text-align: right; font-weight: 850; color: #334155; background: transparent; border-color: transparent; }
 .hk-sub-table .hk-sub-cost-input:read-only { cursor: default; background: transparent; border-color: transparent; box-shadow: none; }
 .hk-sub-cost-cell:hover .hk-iso-row-price-edit-btn,
 .hk-sub-cost-cell.editing .hk-iso-row-price-edit-btn { opacity: 1; background: #e2e8f0; border-color: #cbd5e1; color: #334155; }
 .hk-sub-cost-input:focus { background: #fff; border-color: #64748b; box-shadow: 0 0 0 2px rgba(100,116,139,.14); }
-.hk-sub-adjust-wrap { display: flex; justify-content: center; gap: 3px; margin-top: 5px; }
+.hk-sub-adjust-wrap { display: flex; justify-content: center; gap: 3px; }
 .hk-sub-cost-adjust-input { width: 53px; height: 24px; padding: 2px 5px; text-align: center; font-size: 10px; font-weight: 750; color: #1d4ed8; background: #fff; border-color: #bfdbfe; }
 .hk-sub-cost-adjust-input::placeholder { color: #94a3b8; }
 .hk-sub-cost-adjust-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.12); }
@@ -1402,23 +1412,38 @@
 .hk-sub-cost-history strong { color: #2563eb; }
 .hk-sub-cost-history button { margin-left: 3px; padding: 1px 3px; border: 0; background: transparent; color: #6366f1; cursor: pointer; }
 .hk-sub-cost-cell.changed { box-shadow: inset 0 0 0 1px #cbd5e1; }
+/* 가격 인상 이력 칸 — 인상일·금액 배지(올림은 빨강, 내림은 파랑, 저장 전 자동 기록은 점선) */
+.hk-sub-table td.hk-sub-increase { cursor: pointer; text-align: left; padding: 8px 10px; white-space: normal; }
+.hk-sub-table td.hk-sub-increase:hover { background: #f8fafc; }
+.hk-sub-inc-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.hk-sub-inc { display: inline-flex; align-items: baseline; gap: 5px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.hk-sub-inc em { font-style: normal; font-weight: 600; opacity: .75; }
+.hk-sub-inc.up { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; }
+.hk-sub-inc.down { color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; }
+.hk-sub-inc.pending { border-style: dashed; }
+.hk-sub-inc-more { align-self: center; color: #94a3b8; font-size: 11px; font-weight: 600; }
+.hk-sub-inc-total { margin-top: 4px; color: #94a3b8; font-size: 10px; font-weight: 600; }
+.hk-sub-inc-empty { color: #94a3b8; font-size: 11px; font-weight: 600; }
+/* 인상 이력 편집 팝업 */
+.hk-sub-inc-modal-table { width: 100%; }
+.hk-sub-inc-modal-table input.pim-input { width: 100%; box-sizing: border-box; }
+.hk-sub-inc-modal-table input.pim-input.invalid { border-color: #ef4444; background: #fff1f2; }
+.hk-sub-inc-del { border: 0; background: transparent; color: #94a3b8; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.hk-sub-inc-del:hover { color: #dc2626; background: #fef2f2; }
+.hk-sub-inc-add { margin-top: 10px; }
 .hk-sub-derived-price-input { cursor: default !important; }
 .hk-sub-table .hk-sub-previous { color: #64748b; background: #f8fafc; }
 .hk-sub-table .hk-sub-previous small { display: block; margin-top: 3px; color: #94a3b8; font-size: 10px; }
 .hk-sub-table .hk-sub-previous small.up { color: #dc2626; }
 .hk-sub-table .hk-sub-previous small.down { color: #2563eb; }
 .hk-sub-table .hk-sub-price-cell { min-width: 122px; background: #fff7ed; }
-.hk-sub-table .hk-sub-margin,
-.hk-sub-table .hk-sub-margin-rate,
-.hk-sub-table .hk-sub-fee,
-.hk-sub-table .hk-sub-vat,
-.hk-sub-table .hk-sub-net-margin { background: #f0fdf4; }
-.hk-sub-table .hk-sub-net-rate { color: #047857; background: #ecfdf5; font-weight: 850; }
+/* 마진·수수료·부가세·개당 마진은 아이소핑크 표처럼 색 없이, 순수마진율(초록)과 참고마진율(빨강)만 강조한다. */
+.hk-sub-table .hk-sub-net-rate { color: #15803d; background: #f0fdf4; font-weight: 800; }
 .hk-sub-table .hk-sub-ref-margin {
-  color: #b91c1c;
+  color: #be123c;
   background: #fff1f2;
   border-left: 2px solid #fecdd3;
-  font-weight: 850;
+  font-weight: 800;
 }
 /* 상품ID가 같은 상품(옵션 묶음)임을 rowspan 병합 셀 + 새 상품 시작 행의 굵은
    윗선으로 보여준다 — 빈 칸으로만 표시하면 병합처럼 안 보이고 데이터 누락처럼

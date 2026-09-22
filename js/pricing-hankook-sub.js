@@ -93,6 +93,106 @@ const HK_SUB_PRODUCTS = [
   { supplier:'기타부자재',  name:'회색 면테이프(100mm)',         code:'TP_GY100',     cost:3463,   previousPrice:7500,   price:8500,   shipping:3000, refMargin:45 },
 ];
 
+/* ═══════════════════════════════════════
+   가격 인상 이력 (2026-09-22, 사용자 요청)
+
+   부자재는 올해 중동 전쟁으로 나프타 수급이 흔들려 공급원가·판매가를 여러 번 올렸다. 언제 얼마를
+   올렸는지 상품별로 남긴다 — 엑셀의 "26.04.10 추가인상 …" 열과 같은 정보다. 항목 하나 = 날짜 + 올린
+   금액(공급원가와 판매가를 같은 금액만큼 올림, 내리면 음수). 한 상품에 여러 번 쌓인다.
+   - 아래 시드는 사용자가 준 승현기업 엑셀(2026.06.09 기준표)의 값이다. DB에 저장된 이력이 있으면 그것이 우선한다.
+   - 화면에서 공급원가 조정 [적용]이나 연필로 직접 수정하면 오늘 날짜로 자동 기록된다(저장 전까지는 점선 표시,
+     "되돌리기"를 누르면 함께 사라진다). 날짜·금액은 이력 칸을 눌러 언제든 고칠 수 있다.
+   - 저장은 hk_products.shipping JSON의 increases에 함께 들어간다(SQL 변경 없음, 이력 스냅샷에도 포함).
+═══════════════════════════════════════ */
+const HK_SUB_INCREASE_SEED = [
+  ['2026-04-10', 250,   ['T_TF_G', 'T_TF_G_S', 'T_TF_G_B', 'T_TF_D', 'T_TF_D_S', 'T_TF_D_B']],
+  ['2026-04-10', 350,   ['T_EB_G', 'T_EB_G_S', 'T_EB_G_B', 'T_EB_D', 'T_EB_D_S', 'T_EB_D_B',
+                         'T_B1_G', 'T_B1_G_B', 'T_B2_G', 'T_B2_G_B', 'T_BIG65_G',
+                         'T_SF_G', 'T_SF_G_B', 'T_SFB_G', 'T_SFB_G_B']],
+  ['2026-04-10', 9000,  ['T_2K_H', 'T_2K_S']],
+  ['2026-05-06', 350,   ['T_SF_251SET']],
+  ['2026-06-09', 16000, ['T_2K_H', 'T_2K_S']],
+  ['2026-06-09', 10000, ['T_NZ']],
+  ['2026-06-09', 2000,  ['T_TP']],
+  ['2026-08-21', 500,   ['T_SR']],
+  // 함일셀레나 — 05.06 (월드 폼크리너 계열만 +500, 나머지 +300)
+  ['2026-05-06', 300,   ['W_SF_G', 'W_SF_G_B', 'W_SFB_G', 'W_SFB_G_S', 'W_SFB_G_B', 'W_B2_G', 'W_B2_G_S', 'W_B2_G_B', 'W_SF_251SET']],
+  ['2026-05-06', 500,   ['W_FC', 'W_FC_S']],
+  // 투원테크 — 04.29
+  ['2026-04-29', 53000, ['TW_LF_H']],
+  ['2026-04-29', 70000, ['TW_LF_S']],
+  ['2026-04-29', 5000,  ['TW_TP']],
+  ['2026-04-29', 10000, ['TW_NZ']],
+  // 유니산업 — 04.10
+  ['2026-04-10', 500,   ['U_FB', 'U_FB_S', 'U_FB_SET']],
+  // 형제산업 — 06.09
+  ['2026-06-09', 2250,  ['H_HT']],
+  // 열선커터기 — 07.02
+  ['2026-07-02', 1000,  ['HC_ELIM', 'HC_USB']],
+  ['2026-07-02', 100,   ['HC_ELIM_W']],
+  // 기타부자재 — 05.11 (곰팡이제거제 하나)
+  ['2026-05-11', 500,   ['MR']],
+];
+HK_SUB_PRODUCTS.forEach(product => { product.increases = []; });
+HK_SUB_INCREASE_SEED.forEach(([date, amount, codes]) => {
+  codes.forEach(code => {
+    const product = HK_SUB_PRODUCTS.find(item => item.code === code);
+    if (product) product.increases.push({ date, amount });
+  });
+});
+HK_SUB_PRODUCTS.forEach(product => product.increases.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)));
+
+function _hkSubToday() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function _hkSubShortDate(date) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || ''));
+  return match ? `${match[1].slice(2)}.${match[2]}.${match[3]}` : String(date || '');
+}
+
+function _hkSubSigned(value) {
+  const number = Number(value) || 0;
+  return (number > 0 ? '+' : '') + number.toLocaleString();
+}
+
+function _hkSubSortIncreases(list) {
+  list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+/* 이력 칸 — 최근 3건을 날짜 순으로 배지로 보여주고 나머지는 "외 N건", 아래에 누적 금액. */
+function _hkSubIncreaseCellInner(product) {
+  const list = product.increases || [];
+  if (!list.length) return '<span class="hk-sub-inc-empty"><i class="fa-solid fa-plus"></i> 기록</span>';
+  const shown = list.slice(-3);
+  const chips = shown.map(item => `<span class="hk-sub-inc ${item.amount < 0 ? 'down' : 'up'}${item.pending ? ' pending' : ''}"><em>${_hkSubShortDate(item.date)}</em>${_hkSubSigned(item.amount)}</span>`).join('');
+  const more = list.length > shown.length ? `<span class="hk-sub-inc-more">외 ${list.length - shown.length}건</span>` : '';
+  const total = list.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  return `<div class="hk-sub-inc-list">${more}${chips}</div><div class="hk-sub-inc-total">누적 ${_hkSubSigned(total)}원 · ${list.length}회</div>`;
+}
+
+function _hkSubRefreshIncreaseCell(row) {
+  const product = HK_SUB_PRODUCTS[Number(row?.dataset.rowIndex)];
+  const cell = row?.querySelector('.hk-sub-increase');
+  if (product && cell) cell.innerHTML = _hkSubIncreaseCellInner(product);
+}
+
+/* 공급원가 조정·직접 수정을 오늘 날짜의 인상 이력으로 남긴다. 같은 날(저장 전) 여러 번이면 합치고, 합이 0이면 지운다. */
+function _hkSubRecordIncrease(product, delta) {
+  if (!delta) return;
+  product.increases = product.increases || [];
+  const today = _hkSubToday();
+  const same = product.increases.find(item => item.pending && item.date === today);
+  if (same) {
+    same.amount += delta;
+    if (!same.amount) product.increases.splice(product.increases.indexOf(same), 1);
+  } else {
+    product.increases.push({ date: today, amount: delta, pending: true });
+    _hkSubSortIncreases(product.increases);
+  }
+}
+
 function _hkSubMetrics(product, price = Number(product.price) || 0) {
   const cost = Number(product.cost) || 0;
   const margin = price - cost;
@@ -113,20 +213,22 @@ function _hkSubRowHtml(product, rowIndex) {
   const metrics = _hkSubMetrics(product);
   const difference = Number(product.price) - Number(product.previousPrice);
   return `<tr data-row-index="${rowIndex}" data-product-code="${product.code}" data-cost="${product.cost}">
-    <td class="hk-sub-supplier">${product.supplier || '승현기업'}</td>
     <td class="hk-sub-name">${product.name}</td>
     <td class="hk-iso-draft-code">${product.code}</td>
     <td class="hk-sub-cost hk-sub-cost-cell">
-      <div class="hk-iso-price-edit-wrap hk-sub-cost-direct-wrap">
-        <input type="text" inputmode="numeric" class="pricing-input-field hk-sub-cost-input" value="${Number(product.cost).toLocaleString()}" data-original-cost="${Number(product.cost)}" onblur="finishHkSubCostEdit(this)" onkeydown="handleHkSubCostKey(event,this)" readonly aria-label="공급원가">
-        <button type="button" class="hk-iso-row-price-edit-btn" onclick="beginHkSubCostEdit(this)" title="공급원가를 직접 수정"><i class="fa-solid fa-pen"></i></button>
-      </div>
-      <div class="hk-sub-adjust-wrap">
-        <input type="text" inputmode="numeric" class="pricing-input-field hk-sub-cost-adjust-input" placeholder="+200" aria-label="공급원가 조정액" onkeydown="handleHkSubCostAdjustmentKey(event,this)">
-        <button type="button" class="hk-sub-cost-adjust-btn" onclick="applyHkSubCostAdjustment(this)" title="입력한 금액을 공급원가와 판매가에 더합니다">적용</button>
+      <div class="hk-sub-cost-line">
+        <div class="hk-iso-price-edit-wrap hk-sub-cost-direct-wrap">
+          <input type="text" inputmode="numeric" class="pricing-input-field hk-sub-cost-input" value="${Number(product.cost).toLocaleString()}" data-original-cost="${Number(product.cost)}" onblur="finishHkSubCostEdit(this)" onkeydown="handleHkSubCostKey(event,this)" readonly aria-label="공급원가">
+          <button type="button" class="hk-iso-row-price-edit-btn" onclick="beginHkSubCostEdit(this)" title="공급원가를 직접 수정"><i class="fa-solid fa-pen"></i></button>
+        </div>
+        <div class="hk-sub-adjust-wrap">
+          <input type="text" inputmode="numeric" class="pricing-input-field hk-sub-cost-adjust-input" placeholder="+200" aria-label="공급원가 조정액" onkeydown="handleHkSubCostAdjustmentKey(event,this)">
+          <button type="button" class="hk-sub-cost-adjust-btn" onclick="applyHkSubCostAdjustment(this)" title="입력한 금액을 공급원가와 판매가에 더합니다">적용</button>
+        </div>
       </div>
       <div class="hk-sub-cost-history" data-original-cost="${Number(product.cost)}" hidden>변경 전 <span>${Number(product.cost).toLocaleString()}원</span> · <strong></strong><button type="button" onclick="revertHkSubCost(this)" title="변경 전 원가와 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
     </td>
+    <td class="hk-sub-increase" onclick="openHkSubIncreaseModal(this)" title="눌러서 가격 인상 이력 보기·수정 (공급원가와 판매가를 같은 금액만큼 올린 기록)">${_hkSubIncreaseCellInner(product)}</td>
     <td class="hk-sub-previous">${_hkIsoDraftNumber(product.previousPrice)}<small class="${difference > 0 ? 'up' : difference < 0 ? 'down' : ''}">${difference ? `${difference > 0 ? '+' : ''}${_hkIsoDraftNumber(difference)}` : '동일'}</small></td>
     <td class="hk-iso-draft-price hk-sub-price-cell">
       <input type="text" class="pricing-input-field hk-iso-final-price-input hk-sub-derived-price-input" value="${Number(product.price).toLocaleString()}" data-original-price="${Number(product.price)}" readonly tabindex="-1" aria-label="공급원가 연동 판매가">
@@ -143,29 +245,78 @@ function _hkSubRowHtml(product, rowIndex) {
   </tr>`;
 }
 
-function renderHkSubPane() {
-  const rows = HK_SUB_PRODUCTS.map(_hkSubRowHtml).join('');
-  return `<div id="hkIsoAcc-sub_all" class="card pricing-result-card hk-sub-card">
-    <div class="pricing-result-header">
-      <div class="pricing-result-title">부자재 기준 판매가<span class="pricing-spec-badge">2026.06.09 · ${HK_SUB_PRODUCTS.length}개</span></div>
-      <span class="pricing-result-hint">연필: 공급원가 직접 수정 · 조정액: +200/-100처럼 빠르게 반영 · 판매가도 같은 금액만큼 자동 조정</span>
+/* 업체별 묶음 — 아이소핑크·스티로폼의 규격 그룹처럼 아코디언 하나가 업체 하나다.
+   행 번호(rowIndex)는 HK_SUB_PRODUCTS 전체 기준 그대로라 저장·계산 코드는 바뀌지 않는다. */
+function _hkSubGroups() {
+  const groups = [];
+  HK_SUB_PRODUCTS.forEach((product, index) => {
+    const name = product.supplier || '승현기업';
+    let group = groups.find(item => item.name === name);
+    if (!group) {
+      group = { name, items: [] };
+      groups.push(group);
+    }
+    group.items.push({ product, index });
+  });
+  return groups;
+}
+
+function _hkSubTableHtml(items) {
+  return `<div class="pricing-table-scroll">
+    <table class="pricing-table hk-sub-table">
+      <colgroup>
+        <col class="hk-sub-col-name"><col class="hk-sub-col-code">
+        <col class="hk-sub-col-cost"><col class="hk-sub-col-increase"><col class="hk-sub-col-previous"><col class="hk-sub-col-price"><col class="hk-sub-col-shipping">
+        <col class="hk-sub-col-margin"><col class="hk-sub-col-rate"><col class="hk-sub-col-fee"><col class="hk-sub-col-vat">
+        <col class="hk-sub-col-net"><col class="hk-sub-col-rate"><col class="hk-sub-col-rate">
+      </colgroup>
+      <thead><tr>
+        <th class="hk-sub-head-base">제품명</th><th class="hk-sub-head-code">상품코드</th>
+        <th class="hk-sub-head-base">공급원가</th><th class="hk-sub-head-base">가격 인상 이력</th><th class="hk-sub-head-base">이전 판매가</th><th class="hk-sub-head-sale-price">개당 판매가</th><th class="hk-sub-head-shipping">배송비</th>
+        <th class="hk-sub-head-margin">마진</th><th class="hk-sub-head-margin">마진율</th><th class="hk-sub-head-margin">판매수수료<br><small>6%</small></th><th class="hk-sub-head-margin">부가세<br><small>10%</small></th>
+        <th class="hk-sub-head-margin">개당 마진</th><th class="hk-sub-head-rate">순수마진율</th><th class="hk-sub-ref-margin-head">참고마진율</th>
+      </tr></thead>
+      <tbody>${items.map(({ product, index }) => _hkSubRowHtml(product, index)).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+/* 아이소핑크·스티로폼과 같은 모양의 아코디언 섹션(머리글 + 접었다 펴는 표) */
+function _hkSubAccordionHtml(group, groupIndex) {
+  const id = `sub_g${groupIndex}`;
+  return `<div class="hk-iso-accordion${groupIndex === 0 ? ' open' : ''}" id="hkIsoAcc-${id}">
+    <div class="hk-iso-accordion-head">
+      <span class="hk-iso-accordion-title">${group.name}</span>
+      <span class="hk-iso-accordion-count">상품 ${group.items.length}개</span>
+      <button type="button" class="hk-iso-accordion-toggle" onclick="toggleHkIsoAccordion('${id}')" title="펼치기 / 접기" aria-label="${group.name} 펼치기 또는 접기"><i class="fa-solid fa-chevron-down hk-iso-accordion-chevron"></i></button>
     </div>
-    <div class="pricing-table-scroll">
-      <table class="pricing-table hk-sub-table">
-        <colgroup>
-          <col class="hk-sub-col-supplier"><col class="hk-sub-col-name"><col class="hk-sub-col-code">
-          <col class="hk-sub-col-cost"><col class="hk-sub-col-previous"><col class="hk-sub-col-price"><col class="hk-sub-col-shipping">
-          <col class="hk-sub-col-margin"><col class="hk-sub-col-rate"><col class="hk-sub-col-fee"><col class="hk-sub-col-vat">
-          <col class="hk-sub-col-net"><col class="hk-sub-col-rate"><col class="hk-sub-col-rate">
-        </colgroup>
-        <thead><tr>
-          <th class="hk-sub-head-base">업체명</th><th class="hk-sub-head-base">제품명</th><th class="hk-sub-head-code">상품코드</th>
-          <th class="hk-sub-head-base">공급원가</th><th class="hk-sub-head-prev">이전 판매가</th><th class="hk-sub-head-sale-price">개당 판매가</th><th class="hk-sub-head-shipping">배송비</th>
-          <th class="hk-sub-head-margin">마진</th><th class="hk-sub-head-margin">마진율</th><th class="hk-sub-head-margin">판매수수료<br><small>6%</small></th><th class="hk-sub-head-margin">부가세<br><small>10%</small></th>
-          <th class="hk-sub-head-margin">개당 마진</th><th class="hk-sub-head-rate">순수마진율</th><th class="hk-sub-ref-margin-head">참고마진율</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
+    <div class="hk-iso-accordion-body">${_hkSubTableHtml(group.items)}</div>
+  </div>`;
+}
+
+/* 위쪽 설정 카드 — 아이소핑크·스티로폼 카드와 같은 자리에 단가 기준 년월을 둔다(한국단열 전체에 하나). */
+function _hkSubSettingsCard() {
+  return `<div class="card pricing-cost-card hk-iso-draft-margin-card" data-draft-tab="sub-shared">
+    <div class="pricing-section-title">공통 설정 <span class="pricing-section-sub">— 공급원가를 고치면 판매가가 같은 금액만큼 함께 움직입니다 · 연필: 공급원가 직접 수정 · 조정액: +200 / -100 · 조정하면 가격 인상 이력에 오늘 날짜로 자동 기록(칸을 눌러 수정)</span></div>
+    <div class="pricing-cost-footer hk-iso-shared-cost-controls">
+      <div class="pricing-base-month-wrap">
+        <label class="pricing-base-month-label" for="hkSubBaseMonth">단가 기준 년월</label>
+        <input type="month" id="hkSubBaseMonth" class="pricing-input-field pricing-month-field" value="${HK_ISO_DRAFT_BASE_MONTH}" oninput="hkIsoSetBaseMonth(this.value)">
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderHkSubPane() {
+  // 카드 id(hkIsoAcc-sub_all)는 저장 코드가 행의 판매가 입력칸을 찾는 기준이라 그대로 둔다.
+  return `<div id="hkSubBaseDataSection">
+    ${_hkSubSettingsCard()}<div id="hkIsoAcc-sub_all" class="card pricing-result-card hk-sub-card">
+      <div class="pricing-result-header">
+        <div class="pricing-result-title">한국단열 부자재 기준 판매가<span class="pricing-spec-badge">2026.06.09 기준 · ${HK_SUB_PRODUCTS.length}개</span></div>
+      </div>
+      <div class="hk-iso-accordion-list">
+        ${_hkSubGroups().map(_hkSubAccordionHtml).join('')}
+      </div>
     </div>
   </div>`;
 }
@@ -235,6 +386,7 @@ window.finishHkSubCostEdit = function(input) {
   const delta = nextCost - startCost;
   product.cost = nextCost;
   product.price = Math.max(0, startPrice + delta);
+  _hkSubRecordIncrease(product, delta);
   row.dataset.cost = String(product.cost);
   input.value = product.cost.toLocaleString();
   input.readOnly = true;
@@ -245,6 +397,7 @@ window.finishHkSubCostEdit = function(input) {
     window.recalcHkSubRow(priceInput);
   }
   _hkSubUpdateHistory(row);
+  _hkSubRefreshIncreaseCell(row);
 };
 
 window.handleHkSubCostKey = function(event, input) {
@@ -278,6 +431,7 @@ window.applyHkSubCostAdjustment = function(source) {
   const appliedDelta = nextCost - currentCost;
   product.cost = nextCost;
   product.price = Math.max(0, Number(product.price || 0) + appliedDelta);
+  _hkSubRecordIncrease(product, appliedDelta);
   row.dataset.cost = String(product.cost);
   const costInput = row.querySelector('.hk-sub-cost-input');
   if (costInput) costInput.value = product.cost.toLocaleString();
@@ -289,6 +443,7 @@ window.applyHkSubCostAdjustment = function(source) {
   input.value = '';
   input.classList.remove('invalid');
   _hkSubUpdateHistory(row);
+  _hkSubRefreshIncreaseCell(row);
 };
 
 window.handleHkSubCostAdjustmentKey = function(event, input) {
@@ -308,18 +463,124 @@ window.revertHkSubCost = function(button) {
   if (!row || !costInput || !priceInput || !product) return;
   product.cost = Number(costInput.dataset.originalCost || 0);
   product.price = Number(priceInput.dataset.originalPrice || 0);
+  // 되돌리면 저장 전에 자동으로 남긴 인상 이력(점선 배지)도 함께 지운다.
+  product.increases = (product.increases || []).filter(item => !item.pending);
   row.dataset.cost = String(product.cost);
   costInput.value = product.cost.toLocaleString();
   priceInput.value = product.price.toLocaleString();
   window.recalcHkSubRow(priceInput);
   _hkSubUpdateHistory(row);
+  _hkSubRefreshIncreaseCell(row);
+};
+
+/* ─── 가격 인상 이력 편집 팝업(index.html #hkSubIncreaseModal) ─── */
+let _hkSubIncreaseEditIndex = -1;
+
+function _hkSubIncreaseRowHtml(item = {}) {
+  const date = item.date || _hkSubToday();
+  const amount = item.amount != null ? item.amount : '';
+  return `<tr data-pending="${item.pending ? 1 : 0}">
+    <td><input type="date" class="pim-input hk-sub-inc-date" value="${date}"></td>
+    <td><input type="text" inputmode="numeric" class="pim-input hk-sub-inc-amount" value="${amount === '' ? '' : (amount > 0 ? '+' : '') + Number(amount).toLocaleString()}" placeholder="+250 / -100" onkeydown="if(event.key==='Enter')confirmHkSubIncreaseModal()"></td>
+    <td><button type="button" class="hk-sub-inc-del" onclick="removeHkSubIncreaseRow(this)" title="이 이력 삭제"><i class="fa-solid fa-trash-can"></i></button></td>
+  </tr>`;
+}
+
+window.openHkSubIncreaseModal = function(source) {
+  const row = source.closest('tr');
+  const index = Number(row?.dataset.rowIndex);
+  const product = HK_SUB_PRODUCTS[index];
+  const modal = document.getElementById('hkSubIncreaseModal');
+  const body = document.getElementById('hkSubIncreaseModalBody');
+  if (!product || !modal || !body) return;
+  _hkSubIncreaseEditIndex = index;
+  document.getElementById('hkSubIncreaseModalTitle').textContent = `${product.name} — 가격 인상 이력`;
+  body.innerHTML = `<div class="pim-margin-hint">공급원가와 판매가를 같은 금액만큼 올린 기록입니다(내렸으면 음수). 날짜와 금액은 언제든 고칠 수 있고, 공급원가 조정 [적용]을 누르면 오늘 날짜로 자동으로 추가됩니다. 이 기록은 현재 공급원가·판매가를 바꾸지 않습니다.</div>
+    <div class="pim-table-scroll-wrap">
+      <table class="pim-table hk-sub-inc-modal-table">
+        <thead><tr><th>인상일</th><th>올린 금액 (원)</th><th></th></tr></thead>
+        <tbody id="hkSubIncreaseModalRows">${(product.increases || []).map(_hkSubIncreaseRowHtml).join('')}</tbody>
+      </table>
+    </div>
+    <button type="button" class="pricing-margin-edit-btn hk-sub-inc-add" onclick="addHkSubIncreaseRow()"><i class="fa-solid fa-plus"></i> 이력 추가</button>`;
+  modal.style.display = 'flex';
+};
+
+window.closeHkSubIncreaseModal = function() {
+  const modal = document.getElementById('hkSubIncreaseModal');
+  if (modal) modal.style.display = 'none';
+  _hkSubIncreaseEditIndex = -1;
+};
+
+window.addHkSubIncreaseRow = function() {
+  const tbody = document.getElementById('hkSubIncreaseModalRows');
+  if (!tbody) return;
+  tbody.insertAdjacentHTML('beforeend', _hkSubIncreaseRowHtml());
+  tbody.lastElementChild.querySelector('.hk-sub-inc-amount')?.focus();
+};
+
+window.removeHkSubIncreaseRow = function(button) {
+  button.closest('tr')?.remove();
+};
+
+window.confirmHkSubIncreaseModal = function() {
+  const product = HK_SUB_PRODUCTS[_hkSubIncreaseEditIndex];
+  const tbody = document.getElementById('hkSubIncreaseModalRows');
+  if (!product || !tbody) return;
+  const next = [];
+  let valid = true;
+  [...tbody.querySelectorAll('tr')].forEach(tr => {
+    const dateInput = tr.querySelector('.hk-sub-inc-date');
+    const amountInput = tr.querySelector('.hk-sub-inc-amount');
+    const raw = String(amountInput.value || '').replace(/[,\s]/g, '');
+    const okDate = /^\d{4}-\d{2}-\d{2}$/.test(dateInput.value);
+    const okAmount = /^[+-]?\d+$/.test(raw) && Number(raw) !== 0;
+    dateInput.classList.toggle('invalid', !okDate);
+    amountInput.classList.toggle('invalid', !okAmount);
+    if (!okDate || !okAmount) { valid = false; return; }
+    const item = { date: dateInput.value, amount: Math.round(Number(raw)) };
+    if (tr.dataset.pending === '1') item.pending = true;
+    next.push(item);
+  });
+  if (!valid) return;
+  _hkSubSortIncreases(next);
+  product.increases = next;
+  const row = document.querySelector(`.hk-sub-table tr[data-row-index="${_hkSubIncreaseEditIndex}"]`);
+  _hkSubRefreshIncreaseCell(row);
+  window.closeHkSubIncreaseModal();
+  if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
+};
+
+document.addEventListener('click', function(event) {
+  const modal = document.getElementById('hkSubIncreaseModal');
+  if (modal && event.target === modal) window.closeHkSubIncreaseModal();
+});
+
+/* 저장에 성공하면 호출된다(pricing-hankook-db.js) — 저장 전 표시(점선)를 없애고, "변경 전" 기준도 방금 저장한 값으로 맞춘다. */
+window.hkSubMarkSaved = function() {
+  HK_SUB_PRODUCTS.forEach(product => (product.increases || []).forEach(item => { delete item.pending; }));
+  document.querySelectorAll('.hk-sub-table tbody tr').forEach(row => {
+    const product = HK_SUB_PRODUCTS[Number(row.dataset.rowIndex)];
+    const costInput = row.querySelector('.hk-sub-cost-input');
+    if (!product || !costInput) return;
+    costInput.dataset.originalCost = String(product.cost);
+    const history = row.querySelector('.hk-sub-cost-history');
+    if (history) {
+      history.dataset.originalCost = String(product.cost);
+      const span = history.querySelector('span');
+      if (span) span.textContent = `${Number(product.cost).toLocaleString()}원`;
+    }
+    _hkSubUpdateHistory(row);
+    _hkSubRefreshIncreaseCell(row);
+  });
 };
 
 window.hkSubProductIndex = function() {
   return HK_SUB_PRODUCTS.map((row, rowIndex) => ({
     code: row.code,
     block: null,
-    ship: { subCost: Number(row.cost) },
+    // 가격 인상 이력도 같은 JSON에 둔다(저장 전 표시용 pending 플래그는 저장하지 않는다).
+    ship: { subCost: Number(row.cost), increases: (row.increases || []).map(({ date, amount }) => ({ date, amount })) },
     row,
     rowIndex,
     accordionId: 'sub_all',

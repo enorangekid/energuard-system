@@ -355,6 +355,12 @@ function _hkDbApplyState(state) {
     // 부자재 공급원가는 hk_products.shipping JSON에 함께 둔다. 기존 DB 스키마를 바꾸지 않고
     // 판매가와 원가를 같은 상품 이력에서 복원하기 위한 전용 값이다.
     if (entry.categoryId === 'hk_sub' && finite(saved.ship?.subCost)) entry.row.cost = Number(saved.ship.subCost);
+    // 부자재 가격 인상 이력 — 저장된 값이 있으면(빈 목록 포함) 코드의 시드 대신 그걸 쓴다.
+    if (entry.categoryId === 'hk_sub' && Array.isArray(saved.ship?.increases)) {
+      entry.row.increases = saved.ship.increases
+        .filter(item => /^\d{4}-\d{2}-\d{2}$/.test(String(item?.date)) && finite(item?.amount))
+        .map(item => ({ date: String(item.date), amount: Number(item.amount) }));
+    }
     const target = entry.block ? entry.block.rows[entry.rowIndex] : null;
     if (target && saved.ship && typeof saved.ship === 'object') {
       const { codeOverride, ...values } = saved.ship;
@@ -750,13 +756,14 @@ window.hkDbSave = async function() {
       window.updateHkIsoPriceHistory(input);
     });
 
+    if (typeof window.hkSubMarkSaved === 'function') window.hkSubMarkSaved(); // 부자재: 저장 전 표시(점선 이력·변경 전 원가)를 저장값 기준으로
     if (typeof window._hkRefreshChannelListing === 'function') window._hkRefreshChannelListing(); // 차액·반영 대기를 0으로 다시 그림
     _hkDb.tablesMissing = false;
     _hkDb.hasSavedData = true;
     _hkDb.dirty = false;
     _hkDb.lastSavedAt = new Date();
     HK_ISO_DRAFT_BASE_MONTH = month;
-    ['hkIsoBaseMonth', 'hkBeadBaseMonth'].forEach(id => {
+    ['hkIsoBaseMonth', 'hkBeadBaseMonth', 'hkSubBaseMonth'].forEach(id => {
       const monthInput = document.getElementById(id);
       if (monthInput) monthInput.value = month;
     });
