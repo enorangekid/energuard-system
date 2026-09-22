@@ -2062,9 +2062,19 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
   };
 }
 
+/* 쿠팡_부자재(2026-09-22, 사용자가 준 엑셀 58행) — 다른 쿠팡 채널과 계산식이 다르다: 배송비를 더하지
+   않고 부자재 판매가만 ×1.05 한 뒤 "100원 단위 반올림"(올림이 아니라 반올림, 엑셀 58행 전부와 일치
+   확인)한다. 쿠폰·수수료 개념이 없는 단순 채널이라 전용 함수를 따로 둔다. */
+function _hkCoupangSubPriceParts(productCode) {
+  const hkdPrice = typeof window.hkSubPriceByCode === 'function' ? window.hkSubPriceByCode(productCode) : null;
+  if (hkdPrice == null) return null;
+  return { hkdPrice, registered: Math.round(hkdPrice * 1.05 / 100) * 100 };
+}
+
 function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item) {
   // 아직 공통 원가표 상품코드가 없는 채널 전용 옵션은 받은 현재 판매가를 직접 기준값으로 쓴다.
   if (item && item.targetPrice != null && Number.isFinite(Number(item.targetPrice))) return Number(item.targetPrice);
+  if (channelId === 'coupang_sub') return _hkCoupangSubPriceParts(productCode)?.registered ?? null;
   const config = HK_CHANNEL_CONFIG[channelId];
   if (config && config.layout === 'coupang') return _hkCoupangPriceParts(categoryId, productCode, config, item, product)?.registered ?? null;
   if (config && config.markupPercent) return _hkEsmPriceParts(categoryId, productCode, config, item)?.finalPrice ?? null;
