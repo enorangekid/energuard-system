@@ -883,3 +883,35 @@ window.hkReflectivePriceByCode = function(code) {
     ]),
   );
 })();
+
+/* ═══════════════════════════════════════
+   홈페이지 채널 — 열반사단열재 (2026-09-22, 사용자가 준 표 16행). 상품ID는 네이버 상품번호가 아니라
+   부자재·스티로폼 홈페이지 채널과 같은 내부 목록 번호(짧은 숫자)다. 비접착/한쪽접착 옵션 2개가
+   같은 상품ID 하나를 공유한다(엑셀 병합 셀). 반품/교환비는 전부 30000/60000으로 고정.
+   수정 전 판매가·배송비는 기존 규칙대로 지금 1단계 값으로 맞춘다.
+═══════════════════════════════════════ */
+(function addReflectiveHomepageProducts() {
+  const pair = (productId, baseShipping, nameA, codeA, nameB, codeB) => ({
+    categoryId: 'hk_reflective',
+    productId,
+    baseShipping,
+    shippingBasis: '1개마다',
+    jejuShipping: baseShipping,
+    returnExchange: '30000/60000',
+    items: [
+      { productCode: codeA, productName: nameA, prevPrice: _hkChannelTargetPrice('hk_reflective', codeA, 'homepage', null, null) ?? 0, prevShipping: baseShipping },
+      { productCode: codeB, productName: nameB, prevPrice: _hkChannelTargetPrice('hk_reflective', codeB, 'homepage', null, null) ?? 0, prevShipping: baseShipping },
+    ],
+  });
+
+  HK_CHANNEL_LISTINGS.homepage.push(
+    pair('31', 27000, '[열반사단열재] 빌트론 5T 일반형 비접착 50m', 'BL_5_50_SN_R', '[열반사단열재] 빌트론 5T 일반형 한쪽접착 50m', 'BL_5_50_SA_R'),
+    pair('30', 27000, '[열반사단열재] 빌트론 5T 고급형 비접착 50m', 'BL_5_50_DN_R', '[열반사단열재] 빌트론 5T 고급형한쪽접착 50m', 'BL_5_50_DA_R'),
+    pair('29', 20000, '[열반사단열재] 빌트론 6T 일반형 비접착 25m', 'BL_6_25_SN_R', '[열반사단열재] 빌트론 6T 일반형 한쪽접착 25m', 'BL_6_25_SA_R'),
+    pair('28', 20000, '[열반사단열재] 빌트론 6T 고급형 비접착 25m', 'BL_6_25_DN_R', '[열반사단열재] 빌트론 6T 고급형 한쪽접착 25m', 'BL_6_25_DA_R'),
+    pair('27', 27000, '[열반사단열재] 빌트론 10T 일반형 비접착 25m', 'BL_10_25_SN_R', '[열반사단열재] 빌트론 10T 일반형 한쪽접착 25m', 'BL_10_25_SA_R'),
+    pair('26', 27000, '[열반사단열재] 빌트론 10T 고급형 비접착 25m', 'BL_10_25_DN_R', '[열반사단열재] 빌트론 10T 고급형 한쪽접착 25m', 'BL_10_25_DA_R'),
+    pair('17', 32000, '[열반사단열재] 빌트론 13T 고급형 비접착 20m', 'BL_13_20_DN_R', '[열반사단열재] 빌트론 13T 고급형 한쪽접착 20m', 'BL_13_20_DA_R'),
+    pair('16', 27000, '[열반사단열재] 빌트론 20T 고급형 비접착 10m', 'BL_20_10_DN_R', '[열반사단열재] 빌트론 20T 고급형 한쪽접착 10m', 'BL_20_10_DA_R'),
+  );
+})();
