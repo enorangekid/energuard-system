@@ -1981,9 +1981,10 @@ function _hkChannelHkdPrice(categoryId, productCode) {
   return null;
 }
 
-function _hkEsmPriceParts(categoryId, productCode, config) {
+function _hkEsmPriceParts(categoryId, productCode, config, item) {
   const hkdPrice = _hkChannelHkdPrice(categoryId, productCode);
-  const hkdShipping = _hkHkdShippingByCode(productCode);
+  // item.hkdShipping이 있으면(엑셀의 한국단열 배송비가 배송 설정 조회값과 다른 옵션 — 스티로폼 430/600은 전부 6,500) 그 값을 쓴다.
+  const hkdShipping = item && item.hkdShipping != null ? Number(item.hkdShipping) : _hkHkdShippingByCode(productCode);
   if (hkdPrice == null || hkdShipping == null) return null;
   const total = hkdPrice + hkdShipping;
   const scaled = total * config.markupPercent; // 퍼센트 배율을 곱한 정수(÷100 하면 ESM 판매가)
@@ -2044,9 +2045,11 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
 }
 
 function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item) {
+  // 아직 공통 원가표 상품코드가 없는 채널 전용 옵션은 받은 현재 판매가를 직접 기준값으로 쓴다.
+  if (item && item.targetPrice != null && Number.isFinite(Number(item.targetPrice))) return Number(item.targetPrice);
   const config = HK_CHANNEL_CONFIG[channelId];
   if (config && config.layout === 'coupang') return _hkCoupangPriceParts(categoryId, productCode, config, item, product)?.registered ?? null;
-  if (config && config.markupPercent) return _hkEsmPriceParts(categoryId, productCode, config)?.finalPrice ?? null;
+  if (config && config.markupPercent) return _hkEsmPriceParts(categoryId, productCode, config, item)?.finalPrice ?? null;
   if (categoryId === 'hk_isopink' || categoryId === 'hk_bead') return _hkChannelHkdPrice(categoryId, productCode);
   if (categoryId === 'hk_sub' && typeof window.hkSubPriceByCode === 'function') return window.hkSubPriceByCode(productCode);
   return null;
@@ -2125,17 +2128,21 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
   const baseByProduct = {};
   products.forEach(product => {
     baseIndexByProduct[product.productId] = _hkChannelBaseIndex(product);
-    baseByProduct[product.productId] = _hkChannelTargetPrice(categoryId, product.items[baseIndexByProduct[product.productId]]?.productCode, channelId);
+    const baseItem = product.items[baseIndexByProduct[product.productId]];
+    baseByProduct[product.productId] = product.basePrice != null
+      ? Number(product.basePrice)
+      : _hkChannelTargetPrice(categoryId, baseItem?.productCode, channelId, product, baseItem);
   });
 
   let rowsHtml = '';
   products.forEach((product, groupIndex) => {
     product.items.forEach((item, i) => {
-      const targetPrice = _hkChannelTargetPrice(categoryId, item.productCode, channelId);
+      const targetPrice = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
       const basePrice = baseByProduct[product.productId];
       const optionAdd = (targetPrice != null && basePrice != null) ? targetPrice - basePrice : null;
       const inactive = !!item.status;
-      const isBase = i === baseIndexByProduct[product.productId];
+      // 일부 실제 상품은 어느 옵션보다도 낮은 별도 기준가를 쓴다(2K·라이트폼 세트).
+      const isBase = product.basePrice == null && i === baseIndexByProduct[product.productId];
       const priceDiff = (targetPrice != null && item.prevPrice != null) ? targetPrice - item.prevPrice : null;
       const shippingChanged = !inactive && item.prevShipping != null && product.baseShipping != null && item.prevShipping !== product.baseShipping;
       const priceChanged = !inactive && !!priceDiff;
@@ -2150,7 +2157,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const statusClass = inactive ? ` is-inactive is-${item.status}` : '';
       // 옵션이 둘 이상인 상품은 라디오로 기준가 옵션을 고른다(하나뿐이면 그 옵션이 곧 기준).
       const priceNumber = _hkIsoDraftNumber(targetPrice);
-      const priceContent = product.items.length > 1
+      const priceContent = product.items.length > 1 && product.basePrice == null
         ? `<label class="hk-base-pick" title="${isBase ? '이 상품의 기준가가 되는 옵션입니다' : '눌러서 이 옵션을 기준가로 지정'}"><input type="radio" name="hkbase-${channelId}-${product.productId}"${isBase ? ' checked' : ''} onchange="hkChannelSetBase('${channelId}','${product.productId}',${i})"><span>${priceNumber}</span></label>`
         : priceNumber;
       // 옵션이 하나뿐인 상품은 고를 다른 옵션이 없으니 경고하지 않는다.
@@ -2160,7 +2167,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
       rowsHtml += `<tr class="${(groupStartClass + statusClass).trim()}">
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
-        <td class="hk-iso-draft-code">${item.productCode}</td>
+        <td class="hk-iso-draft-code">${item.displayCode ?? item.productCode}</td>
         ${productIdCell}
         <td class="hk-iso-ship-final-price${isBase ? ' is-base-option' : ''}${baseInactive ? ' is-base-inactive' : ''}${priceChanged ? ' is-changed' : ''}"${baseTitle}>${priceContent}</td>
         <td>${_hkIsoDraftNumber(basePrice)}</td>
@@ -2358,11 +2365,11 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
   let optionCount = 0;
   products.forEach((product, groupIndex) => {
     const baseIndex = _hkChannelBaseIndex(product);
-    const baseParts = _hkEsmPriceParts(categoryId, product.items[baseIndex]?.productCode, config);
+    const baseParts = _hkEsmPriceParts(categoryId, product.items[baseIndex]?.productCode, config, product.items[baseIndex]);
     const basePrice = baseParts ? baseParts.finalPrice : null;
     product.items.forEach((item, i) => {
       optionCount += 1;
-      const parts = _hkEsmPriceParts(categoryId, item.productCode, config);
+      const parts = _hkEsmPriceParts(categoryId, item.productCode, config, item);
       const finalPrice = parts ? parts.finalPrice : null;
       const inactive = !!item.status;
       const isBase = i === baseIndex;
@@ -2444,7 +2451,7 @@ function _hkEsmCategoryTableHtml(channelId, categoryId, products) {
   let rowsHtml = '';
   rows.forEach((row, r) => {
     const { product, item, index } = row;
-    const parts = _hkEsmPriceParts(categoryId, item.productCode, config);
+    const parts = _hkEsmPriceParts(categoryId, item.productCode, config, item);
     const finalPrice = parts ? parts.finalPrice : null;
     const inactive = !!item.status;
     const priceDiff = (finalPrice != null && item.prevPrice != null) ? finalPrice - item.prevPrice : null;

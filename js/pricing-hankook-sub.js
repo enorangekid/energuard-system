@@ -592,3 +592,211 @@ window.hkSubPriceByCode = function(code) {
   const product = HK_SUB_PRODUCTS.find(item => item.code === code);
   return product ? Number(product.price) : null;
 };
+
+/* ═══════════════════════════════════════
+   한국단열라이프 채널 — 부자재 (2026-09-22 사용자 제공 표)
+
+   상품ID가 적힌 행부터 다음 상품ID 전까지를 같은 네이버 상품의 옵션으로 묶는다.
+   공통 부자재 상품코드가 있는 항목은 HK_SUB_PRODUCTS의 현재 판매가를 그대로 가져오며,
+   어싱매트·실외기 커버처럼 아직 공통 상품코드가 없는 항목만 targetPrice를 직접 둔다.
+   타이거폼2K와 라이트폼은 실제 옵션 가격보다 낮은 별도 네이버 기준가가 있으므로
+   product.basePrice로 각각 330,000원·290,000원을 보존한다.
+═══════════════════════════════════════ */
+(function addHkdLifeSubProducts() {
+  const item = (productCode, productName, prevPrice, extra = {}) => ({
+    productCode,
+    productName,
+    prevPrice,
+    prevShipping: extra.prevShipping ?? 3000,
+    stock: 99999999,
+    ...extra,
+  });
+  const product = (productId, baseShipping, shippingBasis, jejuShipping, returnExchange, items, extra = {}) => ({
+    categoryId: 'hk_sub',
+    productId,
+    baseShipping,
+    shippingBasis,
+    jejuShipping,
+    returnExchange,
+    items,
+    ...extra,
+  });
+  const direct = (code, name, targetPrice) => item(code, name, targetPrice, {
+    targetPrice,
+    displayCode: '—',
+  });
+
+  HK_CHANNEL_LISTINGS.hkd_life = [
+    product('12180989963', 3000, '30개마다', 10000, '6000/12000', [
+      item('TP_GY100', '회색면테이프 100mm 25M', 8500),
+      item('TP_GY48', '회색면테이프 48mm 25M', 5000),
+    ]),
+    product('12180967307', 3000, '-', 10000, '6000/12000', [
+      item('TP_TR', 'OPP테이프', 1500),
+      item('TP_AL', '은박테이프', 3000),
+    ]),
+    product('12180953634', 3000, '15개마다', 10000, '6000/12000', [
+      item('TP_AL', '은박테이프', 3000),
+      item('TP_TR', 'OPP테이프', 1500),
+    ]),
+    product('12180880762', 3000, '10개마다', 10000, '6000/12000', [
+      item('W_FC', '폼크리너', 3500),
+    ]),
+    product('12177020511', 3000, '15개마다', 10000, '6000/12000', [
+      item('MR', '곰팡이 제거제', 5200),
+    ]),
+    product('12176974333', 3000, '15개마다', 10000, '6000/12000', [
+      item('T_SR', '타이거 스티커제거제', 3500),
+    ]),
+    product('12176934520', 3000, '15개마다', 10000, '6000/12000', [
+      item('T_SA', '타이거 스프레이접착제', 10000),
+    ]),
+    product('12176887744', 3000, '10개마다', 10000, '6000/12000', [
+      item('H_542', '도배본드 형제 542본드', 3500),
+    ]),
+    product('12176851590', 3000, '2개마다', 10000, '6000/12000', [
+      item('H_HT', '하이테크 접착제', 23000),
+    ]),
+    product('12176748939', 3000, '20개마다', 10000, '6000/12000', [
+      item('H_025', '바인더 접착제', 4500),
+    ]),
+    product('12171440423', 3000, '5개마다', 10000, '6000/12000', [
+      item('U_FB_SET', '유니패스트본드+유니폼건세트', 18500),
+    ]),
+    product('12171401993', 3000, '5개마다', 10000, '6000/12000', [
+      item('T_SF_251SET', '타이거스프레이폼+월드폼건251 세트', 25500),
+    ]),
+    product('12171353853', 3000, '5개마다', 10000, '6000/12000', [
+      item('W_SF_251SET', '월드스프레이폼+월드폼건251 세트', 27200),
+    ]),
+    product('12171297137', 3000, '15개마다', 10000, '6000/12000', [
+      item('T_GUN_RED', '타이거 폼건 기본형_레드', 24000),
+      item('T_GUN_BLK', '타이거 폼건 고급형_블랙', 32000),
+      item('T_GUN_PRO', '타이거 폼건 전문가용', 44000),
+      item('T_GUN_PRM', '타이거 폼건 프리미엄', 74000),
+    ]),
+    product('12171002010', 3000, '7개마다', 10000, '6000/12000', [
+      item('U_GUN', '유니 폼건', 12600),
+    ]),
+    product('12170986439', 3000, '7개마다', 10000, '6000/12000', [
+      item('W_GUN_251', '월드 251폼건', 16500),
+    ]),
+    product('12170777448', 3000, '5개마다', 10000, '6000/12000', [
+      item('HC_FREE', '프리커터기', 56000),
+    ]),
+    product('12170745283', 3000, '5개마다', 10000, '6000/12000', [
+      item('HC_ELIM', '엘림 열선커터기', 28000),
+    ]),
+    product('12170717343', 3000, '5개마다', 10000, '6000/12000', [
+      item('HC_USB', 'USB 열선커터기', 16900),
+    ]),
+    product('12170600653', 0, '-', 16000, '13000/26000', [
+      item('T_2K_H', '타이거폼2K 경질 (주제+경화제) 1세트', 330000),
+      item('T_2K_S', '타이거폼2K 연질 (주제+경화제) 1세트', 330000),
+    ], { basePrice: 330000 }),
+    product('12170576219', 0, '-', 16000, '13000/26000', [
+      item('TW_LF_H', '라이트폼 경질 (주제+경화제) 1세트', 290000),
+      item('TW_LF_S', '라이트폼 연질 (주제+경화제) 1세트', 290000),
+    ], { basePrice: 290000 }),
+    product('12115421548', 3000, '10개마다', 10000, '6000/12000', [
+      item('U_FB', '유니 패스트본드 건용', 6500),
+    ]),
+    product('12083617577', 3000, '5개마다', 10000, '6000/12000', [
+      direct('HKL_EARTH_M', '어싱매트 중형 (50cm x 90cm)', 16000),
+      direct('HKL_EARTH_L', '어싱매트 대형 (50cm x 120cm)', 20000),
+    ]),
+    product('12043329222', 3000, '5개마다', 10000, '6000/12000', [
+      direct('HKL_COVER_PVC_A', '실외기 방수커버 PVC 58cm x 57cm x 28cm_A형', 5800),
+      direct('HKL_COVER_PVC_B', '실외기 방수커버 PVC 70cm x 57cm x 28cm_B형', 6500),
+      direct('HKL_COVER_PVC_C', '실외기 방수커버 PVC 80cm x 70cm x 35cm_C형', 7000),
+      direct('HKL_COVER_PVC_D', '실외기 방수커버 PVC 90cm x 70cm x 35cm_D형', 7500),
+      direct('HKL_COVER_PVC_E', '실외기 방수커버 PVC 95cm x 85cm x 38cm_E형', 8500),
+      direct('HKL_COVER_TARP_A', '실외기 방수커버 타포린 58cm x 57cm x 28cm_A형', 14000),
+      direct('HKL_COVER_TARP_B', '실외기 방수커버 타포린 70cm x 57cm x 28cm_B형', 14500),
+      direct('HKL_COVER_TARP_C', '실외기 방수커버 타포린 80cm x 70cm x 35cm_C형', 18000),
+      direct('HKL_COVER_TARP_D', '실외기 방수커버 타포린 90cm x 70cm x 35cm_D형', 18000),
+      direct('HKL_COVER_TARP_E', '실외기 방수커버 타포린 95cm x 85cm x 38cm_E형', 22500),
+    ]),
+    product('12115378507', 7800, '1개마다', 16000, '16000/32000', [
+      item('W_B2_G_B', '월드 폼본드 B2 건용_1박스', 105000),
+    ]),
+    product('12115359167', 3000, '10개마다', 10000, '6000/12000', [
+      item('W_B2_G', '월드 폼본드 B2 건용', 7500),
+    ]),
+    product('12115290303', 3000, '1개마다', 16000, '16000/32000', [
+      item('W_SFB_G_B', '월드 스피드폼 건용_1박스', 155000),
+    ]),
+    product('12115283640', 3000, '10개마다', 10000, '6000/12000', [
+      item('W_SFB_G', '월드 스피드폼 건용', 10500),
+    ]),
+    product('12114965914', 3000, '1개마다', 16000, '16000/32000', [
+      item('W_SF_G_B', '월드 스프레이폼_1박스', 150000),
+    ]),
+    product('12114957587', 3000, '10개마다', 10000, '6000/12000', [
+      item('W_SF_G', '월드 스프레이폼 건용', 10200),
+    ]),
+    product('12114748092', 3000, '10개마다', 10000, '6000/12000', [
+      item('T_BIG65_G', '타이거폼 BIG65 건용', 7200),
+    ]),
+    product('12114719624', 7800, '1개마다', 16000, '16000/32000', [
+      item('T_B2_G_B', '타이거폼 B2 건용_1박스', 155000, { prevShipping: 7800 }),
+    ]),
+    product('12114711415', 3000, '10개마다', 10000, '6000/12000', [
+      item('T_B2_G', '타이거폼 B2 건용', 11500, { prevShipping: 7800 }),
+    ]),
+    product('12114684775', 7800, '1개마다', 16000, '16000/32000', [
+      item('T_B1_G_B', '타이거폼 B1 건용_1박스', 245000, { prevShipping: 7800 }),
+    ]),
+    product('12114677071', 3000, '10개마다', 10000, '6000/12000', [
+      item('T_B1_G', '타이거폼 B1 건용', 17500, { prevShipping: 7800 }),
+    ]),
+    product('12114623723', 7800, '1개마다', 16000, '16000/32000', [
+      item('T_SF_G_B', '타이거 스프레이폼 건용_1박스', 125000, { prevShipping: 7800 }),
+    ]),
+    product('12114605576', 3000, '10개마다', 10000, '6000/12000', [
+      item('T_SF_G', '타이거 스프레이폼 건용', 8800, { prevShipping: 7800 }),
+    ]),
+    product('12101967474', 7800, '1개마다', 16000, '16000/32000', [
+      item('T_SFB_G_B', '타이거 스피드폼본드 건용_1박스', 120000, { prevShipping: 7800 }),
+    ]),
+    product('12101928855', 3000, '10개마다', 10000, '6000/12000', [
+      item('T_SFB_G', '타이거 스피드폼본드 건용', 8300, { prevShipping: 7800 }),
+    ]),
+    product('12101770224', 7800, '1개마다', 16000, '16000/32000', [
+      item('T_EB_G_B', '타이거 이지본드 건용_1박스', 115000, { prevShipping: 7800 }),
+    ]),
+    product('12101756255', 3000, '10개마다', 10000, '6000/12000', [
+      item('T_EB_G', '타이거 이지본드 건용', 8300, { prevShipping: 7800 }),
+    ]),
+    product('12101724124', 7800, '1개마다', 16000, '16000/32000', [
+      item('T_EB_D_B', '타이거 이지본드 일회용_1박스', 110000, { prevShipping: 7800 }),
+    ]),
+    product('12101724123', 3000, '10개마다', 10000, '6000/12000', [
+      item('T_EB_D', '타이거 이지본드 일회용', 7900, { prevShipping: 7800 }),
+    ]),
+    product('12101607902', 7800, '1개마다', 16000, '16000/32000', [
+      item('T_TF_G_B', '타이거폼 건용_1박스', 75000, { prevShipping: 7800 }),
+    ], { basePrice: 75000 }),
+    product('12101607901', 3000, '10개마다', 10000, '6000/12000', [
+      item('T_TF_G', '타이거폼 건용', 5400, { prevShipping: 0 }),
+    ], { basePrice: 5400 }),
+    product('12101581936', 7800, '1개마다', 16000, '16000/32000', [
+      item('T_TF_D_B', '타이거폼 일회용_1박스', 65000, { prevShipping: 0 }),
+    ], { basePrice: 65000 }),
+    product('12101581935', 3000, '10개마다', 10000, '6000/12000', [
+      item('T_TF_D', '타이거폼 일회용', 4800),
+    ], { basePrice: 4800 }),
+  ];
+
+  // 신규 채널은 현재 정상값에서 시작한다. 이후 원가표 판매가나 배송 정책이 바뀐 경우에만
+  // "수정 전"과 차이가 생기도록 현재 판매가·배송비를 최초 기준선으로 맞춘다.
+  HK_CHANNEL_LISTINGS.hkd_life.forEach(channelProduct => {
+    channelProduct.items.forEach(channelItem => {
+      const currentPrice = channelItem.targetPrice != null
+        ? Number(channelItem.targetPrice)
+        : window.hkSubPriceByCode(channelItem.productCode);
+      if (currentPrice != null && Number.isFinite(currentPrice)) channelItem.prevPrice = currentPrice;
+      channelItem.prevShipping = Number(channelProduct.baseShipping || 0);
+    });
+  });
+})();
