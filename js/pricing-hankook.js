@@ -2082,6 +2082,7 @@ function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item
   if (config && config.markupPercent) return _hkEsmPriceParts(categoryId, productCode, config, item)?.finalPrice ?? null;
   if (categoryId === 'hk_isopink' || categoryId === 'hk_bead') return _hkChannelHkdPrice(categoryId, productCode);
   if (categoryId === 'hk_sub' && typeof window.hkSubPriceByCode === 'function') return window.hkSubPriceByCode(productCode);
+  if (categoryId === 'hk_reflective' && typeof window.hkReflectivePriceByCode === 'function') return window.hkReflectivePriceByCode(productCode);
   return null;
 }
 
