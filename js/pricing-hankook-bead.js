@@ -794,3 +794,118 @@ window.hkBeadProductNameFromCode = function(code) {
     HK_CHANNEL_LISTINGS.esm.push({ categoryId: 'hk_bead', productId, masterId, groupName, items: [item] });
   });
 })();
+
+/* ═══════════════════════════════════════
+   11번가 채널 — 스티로폼 (2026-09-22, 사용자가 준 표 9상품·113옵션). 아이소핑크 11번가(markupOptions
+   레이아웃)와 같은 구조 — 상품 하나에 옵션 여러 개, 판매가는 HK_CHANNEL_CONFIG['11st']로 계산.
+   - 430x430/600x900 계열(1848852975·1602435245·1548926732·1534558353·2265999489)은 엑셀의 한국단열
+     배송비가 전부 6,500이라 옵션마다 hkdShipping: 6500을 명시했다(한국단열 채널의 같은 코드 배송비와 다름).
+   - 900x1800·600x900 고티 계열(3731788703·3733599906·2053811062·1741566411)은 배송비 "-"(0) — 이 코드들은
+     한국단열 채널에서도 배송비 0인 상품(2913417918)에만 있어서 조회값이 그대로 0이라 override 불필요.
+   - 기준가 옵션이 첫 옵션이 아닌 경우: 옵션추가금이 0인 행(=기준가와 같은 값)을 찾아 baseCode로 지정 —
+     1534558353은 St_430_430_50_2(엑셀의 주황 강조는 기준가 표시가 아니었다, 값으로 재확인함), 2053811062·
+     1741566411은 St_600_900_300_1.
+   - 1548926732·1534558353처럼 스티로폼(St_/Neo_/StA_)과 아이소핑크(Iso_/IsoA_) 코드가 한 상품에 섞여도
+     categoryId를 hk_bead로 두면 코드 조회가 두 쪽 다 찾는다(한국단열 채널의 3950655401과 같은 패턴).
+   - 2053811062·1741566411은 옵션 구성이 완전히 같은 별개 상품(원본 표 그대로, 아이소핑크 11번가의
+     1534504863/1541883159와 같은 경우).
+═══════════════════════════════════════ */
+const HK_BEAD_11ST_GROUPS = [
+  { productId: '1848852975', shipping: 6500, codes: [
+    'St_430_430_10_5', 'St_600_900_10_5', 'St_430_430_20_3', 'St_600_900_20_2', 'St_430_430_30_3', 'St_600_900_30_1',
+    'St_430_430_40_2', 'St_600_900_40_1', 'St_430_430_50_2', 'St_600_900_50_1', 'St_430_430_100_1', 'St_600_900_100_1',
+    'StA_600_900_20_2', 'StA_600_900_30_1', 'StA_600_900_50_1',
+  ] },
+  { productId: '1602435245', shipping: 6500, codes: [
+    'Neo_430_430_20_3', 'Neo_430_430_30_3', 'Neo_600_900_30_3', 'Neo_430_430_50_3', 'Neo_600_900_50_2', 'Neo_430_430_100_2', 'Neo_600_900_100_1',
+  ] },
+  { productId: '1548926732', shipping: 6500, codes: [
+    'St_430_430_50_2', 'St_600_900_50_1', 'St_430_430_100_1', 'St_600_900_100_1',
+    'Neo_430_430_50_3', 'Neo_600_900_50_2', 'Neo_430_430_100_2', 'Neo_600_900_100_1',
+    'Iso_430_430_30_2', 'Iso_600_900_30_1', 'Iso_430_430_50_2', 'Iso_600_900_50_1',
+    'StA_600_900_50_1', 'IsoA_600_900_30_1', 'IsoA_600_900_50_1',
+  ] },
+  { productId: '1534558353', shipping: 6500, baseCode: 'St_430_430_50_2', codes: [
+    'St_430_430_20_3', 'St_600_900_20_2', 'St_430_430_30_3', 'St_600_900_30_1', 'St_430_430_50_2', 'St_600_900_50_1',
+    'St_430_430_100_1', 'St_600_900_100_1',
+    'Neo_430_430_20_3', 'Neo_430_430_30_3', 'Neo_600_900_30_3', 'Neo_430_430_50_3', 'Neo_600_900_50_2', 'Neo_430_430_100_2', 'Neo_600_900_100_1',
+    'Iso_430_430_10_3', 'Iso_600_900_10_3', 'Iso_430_430_20_3', 'Iso_600_900_20_1', 'Iso_430_430_30_2', 'Iso_600_900_30_1',
+    'Iso_430_430_40_2', 'Iso_600_900_40_1', 'Iso_430_430_50_2', 'Iso_600_900_50_1', 'Iso_430_430_70_1', 'Iso_600_900_70_1', 'Iso_430_430_100_1',
+    'StA_600_900_20_2', 'StA_600_900_30_1', 'StA_600_900_50_1',
+    'IsoA_600_900_10_3', 'IsoA_600_900_20_1', 'IsoA_600_900_30_1', 'IsoA_600_900_40_1', 'IsoA_600_900_50_1',
+  ] },
+  { productId: '3731788703', shipping: null, codes: [
+    'St_900_1800_20_7', 'St_900_1800_30_5', 'St_900_1800_50_3', 'St_900_1800_100_1',
+    'Neo_900_1800_30_5', 'Neo_900_1800_50_3', 'Neo_900_1800_100_1',
+    'StA_900_1800_20_7', 'StA_900_1800_30_5', 'StA_900_1800_50_3',
+  ] },
+  { productId: '3733599906', shipping: null, codes: [
+    'St_900_1800_200_1', 'St_900_1800_300_1', 'St_900_1800_400_1', 'St_900_1800_500_1', 'St_900_1800_600_1',
+    'Neo_900_1800_200_1', 'Neo_900_1800_300_1', 'Neo_900_1800_400_1', 'Neo_900_1800_500_1', 'Neo_900_1800_600_1',
+  ] },
+  { productId: '2265999489', shipping: 6500, codes: ['StA_600_900_20_2', 'StA_600_900_30_1', 'StA_600_900_50_1'] },
+  { productId: '2053811062', shipping: null, baseCode: 'St_600_900_300_1', codes: [
+    'St_600_900_200_1', 'St_600_900_300_1', 'St_600_900_400_1', 'St_600_900_500_1', 'St_600_900_600_1',
+    'Neo_600_900_200_1', 'Neo_600_900_300_1', 'Neo_600_900_400_1', 'Neo_600_900_500_1', 'Neo_600_900_600_1',
+  ] },
+  { productId: '1741566411', shipping: null, baseCode: 'St_600_900_300_1', codes: [
+    'St_600_900_200_1', 'St_600_900_300_1', 'St_600_900_400_1', 'St_600_900_500_1', 'St_600_900_600_1',
+    'Neo_600_900_200_1', 'Neo_600_900_300_1', 'Neo_600_900_400_1', 'Neo_600_900_500_1', 'Neo_600_900_600_1',
+  ] },
+];
+
+(function addBead11stProducts() {
+  const config = HK_CHANNEL_CONFIG['11st'];
+  HK_BEAD_11ST_GROUPS.forEach(group => {
+    const items = group.codes.map(code => {
+      const item = { productCode: code };
+      if (group.shipping != null) item.hkdShipping = group.shipping;
+      item.prevPrice = _hkEsmPriceParts('hk_bead', code, config, item)?.finalPrice ?? 0;
+      return item;
+    });
+    const product = { categoryId: 'hk_bead', productId: group.productId, items };
+    if (group.baseCode) {
+      product.baseCode = group.baseCode;
+      product.seedBaseCode = group.baseCode; // 11st 배열은 pricing-hankook.js의 seedBaseCode 초기화 루프보다 늦게 로드되므로 직접 채운다.
+    }
+    HK_CHANNEL_LISTINGS['11st'].push(product);
+  });
+})();
+
+/* ═══════════════════════════════════════
+   홈페이지 채널(boonimall) — 스티로폼 (2026-09-22, 사용자가 준 표 26상품·28옵션). 마크업 없이 2단계
+   실판매가를 그대로 쓰는 채널이라(아이소핑크 홈페이지와 같은 구조) 코드 목록 + 배송값만 두고,
+   현재 판매가는 _hkIsoLookupFinalPriceByCode로 조회한다.
+   - 사용자 규칙대로 수정 전 판매가·배송비는 엑셀의 예전 값이 아니라 현재 값에 맞춘다(차액 0에서 시작).
+   - 옵션 하나가 상품 하나(각자 고유 상품ID)이고, 접착식 3옵션(StA_600_900_20_2/30_1/50_1)만 상품ID 118
+     하나를 공유한다(엑셀에 병합 셀로 표시).
+   - 배송비 그룹: 430x430·600x900 저두께(≤100T, 100T만 배송비기준 "2개마다")는 6,000원/5개마다,
+     600x900 200T 이상(고티)은 0원/무료배송(제주·교환 값도 다름).
+═══════════════════════════════════════ */
+(function addBeadHomepageProducts() {
+  const low = { base: 6000, basis: '5개마다', jeju: 10000, exchange: '8000/16000' };
+  const low2 = { base: 6000, basis: '2개마다', jeju: 10000, exchange: '8000/16000' }; // 100T만 배송비기준이 다름
+  const high = { base: 0, basis: '-', jeju: 20000, exchange: '20000/40000' };
+  const single = (productId, shipping, productCode) => ({
+    categoryId: 'hk_bead', productId,
+    baseShipping: shipping.base, shippingBasis: shipping.basis, jejuShipping: shipping.jeju, returnExchange: shipping.exchange,
+    items: [{ productCode, prevPrice: _hkIsoLookupFinalPriceByCode(productCode) ?? 0, prevShipping: shipping.base }],
+  });
+  const rows = [
+    ['193', low, 'St_430_430_20_3'], ['194', low, 'St_430_430_30_3'], ['195', low, 'St_430_430_50_3'], ['196', low, 'St_430_430_100_1'],
+    ['246', low, 'St_600_900_20_2'], ['119', low, 'St_600_900_30_1'], ['120', low, 'St_600_900_50_1'], ['121', low2, 'St_600_900_100_1'],
+    ['122', high, 'St_600_900_200_1'], ['123', high, 'St_600_900_300_1'], ['124', high, 'St_600_900_400_1'], ['125', high, 'St_600_900_500_1'], ['126', high, 'St_600_900_600_1'],
+    ['245', low, 'Neo_430_430_20_3'], ['197', low, 'Neo_430_430_30_3'], ['198', low, 'Neo_430_430_50_3'], ['199', low, 'Neo_430_430_100_2'],
+    ['127', low, 'Neo_600_900_30_2'], ['128', low, 'Neo_600_900_50_1'], ['129', low2, 'Neo_600_900_100_1'],
+    ['230', high, 'Neo_600_900_200_1'], ['231', high, 'Neo_600_900_300_1'], ['232', high, 'Neo_600_900_400_1'], ['233', high, 'Neo_600_900_500_1'], ['234', high, 'Neo_600_900_600_1'],
+  ];
+  const products = rows.map(([productId, shipping, code]) => single(productId, shipping, code));
+  products.push({
+    categoryId: 'hk_bead', productId: '118',
+    baseShipping: low.base, shippingBasis: low.basis, jejuShipping: low.jeju, returnExchange: low.exchange,
+    items: ['StA_600_900_20_2', 'StA_600_900_30_1', 'StA_600_900_50_1'].map(code => ({
+      productCode: code, prevPrice: _hkIsoLookupFinalPriceByCode(code) ?? 0, prevShipping: low.base,
+    })),
+  });
+  HK_CHANNEL_LISTINGS.homepage.push(...products);
+})();
