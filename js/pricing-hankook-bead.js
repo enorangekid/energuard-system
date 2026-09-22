@@ -648,3 +648,78 @@ window.hkBeadApplyUnits = function(onlyKey) {
   });
   window.hkBeadRefreshDerived();
 };
+
+/* ═══════════════════════════════════════
+   한국단열 채널(스마트스토어) — 스티로폼 상품 (2026-09-22, 사용자가 준 채널 엑셀 118행)
+
+   상품번호 10개. 옵션의 현재 판매가는 상품코드로 2단계 실판매가를 조회해서(엑셀의 VLOOKUP과 같은 방식)
+   화면에서 계산하므로 여기에는 코드 목록만 둔다. 사용자 지시대로 "수정 전 판매가·배송비"는 엑셀의 예전 값이
+   아니라 현재 값에 맞춰 넣는다(차액 0에서 시작; 단가표를 저장하면 그 시점 값으로 다시 맞춰진다).
+   - 상품 단위 값(배송비·배송비 기준·제주·편도교환)은 엑셀 그대로. 옵션 코드는 스토어에 실제 등록된 코드 그대로 둔다 —
+     `St_1800_900_…`·`SSt_600_900_100_1`처럼 별칭이 있는 코드도 그대로 두고, 가격 조회만 기준 코드로 자동 매핑된다
+     (hkBeadNormalizeCode, 사용자 지시 "나중에 줄 때 알아서 매핑").
+   - 상품번호 3950655401은 접착식 스티로폼(StA_) 옵션과 접착식 아이소핑크(IsoA_) 옵션이 한 상품에 섞여 있다 —
+     카테고리는 상품 단위라 스티로폼으로 두고, 가격은 코드로 조회하니 IsoA_ 옵션도 아이소핑크 2단계 값으로 계산된다.
+   - 3950515541과 3950655401은 번호가 비슷하지만 엑셀에 별개 상품으로 있어서 그대로 두 상품으로 넣었다.
+═══════════════════════════════════════ */
+window.hkBeadProductNameFromCode = function(code) {
+  if (/^I+soA?_/.test(code)) return _hkIsoProductNameFromCode(code); // 스티로폼 상품에 섞인 아이소핑크 옵션
+  const match = /^(SSt|StA|St|Neo)_(\d+)_(\d+)_(\d+)_(\d+)$/.exec(code);
+  if (!match) return code;
+  const label = { St: '백색스티로폼', SSt: '백색스티로폼', StA: '접착식_백색스티로폼', Neo: '회색스티로폼' }[match[1]];
+  return `${label} ${match[2]}x${match[3]} ${match[4]}T_${match[5]}장`;
+};
+
+(function addBeadHkdChannelProducts() {
+  const highCodes = (prefix, size) => [[100, 2], [200, 1], [300, 1], [400, 1], [500, 1], [600, 1]]
+    .map(([thickness, qty]) => `${prefix}_${size}_${thickness}_${qty}`);
+  const make = (productId, shipping, codes) => ({
+    categoryId: 'hk_bead',
+    productId,
+    baseShipping: shipping.base,
+    shippingBasis: shipping.basis,
+    jejuShipping: shipping.jeju,
+    returnExchange: shipping.exchange,
+    items: codes.map(productCode => ({
+      productCode,
+      prevPrice: _hkIsoLookupFinalPriceByCode(productCode) ?? 0,
+      prevShipping: shipping.base,
+    })),
+  });
+  const per5 = { base: 6000, basis: '5개마다', jeju: 10000, exchange: '8500/17000' };
+  const free = { base: 0, basis: '-', jeju: 30000, exchange: '35000/70000' };
+  const basicOptions = [
+    'St_430_430_20_3', 'St_600_900_20_2', 'St_430_430_30_3', 'St_600_900_30_1', 'St_430_430_40_2', 'St_600_900_40_1',
+    'St_430_430_50_2', 'St_600_900_50_1', 'St_430_430_100_1', 'St_600_900_100_1',
+    'StA_600_900_20_2', 'StA_600_900_30_1', 'StA_600_900_50_1',
+  ];
+
+  HK_CHANNEL_LISTINGS.hkd.push(
+    make('437331834', { base: 6500, basis: '5개마다', jeju: 10000, exchange: '10500/25000' },
+      ['St_430_430_10_4', 'St_600_900_10_5', ...basicOptions]),
+    make('446014684', { base: 6000, basis: '1개마다', jeju: 10000, exchange: '8500/17000' },
+      ['St_430_430_50_3', 'St_600_900_50_2', 'St_430_430_100_3', 'SSt_600_900_100_1',
+       'StA_600_900_20_2', 'StA_600_900_30_1', 'StA_600_900_50_2']),
+    make('2216673728', per5,
+      ['Neo_430_430_20_3', 'Neo_430_430_30_3', 'Neo_600_900_30_2', 'Neo_430_430_50_3',
+       'Neo_600_900_50_1', 'Neo_430_430_100_2', 'Neo_600_900_100_1']),
+    make('2913417918', free, [
+      ...highCodes('St', '600_900'), ...highCodes('Neo', '600_900'),
+      ...highCodes('St', '1200_900'), ...highCodes('Neo', '1200_900'),
+      ...highCodes('St', '1800_900'), ...highCodes('Neo', '1800_900'),
+    ]),
+    make('3505478787', per5, ['St_430_430_10_5', 'St_600_900_10_5', ...basicOptions]),
+    make('3950515541', per5, ['StA_600_900_20_2', 'StA_600_900_30_1', 'StA_600_900_50_1']),
+    make('3950655401', per5,
+      ['StA_600_900_20_2', 'StA_600_900_30_1', 'StA_600_900_50_1',
+       'IsoA_600_900_10_3', 'IsoA_600_900_20_1', 'IsoA_600_900_30_1', 'IsoA_600_900_40_1', 'IsoA_600_900_50_1']),
+    make('5759250443', { base: 0, basis: '-', jeju: 35000, exchange: '35000/70000' }, [
+      'St_900_1800_10_10', 'St_900_1800_20_7', 'St_900_1800_30_5', 'St_900_1800_40_3', 'St_900_1800_50_3', 'St_900_1800_100_1',
+      'Neo_900_1800_30_5', 'Neo_900_1800_50_3', 'Neo_900_1800_100_1',
+      'StA_900_1800_20_7', 'StA_900_1800_30_5', 'StA_900_1800_50_3',
+    ]),
+    make('5763066244', { base: 0, basis: '-', jeju: 90000, exchange: '80000/80000' },
+      [...highCodes('Neo', '900_1800'), ...highCodes('St', '900_1800')]),
+    make('7875494911', per5, ['St_600_900_30_1', 'StA_600_900_30_1', 'St_430_430_30_3']),
+  );
+})();

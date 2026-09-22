@@ -1974,8 +1974,15 @@ function _hkIsoBlockShippingByCode(productCode) {
 
 /* ESM 가격 계산 — 정수로만 계산해서 43,200처럼 딱 떨어지는 값이 소수 오차로 100원 올라가지 않게 한다.
    반환: { hkdPrice, hkdShipping, total, esmPrice(올림 전), finalPrice } 또는 null */
+/* 채널 상품의 한국단열 판매가(2단계 실판매가) — 아이소핑크와 스티로폼은 상품코드로 2단계 블록을 뒤진다
+   (스티로폼 상품 안에 아이소핑크 코드가 섞여 있어도 코드로 찾으니 카테고리와 무관하게 찾는다). */
+function _hkChannelHkdPrice(categoryId, productCode) {
+  if (categoryId === 'hk_isopink' || categoryId === 'hk_bead') return _hkIsoLookupFinalPriceByCode(productCode);
+  return null;
+}
+
 function _hkEsmPriceParts(categoryId, productCode, config) {
-  const hkdPrice = categoryId === 'hk_isopink' ? _hkIsoLookupFinalPriceByCode(productCode) : null;
+  const hkdPrice = _hkChannelHkdPrice(categoryId, productCode);
   const hkdShipping = _hkHkdShippingByCode(productCode);
   if (hkdPrice == null || hkdShipping == null) return null;
   const total = hkdPrice + hkdShipping;
@@ -1998,7 +2005,7 @@ function _hkEsmPriceParts(categoryId, productCode, config) {
    반환: { hkdPrice, hkdShipping, total, preCoupon, listPrice, couponOff, finalPrice, registered, winner }
    item.couponOff(10 또는 12)가 있으면 그 옵션은 그 할인율을 쓴다. */
 function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
-  const hkdPrice = categoryId === 'hk_isopink' ? _hkIsoLookupFinalPriceByCode(productCode) : null;
+  const hkdPrice = _hkChannelHkdPrice(categoryId, productCode);
   // item.hkdShipping이 있으면(쿠팡 표의 배송비가 배송 설정과 다른 옵션) 그 값을 우선한다.
   const hkdShipping = item && item.hkdShipping != null ? Number(item.hkdShipping) : _hkHkdShippingByCode(productCode);
   if (hkdPrice == null || hkdShipping == null) return null;
@@ -2040,7 +2047,7 @@ function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item
   const config = HK_CHANNEL_CONFIG[channelId];
   if (config && config.layout === 'coupang') return _hkCoupangPriceParts(categoryId, productCode, config, item, product)?.registered ?? null;
   if (config && config.markupPercent) return _hkEsmPriceParts(categoryId, productCode, config)?.finalPrice ?? null;
-  if (categoryId === 'hk_isopink') return _hkIsoLookupFinalPriceByCode(productCode);
+  if (categoryId === 'hk_isopink' || categoryId === 'hk_bead') return _hkChannelHkdPrice(categoryId, productCode);
   if (categoryId === 'hk_sub' && typeof window.hkSubPriceByCode === 'function') return window.hkSubPriceByCode(productCode);
   return null;
 }
@@ -2048,6 +2055,7 @@ function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item
 function _hkChannelItemName(categoryId, product, item) {
   if (item.productName) return item.productName;
   if (categoryId === 'hk_isopink') return _hkIsoProductNameFromCode(item.productCode);
+  if (categoryId === 'hk_bead' && typeof window.hkBeadProductNameFromCode === 'function') return window.hkBeadProductNameFromCode(item.productCode);
   return product.productName || item.productCode;
 }
 
