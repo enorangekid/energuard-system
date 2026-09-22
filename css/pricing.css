@@ -1382,6 +1382,45 @@
 .hk-sub-table th,
 .hk-sub-table td { text-align: center; white-space: nowrap; }
 .hk-sub-table thead th { padding-top: 13px; padding-bottom: 13px; }
+
+/* 열반사단열재 — 판상형 원가 설정 카드(공통 원가 카드와 같은 자리) */
+.hk-iso-bom-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 20px;
+  margin: 16px 0;
+}
+.hk-iso-bom-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #475569;
+}
+.hk-iso-bom-input { width: 100%; }
+.hk-reflective-table .hk-iso-draft-code { font-size: 12px; white-space: normal; }
+/* 품명/규격/상품코드/원가 칸 폭 — 부자재 표의 공급원가 편집용 232px는 너무 넓어서 전용 폭을 쓴다. */
+.hk-reflective-table .hk-reflective-col-name { width: 190px; }
+.hk-reflective-table .hk-reflective-col-spec { width: 130px; }
+.hk-reflective-table .hk-reflective-col-code { width: 130px; }
+.hk-reflective-table .hk-reflective-col-cost { width: 100px; }
+/* 규격 칸은 상품코드처럼 모노스페이스 코드 스타일이 아니라 일반 글자로 보여준다(2026-09-22 요청). */
+#page-pricing .hk-reflective-table tbody td.hk-reflective-spec {
+  font-family: inherit;
+  font-size: 13px;
+  color: #475569;
+  background: transparent;
+  white-space: nowrap;
+}
+/* 롤형 원가 설정 카드 — 두께·등급별 마스터(롤 전체) 원가 입력 표(2026-09-22, "1M·5M도 원가 계산돼야 함" 요청). */
+.hk-reflective-roll-master-table th,
+.hk-reflective-roll-master-table td { text-align: center; }
+.hk-reflective-roll-master-label { text-align: left !important; font-weight: 600; color: #334155; }
+.hk-reflective-roll-master-cost .hk-iso-bom-input { width: 120px; margin: 0 auto; }
+.hk-reflective-roll-master-permeter { color: #64748b; }
+/* 26.05.08 인상가(25%) 칸 — 엑셀 참고값, 계산엔 안 쓰는 칸이라 옅게 표시 */
+.hk-reflective-table .hk-reflective-col-increase { width: 96px; }
+.hk-reflective-table .hk-reflective-increase { color: #94a3b8; }
 .hk-sub-table tbody td { padding-top: 15px; padding-bottom: 15px; }
 /* 제품명이 첫 열이 되면서 `.pricing-table tbody td:nth-child(1)`의 가운데 정렬이 이기므로 #page-pricing으로 명시도를 올린다. */
 #page-pricing .hk-sub-table tbody td.hk-sub-name {

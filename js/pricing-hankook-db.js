@@ -86,6 +86,8 @@ function _hkDbProductIndex() {
   if (typeof window.hkBeadProductIndex === 'function') list.push(...window.hkBeadProductIndex());
   // 부자재는 각 행에 이미 고유 상품코드가 있어 평면 표의 행을 그대로 저장한다.
   if (typeof window.hkSubProductIndex === 'function') list.push(...window.hkSubProductIndex());
+  // 열반사단열재도 부자재와 같은 평면 표 방식(2단계 배송 정책 없음).
+  if (typeof window.hkReflectiveProductIndex === 'function') list.push(...window.hkReflectiveProductIndex());
   return list;
 }
 
@@ -173,6 +175,11 @@ function hkDbCollectState() {
       beadCosts: typeof HK_BEAD_BASE_COSTS !== 'undefined'
         ? { base: { ...HK_BEAD_BASE_COSTS }, margins: { ...HK_BEAD_UNIT_MARGINS } }
         : {},
+      // 열반사단열재 원가 설정 — bom: 판상형 재료 구성비, roll: 롤형 두께·등급별 마스터(롤 전체) 원가.
+      reflectiveCosts: typeof HK_REFLECTIVE_BOM !== 'undefined' ? {
+        bom: { ...HK_REFLECTIVE_BOM },
+        roll: Object.fromEntries(Object.entries(HK_REFLECTIVE_ROLL_MASTER).map(([key, m]) => [key, m.cost])),
+      } : {},
     },
     products,
     channels: JSON.parse(JSON.stringify(HK_CHANNEL_LISTINGS)),
@@ -191,6 +198,7 @@ function _hkDbStateToRows(state) {
     { key: 'block_base_shipping', value: s.blockBaseShipping, updated_at: now },
     { key: 'channel_options', value: s.channelOptions || {}, updated_at: now },
     { key: 'bead_costs', value: s.beadCosts || {}, updated_at: now },
+    { key: 'reflective_costs', value: s.reflectiveCosts || {}, updated_at: now },
   ];
   const products = Object.entries(state.products).map(([code, p]) => ({
     product_code: code,
@@ -284,6 +292,7 @@ function _hkDbRowsToState(settingsRows, productRows, channelProductRows, channel
       blockBaseShipping: map.block_base_shipping,
       channelOptions: map.channel_options,
       beadCosts: map.bead_costs,
+      reflectiveCosts: map.reflective_costs,
     },
     products,
     channels,
@@ -320,6 +329,15 @@ function _hkDbApplyState(state) {
       if (finite(s.beadCosts.margins?.[key])) HK_BEAD_UNIT_MARGINS[key] = Number(s.beadCosts.margins[key]);
     });
     window.hkBeadRefreshDerived?.(); // 적용 원가를 새 기본 원가·추가마진으로 다시 만든다
+  }
+  if (s.reflectiveCosts && typeof HK_REFLECTIVE_BOM !== 'undefined') {
+    Object.keys(HK_REFLECTIVE_BOM).forEach(key => {
+      if (finite(s.reflectiveCosts.bom?.[key])) HK_REFLECTIVE_BOM[key] = Number(s.reflectiveCosts.bom[key]);
+    });
+    Object.keys(HK_REFLECTIVE_ROLL_MASTER).forEach(key => {
+      if (finite(s.reflectiveCosts.roll?.[key])) HK_REFLECTIVE_ROLL_MASTER[key].cost = Number(s.reflectiveCosts.roll[key]);
+    });
+    window.hkReflectiveRefreshDerived?.(); // 판상형·롤형 원가를 새 설정으로 다시 계산한다
   }
   // 채널 옵션 설정(기준가 옵션·판매상태)은 저장된 값이 있을 때만 덮어쓰고, 덮어쓰기 전에 모두 기본값으로 되돌린다.
   if (s.channelOptions && typeof s.channelOptions === 'object') {
@@ -765,7 +783,7 @@ window.hkDbSave = async function() {
     _hkDb.dirty = false;
     _hkDb.lastSavedAt = new Date();
     HK_ISO_DRAFT_BASE_MONTH = month;
-    ['hkIsoBaseMonth', 'hkBeadBaseMonth', 'hkSubBaseMonth'].forEach(id => {
+    ['hkIsoBaseMonth', 'hkBeadBaseMonth', 'hkSubBaseMonth', 'hkReflectiveBaseMonth'].forEach(id => {
       const monthInput = document.getElementById(id);
       if (monthInput) monthInput.value = month;
     });

@@ -356,6 +356,8 @@ function renderHkCategoryPane(tabId) {
   if (tabId === 'hk_bead' && typeof renderHkBeadPane === 'function') return renderHkBeadPane();
   // 부자재는 두께·규격 그룹이 없는 상품코드별 평면 표라 전용 파일에서 렌더한다.
   if (tabId === 'hk_sub' && typeof renderHkSubPane === 'function') return renderHkSubPane();
+  // 열반사단열재는 두께·판매길이 구조가 아이소핑크·스티로폼과 달라(면적이 아니라 길이) 전용 파일에서 렌더한다.
+  if (tabId === 'hk_reflective' && typeof renderHkReflectivePane === 'function') return renderHkReflectivePane();
 
   // 카테고리가 채워지면 여기에 전용 렌더 함수를 추가하면 됨 (renderHkIsopinkPane와 같은 패턴).
 
