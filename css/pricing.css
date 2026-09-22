@@ -1194,6 +1194,8 @@
 .hk-esm-table td.hk-coupon-off { font-weight: 800; }
 .hk-esm-table td.hk-coupon-off.is-off-10 { background: #e0f2fe; color: #0369a1; }
 .hk-esm-table td.hk-coupon-off.is-off-12 { background: #ffedd5; color: #c2410c; }
+/* 정액(원 단위) 쿠폰 — 스티로폼 쿠팡 일부 상품(예: "25,000원 쿠폰"), 퍼센트 쿠폰과 색으로 구분 */
+.hk-esm-table td.hk-coupon-off.is-off-flat { background: #f3e8ff; color: #7e22ce; }
 
 /* 쿠팡 표 틀 고정 — 상품코드 열까지는 좌우 스크롤해도 남는다(_hkFreezeListingColumns가 열마다 left를 정함).
    머리글 칸이 본문 고정 칸보다 위에 오도록 z-index를 나누고, 마지막 고정 열 오른쪽에 경계선을 둔다. */

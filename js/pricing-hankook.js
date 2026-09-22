@@ -2011,6 +2011,21 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
   const hkdShipping = item && item.hkdShipping != null ? Number(item.hkdShipping) : _hkHkdShippingByCode(productCode);
   if (hkdPrice == null || hkdShipping == null) return null;
   const total = hkdPrice + hkdShipping;
+  const unit = config.roundUp * 100;
+  const listPrice = Math.ceil(total * config.listPercent / unit) * config.roundUp; // 참고 판매가(×1.05, 100원 올림) — 카테고리 공통
+  // 정액 쿠폰 상품(스티로폼 쿠팡 일부 — 사용자 확인 2026-09-22): "쿠폰 10%"가 아니라 "25,000원 쿠폰"처럼
+  // 원 단위 정액으로 붙는다. 등록가(쿠폰 적용 전) = 참고 판매가 + 쿠폰 금액, 쿠폰을 적용하면 그 금액만큼
+  // 그대로 빠져서 최종가 = 참고 판매가가 된다. item.couponFlat(원)에 쿠폰 금액을 적어두면 이 경로를 탄다 —
+  // 원본 엑셀은 이 상품들도 퍼센트 쿠폰과 같은 식(×1.16→×0.9)으로 계산해 뒀는데, 그건 틀린 값이었다.
+  if (item && item.couponFlat != null) {
+    const registered = listPrice + Number(item.couponFlat);
+    return {
+      hkdPrice, hkdShipping, total,
+      preCoupon: registered, listPrice,
+      couponOff: null, couponFlat: Number(item.couponFlat),
+      finalPrice: listPrice, registered, winner: false,
+    };
+  }
   if (product && product.pricing === 'winner') {
     // 자동 판매가는 winnerRoundUnit(1,000원) 단위로 올림한다 — ×1.05는 수수료를 덮는 최소 가격이라 올림이 안전하다.
     // total×105는 정수라 나누기 결과가 딱 떨어지면 올림해도 그대로다.
@@ -2026,8 +2041,11 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
       listPrice, couponOff: null, finalPrice: registered, registered, manual, winner: true,
     };
   }
-  const unit = config.roundUp * 100;
-  const preCoupon = Math.ceil(total * config.preCouponPercent / unit) * config.roundUp;
+  // 등록 판매가(쿠폰 적용 전) 반올림 단위 — 아이소핑크는 100원 올림, 스티로폼은 10원 단위 반올림
+  // (사용자 확인 2026-09-22, 엑셀 61행 전부와 정확히 일치). 정수 연산만 써서 소수 오차를 피한다.
+  const preCoupon = categoryId === 'hk_bead'
+    ? Math.round(total * config.preCouponPercent / 1000) * 10
+    : Math.ceil(total * config.preCouponPercent / unit) * config.roundUp;
   const couponOff = item && item.couponOff != null
     ? Number(item.couponOff)
     : (hkdShipping > 0 ? config.couponOffShipping : config.couponOffFree);
@@ -2036,7 +2054,7 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
     hkdShipping,
     total,
     preCoupon,
-    listPrice: Math.ceil(total * config.listPercent / unit) * config.roundUp,
+    listPrice,
     couponOff,
     finalPrice: Math.round(preCoupon * (100 - couponOff) / 100),
     registered: preCoupon,
@@ -2270,7 +2288,7 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
         <td>${num(parts?.total)}</td>
         <td>${num(parts?.listPrice)}</td>
         <td${isWinner ? ' title="위너 상품은 쿠폰을 먹이지 않아 쿠폰 적용 전 판매가가 없습니다"' : ''}>${isWinner ? '—' : num(parts?.preCoupon)}</td>
-        <td class="hk-coupon-off is-off-${parts && parts.couponOff != null ? parts.couponOff : 'none'}"${isWinner ? ' title="위너 상품은 쿠폰을 먹이지 않고 판매가를 그대로 받습니다"' : ''}>${isWinner ? '쿠폰 없음' : (parts && parts.couponOff != null ? parts.couponOff + '%' : '—')}</td>
+        <td class="hk-coupon-off is-off-${parts && parts.couponOff != null ? parts.couponOff : (parts && parts.couponFlat != null ? 'flat' : 'none')}"${isWinner ? ' title="위너 상품은 쿠폰을 먹이지 않고 판매가를 그대로 받습니다"' : (parts && parts.couponFlat != null ? ' title="퍼센트가 아니라 원 단위 정액 쿠폰입니다"' : '')}>${isWinner ? '쿠폰 없음' : (parts && parts.couponFlat != null ? num(parts.couponFlat) + '원' : (parts && parts.couponOff != null ? parts.couponOff + '%' : '—'))}</td>
         <td class="hk-price-final${isWinner ? ' is-plain' : ''}"${isWinner ? ' title="쿠폰이 없어서 등록 판매가와 같은 값입니다"' : ''}>${num(parts?.finalPrice)}</td>
         ${manualCell}
         <td class="hk-iso-ship-final-price${priceChanged ? ' is-changed' : ''}"${isManual ? ' title="수동 판매가를 쓰고 있습니다"' : ''}>${num(registered)}${isManual ? '<span class="hk-manual-tag">수동</span>' : ''}</td>
