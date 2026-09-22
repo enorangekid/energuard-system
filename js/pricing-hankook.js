@@ -539,6 +539,32 @@ function _hkIsoDraftProductCode(saleSize, thickness, isAdhesive, codePrefix) {
   return `${prefix}_${sizeCode}_${thickness}_${qtyPart}`;
 }
 
+/* "무료배송 + 10% 네고"(schema 'free90', 스티로폼 쿠팡전용 900*1800 — 사용자 엑셀 2026-09-21) 계산.
+   배송비 플러스 금액 = 판매가 + 실제배송비, 그 90%가 원장판매할인금액, 그 100원 미만이 단수정리,
+   실판매가 = 90% 금액 − 단수정리(= 100원 단위 버림). 엑셀 13행 전부 이 식과 일치를 확인했다.
+   정수만 쓴다(90%를 ×9÷10으로) — 소수 오차로 1원 어긋나는 걸 막는다. */
+function _hkIsoFree90Parts(basePrice, actualShipping) {
+  const plus = Math.round(Number(basePrice || 0) + Number(actualShipping || 0));
+  const discounted = Math.round(plus * 9 / 10);
+  const finalPrice = Math.floor(discounted / 100) * 100;
+  return { plus, discounted, rounding: discounted - finalPrice, finalPrice };
+}
+
+/* 블록 행 하나의 실판매가 — schema별 공식이 다르다: per5(600x900류)는 항상 플러스 금액을 더하고,
+   per1Coupon(900x1800류)은 무료배송 상품만 더하며, free90은 위의 10% 네고 식이다. */
+function _hkIsoBlockRowFinalPrice(block, ship, basePrice) {
+  if (block.schema === 'free90') return _hkIsoFree90Parts(basePrice, ship.actualShipping).finalPrice;
+  const plusAmount = ship.plusAmount ?? 0;
+  const applyPlus = block.schema === 'per1Coupon' ? !!block.isFreeShipping : true;
+  return basePrice + (applyPlus ? plusAmount : 0);
+}
+
+/* 상품코드 칸 — 같은 옵션이 다른 코드로도 등록돼 있으면(js/pricing-hankook-bead.js의 별칭) 아래에 작게 함께 보여준다. */
+function _hkIsoCodeCellInner(code) {
+  const aliases = typeof window.hkBeadCodeAliasesFor === 'function' ? window.hkBeadCodeAliasesFor(code) : [];
+  return aliases.length ? `${code}<small class="hk-iso-code-alias">= ${aliases.join(' · ')}</small>` : code;
+}
+
 /* 1단계 행에 대응하는 배송 정책을 상품코드 기준의 한 개 요약으로 만든다.
    기존 2단계의 계산 규칙은 그대로 유지하고 화면만 기준가격 표 안으로 합친다. */
 function _hkIsoUnifiedShippingInfo(tabId, rowIndex, row, thickness, basePrice) {
@@ -552,6 +578,17 @@ function _hkIsoUnifiedShippingInfo(tabId, rowIndex, row, thickness, basePrice) {
   const ship = block.rows[rowIndex] || {};
   const code = ship.codeOverride || _hkIsoDraftProductCode(row.saleSize, thickness, block.isAdhesive, block.codePrefix);
   const adjustment = Number(ship.plusAmount || 0);
+  if (block.schema === 'free90') {
+    const parts = _hkIsoFree90Parts(basePrice, ship.actualShipping);
+    return {
+      code,
+      mode: '무료배송 · 10% 네고',
+      policy: `실제배송비 ${_hkIsoDraftNumber(ship.actualShipping || 0)}원 → 90% 적용`,
+      adjustment: parts.finalPrice - basePrice,
+      applyAdjustment: true,
+      targetPrice: parts.finalPrice,
+    };
+  }
   if (block.schema === 'per1Coupon') {
     const applyAdjustment = !!block.isFreeShipping;
     const policy = block.isFreeShipping
@@ -1036,7 +1073,7 @@ function _hkIsoShippingBlockHtml(block) {
       <td>${_hkIsoDraftNumber(row.unit)}</td>
       <td>${row.spec || '—'}</td>
       <td>${row.saleSize}</td>
-      <td class="hk-iso-draft-code">${code}</td>
+      <td class="hk-iso-draft-code">${_hkIsoCodeCellInner(code)}</td>
       <td class="hk-iso-ship-base-price">${_hkIsoDraftNumber(basePrice)}</td>
       <td>${baseShippingCell}</td>
       <td><input type="text" inputmode="numeric" class="pricing-input-field hk-iso-ship-actual-input" value="${actualShipping.toLocaleString()}" oninput="recalcHkIsoShippingRow(this)" onblur="formatHkIsoDraftPrice(this)"></td>
@@ -1149,7 +1186,7 @@ function _hkIsoShippingBlockHtmlPerUnit(block) {
     const thicknessMatch = row.name.match(/(\d+)T/);
     if (thicknessMatch) currentThickness = Number(thicknessMatch[1]);
     const ship = block.rows[i] || {};
-    const code = ship.codeOverride || _hkIsoDraftProductCode(row.saleSize, currentThickness, block.isAdhesive);
+    const code = ship.codeOverride || _hkIsoDraftProductCode(row.saleSize, currentThickness, block.isAdhesive, block.codePrefix);
     const basePrice = livePriceInputs[i] ? _hkIsoDraftParseNumber(livePriceInputs[i].value) : Number(row.price);
     const plusAmount = ship.plusAmount ?? 0;
     const finalPrice = block.isFreeShipping ? basePrice + plusAmount : basePrice;
@@ -1164,7 +1201,7 @@ function _hkIsoShippingBlockHtmlPerUnit(block) {
       <td>${_hkIsoDraftNumber(row.unit)}</td>
       <td>${row.spec || '—'}</td>
       <td>${row.saleSize}</td>
-      <td class="hk-iso-draft-code">${code}</td>
+      <td class="hk-iso-draft-code">${_hkIsoCodeCellInner(code)}</td>
       <td class="hk-iso-ship-base-price">${_hkIsoDraftNumber(basePrice)}</td>
       <td>${shippingColHtml}</td>
       <td>${actualShippingHtml}</td>
@@ -1233,21 +1270,111 @@ window.recalcHkIsoShippingRowPerUnit = function(input) {
   _hkIsoSyncUnifiedShippingRow(sourceAccordion, rowIndex);
 };
 
+/* "무료배송 + 10% 네고"(schema 'free90') 블록 렌더러 — 실제배송비만 입력하고 나머지(플러스 금액·90%·단수정리·
+   실판매가)는 _hkIsoFree90Parts로 계산한다. */
+function _hkIsoShippingBlockHtmlFree90(block) {
+  const sourceRows = HK_ISO_CONNECTED_DRAFTS[block.sourceAccordion]?.rows || [];
+  const livePriceInputs = document.querySelectorAll(`#hkIsoAcc-${block.sourceAccordion} .hk-iso-final-price-input`);
+  let currentThickness = null;
+  const rows = sourceRows.map((row, i) => {
+    const thicknessMatch = row.name.match(/(\d+)T/);
+    if (thicknessMatch) currentThickness = Number(thicknessMatch[1]);
+    const ship = block.rows[i] || {};
+    const code = ship.codeOverride || _hkIsoDraftProductCode(row.saleSize, currentThickness, block.isAdhesive, block.codePrefix);
+    const basePrice = livePriceInputs[i] ? _hkIsoDraftParseNumber(livePriceInputs[i].value) : Number(row.price);
+    const parts = _hkIsoFree90Parts(basePrice, ship.actualShipping);
+    return `<tr data-shipping-block-id="${block.id}" data-source-accordion="${block.sourceAccordion}" data-row-index="${i}" data-product-code="${code}" data-base-price="${basePrice}">
+      <td class="hk-iso-draft-name">${row.name || '　'}</td>
+      <td>${_hkIsoDraftNumber(row.unit)}</td>
+      <td>${row.spec || '—'}</td>
+      <td>${row.saleSize}</td>
+      <td class="hk-iso-draft-code">${_hkIsoCodeCellInner(code)}</td>
+      <td class="hk-iso-ship-base-price">${_hkIsoDraftNumber(basePrice)}</td>
+      <td><span class="hk-iso-ship-free-label">배송비 무료</span></td>
+      <td><input type="text" inputmode="numeric" class="pricing-input-field hk-iso-ship-actual-input" value="${Number(ship.actualShipping || 0).toLocaleString()}" oninput="recalcHkIsoShippingRowFree90(this)" onblur="formatHkIsoDraftPrice(this)"></td>
+      <td class="hk-iso-ship-free90-plus">${_hkIsoDraftNumber(parts.plus)}</td>
+      <td class="hk-iso-ship-free90-discounted">${_hkIsoDraftNumber(parts.discounted)}</td>
+      <td class="hk-iso-ship-free90-rounding">${_hkIsoDraftNumber(parts.rounding)}</td>
+      <td class="hk-iso-ship-final-price">${_hkIsoDraftNumber(parts.finalPrice)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="card pricing-cost-card hk-iso-shipping-block">
+    <div class="pricing-result-header">
+      <div class="pricing-result-title">${block.title}<span class="pricing-spec-badge">배송 상세</span><span class="hk-iso-free-badge">무료배송 · 10% 네고</span></div>
+      <div class="hk-iso-header-actions">
+        <span class="pricing-result-hint">${block.productNumbers.length ? '상품번호 ' + block.productNumbers.join(' // ') : '상품번호 미지정(기본값)'}</span>
+        <button type="button" class="pricing-margin-edit-btn hk-iso-ship-refresh-btn" onclick="_hkIsoRefreshShippingSection()" title="기준 판매가를 바꿨으면 눌러서 다시 불러옵니다">
+          <i class="fa-solid fa-rotate"></i> 기준 판매가 새로고침
+        </button>
+      </div>
+    </div>
+    <div class="pricing-table-scroll">
+      <table class="pricing-table hk-iso-draft-table hk-iso-shipping-table">
+        <thead><tr>
+          <th class="hk-iso-head-base">KS정품</th>
+          <th class="hk-iso-head-base">호수</th>
+          <th class="hk-iso-head-base">규 격</th>
+          <th class="hk-iso-head-size">판매사이즈</th>
+          <th class="hk-iso-head-code">상품코드</th>
+          <th class="hk-iso-head-base">${block.saleGroupLabel}<br><span class="pricing-th-tiny">기준 판매가</span></th>
+          <th class="hk-iso-head-sale-price">배송비</th>
+          <th class="hk-iso-head-sale-price">실제배송비</th>
+          <th class="hk-iso-head-margin">배송비<br>플러스 금액</th>
+          <th class="hk-iso-head-margin">원장판매<br>할인금액 90%</th>
+          <th class="hk-iso-head-plus">단수정리</th>
+          <th class="hk-iso-head-rate">실판매가<br><span class="pricing-th-tiny">10% 네고</span></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+/* free90 행 재계산 — 실제배송비가 바뀌면 플러스 금액·90%·단수정리·실판매가를 다시 계산한다. */
+window.recalcHkIsoShippingRowFree90 = function(input) {
+  const row = input.closest('tr');
+  if (!row) return;
+  const basePrice = Number(row.dataset.basePrice);
+  const actualShipping = _hkIsoDraftParseNumber(row.querySelector('.hk-iso-ship-actual-input')?.value);
+  const sourceAccordion = row.dataset.sourceAccordion;
+  const rowIndex = Number(row.dataset.rowIndex);
+  const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.sourceAccordion === sourceAccordion);
+  const ship = block?.rows?.[rowIndex];
+  if (ship) ship.actualShipping = actualShipping;
+  const parts = _hkIsoFree90Parts(basePrice, actualShipping);
+  row.querySelector('.hk-iso-ship-free90-plus').textContent = _hkIsoDraftNumber(parts.plus);
+  row.querySelector('.hk-iso-ship-free90-discounted').textContent = _hkIsoDraftNumber(parts.discounted);
+  row.querySelector('.hk-iso-ship-free90-rounding').textContent = _hkIsoDraftNumber(parts.rounding);
+  row.querySelector('.hk-iso-ship-final-price').textContent = _hkIsoDraftNumber(parts.finalPrice);
+  _hkIsoSyncUnifiedShippingRow(sourceAccordion, rowIndex);
+};
+
 /* 배송 상세를 현재 기준 판매가로 다시 그린다. 새로고침 버튼과 팝업을 열 때
-   호출하며, 블록의 schema에 따라 렌더러를 나눈다. */
+   호출하며, 블록의 schema에 따라 렌더러를 나눈다. 아이소핑크 팝업에는 아이소핑크 블록만,
+   스티로폼 팝업에는 스티로폼 블록만 보여준다(window._hkIsoShippingCategory). */
+window._hkIsoShippingCategory = 'hk_isopink';
 window._hkIsoRefreshShippingSection = function() {
   const section = document.getElementById('hkIsoShippingSection');
   if (!section) return;
   section.innerHTML = HK_ISO_SHIPPING_BLOCKS
-    .map(block => block.schema === 'per1Coupon' ? _hkIsoShippingBlockHtmlPerUnit(block) : _hkIsoShippingBlockHtml(block))
+    .filter(block => (block.categoryId || 'hk_isopink') === window._hkIsoShippingCategory)
+    .map(block => {
+      if (block.schema === 'per1Coupon') return _hkIsoShippingBlockHtmlPerUnit(block);
+      if (block.schema === 'free90') return _hkIsoShippingBlockHtmlFree90(block);
+      return _hkIsoShippingBlockHtml(block);
+    })
     .join('');
 };
 
-/* 배송 상세값은 통합 기준가격 표에서 버튼을 눌렀을 때 팝업으로 연다. */
-window.toggleHkIsoShippingSection = function() {
+/* 배송 상세값은 통합 기준가격 표에서 버튼을 눌렀을 때 팝업으로 연다. categoryId를 주면 그 카테고리의 블록만 연다. */
+window.toggleHkIsoShippingSection = function(categoryId) {
   const modal = document.getElementById('hkIsoShippingModal');
   const section = document.getElementById('hkIsoShippingSection');
   if (!modal || !section) return;
+  window._hkIsoShippingCategory = categoryId || 'hk_isopink';
+  const title = document.getElementById('hkIsoShippingModalTitle');
+  if (title) title.textContent = window._hkIsoShippingCategory === 'hk_bead' ? '스티로폼 배송 세부설정' : '아이소핑크 배송 세부설정';
   window._hkIsoRefreshShippingSection();
   modal.style.display = 'flex';
 };
@@ -1257,7 +1384,7 @@ window.toggleHkIsoShippingSection = function() {
 window.openHkIsoShippingFor = function(cell) {
   const row = cell?.closest('tr');
   if (!row) return;
-  window.toggleHkIsoShippingSection();
+  window.toggleHkIsoShippingSection(HK_ISO_CONNECTED_DRAFTS[row.dataset.draftTab]?.line === 'bead' ? 'hk_bead' : 'hk_isopink');
   const target = document.querySelector(
     `#hkIsoShippingSection tr[data-source-accordion="${row.dataset.draftTab}"][data-row-index="${row.dataset.rowIndex}"]`);
   if (!target) return;
@@ -1764,6 +1891,8 @@ function _hkIsoProductNameFromCode(code) {
    순서대로 뒤져서 코드가 일치하는 행을 찾고, 1단계의 지금 DOM 값 기준으로
    basePrice + 배송비플러스금액을 계산해 돌려준다. 못 찾으면 null. */
 function _hkIsoLookupFinalPriceByCode(code) {
+  // 스티로폼의 별칭 코드(예: St_1800_900_… → St_900_1800_…)는 기준 코드로 바꿔서 찾는다.
+  if (typeof window.hkBeadNormalizeCode === 'function') code = window.hkBeadNormalizeCode(code);
   for (const block of HK_ISO_SHIPPING_BLOCKS) {
     const sourceRows = HK_ISO_CONNECTED_DRAFTS[block.sourceAccordion]?.rows || [];
     const livePriceInputs = document.querySelectorAll(`#hkIsoAcc-${block.sourceAccordion} .hk-iso-final-price-input`);
@@ -1776,11 +1905,8 @@ function _hkIsoLookupFinalPriceByCode(code) {
       const rowCode = ship.codeOverride || _hkIsoDraftProductCode(row.saleSize, currentThickness, block.isAdhesive, block.codePrefix);
       if (rowCode !== code) continue;
       const basePrice = livePriceInputs[i] ? _hkIsoDraftParseNumber(livePriceInputs[i].value) : Number(row.price);
-      const plusAmount = ship.plusAmount ?? 0;
-      // schema별 실판매가 공식이 다르다: per5(600x900류)는 항상 더하고,
-      // per1Coupon(900x1800류)은 무료배송 상품만 더한다(2026-09-16).
-      const applyPlus = block.schema === 'per1Coupon' ? !!block.isFreeShipping : true;
-      return basePrice + (applyPlus ? plusAmount : 0);
+      // schema별 실판매가 공식이 다르다(per5·per1Coupon·free90) — _hkIsoBlockRowFinalPrice 참고.
+      return _hkIsoBlockRowFinalPrice(block, ship, basePrice);
     }
   }
   return null;
@@ -1824,6 +1950,7 @@ function _hkHkdShippingByCode(productCode) {
    (장수 ÷ 5 올림)를 곱한다 — 배송비는 5장 기준이다(사용자 확인 2026-09-21: 1~5장 6,000 / 6~10장 12,000 /
    20장 24,000). 다른 방식 블록은 뜻이 확실하지 않아 null로 남긴다. */
 function _hkIsoBlockShippingByCode(productCode) {
+  if (typeof window.hkBeadNormalizeCode === 'function') productCode = window.hkBeadNormalizeCode(productCode);
   for (const block of HK_ISO_SHIPPING_BLOCKS) {
     const sourceRows = HK_ISO_CONNECTED_DRAFTS[block.sourceAccordion]?.rows || [];
     let thickness = null;

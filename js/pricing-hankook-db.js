@@ -69,6 +69,8 @@ function _hkDbChunks(list, size = HK_DB_CHUNK) {
 function _hkDbProductIndex() {
   const list = [];
   HK_ISO_SHIPPING_BLOCKS.forEach(block => {
+    // 스티로폼 블록은 아래 hkBeadProductIndex()가 1단계 행과 함께(같은 상품코드로) 내놓는다 — 여기서 또 넣으면 코드가 중복된다.
+    if (block.categoryId === 'hk_bead') return;
     const sourceRows = HK_ISO_CONNECTED_DRAFTS[block.sourceAccordion]?.rows || [];
     let thickness = null;
     sourceRows.forEach((row, rowIndex) => {

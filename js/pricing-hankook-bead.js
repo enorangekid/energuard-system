@@ -56,11 +56,14 @@ const HK_BEAD_SUPER_TABS = [
    sh 원본 엑셀의 배송비(참고용). 같은 두께는 붙어 있어야 한다(첫 행만 이름·원가를 보여준다). */
 const HK_BEAD_ACCORDIONS = [
   {
-    id: 'bead1_600x900', superId: 'bead1', label: '600x900 일반', sub: '430×430 · 600×900',
+    id: 'bead1_600x900', superId: 'bead1', label: '600x900 기본 옵션', sub: '430×430 · 600×900',
     saleGroupLabel: '600*900', unitKey: 'b1_900', codePrefix: 'St', gradeLabel: '1종 3호', adhesive: false,
     sheet: '900*1800',
     rows: [
       { t:10, s:'430*430-4', p:1300, r:45, sp:1050 },
+      // 2단계 배송 엑셀에만 있던 행(`St_430_430_10_5`, 상품번호 3505478787) — 사용자가 1단계에 추가하라고 함(2026-09-22).
+      // 참고마진은 같은 두께 430*430 행과 같은 45%로 두었다(엑셀에 값 없음).
+      { t:10, s:'430*430-5', p:1500, r:45 },
       { t:10, s:'600*900-5', p:3500, r:40 },
       { t:20, s:'430*430-3', p:2200, r:45, sp:4950 },
       { t:20, s:'600*900-2', p:3300, r:40 },
@@ -75,7 +78,7 @@ const HK_BEAD_ACCORDIONS = [
     ],
   },
   {
-    id: 'bead1_600x900_bundle', superId: 'bead1', label: '600x900 묶음', sub: '430×430 · 600×900 묶음',
+    id: 'bead1_600x900_bundle', superId: 'bead1', label: '600x900 묶음 옵션', sub: '430×430 · 600×900 묶음 · 쿠팡전용 포함',
     saleGroupLabel: '600*900', unitKey: 'b1_900', codePrefix: 'St', gradeLabel: '1종 3호', adhesive: false,
     sheet: '900*1800',
     rows: [
@@ -89,7 +92,7 @@ const HK_BEAD_ACCORDIONS = [
     ],
   },
   {
-    id: 'bead1_600x900_high_t', superId: 'bead1', label: '600x900 후판', sub: '100~600T',
+    id: 'bead1_600x900_high_t', superId: 'bead1', label: '600x900 고티', sub: '100~600T',
     saleGroupLabel: '600*900', unitKey: 'b1_900', codePrefix: 'St', gradeLabel: '1종 3호', adhesive: false,
     sheet: '900*1800',
     rows: [
@@ -116,7 +119,7 @@ const HK_BEAD_ACCORDIONS = [
     ],
   },
   {
-    id: 'bead1_900x1800_high_t', superId: 'bead1', label: '900x1800 후판', sub: '100~600T',
+    id: 'bead1_900x1800_high_t', superId: 'bead1', label: '900x1800 고티', sub: '100~600T',
     saleGroupLabel: '900*1800', unitKey: 'b1_900', codePrefix: 'St', gradeLabel: '1종 3호', adhesive: false,
     sheet: '900*1800',
     rows: [
@@ -163,7 +166,9 @@ const HK_BEAD_ACCORDIONS = [
     sheet: '900*1800',
     rows: [
       { t:20, s:'600*900-2', p:4500, r:30, sp:13500 },
-      { t:20, s:'600*900-5', p:11500, r:30, sp:34500 },
+      // 사용자 확인(2026-09-22): 20T-5장은 20,200원이 맞다(1단계 엑셀의 11,500원은 오류). 원장 판매가 참고값은 다른 행처럼
+      // 판매가 × 3(=60,600), 참고마진은 이 가격의 순수마진율(54%)에 맞게 다른 접착식 행과 같은 55%로 바꿨다.
+      { t:20, s:'600*900-5', p:20200, r:55, sp:60600 },
       { t:30, s:'600*900-1', p:5500, r:55, sp:16500 },
       { t:30, s:'600*900-3', p:18000, r:55, sp:54000 },
       { t:50, s:'600*900-1', p:8000, r:55, sp:24000 },
@@ -181,7 +186,7 @@ const HK_BEAD_ACCORDIONS = [
     ],
   },
   {
-    id: 'bead2_600x900', superId: 'bead2', label: '600x900 일반', sub: '20~100T',
+    id: 'bead2_600x900', superId: 'bead2', label: '600x900 기본 옵션', sub: '20~100T',
     saleGroupLabel: '600*900', unitKey: 'b2_900', codePrefix: 'Neo', gradeLabel: '2종 2호', adhesive: false,
     sheet: '900*1800',
     rows: [
@@ -198,7 +203,7 @@ const HK_BEAD_ACCORDIONS = [
     ],
   },
   {
-    id: 'bead2_600x900_high_t', superId: 'bead2', label: '600x900 후판', sub: '100~600T',
+    id: 'bead2_600x900_high_t', superId: 'bead2', label: '600x900 고티', sub: '100~600T',
     saleGroupLabel: '600*900', unitKey: 'b2_900', codePrefix: 'Neo', gradeLabel: '2종 2호', adhesive: false,
     sheet: '900*1800',
     rows: [
@@ -221,7 +226,7 @@ const HK_BEAD_ACCORDIONS = [
     ],
   },
   {
-    id: 'bead2_900x1800_high_t', superId: 'bead2', label: '900x1800 후판', sub: '100~600T',
+    id: 'bead2_900x1800_high_t', superId: 'bead2', label: '900x1800 고티', sub: '100~600T',
     saleGroupLabel: '900*1800', unitKey: 'b2_900', codePrefix: 'Neo', gradeLabel: '2종 2호', adhesive: false,
     sheet: '900*1800',
     rows: [
@@ -295,6 +300,167 @@ HK_BEAD_ACCORDIONS.forEach(acc => {
   };
 });
 
+/* ═══════════════════════════════════════
+   2단계 — 상품번호별 배송비·실판매가 (2026-09-22, 사용자가 준 엑셀 119행 취합)
+
+   아이소핑크의 HK_ISO_SHIPPING_BLOCKS 구조를 그대로 쓴다(블록 하나 = 1단계 그룹 하나, 상품번호 여러 개가
+   같은 블록을 공유). 값은 "상품코드 → 배송값" 사전으로 적어두고 1단계 행 순서에 맞춰 rows를 만든다 —
+   행 순서를 손으로 맞추다 틀리는 일을 막고, 사전에 없는 행은 자동으로 알 수 있다.
+   schema
+   - per5: 5장당 배송비 기준(1종 3호·접착식 6,000 / 2종 2호 5,500). 값 = 5장당 실제배송비, 또는 [실제배송비, 배송비 플러스 금액].
+   - per1Coupon(무료배송): 실판매가 = 판매가 + 실제배송비(플러스 금액 = 실제배송비). 값 = 실제배송비.
+   - free90: 무료배송 + 10% 네고 — 실판매가 = floor100((판매가 + 실제배송비) × 0.9). 값 = 실제배송비.
+   사용자 결정: 900*1800 고티의 `1800_900` 코드(상품번호 2913417918)는 `900_1800`으로 통일하고 나중에 받는 채널 자료의
+   `1800_900` 코드는 자동으로 매핑한다(아래 별칭). `SSt_600_900_100_1`은 일부러 그렇게 등록한 코드라 그대로 둔다.
+   사전에 없는 행(Neo_600_900_20_3 — 엑셀 어디에도 없음)은 5장당 기준 배송비 그대로(차액 0, 플러스 0)로 두고 assumed 표시.
+═══════════════════════════════════════ */
+const HK_BEAD_FREE_FIXED = { 100: 7500, 200: 7500, 300: 11000, 400: 14000, 500: 17000, 600: 21000 };   // 600*900 고티 무료배송
+const HK_BEAD_FREE_1800 = { 100: 21500, 200: 21500, 300: 31500, 400: 41400, 500: 51300, 600: 60600 };   // 900*1800 고티 무료배송
+const HK_BEAD_FREE_1200 = { 100: 14500, 200: 14500, 300: 21000, 400: 28000, 500: 34400, 600: 40800 };   // 900*1200 무료배송
+function _hkBeadFreeData(prefix, sizeCode, qtyByThickness, table) {
+  const data = {};
+  Object.keys(table).forEach(t => { data[`${prefix}_${sizeCode}_${t}_${qtyByThickness[t]}`] = table[t]; });
+  return data;
+}
+const HK_BEAD_HIGH_QTY = { 100: 2, 200: 1, 300: 1, 400: 1, 500: 1, 600: 1 };
+
+const HK_BEAD_SHIPPING_BLOCKS = [
+  {
+    id: 'bead1_600x900_1', accordion: 'bead1_600x900', title: '스티로폼 1종 3호 600x900 기본 옵션', schema: 'per5',
+    productNumbers: ['437331834', '3505478787'], baseShipping5: 6000,
+    data: {
+      St_430_430_10_4: 5200, St_430_430_10_5: 5200, St_600_900_10_5: 5500,
+      St_430_430_20_3: 5500, St_600_900_20_2: 5500,
+      St_430_430_30_3: 5500, St_600_900_30_1: 5500,
+      St_430_430_40_2: 5500, St_600_900_40_1: 5500,
+      St_430_430_50_2: 5500, St_600_900_50_1: 5500,
+      St_430_430_100_1: 5500, St_600_900_100_1: 5500,
+    },
+  },
+  {
+    id: 'bead1_600x900_bundle_1', accordion: 'bead1_600x900_bundle', title: '스티로폼 1종 3호 600x900 묶음 옵션', schema: 'per5',
+    productNumbers: ['446014684', '쿠팡전용'], baseShipping5: 6000,
+    data: {
+      St_600_900_10_10: 5500, St_600_900_20_5: 5500, St_600_900_30_3: 5500, St_600_900_40_2: 5500,
+      St_430_430_50_3: 5200, St_600_900_50_2: 5500, St_430_430_100_3: 5500,
+    },
+  },
+  {
+    id: 'bead1_600x900_high_t_1', accordion: 'bead1_600x900_high_t', title: '스티로폼 1종 3호 600x900 고티(무료배송)', schema: 'per1Coupon',
+    productNumbers: ['2913417918'],
+    data: _hkBeadFreeData('St', '600_900', HK_BEAD_HIGH_QTY, HK_BEAD_FREE_FIXED),
+  },
+  {
+    id: 'bead1_900x1800_1', accordion: 'bead1_900x1800', title: '스티로폼 1종 3호 900x1800(무료배송 · 10% 네고)', schema: 'free90',
+    productNumbers: ['5759250443', '쿠팡전용'],
+    data: {
+      St_900_1800_10_10: 14000, St_900_1800_20_7: 15700, St_900_1800_30_5: 16900, St_900_1800_40_3: 14000,
+      St_900_1800_40_5: 14000, St_900_1800_50_3: 16900, St_900_1800_100_1: 12200,
+    },
+  },
+  {
+    id: 'bead1_900x1800_high_t_1', accordion: 'bead1_900x1800_high_t', title: '스티로폼 1종 3호 900x1800 고티(무료배송)', schema: 'per1Coupon',
+    productNumbers: ['5763066244', '2913417918'],
+    data: _hkBeadFreeData('St', '900_1800', HK_BEAD_HIGH_QTY, HK_BEAD_FREE_1800),
+  },
+  {
+    id: 'bead1_900x1200_1', accordion: 'bead1_900x1200', title: '스티로폼 1종 3호 900x1200(무료배송)', schema: 'per1Coupon',
+    productNumbers: ['2913417918'],
+    data: _hkBeadFreeData('St', '1200_900', HK_BEAD_HIGH_QTY, HK_BEAD_FREE_1200),
+  },
+  {
+    id: 'beadA_600x900_1', accordion: 'beadA_600x900', title: '스티로폼 접착식 1종 3호 600x900', schema: 'per5',
+    productNumbers: ['437331834', '3505478787', '3950515541', '446014684', '쿠팡전용'], baseShipping5: 6000,
+    data: {
+      StA_600_900_20_2: 5500, StA_600_900_20_5: 5500, StA_600_900_30_1: 5500,
+      StA_600_900_30_3: 5500, StA_600_900_50_1: 5500, StA_600_900_50_2: 5500,
+    },
+  },
+  {
+    id: 'beadA_900x1800_1', accordion: 'beadA_900x1800', title: '스티로폼 접착식 1종 3호 900x1800(무료배송 · 10% 네고)', schema: 'free90',
+    productNumbers: ['5759250443'],
+    data: { StA_900_1800_20_7: 21500, StA_900_1800_30_5: 16900, StA_900_1800_50_3: 16900 },
+  },
+  {
+    id: 'bead2_600x900_1', accordion: 'bead2_600x900', title: '스티로폼 2종 2호 600x900 기본 옵션', schema: 'per5',
+    productNumbers: ['2216673728', '쿠팡전용'], baseShipping5: 5500,
+    data: {
+      Neo_430_430_20_3: 5500,
+      Neo_430_430_30_3: [6500, 200], Neo_600_900_30_2: 5500, Neo_600_900_30_3: 5500,
+      Neo_430_430_50_3: [9300, 800], Neo_600_900_50_1: 6500, Neo_600_900_50_2: [6500, 200],
+      Neo_430_430_100_2: 5200, Neo_600_900_100_1: 5200,
+    },
+  },
+  {
+    id: 'bead2_600x900_high_t_1', accordion: 'bead2_600x900_high_t', title: '스티로폼 2종 2호 600x900 고티(무료배송)', schema: 'per1Coupon',
+    productNumbers: ['2913417918'],
+    data: _hkBeadFreeData('Neo', '600_900', HK_BEAD_HIGH_QTY, HK_BEAD_FREE_FIXED),
+  },
+  {
+    id: 'bead2_900x1800_1', accordion: 'bead2_900x1800', title: '스티로폼 2종 2호 900x1800(무료배송 · 10% 네고)', schema: 'free90',
+    productNumbers: ['5759250443'],
+    data: { Neo_900_1800_30_5: 16900, Neo_900_1800_50_3: 16900, Neo_900_1800_100_1: 12200 },
+  },
+  {
+    id: 'bead2_900x1800_high_t_1', accordion: 'bead2_900x1800_high_t', title: '스티로폼 2종 2호 900x1800 고티(무료배송)', schema: 'per1Coupon',
+    productNumbers: ['5763066244', '2913417918'],
+    data: _hkBeadFreeData('Neo', '900_1800', HK_BEAD_HIGH_QTY, HK_BEAD_FREE_1800),
+  },
+  {
+    id: 'bead2_900x1200_1', accordion: 'bead2_900x1200', title: '스티로폼 2종 2호 900x1200(무료배송)', schema: 'per1Coupon',
+    productNumbers: ['2913417918'],
+    data: _hkBeadFreeData('Neo', '1200_900', HK_BEAD_HIGH_QTY, HK_BEAD_FREE_1200),
+  },
+];
+
+/* 같은 옵션이 다른 코드로도 등록된 경우의 별칭 → 기준 코드. 900*1800 고티은 상품번호 2913417918에 `1800_900`
+   순서로 등록돼 있었는데 사용자가 실수라며 900_1800으로 통일하라고 했다(2026-09-22). 나중에 받는 채널 자료에
+   1800_900 코드가 나오면 이 규칙으로 자동 매핑한다. */
+const HK_BEAD_CODE_ALIASES = { SSt_600_900_100_1: 'St_600_900_100_1' };
+['St', 'Neo'].forEach(prefix => {
+  Object.entries(HK_BEAD_HIGH_QTY).forEach(([thickness, qty]) => {
+    HK_BEAD_CODE_ALIASES[`${prefix}_1800_900_${thickness}_${qty}`] = `${prefix}_900_1800_${thickness}_${qty}`;
+  });
+});
+window.hkBeadNormalizeCode = function(code) {
+  const text = String(code || '');
+  return HK_BEAD_CODE_ALIASES[text] || text.replace(/^(St|StA|Neo)_1800_900_/, '$1_900_1800_');
+};
+window.hkBeadCodeAliasesFor = function(code) {
+  return Object.keys(HK_BEAD_CODE_ALIASES).filter(alias => HK_BEAD_CODE_ALIASES[alias] === code);
+};
+
+/* 사전 → 엔진이 읽는 블록(HK_ISO_SHIPPING_BLOCKS)으로 만들어 등록한다. */
+HK_BEAD_SHIPPING_BLOCKS.forEach(def => {
+  const acc = HK_BEAD_ACCORDIONS.find(item => item.id === def.accordion);
+  const block = {
+    id: def.id,
+    title: def.title,
+    categoryId: 'hk_bead',
+    productNumbers: def.productNumbers,
+    sourceAccordion: acc.id,
+    saleGroupLabel: acc.saleGroupLabel,
+    isAdhesive: acc.adhesive,
+    codePrefix: acc.codePrefix,
+    schema: def.schema,
+  };
+  if (def.schema === 'per5') { block.baseShipping5 = def.baseShipping5; block.sharedBaseShipping = true; }
+  if (def.schema === 'per1Coupon') block.isFreeShipping = true;
+  block.rows = acc.draftRows.map(row => {
+    const code = _hkIsoDraftProductCode(row.saleSize, row._t, false, acc.codePrefix);
+    const value = def.data[code];
+    if (def.schema === 'per5') {
+      if (value == null) return { actualShipping5: def.baseShipping5, plusAmount: 0, assumed: true };
+      return Array.isArray(value) ? { actualShipping5: value[0], plusAmount: value[1] } : { actualShipping5: value, plusAmount: 0 };
+    }
+    if (def.schema === 'per1Coupon') return { actualShipping: value ?? 0, coupon: 0, plusAmount: value ?? 0 };
+    return { actualShipping: value ?? 0 };
+  });
+  HK_ISO_SHIPPING_BLOCKS.push(block);
+  // 배송 블록이 생긴 그룹은 1단계 표에 배송 정책·가격 조정·현재 판매가 열을 다시 보여준다.
+  HK_ISO_CONNECTED_DRAFTS[acc.id].hideUnifiedShipping = false;
+});
+
 /* 현재 원가·접착 가공비·판매가로 각 행의 원가·판매원가·마진·수수료·장당마진을 다시 계산해
    행 객체에 채운다(화면을 그리기 직전과 원가를 바꾼 뒤에 부른다). 판매가(row.price)는 건드리지 않는다. */
 window.hkBeadRefreshDerived = function() {
@@ -330,10 +496,12 @@ window.hkBeadRefreshDerived = function() {
 window.hkBeadProductIndex = function() {
   const list = [];
   HK_BEAD_ACCORDIONS.forEach(acc => {
+    // 2단계 배송 블록이 있는 그룹은 배송값(ship)도 같은 상품 행에 함께 저장·복원한다.
+    const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.sourceAccordion === acc.id) || null;
     acc.draftRows.forEach((row, rowIndex) => {
       list.push({
         code: _hkIsoDraftProductCode(row.saleSize, row._t, false, acc.codePrefix),
-        block: null, ship: null, row, rowIndex,
+        block, ship: block ? block.rows[rowIndex] : null, row, rowIndex,
         accordionId: acc.id, categoryId: 'hk_bead',
       });
     });
@@ -361,6 +529,9 @@ function _hkBeadCostCard() {
       </button>
       <button type="button" class="pricing-margin-edit-btn" onclick="openHkIsoAdhesiveModal()" title="접착식 원장 한 장마다 원가에 더하는 가공비를 수정합니다(아이소핑크와 같은 값).">
         <i class="fa-solid fa-layer-group"></i> 접착 가공비
+      </button>
+      <button type="button" class="pricing-margin-edit-btn" onclick="toggleHkIsoShippingSection('hk_bead')" title="규격 그룹별 배송비·무료배송·10% 네고 정책을 수정합니다(스티로폼 전체).">
+        <i class="fa-solid fa-truck-fast"></i> 배송 세부설정
       </button>
     </div>
     <div class="pricing-cost-card-inner">
@@ -390,7 +561,7 @@ function renderHkBeadPane() {
   return `<div id="hkBeadBaseDataSection">
     ${_hkBeadCostCard()}<div class="card pricing-result-card">
       <div class="pricing-result-header">
-        <div class="pricing-result-title">한국단열 스티로폼 기준 판매가<span class="pricing-spec-badge">1단계 · 배송 연결 전</span></div>
+        <div class="pricing-result-title">한국단열 스티로폼 기준 판매가<span class="pricing-spec-badge">원가·배송 통합</span></div>
       </div>
       <div class="bead-subtab-bar" id="hkBeadSuperTabBar">${superTabs}</div>
       ${superPanes}

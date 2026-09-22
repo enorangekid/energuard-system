@@ -943,6 +943,12 @@
 .hk-iso-super-pane { display: none; }
 .hk-iso-super-pane.active { display: block; }
 .hk-iso-super-pane .pricing-coming-soon { min-height: 240px; }
+/* 같은 옵션이 다른 코드로도 등록된 경우 상품코드 아래에 작게 표시(스티로폼 별칭 코드) */
+.hk-iso-code-alias { display: block; margin-top: 3px; color: #94a3b8; font-size: 10px; font-weight: 500; }
+/* 스티로폼 무료배송 + 10% 네고 배송 블록의 계산 칸 */
+.hk-iso-ship-free90-plus,
+.hk-iso-ship-free90-discounted,
+.hk-iso-ship-free90-rounding { color: #475569; font-weight: 600; }
 /* 스티로폼(js/pricing-hankook-bead.js)도 같은 모양의 상위 탭을 쓴다 — 아이소핑크 탭 전환이 건드리지 않게 클래스만 따로 둔다. */
 .hk-bead-super-pane { display: none; }
 .hk-bead-super-pane.active { display: block; }
