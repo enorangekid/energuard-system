@@ -2048,12 +2048,12 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
     };
   }
   // 등록 판매가(쿠폰 적용 전) 반올림 단위 — 아이소핑크는 100원 올림, 스티로폼은 10원 단위 반올림
-  // (사용자 확인 2026-09-22, 엑셀 61행 전부와 정확히 일치), 열반사단열재는 100원 단위 반올림
-  // (사용자 확인 2026-09-23, 표 16행 전부와 정확히 일치 — 올림이 아니라 반올림이라 아이소핑크와 다름).
+  // (사용자 확인 2026-09-22, 엑셀 61행 전부와 정확히 일치), 열반사단열재·단열벽지는 100원 단위 반올림
+  // (사용자 확인 2026-09-23, 표 전부와 정확히 일치 — 올림이 아니라 반올림이라 아이소핑크와 다름).
   // 정수 연산만 써서 소수 오차를 피한다.
   const preCoupon = categoryId === 'hk_bead'
     ? Math.round(total * config.preCouponPercent / 1000) * 10
-    : categoryId === 'hk_reflective'
+    : categoryId === 'hk_reflective' || categoryId === 'hk_wallpaper'
       ? Math.round(total * config.preCouponPercent / unit) * config.roundUp
       : Math.ceil(total * config.preCouponPercent / unit) * config.roundUp;
   const couponOff = item && item.couponOff != null

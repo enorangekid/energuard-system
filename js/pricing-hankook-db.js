@@ -342,12 +342,15 @@ function _hkDbApplyState(state) {
     window.hkReflectiveRefreshDerived?.(); // 판상형·롤형 원가를 새 설정으로 다시 계산한다
   }
   // 채널 옵션 설정(기준가 옵션·판매상태)은 저장된 값이 있을 때만 덮어쓰고, 덮어쓰기 전에 모두 기본값으로 되돌린다.
+  // 메모는 status·manualPrice와 달리 코드에 기본값이 들어 있는 항목(열반사단열재·단열벽지의 조건부
+  // 다운로드 쿠폰 등)이 있어서 지우지 않는다 — DB에 저장된 메모가 있으면 그걸로 덮어쓰고, 없으면
+  // 코드 기본값을 그대로 둔다(2026-09-23, DB에서 매번 지워져서 안 보이던 문제 수정).
   if (s.channelOptions && typeof s.channelOptions === 'object') {
     Object.entries(HK_CHANNEL_LISTINGS).forEach(([channelId, products]) => {
       (products || []).forEach(product => {
         if (product.seedBaseCode) product.baseCode = product.seedBaseCode;
         else delete product.baseCode;
-        product.items.forEach(item => { delete item.status; delete item.manualPrice; delete item.memo; });
+        product.items.forEach(item => { delete item.status; delete item.manualPrice; });
         const saved = s.channelOptions[channelId]?.[product.productId];
         if (!saved) return;
         if (saved.base && product.items.some(item => item.productCode === saved.base)) product.baseCode = saved.base;
