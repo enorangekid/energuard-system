@@ -88,6 +88,8 @@ function _hkDbProductIndex() {
   if (typeof window.hkSubProductIndex === 'function') list.push(...window.hkSubProductIndex());
   // 열반사단열재도 부자재와 같은 평면 표 방식(2단계 배송 정책 없음).
   if (typeof window.hkReflectiveProductIndex === 'function') list.push(...window.hkReflectiveProductIndex());
+  // 단열벽지도 같은 평면 표 방식(2단계 배송 정책 없음).
+  if (typeof window.hkWallpaperProductIndex === 'function') list.push(...window.hkWallpaperProductIndex());
   return list;
 }
 

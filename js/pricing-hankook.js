@@ -358,6 +358,8 @@ function renderHkCategoryPane(tabId) {
   if (tabId === 'hk_sub' && typeof renderHkSubPane === 'function') return renderHkSubPane();
   // 열반사단열재는 두께·판매길이 구조가 아이소핑크·스티로폼과 달라(면적이 아니라 길이) 전용 파일에서 렌더한다.
   if (tabId === 'hk_reflective' && typeof renderHkReflectivePane === 'function') return renderHkReflectivePane();
+  // 단열벽지도 판매길이 구조라 열반사단열재와 같은 패턴으로 전용 파일에서 렌더한다.
+  if (tabId === 'hk_wallpaper' && typeof renderHkWallpaperPane === 'function') return renderHkWallpaperPane();
 
   // 카테고리가 채워지면 여기에 전용 렌더 함수를 추가하면 됨 (renderHkIsopinkPane와 같은 패턴).
 
@@ -1981,6 +1983,7 @@ function _hkIsoBlockShippingByCode(productCode) {
 function _hkChannelHkdPrice(categoryId, productCode) {
   if (categoryId === 'hk_isopink' || categoryId === 'hk_bead') return _hkIsoLookupFinalPriceByCode(productCode);
   if (categoryId === 'hk_reflective' && typeof window.hkReflectivePriceByCode === 'function') return window.hkReflectivePriceByCode(productCode);
+  if (categoryId === 'hk_wallpaper' && typeof window.hkWallpaperPriceByCode === 'function') return window.hkWallpaperPriceByCode(productCode);
   return null;
 }
 
@@ -2088,6 +2091,7 @@ function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item
   if (categoryId === 'hk_isopink' || categoryId === 'hk_bead') return _hkChannelHkdPrice(categoryId, productCode);
   if (categoryId === 'hk_sub' && typeof window.hkSubPriceByCode === 'function') return window.hkSubPriceByCode(productCode);
   if (categoryId === 'hk_reflective' && typeof window.hkReflectivePriceByCode === 'function') return window.hkReflectivePriceByCode(productCode);
+  if (categoryId === 'hk_wallpaper' && typeof window.hkWallpaperPriceByCode === 'function') return window.hkWallpaperPriceByCode(productCode);
   return null;
 }
 
