@@ -55,6 +55,32 @@ async function inspect(item, pricing) {
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }
 
+// 한국단열(hkdy) 몰별 적용 검사 — 기대가격은 관리자 화면이 옵션별로 계산해 넘긴다(item.options).
+// 에너가드 검사와 같이 할인 적용가(할인 응답의 기준가+옵션추가금)로 비교하므로 할인 응답을 기다린다.
+// 할인이 없는 상품은 할인 응답 자체가 안 올 수 있어서, 끝까지 안 오면 상세의 판매가로 비교한다.
+async function inspectHkd(item) {
+  const id = String(item.productId);
+  if (!/^\d+$/.test(id)) throw Error('상품번호 오류');
+  const url = new URL(item.productUrl || 'https://smartstore.naver.com/hkdy/products/'+id);
+  if (url.origin!=='https://smartstore.naver.com' || url.pathname.replace(/\/$/,'')!=='/hkdy/products/'+id) throw Error('허용되지 않은 상품 주소');
+  const tab = await chrome.tabs.create({url:url.href,active:false});
+  await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
+  try {
+    let scan;
+    for (let n=0;n<25;n++) {
+      await delay(1000);
+      try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_COMPETITOR_SCAN_DATA'}); } catch {}
+      if (scan?.ok && scan.detailUrl && scan.benefitReady) break;
+    }
+    if (!scan?.ok || !scan.detailUrl) throw Error('상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
+    endpoint(scan.detailUrl,id,'products');
+    if (!Array.isArray(scan.rows) || !scan.rows.length) throw Error('페이지 옵션 확인 불가');
+    const pageUrl = new URL(scan.productUrl);
+    if (pageUrl.origin!==url.origin || pageUrl.pathname.replace(/\/$/,'')!==url.pathname.replace(/\/$/,'')) throw Error('수집 상품 주소 불일치');
+    return matchHkdOptions(scan.rows, item.options).map(row => ({productId:id, ...row}));
+  } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
+}
+
 // 두께로 걸러도 후보가 여러 개 남을 수 있다 — 실사용 중 확인된 것만도: PF보드 브랜드
 // 내부/외부(lx/kd/im + i|o), 규격 소형/대형(_s/_l, 또는 비드법 준불연 ib_06/ib_09),
 // 신품/B급 같은 품질 등급. 셋 다 두께와는 독립된 축이라 gradeId가 뜻하는 축들로 좁혀나간다.
@@ -217,7 +243,7 @@ async function processNext(){
     if(!state || !state.running)return;
     const orphan=(await chrome.storage.local.get('priceCheckTab')).priceCheckTab;
     if(orphan){const old=await chrome.tabs.get(orphan.id).catch(()=>null);if(old?.url===orphan.url)await chrome.tabs.remove(orphan.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
-    if(state.kind!=='competitor' && !state.listVisited){
+    if(state.kind!=='competitor' && state.kind!=='hkd' && !state.listVisited){
       state.listVisited=[];
       // 카테고리별 목록 URL을 지정해뒀으면(state.listUrl, pricing-check-test.js의
       // CATEGORY_LIST_URL) 전체상품(/category/ALL)에서 찾는 대신 그 URL부터 시작한다 —
@@ -243,7 +269,7 @@ async function processNext(){
       if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
       return;
     }
-    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
+    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : state.kind==='hkd' ? '한국단열 옵션 검사' : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
     const item=state.items[state.done];
     if(!item){state.running=false;state.finishedAt=Date.now();await save(state);return;}
     state.currentProduct = state.kind==='competitor' ? item.link : item.productId;await save(state);
@@ -252,6 +278,7 @@ async function processNext(){
     let rows,failed=false;
     try{
       if (state.kind==='competitor') rows=await inspectCompetitor(item.link,item.entries);
+      else if (state.kind==='hkd') rows=await inspectHkd(item);
       else rows=listEligible(item)?[{productId:item.productId,status:'목록 수집 누락',label:'단품 매핑 — 목록에서 가격을 찾지 못했습니다.',source:'상품 목록'}]:await inspect(item,state.pricing);
     }catch(error){
       failed=true;
@@ -307,6 +334,18 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
           if(!Array.isArray(it.entries)||!it.entries.length)throw Error('검사 데이터 오류');
         }
         state={runId:crypto.randomUUID(),kind:'competitor',running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items};
+        await save(state);await arm();processNext();return {ok:true};
+      }
+      if(p?.kind==='hkd'){
+        if(!Array.isArray(p.items) || !p.items.length)throw Error('검사할 상품이 없습니다.');
+        for(const it of p.items){
+          if(!/^\d+$/.test(String(it.productId)))throw Error('상품번호 오류');
+          const u=new URL(String(it.productUrl||'https://smartstore.naver.com/hkdy/products/'+it.productId));
+          if(u.origin!=='https://smartstore.naver.com'||u.pathname.replace(/\/$/,'')!=='/hkdy/products/'+it.productId)throw Error('허용되지 않은 상품 주소');
+          if(!Array.isArray(it.options)||!it.options.length)throw Error('검사 데이터 오류');
+        }
+        if(new Set(p.items.map(i=>String(i.productId))).size!==p.items.length)throw Error('중복 상품번호');
+        state={runId:crypto.randomUUID(),kind:'hkd',running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items};
         await save(state);await arm();processNext();return {ok:true};
       }
       if(!p?.pricing?.id || p.pricing.is_live!==true || !Array.isArray(p.items) || !p.items.length || p.items.some(i=>!/^\d+$/.test(String(i.productId)) || !i.mapping))throw Error('검사 데이터 오류');
