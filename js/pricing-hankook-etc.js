@@ -284,3 +284,34 @@ window.hkEtcPriceByCode = function(code) {
   const product = HK_ETC_PRODUCTS.find(item => item.code === code);
   return product ? Number(product.price) : null;
 };
+
+/* ═══════════════════════════════════════
+   한국단열(hkd) 채널 — 기타단열재 (2026-09-29, 사용자가 준 표 4행 = 상품 3개).
+   현재 판매가(3,400 / 2,500 / 69,000 / 123,000)와 수정 전 판매가(2,700 / 2,000 / 55,000 / 98,000)가 단가표
+   (HK_ETC_PRODUCTS의 price·previousPrice)와 정확히 일치한다 — 9/28 "인상가 = 실제 판매가" 반영이 맞았다는 확인.
+   4705673971은 25m·50m 두 옵션이 한 상품이라 첫 옵션(HF_5_25, 69,000)이 기준가고 50m는 옵션추가금 +54,000.
+   재고는 기본(99,999,999). 배송비·제주·반품/교환은 사용자 표 그대로.
+═══════════════════════════════════════ */
+(function addEtcHkdChannelProducts() {
+  const make = (productId, shipping, items) => ({
+    categoryId: 'hk_etc',
+    productId,
+    baseShipping: shipping.base,
+    shippingBasis: shipping.basis,
+    jejuShipping: shipping.jeju,
+    returnExchange: shipping.exchange,
+    items: items.map(([productCode, productName, prevPrice]) => ({ productCode, productName, prevPrice, prevShipping: shipping.base })),
+  });
+  HK_CHANNEL_LISTINGS.hkd.push(
+    make('10609463678', { base: 4500, basis: '10개마다', jeju: 12000, exchange: '8500/17000' }, [
+      ['CP_5_1', '캠핑단열재 5T x 1m', 2700],
+    ]),
+    make('4654882496', { base: 5000, basis: '10개마다', jeju: 10000, exchange: '5000/10000' }, [
+      ['HF_5_1', '난방필름단열재 5T 1m x 1m', 2000],
+    ]),
+    make('4705673971', { base: 0, basis: '-', jeju: 20000, exchange: '10000/18000' }, [
+      ['HF_5_25', '난방필름단열재 5T 1m x 25m', 55000],
+      ['HF_5_50', '난방필름단열재 5T 1m x 50m', 98000],
+    ]),
+  );
+})();
