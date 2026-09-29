@@ -1231,6 +1231,56 @@
 .hk-iso-listing-table tr.is-soldout td { background: #fff7ed; color: #b45309; }
 .hk-iso-listing-table tr.is-stopped td { background: #f1f5f9; color: #94a3b8; }
 .hk-sub-table tr.is-inactive td { color: #94a3b8; }
+.hk-supp-subtabs { margin-bottom: 12px; }
+.hk-supp-preset-card { margin-bottom: 16px; }
+.hk-supp-preset-bar { display: flex; align-items: flex-end; gap: 12px; padding: 4px 16px 12px; }
+/* 엑셀 템플릿 미리보기 — 안쪽 스크롤바 없이 전체 행을 그대로 펼쳐 보이고(페이지 스크롤만 사용), 가로도 화면 폭에 맞춘다. */
+.hk-supp-preset-products { display: flex; align-items: center; gap: 12px; padding: 4px 16px 12px; }
+.hk-supp-preset-products-title { font-size: 13px; color: #475569; }
+/* 프리셋 편집 — 셀 입력칸, 손댄 값(파란 배경), 행 버튼, 상품번호 수정창, 목록에서 추가 창 */
+.hk-supp-preset-bar { flex-wrap: wrap; }
+.hk-supp-cell { width: 100%; box-sizing: border-box; padding: 3px 6px; font-size: 13px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: inherit; font-family: inherit; }
+.hk-supp-cell:hover { border-color: #cbd5e1; background: #fff; }
+.hk-supp-cell:focus { border-color: #6366f1; background: #fff; outline: none; }
+.hk-supp-cell.is-edited { background: #eef2ff; color: #3730a3; }
+.hk-supp-cell.is-missing { border-color: #f59e0b; background: #fef3c7; }
+.hk-supp-preset-table td { padding-top: 2px; padding-bottom: 2px; }
+.hk-supp-cell-group { color: #64748b; font-size: 12px; }
+.hk-supp-cell-actions { white-space: nowrap; text-align: center; }
+.hk-supp-row-btn { border: 0; background: transparent; color: #94a3b8; cursor: pointer; padding: 3px 6px; border-radius: 4px; }
+.hk-supp-row-btn:hover { background: #f1f5f9; color: #4f46e5; }
+.hk-supp-row-delete:hover { color: #dc2626; }
+.hk-supp-preset-name { min-width: 160px; }
+.hk-supp-item-select { border-color: #cbd5e1; background: #fff; }
+.hk-supp-preset-warn { padding: 0 16px 12px; }
+.hk-supp-channel-tabs { margin: 4px 16px 10px; }
+.hk-supp-new-form { margin: 0 16px 12px; padding: 12px; border: 1px solid #c7d2fe; border-radius: 8px; background: #fafaff; display: grid; gap: 8px; }
+.hk-supp-new-fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.hk-supp-new-hint { color: #64748b; }
+.hk-supp-bulk { margin: 0 16px 14px; padding: 12px; border: 1px solid #c7d2fe; border-radius: 8px; background: #fafaff; display: grid; gap: 8px; }
+.hk-supp-bulk-title { font-size: 13px; font-weight: 700; color: #3730a3; }
+.hk-supp-bulk-title small { font-weight: 500; color: #64748b; }
+.hk-supp-bulk-input { width: 100%; max-width: 420px; box-sizing: border-box; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.hk-supp-bulk-mode { display: flex; gap: 16px; font-size: 13px; }
+.hk-supp-bulk-mode small { color: #64748b; }
+.hk-supp-bulk-summary { font-size: 13px; color: #475569; }
+.hk-supp-bulk-actions { display: flex; gap: 8px; }
+.hk-supp-preset-card.is-editing { box-shadow: 0 0 0 2px #c7d2fe inset; }
+.hk-supp-preset-add { display: flex; align-items: center; gap: 10px; padding: 10px 16px 14px; }
+.hk-supp-preset-products.is-editing { flex-wrap: wrap; align-items: flex-start; }
+.hk-supp-products-input { width: 100%; max-width: 360px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.hk-supp-products-actions { display: flex; gap: 8px; align-items: flex-end; }
+.hk-supp-picker { margin: 0 16px 14px; border: 1px solid #c7d2fe; border-radius: 8px; background: #fafaff; }
+.hk-supp-picker-head { display: flex; gap: 8px; padding: 10px; align-items: center; }
+.hk-supp-picker-head input[type=search] { flex: 1; min-width: 160px; }
+.hk-supp-picker-list { max-height: 280px; overflow: auto; padding: 4px 10px 10px; display: grid; gap: 2px; }
+.hk-supp-picker-item { display: flex; gap: 8px; align-items: baseline; font-size: 13px; padding: 2px 4px; border-radius: 4px; cursor: pointer; }
+.hk-supp-picker-item:hover { background: #eef2ff; }
+.hk-supp-picker-item small { color: #64748b; }
+.hk-supp-preset-wrap { overflow: visible; }
+.hk-supp-preset-table { width: 100%; min-width: 0; table-layout: fixed; }
+.hk-supp-preset-table td { overflow-wrap: anywhere; }
+.hk-supp-preset-table tr.is-inactive td { color: #94a3b8; }
 .hk-supp-use-select { width: 100%; padding: 3px 6px; font-size: 13px; }
 .hk-sub-table tr.is-inactive .hk-supp-use-select { color: #dc2626; font-weight: 700; }
 .hk-iso-listing-table tr.is-inactive td.hk-iso-draft-name { text-decoration: line-through; }
@@ -2239,3 +2289,28 @@
 .app-notice-item-meta {
   font-size: 11px; color: #94a3b8;
 }
+
+/* ─── 창문형단열재(hk_window) — mvalue 기준값 표 + 견적 미리보기 (js/pricing-hankook-window.js) ─── */
+.hk-win-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 16px 12px; }
+.hk-win-table { min-width: 0; width: 100%; }
+.hk-win-m-input { width: 64px; }
+.hk-win-ratio { color: #64748b; }
+.hk-win-form { display: flex; flex-wrap: wrap; gap: 12px; padding: 4px 16px 12px; }
+.hk-win-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: #475569; }
+.hk-win-form .pricing-input-field { min-width: 110px; padding: 5px 8px; font-size: 13px; }
+.hk-win-result { padding: 4px 16px 16px; max-width: 560px; }
+.hk-win-result-row { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #475569; }
+.hk-win-result-row b { color: #0f172a; text-align: right; }
+.hk-win-result-pay { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #eef2ff; color: #3730a3; font-size: 14px; }
+.hk-win-result-pay b { font-size: 18px; }
+.hk-win-result-note, .hk-win-result-empty { margin-top: 8px; font-size: 12px; color: #94a3b8; }
+/* 창문형단열재 구간 가격표(세로 × 가로 표) + 몰별 표의 구간 접기 요약 */
+.hk-win-range-table td.hk-win-range-cell { text-align: center; padding-top: 8px; padding-bottom: 8px; }
+.hk-win-range-cell b { display: block; font-size: 14px; color: #0f172a; }
+.hk-win-range-cell small { display: block; margin-top: 2px; font-size: 11px; color: #94a3b8; }
+.hk-win-range-cell.is-changed { background: #fff7ed; box-shadow: inset 0 0 0 1px #fdba74; }
+.hk-win-range-cell.is-changed b { color: #c2410c; }
+.hk-win-range-cell.is-base { background: #eff6ff; }
+.hk-win-range-cell.is-base small { color: #2563eb; font-weight: 700; }
+.hk-section-changed { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #c2410c; background: #ffedd5; border: 1px solid #fdba74; }
+.hk-section-member-row td { background-color: #fcfcff; }

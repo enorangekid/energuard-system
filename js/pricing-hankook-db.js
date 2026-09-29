@@ -188,6 +188,10 @@ function hkDbCollectState() {
       etcCosts: typeof HK_ETC_BOM !== 'undefined' ? { ...HK_ETC_BOM } : {},
       // 추가상품 사용여부 — 코드 기본값과 다르게 바꾼 것만 { 상품코드: 'Y'|'N' }으로 저장한다(js/pricing-hankook-supplement.js).
       supplementUse: typeof window.hkSupplementUseOverrides === 'function' ? window.hkSupplementUseOverrides() : {},
+      // 추가상품 엑셀 템플릿 프리셋 — [{ id, name, productIds, rows:[{ code, name?, price?, stock?, use? }] }] (js/pricing-hankook-supplement.js).
+      supplementPresets: typeof window.hkSupplementPresetsState === 'function' ? window.hkSupplementPresetsState() : [],
+      // 창문형단열재 mvalue — 코드 기본값과 다르게 바꾼 것만 { '채널|재질|두께': 값 }으로 저장한다(js/pricing-hankook-window.js).
+      windowMvalues: typeof window.hkWindowMvalueOverrides === 'function' ? window.hkWindowMvalueOverrides() : {},
     },
     products,
     channels: JSON.parse(JSON.stringify(HK_CHANNEL_LISTINGS)),
@@ -209,6 +213,8 @@ function _hkDbStateToRows(state) {
     { key: 'reflective_costs', value: s.reflectiveCosts || {}, updated_at: now },
     { key: 'etc_costs', value: s.etcCosts || {}, updated_at: now },
     { key: 'supplement_use', value: s.supplementUse || {}, updated_at: now },
+    { key: 'supplement_presets', value: s.supplementPresets || [], updated_at: now },
+    { key: 'window_mvalues', value: s.windowMvalues || {}, updated_at: now },
   ];
   const products = Object.entries(state.products).map(([code, p]) => ({
     product_code: code,
@@ -305,6 +311,8 @@ function _hkDbRowsToState(settingsRows, productRows, channelProductRows, channel
       reflectiveCosts: map.reflective_costs,
       etcCosts: map.etc_costs,
       supplementUse: map.supplement_use,
+      supplementPresets: map.supplement_presets,
+      windowMvalues: map.window_mvalues,
     },
     products,
     channels,
@@ -354,6 +362,14 @@ function _hkDbApplyState(state) {
   // 추가상품 사용여부 — 저장된 값이 있으면(빈 객체 포함) 코드 기본값 위에 덮어쓴다. 없으면 코드 기본값 그대로.
   if (s.supplementUse && typeof s.supplementUse === 'object' && typeof window.hkSupplementApplyUseOverrides === 'function') {
     window.hkSupplementApplyUseOverrides(s.supplementUse);
+  }
+  // 추가상품 프리셋 — 저장된 배열이 있으면(빈 배열 포함) 코드 시드를 대체한다. 없으면 코드 시드 그대로.
+  if (Array.isArray(s.supplementPresets) && typeof window.hkSupplementApplyPresets === 'function') {
+    window.hkSupplementApplyPresets(s.supplementPresets);
+  }
+  // 창문형단열재 mvalue — 저장된 값이 있으면(빈 객체 포함) 코드 기본값 위에 덮어쓴다. 없으면 코드 기본값 그대로.
+  if (s.windowMvalues && typeof s.windowMvalues === 'object' && typeof window.hkWindowApplyMvalueOverrides === 'function') {
+    window.hkWindowApplyMvalueOverrides(s.windowMvalues);
   }
   if (s.etcCosts && typeof HK_ETC_BOM !== 'undefined') {
     Object.keys(HK_ETC_BOM).forEach(lineKey => {
@@ -875,8 +891,14 @@ window.hkDbRestoreHistory = async function(id) {
 document.addEventListener('DOMContentLoaded', _hkDbRenderBar);
 
 // 판매가/배송 세부설정/원가 입력칸의 직접 수정을 저장 안 된 변경으로 표시한다.
+// 추가상품 탭(#pricing-tab-hk_supp)은 검색칸·붙여넣기 칸에 글자만 쳐도 바뀐 걸로 세면 안 되므로 여기서 빼고, 실제로 바뀐 게 있을 때만
+// 스스로 표시한다(js/pricing-hankook-supplement.js — [수정 완료]·탭 이동 확정 때).
 document.addEventListener('input', event => {
-  if (event.target?.closest?.('#hkPricingBodyWrap, #hkIsoShippingModal')) window.hkDbMarkDirty();
+  const target = event.target;
+  if (target?.closest?.('#pricing-tab-hk_supp')) return;
+  // 창문형단열재 탭은 견적 미리보기 입력이 저장 대상이 아니라서 여기서 빼고, mvalue가 실제로 바뀔 때만 스스로 표시한다(js/pricing-hankook-window.js).
+  if (target?.closest?.('#pricing-tab-hk_window')) return;
+  if (target?.closest?.('#hkPricingBodyWrap, #hkIsoShippingModal')) window.hkDbMarkDirty();
 });
 
 window.addEventListener('beforeunload', event => {

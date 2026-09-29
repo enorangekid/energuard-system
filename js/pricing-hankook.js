@@ -320,6 +320,7 @@ window.setHkPricingTab = function(tabId, el) {
   document.getElementById('pricing-tab-' + tabId)?.classList.add('active');
   // 추가상품 탭은 다른 카테고리 단가표의 현재 판매가에서 가격이 계산되므로, 열 때마다 다시 그려서 방금 고친 값이 바로 보이게 한다.
   if (tabId === 'hk_supp' && typeof renderHkSupplementPane === 'function') {
+    if (typeof window.hkSupplementLeaveEdit === 'function') window.hkSupplementLeaveEdit(); // 탭을 열 때마다 수정 모드는 꺼진다
     const suppPane = document.getElementById('pricing-tab-hk_supp');
     if (suppPane) suppPane.innerHTML = renderHkSupplementPane();
   }
@@ -368,6 +369,8 @@ function renderHkCategoryPane(tabId) {
   if (tabId === 'hk_wallpaper' && typeof renderHkWallpaperPane === 'function') return renderHkWallpaperPane();
   // 기타단열재도 같은 패턴으로 전용 파일에서 렌더한다.
   if (tabId === 'hk_etc' && typeof renderHkEtcPane === 'function') return renderHkEtcPane();
+  // 창문형단열재는 사이즈를 고객이 정하는 주문제작 상품(100원 상품 × 수량)이라 mvalue 기준값 화면을 전용 파일에서 렌더한다.
+  if (tabId === 'hk_window' && typeof renderHkWindowPane === 'function') return renderHkWindowPane();
   // 추가상품은 단가표에서 가격이 계산되는 목록이라(저장값 없음) 전용 파일에서 렌더한다.
   if (tabId === 'hk_supp' && typeof renderHkSupplementPane === 'function') return renderHkSupplementPane();
 
@@ -2156,6 +2159,8 @@ function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item
   if (categoryId === 'hk_reflective' && typeof window.hkReflectivePriceByCode === 'function') return window.hkReflectivePriceByCode(productCode);
   if (categoryId === 'hk_wallpaper' && typeof window.hkWallpaperPriceByCode === 'function') return window.hkWallpaperPriceByCode(productCode);
   if (categoryId === 'hk_etc' && typeof window.hkEtcPriceByCode === 'function') return window.hkEtcPriceByCode(productCode);
+  // 창문형단열재 구간 상품(스마트스토어 옵션 490개씩) — 가격은 mvalue에서 계산한다(js/pricing-hankook-window.js).
+  if (categoryId === 'hk_window' && typeof window.hkWindowPriceByCode === 'function') return window.hkWindowPriceByCode(productCode);
   return null;
 }
 
@@ -2218,6 +2223,25 @@ function _hkChannelGroupBadge(product) {
     : '';
 }
 
+/* 옵션이 아주 많은 상품(창문형단열재 구간 상품 — 상품당 490개)은 옵션에 section(예: "가로 500 미만")을 적어 두면
+   구간마다 한 줄 요약(옵션 수·가격 범위·변경 수)으로 접어서 보여준다. 기본은 접힘, 펼친 구간은 표가 다시 그려져도 기억한다. */
+const _hkExpandedChannelSections = new Set();
+function hkToggleChannelSection(button) {
+  const summaryRow = button?.closest('.hk-section-summary-row');
+  const tbody = summaryRow?.parentElement;
+  const key = summaryRow?.dataset.sectionKey;
+  if (!tbody || !key) return;
+  const expanded = button.getAttribute('aria-expanded') === 'true';
+  if (expanded) _hkExpandedChannelSections.delete(key); else _hkExpandedChannelSections.add(key);
+  button.setAttribute('aria-expanded', String(!expanded));
+  summaryRow.classList.toggle('is-expanded', !expanded);
+  tbody.querySelectorAll('.hk-section-member-row').forEach(row => {
+    if (row.dataset.sectionKey === key) row.hidden = expanded;
+  });
+  const label = button.querySelector('.hk-group-toggle-label');
+  if (label) label.textContent = expanded ? '옵션 보기' : '옵션 접기';
+}
+
 /* 그룹상품 구성원은 가격검사 때문에 각 상품번호를 그대로 보존하되, 화면에서는 대표 그룹상품 한 줄 아래 접어 둔다. */
 const _hkExpandedChannelGroups = new Set(); // 펼쳐 둔 그룹 — 표가 다시 그려져도(상태·메모 수정 등) 접히지 않게 기억한다
 function hkToggleChannelGroup(button) {
@@ -2264,6 +2288,21 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       : _hkChannelTargetPrice(categoryId, baseItem?.productCode, channelId, product, baseItem);
   });
 
+  // 구간(section)별 요약 — 옵션 수, 가격 범위, 수정 전 판매가와 달라진 옵션 수.
+  const sectionStats = {};
+  products.forEach(product => product.items.forEach(item => {
+    if (!item.section) return;
+    const key = `${channelId}|${product.productId}|${item.section}`;
+    const stat = sectionStats[key] || (sectionStats[key] = { count: 0, min: null, max: null, changed: 0 });
+    const price = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
+    stat.count++;
+    if (price != null) {
+      stat.min = stat.min == null ? price : Math.min(stat.min, price);
+      stat.max = stat.max == null ? price : Math.max(stat.max, price);
+      if (!item.status && item.prevPrice != null && price !== item.prevPrice) stat.changed++;
+    }
+  }));
+
   let rowsHtml = '';
   const renderedGroupCodes = new Set();
   const groupedProducts = new Map();
@@ -2305,9 +2344,30 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const productIdValue = (productLink
         ? `<a href="${productLink}" target="_blank" rel="noopener noreferrer">${product.productId}</a>`
         : product.productId) + _hkChannelGroupBadge(product);
-      const productIdCell = i === 0
-        ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${productIdValue}</td>`
-        : '';
+      // 구간(section)으로 접히는 상품은 첫 줄이 숨겨질 수 있어 rowspan 대신 줄마다 상품ID를 적는다.
+      const sectionKey = item.section ? `${channelId}|${product.productId}|${item.section}` : '';
+      const productIdCell = item.section
+        ? `<td class="hk-iso-listing-id">${productIdValue}</td>`
+        : (i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${productIdValue}</td>` : '');
+      if (sectionKey && (i === 0 || product.items[i - 1].section !== item.section)) {
+        const stat = sectionStats[sectionKey];
+        const sectionExpanded = _hkExpandedChannelSections.has(sectionKey);
+        rowsHtml += `<tr class="hk-group-summary-row hk-section-summary-row${sectionExpanded ? ' is-expanded' : ''}" data-section-key="${sectionKey}">
+          <td colspan="15">
+            <button type="button" class="hk-group-toggle" aria-expanded="${sectionExpanded}" onclick="hkToggleChannelSection(this)">
+              <span class="hk-group-toggle-icon"><i class="fa-solid fa-table-cells"></i></span>
+              <strong>${product.sectionLabel ? product.sectionLabel + ' · ' : ''}${item.section}</strong>
+              <span class="hk-group-representative">${product.productId}</span>
+              <span class="hk-group-count">옵션 ${stat.count}개${stat.min != null ? ` · ${_hkIsoDraftNumber(stat.min)} ~ ${_hkIsoDraftNumber(stat.max)}원` : ''}</span>
+              ${stat.changed ? `<span class="hk-section-changed">가격 변경 ${stat.changed}개</span>` : ''}
+              <span class="hk-group-toggle-label">${sectionExpanded ? '옵션 접기' : '옵션 보기'}</span>
+              <i class="fa-solid fa-chevron-down hk-group-chevron"></i>
+            </button>
+          </td>
+        </tr>`;
+      }
+      const sectionClass = sectionKey ? ' hk-section-member-row' : '';
+      const sectionAttr = sectionKey ? ` data-section-key="${sectionKey}"${_hkExpandedChannelSections.has(sectionKey) ? '' : ' hidden'}` : '';
       const groupStartClass = (i === 0 && groupIndex > 0) ? ' hk-iso-listing-group-start' : '';
       const statusClass = inactive ? ` is-inactive is-${item.status}` : '';
       // 옵션이 둘 이상인 상품은 라디오로 기준가 옵션을 고른다(하나뿐이면 그 옵션이 곧 기준).
@@ -2321,7 +2381,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
       const memberClass = groupProductCode ? ' hk-group-member-row' : '';
-      rowsHtml += `<tr class="${(groupStartClass + statusClass + memberClass).trim()}"${groupProductCode ? ` data-group-code="${groupProductCode}"${_hkExpandedChannelGroups.has(groupProductCode) ? '' : ' hidden'}` : ''}>
+      rowsHtml += `<tr class="${(groupStartClass + statusClass + memberClass + sectionClass).trim()}"${groupProductCode ? ` data-group-code="${groupProductCode}"${_hkExpandedChannelGroups.has(groupProductCode) ? '' : ' hidden'}` : ''}${sectionAttr}>
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
         <td class="hk-iso-draft-code">${item.displayCode ?? item.productCode}</td>
         ${productIdCell}
