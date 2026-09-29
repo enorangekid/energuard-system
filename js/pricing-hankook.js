@@ -360,6 +360,8 @@ function renderHkCategoryPane(tabId) {
   if (tabId === 'hk_reflective' && typeof renderHkReflectivePane === 'function') return renderHkReflectivePane();
   // 단열벽지도 판매길이 구조라 열반사단열재와 같은 패턴으로 전용 파일에서 렌더한다.
   if (tabId === 'hk_wallpaper' && typeof renderHkWallpaperPane === 'function') return renderHkWallpaperPane();
+  // 기타단열재도 같은 패턴으로 전용 파일에서 렌더한다.
+  if (tabId === 'hk_etc' && typeof renderHkEtcPane === 'function') return renderHkEtcPane();
 
   // 카테고리가 채워지면 여기에 전용 렌더 함수를 추가하면 됨 (renderHkIsopinkPane와 같은 패턴).
 
@@ -371,8 +373,11 @@ function renderHkCategoryPane(tabId) {
 }
 
 /* 한국단열 아이소핑크 단가표 공통 계산 */
+// Number#toLocaleString()은 호출마다 포맷터를 새로 만들어서 느리다(몰별 표 하나를 그리며 5천 번 가까이
+// 불러 46ms를 썼다) — 같은 결과를 내는 포맷터 하나를 재사용한다(2026-09-29).
+const _hkNumberFormat = new Intl.NumberFormat();
 function _hkIsoDraftNumber(value, suffix = '') {
-  return value === '' || value == null ? '—' : Number(value).toLocaleString() + suffix;
+  return value === '' || value == null ? '—' : _hkNumberFormat.format(Number(value)) + suffix;
 }
 
 function _hkIsoDraftParseNumber(value) {
@@ -425,38 +430,38 @@ function _hkIsoDraftUpdateRowTooltip(row) {
     ? `${_hkIsoDraftNumber(rawSaleCost)}원 (표시는 ${_hkIsoDraftNumber(saleCost)}원으로 반올림)`
     : `${_hkIsoDraftNumber(saleCost)}원`;
 
-  const addonText = fixedCostAddon ? ` + 접착 가공비 ${fixedCostAddon.toLocaleString()}원` : '';
+  const addonText = fixedCostAddon ? ` + 접착 가공비 ${_hkNumberFormat.format(fixedCostAddon)}원` : '';
   const isBead = row.dataset.line === 'bead';
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-margin-per-mm'), isBead
-    ? `적용 원가: ${marginPerMm.toLocaleString()}원/mm\n기본 원가(원/㎡·mm) × 원장 면적 + 추가마진(공통 원가 설정 카드)이고 두께와 관계없이 같습니다.`
-    : `적용 원가: ${marginPerMm.toLocaleString()}원/mm\n구간 기본 원가 ${_hkIsoDraftBaseCost(thickness).toLocaleString()}원/mm + 두께별 추가마진으로 계산됩니다.`);
+    ? `적용 원가: ${_hkNumberFormat.format(marginPerMm)}원/mm\n기본 원가(원/㎡·mm) × 원장 면적 + 추가마진(공통 원가 설정 카드)이고 두께와 관계없이 같습니다.`
+    : `적용 원가: ${_hkNumberFormat.format(marginPerMm)}원/mm\n구간 기본 원가 ${_hkNumberFormat.format(_hkIsoDraftBaseCost(thickness))}원/mm + 두께별 추가마진으로 계산됩니다.`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-sheet-cost'),
-    `원가 = 적용 원가 ${marginPerMm.toLocaleString()}원/mm × ${thickness}T${addonText}\n= ${sheetCost.toLocaleString()}원`);
+    `원가 = 적용 원가 ${_hkNumberFormat.format(marginPerMm)}원/mm × ${thickness}T${addonText}\n= ${_hkNumberFormat.format(sheetCost)}원`);
   _hkIsoDraftSetTooltip(row.children[4],
     `원본 엑셀에 기록된 판매가입니다.\n자동 계산값이 아니라 기존 기준값을 그대로 표시합니다.`);
   _hkIsoDraftSetTooltip(row.children[5],
     `판매사이즈 ${saleSize}\n원장 ${divisor}분할 × ${quantity}장 묶음`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-sale-cost'),
-    `판매원가 = 원가 ${sheetCost.toLocaleString()}원 ÷ ${divisor} × ${quantity}장\n= ${saleCostFormulaResult}`);
+    `판매원가 = 원가 ${_hkNumberFormat.format(sheetCost)}원 ÷ ${divisor} × ${quantity}장\n= ${saleCostFormulaResult}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-expected-price'),
-    `예상판매가 = 참고마진 ${referenceMargin}%를 달성하는 최소 가격\n판매원가 ${saleCostFormulaResult}에서 수수료 6%, 부가세 10%${shipping ? `, 배송비 ${shipping.toLocaleString()}원` : ''}를 차감한 순수마진율 기준\n100원 단위 올림 = ${_hkIsoDraftNumber(expectedPrice)}`);
+    `예상판매가 = 참고마진 ${referenceMargin}%를 달성하는 최소 가격\n판매원가 ${saleCostFormulaResult}에서 수수료 6%, 부가세 10%${shipping ? `, 배송비 ${_hkNumberFormat.format(shipping)}원` : ''}를 차감한 순수마진율 기준\n100원 단위 올림 = ${_hkIsoDraftNumber(expectedPrice)}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-price'),
-    `판매가: ${finalPrice.toLocaleString()}원\n예상판매가를 참고해 직접 정한 값입니다. 금액이나 연필 버튼을 누르면 이 행만 수정할 수 있습니다.`);
+    `판매가: ${_hkNumberFormat.format(finalPrice)}원\n예상판매가를 참고해 직접 정한 값입니다. 금액이나 연필 버튼을 누르면 이 행만 수정할 수 있습니다.`);
   if (finalPriceInput) finalPriceInput.title = row.querySelector('.hk-iso-draft-price').title;
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-margin'),
-    `마진 = 최종 판매가 ${finalPrice.toLocaleString()}원 - 판매원가 ${saleCostFormulaResult}\n= ${_hkIsoDraftNumber(rawMargin)}원${rawMargin !== margin ? ` → 반올림 ${margin.toLocaleString()}원` : ''}`);
+    `마진 = 최종 판매가 ${_hkNumberFormat.format(finalPrice)}원 - 판매원가 ${saleCostFormulaResult}\n= ${_hkIsoDraftNumber(rawMargin)}원${rawMargin !== margin ? ` → 반올림 ${_hkNumberFormat.format(margin)}원` : ''}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-fee'),
-    `판매수수료 = 최종 판매가 ${finalPrice.toLocaleString()}원 × 6%\n= ${fee.toLocaleString()}원`);
+    `판매수수료 = 최종 판매가 ${_hkNumberFormat.format(finalPrice)}원 × 6%\n= ${_hkNumberFormat.format(fee)}원`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-vat'),
-    `부가세 = 최종 판매가 ${finalPrice.toLocaleString()}원 × 10%\n= ${vat.toLocaleString()}원`);
+    `부가세 = 최종 판매가 ${_hkNumberFormat.format(finalPrice)}원 × 10%\n= ${_hkNumberFormat.format(vat)}원`);
   const refShipping = _hkIsoDraftParseNumber(row.dataset.refShipping);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-shipping'), isBead
-    ? (refShipping ? `참고용 배송비 ${refShipping.toLocaleString()}원\n원본 엑셀과 같이 장당마진에서는 빼지 않습니다.` : '표시할 배송비가 없습니다.')
-    : (shipping ? `판매 시 차감하는 배송비\n= ${shipping.toLocaleString()}원` : '차감할 배송비가 없습니다.'));
+    ? (refShipping ? `참고용 배송비 ${_hkNumberFormat.format(refShipping)}원\n원본 엑셀과 같이 장당마진에서는 빼지 않습니다.` : '표시할 배송비가 없습니다.')
+    : (shipping ? `판매 시 차감하는 배송비\n= ${_hkNumberFormat.format(shipping)}원` : '차감할 배송비가 없습니다.'));
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-net-margin'),
-    `장당마진 = 마진 ${_hkIsoDraftNumber(rawMargin)}원 - 수수료 ${fee.toLocaleString()}원 - 부가세 ${vat.toLocaleString()}원${shipping ? ` - 배송비 ${shipping.toLocaleString()}원` : ''}\n= ${_hkIsoDraftNumber(rawNetMargin)}원${rawNetMargin !== netMargin ? ` → 반올림 ${netMargin.toLocaleString()}원` : ''}`);
+    `장당마진 = 마진 ${_hkIsoDraftNumber(rawMargin)}원 - 수수료 ${_hkNumberFormat.format(fee)}원 - 부가세 ${_hkNumberFormat.format(vat)}원${shipping ? ` - 배송비 ${_hkNumberFormat.format(shipping)}원` : ''}\n= ${_hkIsoDraftNumber(rawNetMargin)}원${rawNetMargin !== netMargin ? ` → 반올림 ${_hkNumberFormat.format(netMargin)}원` : ''}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-rate'),
-    `순수마진율 = 장당마진 ${netMargin.toLocaleString()}원 ÷ 최종 판매가 ${finalPrice.toLocaleString()}원 × 100\n= ${rate}%`);
+    `순수마진율 = 장당마진 ${_hkNumberFormat.format(netMargin)}원 ÷ 최종 판매가 ${_hkNumberFormat.format(finalPrice)}원 × 100\n= ${rate}%`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-ref-margin'),
     `참고마진 ${referenceMargin}%\n예상판매가가 달성해야 하는 목표 순수마진율입니다.`);
 }
@@ -1894,9 +1899,45 @@ function _hkIsoProductNameFromCode(code) {
 /* 상품코드로 2단계 실판매가를 찾는다(VLOOKUP과 같은 방식) — 2단계 블록들을
    순서대로 뒤져서 코드가 일치하는 행을 찾고, 1단계의 지금 DOM 값 기준으로
    basePrice + 배송비플러스금액을 계산해 돌려준다. 못 찾으면 null. */
+/* 조회 색인 — 몰별 표 하나를 그릴 때 옵션마다 이 조회를 부르는데, 조회 한 번이 2단계 블록 전체와 화면의
+   입력칸(querySelectorAll)을 매번 처음부터 훑어서 옵션이 수백 개면 그것만으로 수십 ms가 걸렸다(2026-09-29).
+   그려지는 동안(_hkRunLookupPass)만 코드→값 색인을 한 번 만들어 재사용하고, 끝나면 버린다 — 입력칸을 고친
+   뒤에는 항상 새로 만들어지니 화면과 어긋날 일이 없다. 색인은 원래 조회와 같은 순서로 훑어서 같은 코드가
+   여럿이면 먼저 나온 행이 이기는 규칙도 그대로다. 그려지는 중이 아니면 예전 방식(아래 전체 훑기)을 쓴다. */
+let _hkLookupPass = null;
+function _hkRunLookupPass(fn) {
+  if (_hkLookupPass) return fn();
+  _hkLookupPass = { isoPrice: null, hkdShipping: null };
+  try { return fn(); } finally { _hkLookupPass = null; }
+}
+
+function _hkIsoBuildPriceIndex() {
+  const index = new Map();
+  for (const block of HK_ISO_SHIPPING_BLOCKS) {
+    const sourceRows = HK_ISO_CONNECTED_DRAFTS[block.sourceAccordion]?.rows || [];
+    const livePriceInputs = document.querySelectorAll(`#hkIsoAcc-${block.sourceAccordion} .hk-iso-final-price-input`);
+    let currentThickness = null;
+    for (let i = 0; i < sourceRows.length; i++) {
+      const row = sourceRows[i];
+      const thicknessMatch = row.name.match(/(\d+)T/);
+      if (thicknessMatch) currentThickness = Number(thicknessMatch[1]);
+      const ship = block.rows[i] || {};
+      const rowCode = ship.codeOverride || _hkIsoDraftProductCode(row.saleSize, currentThickness, block.isAdhesive, block.codePrefix);
+      if (index.has(rowCode)) continue;
+      const basePrice = livePriceInputs[i] ? _hkIsoDraftParseNumber(livePriceInputs[i].value) : Number(row.price);
+      index.set(rowCode, _hkIsoBlockRowFinalPrice(block, ship, basePrice));
+    }
+  }
+  return index;
+}
+
 function _hkIsoLookupFinalPriceByCode(code) {
   // 스티로폼의 별칭 코드(예: St_1800_900_… → St_900_1800_…)는 기준 코드로 바꿔서 찾는다.
   if (typeof window.hkBeadNormalizeCode === 'function') code = window.hkBeadNormalizeCode(code);
+  if (_hkLookupPass) {
+    const index = _hkLookupPass.isoPrice || (_hkLookupPass.isoPrice = _hkIsoBuildPriceIndex());
+    return index.has(code) ? index.get(code) : null;
+  }
   for (const block of HK_ISO_SHIPPING_BLOCKS) {
     const sourceRows = HK_ISO_CONNECTED_DRAFTS[block.sourceAccordion]?.rows || [];
     const livePriceInputs = document.querySelectorAll(`#hkIsoAcc-${block.sourceAccordion} .hk-iso-final-price-input`);
@@ -1944,6 +1985,16 @@ const HK_CHANNEL_CONFIG = {
    채널에만 있는 코드(예: 쿠팡전용 접착식 600x900 10T_10장)는 2단계 배송 블록의 기준 배송비로 대신한다.
    그것도 못 찾으면 null. */
 function _hkHkdShippingByCode(productCode) {
+  if (_hkLookupPass) {
+    // 그려지는 동안은 코드→배송비를 한 번만 계산해 둔다(못 찾아 2단계 블록까지 가는 경우도 포함).
+    const cache = _hkLookupPass.hkdShipping || (_hkLookupPass.hkdShipping = new Map());
+    if (!cache.has(productCode)) cache.set(productCode, _hkHkdShippingByCodeScan(productCode));
+    return cache.get(productCode);
+  }
+  return _hkHkdShippingByCodeScan(productCode);
+}
+
+function _hkHkdShippingByCodeScan(productCode) {
   const product = (HK_CHANNEL_LISTINGS.hkd || []).find(p => p.items.some(item => item.productCode === productCode));
   if (product) return Number(product.baseShipping || 0);
   return _hkIsoBlockShippingByCode(productCode);
@@ -1984,6 +2035,7 @@ function _hkChannelHkdPrice(categoryId, productCode) {
   if (categoryId === 'hk_isopink' || categoryId === 'hk_bead') return _hkIsoLookupFinalPriceByCode(productCode);
   if (categoryId === 'hk_reflective' && typeof window.hkReflectivePriceByCode === 'function') return window.hkReflectivePriceByCode(productCode);
   if (categoryId === 'hk_wallpaper' && typeof window.hkWallpaperPriceByCode === 'function') return window.hkWallpaperPriceByCode(productCode);
+  if (categoryId === 'hk_etc' && typeof window.hkEtcPriceByCode === 'function') return window.hkEtcPriceByCode(productCode);
   return null;
 }
 
@@ -2092,6 +2144,7 @@ function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item
   if (categoryId === 'hk_sub' && typeof window.hkSubPriceByCode === 'function') return window.hkSubPriceByCode(productCode);
   if (categoryId === 'hk_reflective' && typeof window.hkReflectivePriceByCode === 'function') return window.hkReflectivePriceByCode(productCode);
   if (categoryId === 'hk_wallpaper' && typeof window.hkWallpaperPriceByCode === 'function') return window.hkWallpaperPriceByCode(productCode);
+  if (categoryId === 'hk_etc' && typeof window.hkEtcPriceByCode === 'function') return window.hkEtcPriceByCode(productCode);
   return null;
 }
 
@@ -2612,18 +2665,22 @@ window.hkChannelSetBase = function(channelId, productId, index) {
    이후에 고친 것"만 보여준다. 저장이 실패하면 돌려놓을 수 있게 되돌리기 함수를 준다. */
 window.hkChannelAlignBaselines = function() {
   const backup = [];
-  Object.entries(HK_CHANNEL_LISTINGS).forEach(([channelId, products]) => (products || []).forEach(product => {
+  _hkRunLookupPass(() => Object.entries(HK_CHANNEL_LISTINGS).forEach(([channelId, products]) => (products || []).forEach(product => {
     product.items.forEach(item => {
       backup.push([item, item.prevPrice, item.prevShipping]);
       const target = _hkChannelTargetPrice(product.categoryId, item.productCode, channelId, product, item);
       if (target != null) item.prevPrice = target;
       if (product.baseShipping != null) item.prevShipping = product.baseShipping;
     });
-  }));
+  })));
   return () => backup.forEach(([item, price, shipping]) => { item.prevPrice = price; item.prevShipping = shipping; });
 };
 
 function _hkChannelListingHtml(channelId) {
+  return _hkRunLookupPass(() => _hkChannelListingHtmlBody(channelId));
+}
+
+function _hkChannelListingHtmlBody(channelId) {
   const channelLabel = HK_CHANNELS.find(c => c.id === channelId)?.label || channelId;
   const products = HK_CHANNEL_LISTINGS[channelId] || [];
   if (!products.length) {
@@ -2647,11 +2704,16 @@ function _hkChannelListingHtml(channelId) {
   const statusBadges = [['soldout', '품절'], ['stopped', '판매중지']]
     .filter(([key]) => statusCounts[key])
     .map(([key, label]) => `<span class="hk-channel-status-badge is-${key}">${label} ${statusCounts[key]}</span>`).join('');
+  // 스토어 가격검사는 확장이 한국단열 네이버스토어(hkdy)만 열 수 있어서 이 채널에만 둔다.
+  const storeCheckButton = channelId === 'hkd' && window.currentUser?.role === 'admin'
+    ? `<button type="button" class="pricing-margin-edit-btn" onclick="openHkStorePriceCheck('${channelId}')" title="네이버스토어의 옵션별 판매가가 이 표의 현재 판매가와 같은지 확인합니다(가격은 바꾸지 않음)">스토어 가격검사</button>`
+    : '';
 
   return `<div class="hk-channel-catalog-header card pricing-cost-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">${channelLabel} — 몰별 적용·검증<span class="pricing-spec-badge">전체 상품 ${products.length} · 옵션 ${optionCount}</span><span class="hk-channel-pending-badge${pending ? ' has-pending' : ''}">반영 대기 ${pending}</span>${statusBadges}</div>
         <span class="pricing-result-hint">수정 전 판매가·배송비 = 마지막으로 저장한 값 (단가표를 저장하면 현재 값으로 바뀝니다)</span>
+        ${storeCheckButton}
       </div>
       <div class="hk-channel-category-filters">${filterButtons}</div>
     </div>
@@ -2664,13 +2726,37 @@ window.setHkChannelCategory = function(categoryId) {
 };
 
 /* 채널 탭은 특정 품목 화면과 무관한 전사 상품 목록이다. */
+/* 표를 옆으로 넘겨 본 위치 — 다시 그리기 직전에 scrollLeft를 읽으면 화면 밖이라 그리기를 미룬 카드까지
+   배치가 강제돼서(수백 ms) 스크롤 이벤트로 그때그때 기억해 둔다. 표 순서 번호(data-scroll-index) 기준이고,
+   채널을 바꾸면 비운다(예전엔 다른 채널에서 넘겨 둔 위치가 새 채널 표에 그대로 적용되곤 했다). */
+let _hkScrollMemory = { channel: null, left: [] };
+
 window._hkRefreshChannelListing = function() {
   const section = document.getElementById('hkChannelListingSection');
   if (!section) return;
+  if (!section._hkScrollBound) {
+    section._hkScrollBound = true;
+    section.addEventListener('scroll', event => {
+      const el = event.target;
+      if (!el.classList || !el.classList.contains('pricing-table-scroll')) return;
+      const index = Number(el.dataset.scrollIndex);
+      if (Number.isInteger(index)) _hkScrollMemory.left[index] = el.scrollLeft;
+    }, { capture: true, passive: true });
+  }
   // 다시 그려도 표를 옆으로 넘겨 보던 위치는 유지한다(상태·기준 옵션을 바꿀 때마다 왼쪽 끝으로 튀지 않게).
-  const scrolls = [...section.querySelectorAll('.pricing-table-scroll')].map(el => el.scrollLeft);
+  if (_hkScrollMemory.channel !== window._activeHkChannel) _hkScrollMemory = { channel: window._activeHkChannel, left: [] };
+  const scrolls = _hkScrollMemory.left.slice();
   section.innerHTML = _hkChannelListingHtml(window._activeHkChannel);
-  section.querySelectorAll('.pricing-table-scroll').forEach((el, index) => { if (scrolls[index]) el.scrollLeft = scrolls[index]; });
+  // 화면 밖 카드는 그려지기 전까지 CSS의 기본 높이(800px)로 잡히는데 실제로는 수천 px이라 스크롤바가 튄다 —
+  // 행 수로 대충 높이를 잡아 둔다(한 번 그려지면 실제 높이를 기억한다: contain-intrinsic-size의 auto).
+  section.querySelectorAll('.hk-iso-channel-listing').forEach(card => {
+    const rows = card.querySelectorAll('tbody tr').length;
+    if (rows) card.style.containIntrinsicSize = `auto ${rows * 56 + 140}px`;
+  });
+  section.querySelectorAll('.pricing-table-scroll').forEach((el, index) => {
+    el.dataset.scrollIndex = index;
+    if (scrolls[index]) el.scrollLeft = scrolls[index];
+  });
   _hkFreezeListingColumns(section);
 };
 
@@ -2680,16 +2766,27 @@ window._hkRefreshChannelListing = function() {
    병합을 반영한 열 번호로 위치(left)를 정한다. 고정한 칸이 투명하면 뒤로 지나가는 내용이 비쳐 보이니
    흰 배경을 깔아준다(이미 색이 있는 칸은 그대로). */
 function _hkFreezeListingColumns(root) {
+  // 읽기와 쓰기를 섞으면 셀마다 스타일을 다시 계산해서 느리다(쿠팡 표 하나에 셀이 수천 개) — 배치로 나눠서
+  // 읽기(열 너비·배경색)를 전부 끝낸 다음 한꺼번에 쓴다(2026-09-29).
+  const targets = []; // { cell, left, last }
+  let sharedWidths = null; // 카드마다 같은 열 구성이라 첫 표에서 잰 실제 너비를 다른 표에도 쓴다
+  let sharedKey = null;
   root.querySelectorAll('table.hk-coupang-table').forEach(table => {
     const headRow = table.tHead && table.tHead.rows[0];
     if (!headRow) return;
     const codeIndex = [...headRow.cells].findIndex(th => th.textContent.trim() === '상품코드');
     if (codeIndex < 0) return;
     const count = codeIndex + 1;
+    const declared = [...table.querySelectorAll('colgroup col')].slice(0, count).map(col => parseFloat(col.style.width) || 0);
+    const key = declared.join(',');
     // 실제 화면에 그려진 열 너비를 우선 쓰고(표가 넓어서 열이 늘어날 수 있음), 아직 안 그려졌으면(숨김) 선언한 폭으로 대신한다.
-    let widths = [...headRow.cells].slice(0, count).map(th => th.getBoundingClientRect().width);
-    if (widths.some(width => !width)) {
-      widths = [...table.querySelectorAll('colgroup col')].slice(0, count).map(col => parseFloat(col.style.width) || 0);
+    let widths;
+    if (sharedWidths && sharedKey === key) {
+      widths = sharedWidths;
+    } else {
+      widths = [...headRow.cells].slice(0, count).map(th => th.getBoundingClientRect().width);
+      if (widths.some(width => !width)) widths = declared;
+      if (!(widths.length < count || widths.some(width => !width))) { sharedWidths = widths; sharedKey = key; }
     }
     if (widths.length < count || widths.some(width => !width)) return;
     const lefts = [];
@@ -2703,20 +2800,33 @@ function _hkFreezeListingColumns(root) {
       [...tr.cells].forEach(cell => {
         while (blocked[col] > 0) col += 1;
         const span = cell.colSpan || 1;
-        if (span === 1 && col < count) {
-          cell.classList.add('hk-freeze');
-          cell.style.left = `${lefts[col]}px`;
-          if (col === count - 1) cell.classList.add('hk-freeze-last');
-          if (cell.tagName === 'TD') {
-            const bg = getComputedStyle(cell).backgroundColor;
-            if (bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') cell.style.backgroundColor = '#fff';
-          }
-        }
+        if (span === 1 && col < count) targets.push({ cell, left: lefts[col], last: col === count - 1 });
         for (let k = 0; k < span; k++) occupied[col + k] = cell.rowSpan || 1;
         col += span;
       });
       for (let i = 0; i < occupied.length; i++) occupied[i] = Math.max(0, (occupied[i] || 0) - 1);
     });
+  });
+  // 읽기: 아직 아무것도 안 바꾼 상태에서 배경이 비어 있는 셀만 골라낸다(고정 열이 비치지 않게 흰색으로 채우려는 것).
+  // 이 표들의 배경은 칸·행의 클래스 조합으로만 정해진다(지그재그·호버 규칙이 안 걸림, 2026-09-29 673칸 전수 확인 —
+  // 25가지 조합마다 값이 하나) — 그래서 칸마다 읽지 않고 조합마다 한 번만 읽는다. 칸을 읽으면 화면 밖이라
+  // 그리기를 미룬 카드까지 스타일 계산이 강제돼서 쿠팡 탭이 60ms 넘게 더 걸렸다.
+  const whiteByClass = new Map();
+  const needsWhite = targets.map(({ cell }) => {
+    if (cell.tagName !== 'TD') return false;
+    const key = `${cell.className}|${cell.parentElement.className}`;
+    if (!whiteByClass.has(key)) {
+      const bg = getComputedStyle(cell).backgroundColor;
+      whiteByClass.set(key, bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent');
+    }
+    return whiteByClass.get(key);
+  });
+  // 쓰기
+  targets.forEach(({ cell, left, last }, index) => {
+    cell.classList.add('hk-freeze');
+    cell.style.left = `${left}px`;
+    if (last) cell.classList.add('hk-freeze-last');
+    if (needsWhite[index]) cell.style.backgroundColor = '#fff';
   });
 }
 

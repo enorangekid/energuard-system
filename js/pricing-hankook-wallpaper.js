@@ -20,9 +20,13 @@
      판상형처럼 재단 가공비가 얹힌 걸로 추정) 안 썼다(사용자도 "마스터 단가로"라고 확인).
      이중화이트만 2.3M 표 자체의 m당원가(1,865원)가 마스터(1,770원)랑 달랐는데, 마스터 값으로 통일.
      2.3M×10장(판상형) 묶음도 같은 마스터 단가 × 23m(10장×2.3m)로 계산했다.
-   - "26.05.08 인상가(25%)" 열도 열반사단열재와 같이 참고용으로 화면에 보여준다(계산엔 안 씀).
+   - **2026-09-28 수정(사용자 확인)**: "26.05.08 인상가(25%)"는 참고용이 아니라 지금 실제 적용
+     중인 판매가였다(원가 공식을 몰라서 그때 기존 판매가에서 25% 가볍게 올린 게 그대로 굳어짐) —
+     그래서 increase25가 있는 상품은 그 값을 판매가로 승격하고 기존 판매가는 이전 판매가로 내렸다
+     (`HK_WALLPAPER_PRODUCTS.forEach` 참고). "인상가" 열 자체는 이제 판매가와 같아져서 화면에서 뺐다.
+     2.3M×10장 묶음 4개(increase25 없음, 채널 데이터로 나중에 추가돼서 인상 이력이 없음)는 그대로 둠.
    - 참고마진율 열은 원본 엑셀에 없어서(열반사단열재와 같은 이유로) 실판매가 기준 순수마진율을 5%
-     단위로 반올림해 채웠다.
+     단위로 반올림해 채웠다(2026-09-28 판매가 인상 반영해서 다시 계산).
    - 쿠팡 위너 전용 코드(WP_..._C, 10M·20M)는 이번엔 안 옮겼다 — 이중화이트·실크형 2개는 원본에
      실판매가가 비어 있어(확정 전으로 보임) 사용자에게 물어봐야 하는데, 지금은 "20M 기준"으로
      범위를 좁히기로 해서 일단 전부 보류(나중에 채널 작업 때 필요하면 다시 확인).
@@ -46,31 +50,39 @@ function _hkWallpaperRollCost(masterKey, length) {
 }
 
 const HK_WALLPAPER_PRODUCTS = [
-  { name:'단열벽지(고급형1)', spec:'5T X 1M', code:'WP_P1_5_1', masterKey:'P1', length:1, price:3400, increase25:3600, refMargin:35 },
-  { name:'단열벽지(고급형1)', spec:'5T X 2.3M(판)', code:'WP_P1_5_23', masterKey:'P1', length:2.3, price:13500, increase25:14000, refMargin:55 },
+  { name:'단열벽지(고급형1)', spec:'5T X 1M', code:'WP_P1_5_1', masterKey:'P1', length:1, price:3400, increase25:3600, refMargin:40 },
+  { name:'단열벽지(고급형1)', spec:'5T X 2.3M(판)', code:'WP_P1_5_23', masterKey:'P1', length:2.3, price:13500, increase25:14000, refMargin:60 },
   { name:'단열벽지(고급형1)', spec:'5T X 10M', code:'WP_P1_5_10', masterKey:'P1', length:10, price:45000, increase25:48700, refMargin:50 },
   { name:'단열벽지(고급형1)', spec:'5T X 20M(롤)', code:'WP_P1_5_20', masterKey:'P1', length:20, price:69000, increase25:74900, refMargin:40 },
   { name:'단열벽지(고급형1)', spec:'5T X 2.3M X 10장(판상형)', code:'WP_P1_5_23_10', masterKey:'P1', length:23, price:91000, increase25:null, refMargin:45 },
   { name:'단열벽지(고급형2)', spec:'5T X 1M', code:'WP_P2_5_1', masterKey:'P2', length:1, price:6000, increase25:6200, refMargin:60 },
   { name:'단열벽지(고급형2)', spec:'5T X 2.3M(판)', code:'WP_P2_5_23', masterKey:'P2', length:2.3, price:16500, increase25:16700, refMargin:60 },
-  { name:'단열벽지(고급형2)', spec:'5T X 10M', code:'WP_P2_5_10', masterKey:'P2', length:10, price:49000, increase25:51200, refMargin:50 },
-  { name:'단열벽지(고급형2)', spec:'5T X 20M(롤)', code:'WP_P2_5_20', masterKey:'P2', length:20, price:84000, increase25:89600, refMargin:45 },
+  { name:'단열벽지(고급형2)', spec:'5T X 10M', code:'WP_P2_5_10', masterKey:'P2', length:10, price:49000, increase25:51200, refMargin:55 },
+  { name:'단열벽지(고급형2)', spec:'5T X 20M(롤)', code:'WP_P2_5_20', masterKey:'P2', length:20, price:84000, increase25:89600, refMargin:50 },
   { name:'단열벽지(고급형2)', spec:'5T X 2.3M X 10장(판상형)', code:'WP_P2_5_23_10', masterKey:'P2', length:23, price:99000, increase25:null, refMargin:45 },
-  { name:'단열벽지(이중화이트)', spec:'5T X 1M', code:'WP_DW_5_1', masterKey:'DW', length:1, price:6300, increase25:6700, refMargin:55 },
+  { name:'단열벽지(이중화이트)', spec:'5T X 1M', code:'WP_DW_5_1', masterKey:'DW', length:1, price:6300, increase25:6700, refMargin:60 },
   { name:'단열벽지(이중화이트)', spec:'5T X 2.3M(판)', code:'WP_DW_5_23', masterKey:'DW', length:2.3, price:19000, increase25:19200, refMargin:65 },
-  { name:'단열벽지(이중화이트)', spec:'5T X 10M', code:'WP_DW_5_10', masterKey:'DW', length:10, price:54000, increase25:57600, refMargin:50 },
+  { name:'단열벽지(이중화이트)', spec:'5T X 10M', code:'WP_DW_5_10', masterKey:'DW', length:10, price:54000, increase25:57600, refMargin:55 },
   { name:'단열벽지(이중화이트)', spec:'5T X 20M(롤)', code:'WP_DW_5_20', masterKey:'DW', length:20, price:90000, increase25:96000, refMargin:45 },
   { name:'단열벽지(이중화이트)', spec:'5T X 2.3M X 10장(판상형)', code:'WP_DW_5_23_10', masterKey:'DW', length:23, price:107000, increase25:null, refMargin:45 },
-  { name:'단열벽지(실크형)', spec:'5T X 1M', code:'WP_SK_5_1', masterKey:'SK', length:1, price:6300, increase25:6700, refMargin:55 },
+  { name:'단열벽지(실크형)', spec:'5T X 1M', code:'WP_SK_5_1', masterKey:'SK', length:1, price:6300, increase25:6700, refMargin:60 },
   { name:'단열벽지(실크형)', spec:'5T X 2.3M(판)', code:'WP_SK_5_23', masterKey:'SK', length:2.3, price:19000, increase25:19200, refMargin:65 },
   { name:'단열벽지(실크형)', spec:'5T X 10M', code:'WP_SK_5_10', masterKey:'SK', length:10, price:54000, increase25:57600, refMargin:55 },
-  { name:'단열벽지(실크형)', spec:'5T X 20M(롤)', code:'WP_SK_5_20', masterKey:'SK', length:20, price:90000, increase25:96000, refMargin:45 },
+  { name:'단열벽지(실크형)', spec:'5T X 20M(롤)', code:'WP_SK_5_20', masterKey:'SK', length:20, price:90000, increase25:96000, refMargin:50 },
   { name:'단열벽지(실크형)', spec:'5T X 2.3M X 10장(판상형)', code:'WP_SK_5_23_10', masterKey:'SK', length:23, price:107000, increase25:null, refMargin:50 },
   // 9T 슈퍼형은 더 이상 안 판다(사용자 확인, 2026-09-23) — 빼둠.
 ].map(row => ({ group: HK_WALLPAPER_MASTER[row.masterKey].label, cost: 0, ...row }));
 
 // 이전 판매가 — 엑셀에 별도 "수정 전" 값이 없어서(신규 카테고리) 처음에는 지금 판매가와 같게 둔다.
-HK_WALLPAPER_PRODUCTS.forEach(product => { product.previousPrice = product.price; });
+// 2026-09-28 사용자 확인: "26.05.08 인상가(25%)"는 참고용이 아니라 지금 실제 적용 중인 판매가다
+// (엑셀 원가 공식을 몰라서 그때 기존 판매가에서 25% 가볍게 올려서 반영한 게 지금 실판매가로 굳어짐).
+// increase25가 있는 상품은 그 값을 판매가로 승격하고, 기존 판매가는 이전 판매가로 내린다.
+// increase25가 없는 상품(2.3M×10장 묶음 4개 — 나중에 채널 데이터로 새로 추가돼서 인상 이력이 없음)은
+// 그대로 둔다.
+HK_WALLPAPER_PRODUCTS.forEach(product => {
+  product.previousPrice = product.price;
+  if (product.increase25 != null) product.price = product.increase25;
+});
 
 function hkWallpaperRefreshDerived() {
   HK_WALLPAPER_PRODUCTS.forEach(product => { product.cost = _hkWallpaperRollCost(product.masterKey, product.length); });
@@ -102,7 +114,6 @@ function _hkWallpaperRowHtml(product, rowIndex) {
       </div>
       <div class="hk-iso-price-history" hidden>변경 전 <span>${Number(product.price).toLocaleString()}원</span><button type="button" onclick="revertHkWallpaperRowPrice(this)" title="변경 전 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
     </td>
-    <td class="hk-reflective-increase" title="26.05.08 인상가(25%) — 엑셀 참고용 숫자, 계산에는 안 쓴다">${_hkIsoDraftNumber(product.increase25)}</td>
     <td class="hk-sub-margin">${_hkIsoDraftNumber(metrics.margin)}</td>
     <td class="hk-sub-fee">${_hkIsoDraftNumber(metrics.fee)}</td>
     <td class="hk-sub-vat">${_hkIsoDraftNumber(metrics.vat)}</td>
@@ -128,13 +139,12 @@ function _hkWallpaperTableHtml(items) {
       <colgroup>
         <col class="hk-reflective-col-name"><col class="hk-reflective-col-spec"><col class="hk-reflective-col-code">
         <col class="hk-reflective-col-cost"><col class="hk-sub-col-previous"><col class="hk-sub-col-price">
-        <col class="hk-reflective-col-increase"><col class="hk-sub-col-margin"><col class="hk-sub-col-margin"><col class="hk-sub-col-margin">
+        <col class="hk-sub-col-margin"><col class="hk-sub-col-margin"><col class="hk-sub-col-margin">
         <col class="hk-sub-col-net"><col class="hk-sub-col-rate"><col class="hk-sub-col-rate">
       </colgroup>
       <thead><tr>
         <th class="hk-sub-head-base">품명</th><th class="hk-sub-head-base">규격</th><th class="hk-sub-head-code">상품코드</th>
         <th class="hk-sub-head-base">원가</th><th class="hk-sub-head-base">이전 판매가</th><th class="hk-sub-head-sale-price">판매가</th>
-        <th class="hk-sub-head-base">26.05.08<br>인상가(25%)</th>
         <th class="hk-sub-head-margin">마진</th><th class="hk-sub-head-margin">판매수수료<br><small>6%</small></th><th class="hk-sub-head-margin">부가세<br><small>10%</small></th>
         <th class="hk-sub-head-margin">순수마진</th><th class="hk-sub-head-rate">순수마진율</th><th class="hk-sub-ref-margin-head">참고마진율</th>
       </tr></thead>

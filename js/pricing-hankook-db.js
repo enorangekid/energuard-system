@@ -90,6 +90,8 @@ function _hkDbProductIndex() {
   if (typeof window.hkReflectiveProductIndex === 'function') list.push(...window.hkReflectiveProductIndex());
   // 단열벽지도 같은 평면 표 방식(2단계 배송 정책 없음).
   if (typeof window.hkWallpaperProductIndex === 'function') list.push(...window.hkWallpaperProductIndex());
+  // 기타단열재도 같은 평면 표 방식(2단계 배송 정책 없음).
+  if (typeof window.hkEtcProductIndex === 'function') list.push(...window.hkEtcProductIndex());
   return list;
 }
 
@@ -182,6 +184,8 @@ function hkDbCollectState() {
         bom: { ...HK_REFLECTIVE_BOM },
         roll: Object.fromEntries(Object.entries(HK_REFLECTIVE_ROLL_MASTER).map(([key, m]) => [key, m.cost])),
       } : {},
+      // 기타단열재 원가 설정 — 상품군(필름난방보온재·캠핑용단열재)별 OPP필름·PE폼·하이덴필름·포장비.
+      etcCosts: typeof HK_ETC_BOM !== 'undefined' ? { ...HK_ETC_BOM } : {},
     },
     products,
     channels: JSON.parse(JSON.stringify(HK_CHANNEL_LISTINGS)),
@@ -201,6 +205,7 @@ function _hkDbStateToRows(state) {
     { key: 'channel_options', value: s.channelOptions || {}, updated_at: now },
     { key: 'bead_costs', value: s.beadCosts || {}, updated_at: now },
     { key: 'reflective_costs', value: s.reflectiveCosts || {}, updated_at: now },
+    { key: 'etc_costs', value: s.etcCosts || {}, updated_at: now },
   ];
   const products = Object.entries(state.products).map(([code, p]) => ({
     product_code: code,
@@ -295,6 +300,7 @@ function _hkDbRowsToState(settingsRows, productRows, channelProductRows, channel
       channelOptions: map.channel_options,
       beadCosts: map.bead_costs,
       reflectiveCosts: map.reflective_costs,
+      etcCosts: map.etc_costs,
     },
     products,
     channels,
@@ -340,6 +346,15 @@ function _hkDbApplyState(state) {
       if (finite(s.reflectiveCosts.roll?.[key])) HK_REFLECTIVE_ROLL_MASTER[key].cost = Number(s.reflectiveCosts.roll[key]);
     });
     window.hkReflectiveRefreshDerived?.(); // 판상형·롤형 원가를 새 설정으로 다시 계산한다
+  }
+  if (s.etcCosts && typeof HK_ETC_BOM !== 'undefined') {
+    Object.keys(HK_ETC_BOM).forEach(lineKey => {
+      Object.keys(HK_ETC_BOM[lineKey]).forEach(field => {
+        if (field === 'label') return;
+        if (finite(s.etcCosts[lineKey]?.[field])) HK_ETC_BOM[lineKey][field] = Number(s.etcCosts[lineKey][field]);
+      });
+    });
+    window.hkEtcRefreshDerived?.(); // 상품군 원가를 새 설정으로 다시 계산한다
   }
   // 채널 옵션 설정(기준가 옵션·판매상태)은 저장된 값이 있을 때만 덮어쓰고, 덮어쓰기 전에 모두 기본값으로 되돌린다.
   // 메모는 status·manualPrice와 달리 코드에 기본값이 들어 있는 항목(열반사단열재·단열벽지의 조건부

@@ -4,9 +4,13 @@
    엑셀(C:\Users\Hankook_design\Desktop\★단가표수정\한국단열\나눔\열반사단열재.xlsx, 시트 "열반사단열재")을
    사용자와 함께 확인해서 옮겼다. 2단계 배송 정책은 없다(사용자 확인) — 이 카테고리는 1단계 표만 있다.
    판매가 입력값은 항상 엑셀의 "실판매가"(가장 오른쪽 S열, 아이소핑크·스티로폼의 주황 셀과 같은
-   역할 — 판매가를 보고 사람이 맞춰 조정한 최종값)를 그대로 썼다. "26.05.08 인상가(25%)" 열도
-   엑셀과 비슷하게 참고용으로 화면에 같이 보여준다(계산에는 안 쓴다 — 원가 계산법을 몰라서 그냥
-   기존 가격에 감으로 25% 올린 숫자라고 사용자가 확인함).
+   역할 — 판매가를 보고 사람이 맞춰 조정한 최종값)를 그대로 썼다.
+
+   **2026-09-28 수정(사용자 확인 — 단열벽지·기타단열재와 같은 문제)**: "26.05.08 인상가(25%)"는
+   참고용이 아니라 지금 실제 적용 중인 판매가였다(원가 계산법을 몰라서 그때 판매가에서 25% 가볍게
+   올린 게 그대로 굳어짐). increase25를 판매가로 승격하고 기존 판매가는 이전 판매가로 내렸다
+   (`HK_REFLECTIVE_PRODUCTS.forEach`). "인상가" 열 자체는 판매가와 같아져서 화면에서 뺐다. 참고마진율도
+   새 판매가 기준으로 다시 계산(스크립트로 132개 전부 갱신, 아래 참고).
 
    두 가지 형태가 있다(사용자 확인 — 롤과 판상형은 서로 다른 제품):
    - 롤형(5T/6T/10T/13T + 고티 20~50T): 원가를 원재료(PE폼·PET필름 등) 단가로 더 쪼개는 공식은 못
@@ -97,11 +101,11 @@ const HK_REFLECTIVE_PRODUCTS = [
     { name:'5T 일반형 비접착', spec:'5T X 5M', code:'BL_5_5_SN', increase25:18000, masterKey:'5_SN', length:5, price:18000, refMargin:60 },
     { name:'5T 고급형 비접착', spec:'5T X 5M', code:'BL_5_5_DN', increase25:21000, masterKey:'5_DN', length:5, price:19000, refMargin:60 },
     { name:'5T 일반형 한쪽접착', spec:'5T X 5M', code:'BL_5_5_SA', increase25:27000, masterKey:'5_SA', length:5, price:25000, refMargin:60 },
-    { name:'5T 고급형 한쪽접착', spec:'5T X 5M', code:'BL_5_5_DA', increase25:28000, masterKey:'5_DA', length:5, price:26000, refMargin:55 },
+    { name:'5T 고급형 한쪽접착', spec:'5T X 5M', code:'BL_5_5_DA', increase25:28000, masterKey:'5_DA', length:5, price:26000, refMargin:60 },
     { name:'5T 일반형 비접착', spec:'5T X 10M', code:'BL_5_10_SN', increase25:32000, masterKey:'5_SN', length:10, price:32000, refMargin:60 },
     { name:'5T 고급형 비접착', spec:'5T X 10M', code:'BL_5_10_DN', increase25:34000, masterKey:'5_DN', length:10, price:34000, refMargin:55 },
     { name:'5T 일반형 한쪽접착', spec:'5T X 10M', code:'BL_5_10_SA', increase25:49000, masterKey:'5_SA', length:10, price:48000, refMargin:55 },
-    { name:'5T 고급형 한쪽접착', spec:'5T X 10M', code:'BL_5_10_DA', increase25:54000, masterKey:'5_DA', length:10, price:50000, refMargin:55 },
+    { name:'5T 고급형 한쪽접착', spec:'5T X 10M', code:'BL_5_10_DA', increase25:54000, masterKey:'5_DA', length:10, price:50000, refMargin:60 },
     { name:'5T 일반형 비접착', spec:'5T X 15M', code:'BL_5_15_SN', increase25:44000, masterKey:'5_SN', length:15, price:45000, refMargin:55 },
     { name:'5T 고급형 비접착', spec:'5T X 15M', code:'BL_5_15_DN', increase25:48000, masterKey:'5_DN', length:15, price:48000, refMargin:55 },
     { name:'5T 일반형 한쪽접착', spec:'5T X 15M', code:'BL_5_15_SA', increase25:70000, masterKey:'5_SA', length:15, price:68000, refMargin:55 },
@@ -129,21 +133,21 @@ const HK_REFLECTIVE_PRODUCTS = [
     { name:'6T 일반형 한쪽접착', spec:'6T X 5M', code:'BL_6_5_SA', increase25:37000, masterKey:'6_SA', length:5, price:35500, refMargin:60 },
     { name:'6T 고급형 한쪽접착', spec:'6T X 5M', code:'BL_6_5_DA', increase25:40000, masterKey:'6_DA', length:5, price:36500, refMargin:60 },
     { name:'6T 일반형 비접착', spec:'6T X 10M', code:'BL_6_10_SN', increase25:53000, masterKey:'6_SN', length:10, price:50000, refMargin:60 },
-    { name:'6T 고급형 비접착', spec:'6T X 10M', code:'BL_6_10_DN', increase25:57000, masterKey:'6_DN', length:10, price:52000, refMargin:55 },
+    { name:'6T 고급형 비접착', spec:'6T X 10M', code:'BL_6_10_DN', increase25:57000, masterKey:'6_DN', length:10, price:52000, refMargin:60 },
     { name:'6T 일반형 한쪽접착', spec:'6T X 10M', code:'BL_6_10_SA', increase25:72000, masterKey:'6_SA', length:10, price:69000, refMargin:60 },
     { name:'6T 고급형 한쪽접착', spec:'6T X 10M', code:'BL_6_10_DA', increase25:78000, masterKey:'6_DA', length:10, price:71000, refMargin:60 },
-    { name:'6T 일반형 비접착', spec:'6T X 15M', code:'BL_6_15_SN', increase25:75000, masterKey:'6_SN', length:15, price:70000, refMargin:55 },
+    { name:'6T 일반형 비접착', spec:'6T X 15M', code:'BL_6_15_SN', increase25:75000, masterKey:'6_SN', length:15, price:70000, refMargin:60 },
     { name:'6T 고급형 비접착', spec:'6T X 15M', code:'BL_6_15_DN', increase25:80000, masterKey:'6_DN', length:15, price:74000, refMargin:55 },
-    { name:'6T 일반형 한쪽접착', spec:'6T X 15M', code:'BL_6_15_SA', increase25:103000, masterKey:'6_SA', length:15, price:98000, refMargin:55 },
-    { name:'6T 고급형 한쪽접착', spec:'6T X 15M', code:'BL_6_15_DA', increase25:110000, masterKey:'6_DA', length:15, price:102000, refMargin:55 },
-    { name:'6T 일반형 비접착', spec:'6T X 20M', code:'BL_6_20_SN', increase25:102000, masterKey:'6_SN', length:20, price:96000, refMargin:55 },
-    { name:'6T 고급형 비접착', spec:'6T X 20M', code:'BL_6_20_DN', increase25:109000, masterKey:'6_DN', length:20, price:102000, refMargin:55 },
-    { name:'6T 일반형 한쪽접착', spec:'6T X 20M', code:'BL_6_20_SA', increase25:138000, masterKey:'6_SA', length:20, price:130000, refMargin:55 },
-    { name:'6T 고급형 한쪽접착', spec:'6T X 20M', code:'BL_6_20_DA', increase25:149000, masterKey:'6_DA', length:20, price:136000, refMargin:55 },
+    { name:'6T 일반형 한쪽접착', spec:'6T X 15M', code:'BL_6_15_SA', increase25:103000, masterKey:'6_SA', length:15, price:98000, refMargin:60 },
+    { name:'6T 고급형 한쪽접착', spec:'6T X 15M', code:'BL_6_15_DA', increase25:110000, masterKey:'6_DA', length:15, price:102000, refMargin:60 },
+    { name:'6T 일반형 비접착', spec:'6T X 20M', code:'BL_6_20_SN', increase25:102000, masterKey:'6_SN', length:20, price:96000, refMargin:60 },
+    { name:'6T 고급형 비접착', spec:'6T X 20M', code:'BL_6_20_DN', increase25:109000, masterKey:'6_DN', length:20, price:102000, refMargin:60 },
+    { name:'6T 일반형 한쪽접착', spec:'6T X 20M', code:'BL_6_20_SA', increase25:138000, masterKey:'6_SA', length:20, price:130000, refMargin:60 },
+    { name:'6T 고급형 한쪽접착', spec:'6T X 20M', code:'BL_6_20_DA', increase25:149000, masterKey:'6_DA', length:20, price:136000, refMargin:60 },
     { name:'6T 일반형 비접착', spec:'6T X 25M(롤)', code:'BL_6_25_SN', increase25:121000, masterKey:'6_SN', length:25, price:110000, refMargin:55 },
     { name:'6T 고급형 비접착', spec:'6T X 25M(롤)', code:'BL_6_25_DN', increase25:129000, masterKey:'6_DN', length:25, price:118000, refMargin:55 },
     { name:'6T 일반형 한쪽접착', spec:'6T X 25M(롤)', code:'BL_6_25_SA', increase25:165000, masterKey:'6_SA', length:25, price:157000, refMargin:55 },
-    { name:'6T 고급형 한쪽접착', spec:'6T X 25M(롤)', code:'BL_6_25_DA', increase25:178000, masterKey:'6_DA', length:25, price:165000, refMargin:55 },
+    { name:'6T 고급형 한쪽접착', spec:'6T X 25M(롤)', code:'BL_6_25_DA', increase25:178000, masterKey:'6_DA', length:25, price:165000, refMargin:60 },
   ]),
   ..._hkReflectiveRollRows('10T', [
     { name:'10T 일반형 비접착', spec:'10T X 25M(롤)', code:'BL_10_25_SN_R', increase25:121000, masterKey:'10_SN', length:25, price:121000, refMargin:50 },
@@ -154,25 +158,25 @@ const HK_REFLECTIVE_PRODUCTS = [
     { name:'10T 고급형 비접착', spec:'10T X 1M', code:'BL_10_1_DN', increase25:6200, masterKey:'10_DN', length:1, price:6200, refMargin:50 },
     { name:'10T 일반형 한쪽접착', spec:'10T X 1M', code:'BL_10_1_SA', increase25:7700, masterKey:'10_SA', length:1, price:7700, refMargin:55 },
     { name:'10T 고급형 한쪽접착', spec:'10T X 1M', code:'BL_10_1_DA', increase25:8100, masterKey:'10_DA', length:1, price:8100, refMargin:55 },
-    { name:'10T 일반형 비접착', spec:'10T X 5M', code:'BL_10_5_SN', increase25:37000, masterKey:'10_SN', length:5, price:33000, refMargin:55 },
-    { name:'10T 고급형 비접착', spec:'10T X 5M', code:'BL_10_5_DN', increase25:41000, masterKey:'10_DN', length:5, price:35000, refMargin:55 },
-    { name:'10T 일반형 한쪽접착', spec:'10T X 5M', code:'BL_10_5_SA', increase25:49000, masterKey:'10_SA', length:5, price:42000, refMargin:55 },
+    { name:'10T 일반형 비접착', spec:'10T X 5M', code:'BL_10_5_SN', increase25:37000, masterKey:'10_SN', length:5, price:33000, refMargin:60 },
+    { name:'10T 고급형 비접착', spec:'10T X 5M', code:'BL_10_5_DN', increase25:41000, masterKey:'10_DN', length:5, price:35000, refMargin:60 },
+    { name:'10T 일반형 한쪽접착', spec:'10T X 5M', code:'BL_10_5_SA', increase25:49000, masterKey:'10_SA', length:5, price:42000, refMargin:60 },
     { name:'10T 고급형 한쪽접착', spec:'10T X 5M', code:'BL_10_5_DA', increase25:52000, masterKey:'10_DA', length:5, price:46000, refMargin:60 },
-    { name:'10T 일반형 비접착', spec:'10T X 10M', code:'BL_10_10_SN', increase25:73000, masterKey:'10_SN', length:10, price:65000, refMargin:55 },
-    { name:'10T 고급형 비접착', spec:'10T X 10M', code:'BL_10_10_DN', increase25:79000, masterKey:'10_DN', length:10, price:69000, refMargin:55 },
-    { name:'10T 일반형 한쪽접착', spec:'10T X 10M', code:'BL_10_10_SA', increase25:94000, masterKey:'10_SA', length:10, price:83000, refMargin:55 },
-    { name:'10T 고급형 한쪽접착', spec:'10T X 10M', code:'BL_10_10_DA', increase25:100000, masterKey:'10_DA', length:10, price:89000, refMargin:55 },
-    { name:'10T 일반형 비접착', spec:'10T X 15M', code:'BL_10_15_SN', increase25:104000, masterKey:'10_SN', length:15, price:97000, refMargin:55 },
-    { name:'10T 고급형 비접착', spec:'10T X 15M', code:'BL_10_15_DN', increase25:111000, masterKey:'10_DN', length:15, price:103000, refMargin:55 },
-    { name:'10T 일반형 한쪽접착', spec:'10T X 15M', code:'BL_10_15_SA', increase25:135000, masterKey:'10_SA', length:15, price:122000, refMargin:55 },
-    { name:'10T 고급형 한쪽접착', spec:'10T X 15M', code:'BL_10_15_DA', increase25:143000, masterKey:'10_DA', length:15, price:132000, refMargin:55 },
-    { name:'10T 일반형 비접착', spec:'10T X 20M', code:'BL_10_20_SN', increase25:138000, masterKey:'10_SN', length:20, price:130000, refMargin:55 },
-    { name:'10T 고급형 비접착', spec:'10T X 20M', code:'BL_10_20_DN', increase25:149000, masterKey:'10_DN', length:20, price:137000, refMargin:55 },
-    { name:'10T 일반형 한쪽접착', spec:'10T X 20M', code:'BL_10_20_SA', increase25:179000, masterKey:'10_SA', length:20, price:165000, refMargin:55 },
-    { name:'10T 고급형 한쪽접착', spec:'10T X 20M', code:'BL_10_20_DA', increase25:188000, masterKey:'10_DA', length:20, price:177000, refMargin:55 },
+    { name:'10T 일반형 비접착', spec:'10T X 10M', code:'BL_10_10_SN', increase25:73000, masterKey:'10_SN', length:10, price:65000, refMargin:60 },
+    { name:'10T 고급형 비접착', spec:'10T X 10M', code:'BL_10_10_DN', increase25:79000, masterKey:'10_DN', length:10, price:69000, refMargin:60 },
+    { name:'10T 일반형 한쪽접착', spec:'10T X 10M', code:'BL_10_10_SA', increase25:94000, masterKey:'10_SA', length:10, price:83000, refMargin:60 },
+    { name:'10T 고급형 한쪽접착', spec:'10T X 10M', code:'BL_10_10_DA', increase25:100000, masterKey:'10_DA', length:10, price:89000, refMargin:60 },
+    { name:'10T 일반형 비접착', spec:'10T X 15M', code:'BL_10_15_SN', increase25:104000, masterKey:'10_SN', length:15, price:97000, refMargin:60 },
+    { name:'10T 고급형 비접착', spec:'10T X 15M', code:'BL_10_15_DN', increase25:111000, masterKey:'10_DN', length:15, price:103000, refMargin:60 },
+    { name:'10T 일반형 한쪽접착', spec:'10T X 15M', code:'BL_10_15_SA', increase25:135000, masterKey:'10_SA', length:15, price:122000, refMargin:60 },
+    { name:'10T 고급형 한쪽접착', spec:'10T X 15M', code:'BL_10_15_DA', increase25:143000, masterKey:'10_DA', length:15, price:132000, refMargin:60 },
+    { name:'10T 일반형 비접착', spec:'10T X 20M', code:'BL_10_20_SN', increase25:138000, masterKey:'10_SN', length:20, price:130000, refMargin:60 },
+    { name:'10T 고급형 비접착', spec:'10T X 20M', code:'BL_10_20_DN', increase25:149000, masterKey:'10_DN', length:20, price:137000, refMargin:60 },
+    { name:'10T 일반형 한쪽접착', spec:'10T X 20M', code:'BL_10_20_SA', increase25:179000, masterKey:'10_SA', length:20, price:165000, refMargin:60 },
+    { name:'10T 고급형 한쪽접착', spec:'10T X 20M', code:'BL_10_20_DA', increase25:188000, masterKey:'10_DA', length:20, price:177000, refMargin:60 },
     { name:'10T 일반형 비접착', spec:'10T X 25M(롤)', code:'BL_10_25_SN', increase25:166000, masterKey:'10_SN', length:25, price:163000, refMargin:55 },
     { name:'10T 고급형 비접착', spec:'10T X 25M(롤)', code:'BL_10_25_DN', increase25:178000, masterKey:'10_DN', length:25, price:173000, refMargin:55 },
-    { name:'10T 일반형 한쪽접착', spec:'10T X 25M(롤)', code:'BL_10_25_SA', increase25:214000, masterKey:'10_SA', length:25, price:200000, refMargin:55 },
+    { name:'10T 일반형 한쪽접착', spec:'10T X 25M(롤)', code:'BL_10_25_SA', increase25:214000, masterKey:'10_SA', length:25, price:200000, refMargin:60 },
     { name:'10T 고급형 한쪽접착', spec:'10T X 25M(롤)', code:'BL_10_25_DA', increase25:224000, masterKey:'10_DA', length:25, price:215000, refMargin:55 },
   ]),
   // 13T부터는 일반형이 없다(사용자 확인) — 고급형 비접착/한쪽접착만.
@@ -181,14 +185,14 @@ const HK_REFLECTIVE_PRODUCTS = [
     { name:'13T 고급형 한쪽접착', spec:'13T X 20M(롤)', code:'BL_13_20_DA_R', increase25:175000, masterKey:'13_DA', length:20, price:175000, refMargin:50 },
     { name:'13T 고급형 비접착', spec:'13T X 1M', code:'BL_13_1_DN', increase25:8300, masterKey:'13_DN', length:1, price:8300, refMargin:55 },
     { name:'13T 고급형 한쪽접착', spec:'13T X 1M', code:'BL_13_1_DA', increase25:10000, masterKey:'13_DA', length:1, price:10000, refMargin:55 },
-    { name:'13T 고급형 비접착', spec:'13T X 5M', code:'BL_13_5_DN', increase25:44000, masterKey:'13_DN', length:5, price:45000, refMargin:60 },
+    { name:'13T 고급형 비접착', spec:'13T X 5M', code:'BL_13_5_DN', increase25:44000, masterKey:'13_DN', length:5, price:45000, refMargin:55 },
     { name:'13T 고급형 한쪽접착', spec:'13T X 5M', code:'BL_13_5_DA', increase25:57000, masterKey:'13_DA', length:5, price:53000, refMargin:60 },
-    { name:'13T 고급형 비접착', spec:'13T X 10M', code:'BL_13_10_DN', increase25:86000, masterKey:'13_DN', length:10, price:88000, refMargin:60 },
-    { name:'13T 고급형 한쪽접착', spec:'13T X 10M', code:'BL_13_10_DA', increase25:109000, masterKey:'13_DA', length:10, price:103000, refMargin:60 },
-    { name:'13T 고급형 비접착', spec:'13T X 15M', code:'BL_13_15_DN', increase25:127000, masterKey:'13_DN', length:15, price:130000, refMargin:60 },
-    { name:'13T 고급형 한쪽접착', spec:'13T X 15M', code:'BL_13_15_DA', increase25:163000, masterKey:'13_DA', length:15, price:152000, refMargin:60 },
-    { name:'13T 고급형 비접착', spec:'13T X 20M(롤)', code:'BL_13_20_DN', increase25:164000, masterKey:'13_DN', length:20, price:174000, refMargin:60 },
-    { name:'13T 고급형 한쪽접착', spec:'13T X 20M(롤)', code:'BL_13_20_DA', increase25:207000, masterKey:'13_DA', length:20, price:205000, refMargin:60 },
+    { name:'13T 고급형 비접착', spec:'13T X 10M', code:'BL_13_10_DN', increase25:86000, masterKey:'13_DN', length:10, price:88000, refMargin:55 },
+    { name:'13T 고급형 한쪽접착', spec:'13T X 10M', code:'BL_13_10_DA', increase25:109000, masterKey:'13_DA', length:10, price:103000, refMargin:55 },
+    { name:'13T 고급형 비접착', spec:'13T X 15M', code:'BL_13_15_DN', increase25:127000, masterKey:'13_DN', length:15, price:130000, refMargin:55 },
+    { name:'13T 고급형 한쪽접착', spec:'13T X 15M', code:'BL_13_15_DA', increase25:163000, masterKey:'13_DA', length:15, price:152000, refMargin:55 },
+    { name:'13T 고급형 비접착', spec:'13T X 20M(롤)', code:'BL_13_20_DN', increase25:164000, masterKey:'13_DN', length:20, price:174000, refMargin:55 },
+    { name:'13T 고급형 한쪽접착', spec:'13T X 20M(롤)', code:'BL_13_20_DA', increase25:207000, masterKey:'13_DA', length:20, price:205000, refMargin:55 },
   ]),
   // 고티(20T~50T 묶음) — 20T·30T는 DN/DA, 40T·50T는 DN만(사용자 확인). 마스터 롤 길이가 두께마다 다르다(10/12/8/7M).
   ..._hkReflectiveRollRows('고티(20T~50T)', [
@@ -196,7 +200,7 @@ const HK_REFLECTIVE_PRODUCTS = [
     { name:'20T 고급형 한쪽접착', spec:'20T X 롤전체', code:'BL_20_10_DA_R', increase25:144000, masterKey:'20_DA', length:10, price:144000, refMargin:55 },
     { name:'30T 고급형 비접착', spec:'30T X 롤전체', code:'BL_30_12_DN_R', increase25:200000, masterKey:'30_DN', length:12, price:200000, refMargin:55 },
     { name:'30T 고급형 한쪽접착', spec:'30T X 롤전체', code:'BL_30_12_DA_R', increase25:225000, masterKey:'30_DA', length:12, price:225000, refMargin:55 },
-    { name:'40T 고급형 비접착', spec:'40T X 롤전체', code:'BL_40_8_DN_R', increase25:200000, masterKey:'40_DN', length:8, price:200000, refMargin:60 },
+    { name:'40T 고급형 비접착', spec:'40T X 롤전체', code:'BL_40_8_DN_R', increase25:200000, masterKey:'40_DN', length:8, price:200000, refMargin:55 },
     { name:'50T 고급형 비접착', spec:'50T X 롤전체', code:'BL_50_7_DN_R', increase25:200000, masterKey:'50_DN', length:7, price:200000, refMargin:55 },
     { name:'20T 고급형 비접착', spec:'20T X 1M', code:'BL_20_1_DN', increase25:14000, masterKey:'20_DN', length:1, price:14000, refMargin:60 },
     { name:'20T 고급형 한쪽접착', spec:'20T X 1M', code:'BL_20_1_DA', increase25:16000, masterKey:'20_DA', length:1, price:16000, refMargin:60 },
@@ -204,45 +208,51 @@ const HK_REFLECTIVE_PRODUCTS = [
     { name:'30T 고급형 한쪽접착', spec:'30T X 1M', code:'BL_30_1_DA', increase25:21000, masterKey:'30_DA', length:1, price:21000, refMargin:60 },
     { name:'40T 고급형 비접착', spec:'40T X 1M', code:'BL_40_1_DN', increase25:28000, masterKey:'40_DN', length:1, price:28000, refMargin:60 },
     { name:'50T 고급형 비접착', spec:'50T X 1M', code:'BL_50_1_DN', increase25:32000, masterKey:'50_DN', length:1, price:32000, refMargin:55 },
-    { name:'20T 고급형 비접착', spec:'20T X 0.5M', code:'BL_20_05_DN', increase25:9500, masterKey:'20_DN', length:0.5, price:9500, refMargin:50 },
-    { name:'20T 고급형 한쪽접착', spec:'20T X 0.5M', code:'BL_20_05_DA', increase25:10700, masterKey:'20_DA', length:0.5, price:10700, refMargin:45 },
-    { name:'30T 고급형 비접착', spec:'30T X 0.5M', code:'BL_30_05_DN', increase25:13800, masterKey:'30_DN', length:0.5, price:13800, refMargin:50 },
-    { name:'30T 고급형 한쪽접착', spec:'30T X 0.5M', code:'BL_30_05_DA', increase25:15700, masterKey:'30_DA', length:0.5, price:15700, refMargin:50 },
-    { name:'40T 고급형 비접착', spec:'40T X 0.5M', code:'BL_40_05_DN', increase25:19400, masterKey:'40_DN', length:0.5, price:19400, refMargin:50 },
-    { name:'50T 고급형 비접착', spec:'50T X 0.5M', code:'BL_50_05_DN', increase25:23800, masterKey:'50_DN', length:0.5, price:23800, refMargin:50 },
+    { name:'20T 고급형 비접착', spec:'20T X 0.5M', code:'BL_20_05_DN', increase25:9500, masterKey:'20_DN', length:0.5, price:9500, refMargin:65 },
+    { name:'20T 고급형 한쪽접착', spec:'20T X 0.5M', code:'BL_20_05_DA', increase25:10700, masterKey:'20_DA', length:0.5, price:10700, refMargin:65 },
+    { name:'30T 고급형 비접착', spec:'30T X 0.5M', code:'BL_30_05_DN', increase25:13800, masterKey:'30_DN', length:0.5, price:13800, refMargin:65 },
+    { name:'30T 고급형 한쪽접착', spec:'30T X 0.5M', code:'BL_30_05_DA', increase25:15700, masterKey:'30_DA', length:0.5, price:15700, refMargin:65 },
+    { name:'40T 고급형 비접착', spec:'40T X 0.5M', code:'BL_40_05_DN', increase25:19400, masterKey:'40_DN', length:0.5, price:19400, refMargin:65 },
+    { name:'50T 고급형 비접착', spec:'50T X 0.5M', code:'BL_50_05_DN', increase25:23800, masterKey:'50_DN', length:0.5, price:23800, refMargin:65 },
   ]),
   // 판상형(20T~50T, 20T만 원래 있고 30T 이상은 고급형만) — 원가는 위 BOM 카드로 계산(cost는 아래 hkReflectiveRefreshDerived()가 채운다).
   ...[
     { group:'판상형 - 유료배송(2M당)', bundle:1, rows:[
-      { name:'20T 고급형 비접착', spec:'20T X 2M', code:'BL_20_2_DN', increase25:28000, thickness:20, adhesive:false, price:28000, refMargin:85 },
-      { name:'20T 고급형 한쪽접착', spec:'20T X 2M', code:'BL_20_2_DA', increase25:32000, thickness:20, adhesive:true, price:32000, refMargin:85 },
-      { name:'30T 고급형 비접착', spec:'30T X 2M', code:'BL_30_2_DN', increase25:38000, thickness:30, adhesive:false, price:39000, refMargin:85 },
-      { name:'30T 고급형 한쪽접착', spec:'30T X 2M', code:'BL_30_2_DA', increase25:42000, thickness:30, adhesive:true, price:43000, refMargin:85 },
-      { name:'40T 고급형 비접착', spec:'40T X 2M', code:'BL_40_2_DN', increase25:56000, thickness:40, adhesive:false, price:58500, refMargin:85 },
-      { name:'50T 고급형 비접착', spec:'50T X 2M', code:'BL_50_2_DN', increase25:64000, thickness:50, adhesive:false, price:67500, refMargin:85 },
+      { name:'20T 고급형 비접착', spec:'20T X 2M', code:'BL_20_2_DN', increase25:28000, thickness:20, adhesive:false, price:28000, refMargin:70 },
+      { name:'20T 고급형 한쪽접착', spec:'20T X 2M', code:'BL_20_2_DA', increase25:32000, thickness:20, adhesive:true, price:32000, refMargin:70 },
+      { name:'30T 고급형 비접착', spec:'30T X 2M', code:'BL_30_2_DN', increase25:38000, thickness:30, adhesive:false, price:39000, refMargin:70 },
+      { name:'30T 고급형 한쪽접착', spec:'30T X 2M', code:'BL_30_2_DA', increase25:42000, thickness:30, adhesive:true, price:43000, refMargin:70 },
+      { name:'40T 고급형 비접착', spec:'40T X 2M', code:'BL_40_2_DN', increase25:56000, thickness:40, adhesive:false, price:58500, refMargin:75 },
+      { name:'50T 고급형 비접착', spec:'50T X 2M', code:'BL_50_2_DN', increase25:64000, thickness:50, adhesive:false, price:67500, refMargin:75 },
     ]},
     { group:'판상형 - 무료배송(2M/3M묶음)', bundle:1, rows:[
-      { name:'20T 고급형 비접착', spec:'20T X 2M(무료배송)', code:'BL_20_2_DN_F', increase25:28000, thickness:20, adhesive:false, price:31000, refMargin:85 },
-      { name:'20T 고급형 한쪽접착', spec:'20T X 3M(무료배송)', code:'BL_20_2_DA_F', increase25:32000, thickness:20, adhesive:true, price:35000, refMargin:85 },
-      { name:'30T 고급형 비접착', spec:'30T X 2M(무료배송)', code:'BL_30_2_DN_F', increase25:38000, thickness:30, adhesive:false, price:41000, refMargin:85 },
-      { name:'30T 고급형 한쪽접착', spec:'30T X 2M(무료배송)', code:'BL_30_2_DA_F', increase25:42000, thickness:30, adhesive:true, price:46000, refMargin:85 },
-      { name:'40T 고급형 비접착', spec:'40T X 2M(무료배송)', code:'BL_40_2_DN_F', increase25:56000, thickness:40, adhesive:false, price:61500, refMargin:85 },
-      { name:'50T 고급형 비접착', spec:'50T X 2M(무료배송)', code:'BL_50_2_DN_F', increase25:64000, thickness:50, adhesive:false, price:70500, refMargin:85 },
+      { name:'20T 고급형 비접착', spec:'20T X 2M(무료배송)', code:'BL_20_2_DN_F', increase25:28000, thickness:20, adhesive:false, price:31000, refMargin:70 },
+      { name:'20T 고급형 한쪽접착', spec:'20T X 3M(무료배송)', code:'BL_20_2_DA_F', increase25:32000, thickness:20, adhesive:true, price:35000, refMargin:70 },
+      { name:'30T 고급형 비접착', spec:'30T X 2M(무료배송)', code:'BL_30_2_DN_F', increase25:38000, thickness:30, adhesive:false, price:41000, refMargin:70 },
+      { name:'30T 고급형 한쪽접착', spec:'30T X 2M(무료배송)', code:'BL_30_2_DA_F', increase25:42000, thickness:30, adhesive:true, price:46000, refMargin:70 },
+      { name:'40T 고급형 비접착', spec:'40T X 2M(무료배송)', code:'BL_40_2_DN_F', increase25:56000, thickness:40, adhesive:false, price:61500, refMargin:75 },
+      { name:'50T 고급형 비접착', spec:'50T X 2M(무료배송)', code:'BL_50_2_DN_F', increase25:64000, thickness:50, adhesive:false, price:70500, refMargin:75 },
     ]},
     { group:'판상형 - 5개묶음 10% 할인', bundle:5, rows:[
-      { name:'20T 고급형 비접착', spec:'20T X 2M X 5개', code:'BL_20_2_DN_5', increase25:28000, thickness:20, adhesive:false, price:140000, refMargin:80 },
-      { name:'20T 고급형 한쪽접착', spec:'20T X 2M X 5개', code:'BL_20_2_DA_5', increase25:32000, thickness:20, adhesive:true, price:158000, refMargin:80 },
-      { name:'30T 고급형 비접착', spec:'30T X 2M X 5개', code:'BL_30_2_DN_5', increase25:38000, thickness:30, adhesive:false, price:189000, refMargin:80 },
-      { name:'30T 고급형 한쪽접착', spec:'30T X 2M X 5개', code:'BL_30_2_DA_5', increase25:42000, thickness:30, adhesive:true, price:207000, refMargin:80 },
-      { name:'40T 고급형 비접착', spec:'40T X 2M X 5개', code:'BL_40_2_DN_5', increase25:56000, thickness:40, adhesive:false, price:276000, refMargin:80 },
-      { name:'50T 고급형 비접착', spec:'50T X 2M X 5개', code:'BL_50_2_DN_5', increase25:64000, thickness:50, adhesive:false, price:317000, refMargin:80 },
+      { name:'20T 고급형 비접착', spec:'20T X 2M X 5개', code:'BL_20_2_DN_5', increase25:28000, thickness:20, adhesive:false, price:140000, refMargin:70 },
+      { name:'20T 고급형 한쪽접착', spec:'20T X 2M X 5개', code:'BL_20_2_DA_5', increase25:32000, thickness:20, adhesive:true, price:158000, refMargin:70 },
+      { name:'30T 고급형 비접착', spec:'30T X 2M X 5개', code:'BL_30_2_DN_5', increase25:38000, thickness:30, adhesive:false, price:189000, refMargin:70 },
+      { name:'30T 고급형 한쪽접착', spec:'30T X 2M X 5개', code:'BL_30_2_DA_5', increase25:42000, thickness:30, adhesive:true, price:207000, refMargin:70 },
+      { name:'40T 고급형 비접착', spec:'40T X 2M X 5개', code:'BL_40_2_DN_5', increase25:56000, thickness:40, adhesive:false, price:276000, refMargin:75 },
+      { name:'50T 고급형 비접착', spec:'50T X 2M X 5개', code:'BL_50_2_DN_5', increase25:64000, thickness:50, adhesive:false, price:317000, refMargin:75 },
     ]},
   ].flatMap(({ group, bundle, rows }) => rows.map(row => ({ group, kind:'board', bundle, cost:0, ...row }))),
 ];
 
 // 이전 판매가 — 엑셀에 별도 "수정 전" 값이 없어서(신규 카테고리) 처음에는 지금 판매가와 같게 둔다
 // (스티로폼·부자재처럼 이후 판매가를 바꾸면 그 시점부터 차이가 표시된다).
-HK_REFLECTIVE_PRODUCTS.forEach(product => { product.previousPrice = product.price; });
+// 2026-09-28 사용자 확인: "26.05.08 인상가(25%)"는 참고용이 아니라 지금 실제 적용 중인 판매가다
+// (원가 공식을 몰라서 그때 판매가에서 25% 가볍게 올린 게 그대로 굳어짐 — 단열벽지·기타단열재와 같은
+// 이유). increase25를 판매가로 승격하고, 기존 판매가는 이전 판매가로 내린다.
+HK_REFLECTIVE_PRODUCTS.forEach(product => {
+  product.previousPrice = product.price;
+  product.price = product.increase25;
+});
 
 // 모든 행의 원가를 다시 계산한다(초기 로드·원가 카드 수정 시 호출) — 롤형은 마스터 원가, 판상형은 BOM 카드 기준.
 function hkReflectiveRefreshDerived() {
@@ -289,7 +299,6 @@ function _hkReflectiveRowHtml(product, rowIndex, showCost) {
       </div>
       <div class="hk-iso-price-history" hidden>변경 전 <span>${Number(product.price).toLocaleString()}원</span><button type="button" onclick="revertHkReflectiveRowPrice(this)" title="변경 전 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
     </td>
-    <td class="hk-reflective-increase" title="26.05.08 인상가(25%) — 엑셀 참고용 숫자, 계산에는 안 쓴다">${_hkIsoDraftNumber(product.increase25)}</td>
     <td class="hk-sub-margin">${_hkIsoDraftNumber(metrics.margin)}</td>
     <td class="hk-sub-fee">${_hkIsoDraftNumber(metrics.fee)}</td>
     <td class="hk-sub-vat">${_hkIsoDraftNumber(metrics.vat)}</td>
@@ -323,13 +332,12 @@ function _hkReflectiveTableHtml(items) {
       <colgroup>
         <col class="hk-reflective-col-name"><col class="hk-reflective-col-spec"><col class="hk-reflective-col-code">
         ${showCost ? '<col class="hk-reflective-col-cost">' : ''}<col class="hk-sub-col-previous"><col class="hk-sub-col-price">
-        <col class="hk-reflective-col-increase"><col class="hk-sub-col-margin"><col class="hk-sub-col-margin"><col class="hk-sub-col-margin">
+        <col class="hk-sub-col-margin"><col class="hk-sub-col-margin"><col class="hk-sub-col-margin">
         <col class="hk-sub-col-net"><col class="hk-sub-col-rate"><col class="hk-sub-col-rate">
       </colgroup>
       <thead><tr>
         <th class="hk-sub-head-base">품명</th><th class="hk-sub-head-base">규격</th><th class="hk-sub-head-code">상품코드</th>
         ${showCost ? '<th class="hk-sub-head-base">원가</th>' : ''}<th class="hk-sub-head-base">이전 판매가</th><th class="hk-sub-head-sale-price">판매가</th>
-        <th class="hk-sub-head-base">26.05.08<br>인상가(25%)</th>
         <th class="hk-sub-head-margin">마진</th><th class="hk-sub-head-margin">판매수수료<br><small>6%</small></th><th class="hk-sub-head-margin">부가세<br><small>10%</small></th>
         <th class="hk-sub-head-margin">순수마진</th><th class="hk-sub-head-rate">순수마진율</th><th class="hk-sub-ref-margin-head">참고마진율</th>
       </tr></thead>

@@ -1197,6 +1197,11 @@
 /* 정액(원 단위) 쿠폰 — 스티로폼 쿠팡 일부 상품(예: "25,000원 쿠폰"), 퍼센트 쿠폰과 색으로 구분 */
 .hk-esm-table td.hk-coupon-off.is-off-flat { background: #f3e8ff; color: #7e22ce; }
 
+/* 몰별 적용 표는 카드(제품 종류)마다 수백 행이라 채널 탭을 열 때 전부 배치하면 수백 ms가 걸렸다(2026-09-29,
+   한국단열 네이버 표 하나가 DOM 1만 2천 개). 화면에 안 보이는 카드는 그리기를 미루고(content-visibility:auto),
+   높이만 대충 잡아 둔다(auto = 한 번 그려지면 실제 높이를 기억). 스크롤로 가까워지면 그때 그려진다. */
+.hk-iso-channel-listing { content-visibility: auto; contain-intrinsic-size: auto 800px; }
+
 /* 쿠팡 표 틀 고정 — 상품코드 열까지는 좌우 스크롤해도 남는다(_hkFreezeListingColumns가 열마다 left를 정함).
    머리글 칸이 본문 고정 칸보다 위에 오도록 z-index를 나누고, 마지막 고정 열 오른쪽에 경계선을 둔다. */
 .hk-iso-listing-table .hk-freeze { position: sticky; z-index: 2; }
