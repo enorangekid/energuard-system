@@ -13,13 +13,13 @@ function boot(scanByUrl){
     },
     storage:{local:{get:async key=>structuredClone({[key]:store[key]}),set:async obj=>Object.assign(store,structuredClone(obj)),remove:async key=>delete store[key]}},
     alarms:{create:async(name,data)=>alarms.set(name,data),get:async n=>alarms.get(n),clear:async n=>alarms.delete(n),onAlarm:{addListener:()=>{}}},
-    runtime:{getManifest:()=>({version:'0.30.1'}),onStartup:{addListener:()=>{}},onMessage:{addListener:f=>listener=f}},
+    runtime:{getManifest:()=>({version:'0.30.3'}),onStartup:{addListener:()=>{}},onMessage:{addListener:f=>listener=f}},
   }};
   vm.createContext(c);vm.runInContext(coreSource,c);vm.runInContext(source,c);
   return {c,call:(action,payload)=>new Promise(resolve=>listener({type:'EG_PRICE_TEST',action,payload},{url:'http://127.0.0.1:5500/index.html'},resolve))};
 }
 const settle=()=>new Promise(resolve=>setTimeout(resolve,1000));
-const scan=(id,rows)=>({ok:true,benefitReady:true,detailUrl:`https://smartstore.naver.com/i/v2/channels/abc/products/${id}`,benefitUrl:'y',productUrl:`https://smartstore.naver.com/hkdy/products/${id}`,rows});
+const scan=(id,rows,supplements)=>({ok:true,benefitReady:true,detailUrl:`https://smartstore.naver.com/i/v2/channels/abc/products/${id}`,benefitUrl:'y',productUrl:`https://smartstore.naver.com/hkdy/products/${id}`,rows,...(supplements?{supplements}:{})});
 const url=id=>`https://smartstore.naver.com/hkdy/products/${id}`;
 
 (async()=>{
@@ -60,6 +60,58 @@ const url=id=>`https://smartstore.naver.com/hkdy/products/${id}`;
     const bad=await c.inspectHkd({productId:'21',productUrl:url(21),options:[{code:'Iso_900_1800_70_3',name:'A',expected:103000},{code:'Iso_900_1800_100_3',name:'B',expected:143000}]});
     assert.equal(bad[0].status,'불일치');assert.equal(bad[0].diff,-1000);
   }
+  // 추가상품 검사(2026-09-29): 스토어 상품 페이지의 추가상품을 추가상품 목록(catalog)과 이름·코드로 짝지어 가격을 비교한다.
+  // 옵션 행 뒤에 kind:'추가상품' 행으로 붙고, 목록에 있는데 이 상품에 없는 추가상품은 알리지 않는다.
+  {
+    const catalog=[
+      {code:'TP_GY48',name:'●_(48mm)회색면테이프 25m',expected:5000,use:'Y'},
+      {code:'TP_GY100',name:'●_회색면테이프(100mm) 25m',expected:8500,use:'Y'},
+      {code:'ISO_BD',name:'●_아이소핑크 본드',expected:4500,use:'N'},
+      {code:'SC_HE',name:'●_실리콘 헤라',expected:2000,use:'Y'},
+    ];
+    const {c}=boot(()=>scan(41,[{label:'(옵션 없음)',finalPrice:18000,instantPrice:18000,salePrice:18000,soldOut:false}],[
+      {label:'●_(48mm)회색면테이프 25m',code:null,finalPrice:5000,soldOut:false},   // 일치(이름 매칭)
+      {label:'●_회색면테이프(100mm) 25m',code:'TP_GY100',finalPrice:9000,soldOut:false}, // 불일치(코드 매칭)
+      {label:'●_아이소핑크 본드',code:null,finalPrice:4500,soldOut:false},          // 사용여부 N인데 쓰는 중
+      {label:'●_새 추가상품',code:null,finalPrice:1000,soldOut:false},              // 목록에 없음
+    ]));
+    // 옵션 검사(mode 없음)는 목록을 넘겨도 옵션 행만 — 추가상품은 따로 돌린다
+    const opt=await c.inspectHkd({productId:'41',productUrl:url(41),options:[{code:'BL_5_5_SN',name:'빌트론 5T 1m x 5m 일반형 비접착',expected:18000}]},catalog);
+    assert.equal(opt.length,1);assert.equal(opt[0].status,'일치');assert.equal(opt[0].kind,undefined);
+    // 추가상품 검사(mode:'supplement')는 추가상품 행만
+    const s=await c.inspectHkd({productId:'41',productUrl:url(41)},catalog,'supplement');
+    assert.equal(s.length,4);
+    assert.equal(JSON.stringify(s.map(r=>r.kind)),JSON.stringify(['추가상품','추가상품','추가상품','추가상품']));
+    assert.equal(JSON.stringify(s.map(r=>r.status)),JSON.stringify(['일치','불일치','사용여부 불일치','추가상품 목록에 없음']));
+    assert.equal(s[0].source,'이름 매칭');assert.equal(s[0].code,'TP_GY48');assert.equal(s[0].expected,5000);
+    assert.equal(s[1].source,'코드 매칭');assert.equal(s[1].diff,500);
+    assert.equal(s[3].expected,null);assert.equal(s[3].source,'매칭 안 됨');
+    assert.match(s[0].label,/^\[추가상품\] /);
+    // 목록이 없으면 추가상품 검사는 시작할 수 없다
+    await assert.rejects(()=>c.inspectHkd({productId:'41',productUrl:url(41)},null,'supplement'),/추가상품 목록이 없습니다/);
+    // 사용여부 N인 추가상품이 스토어에서 품절·사용안함이면 정상(품절)
+    const {c:c2}=boot(()=>scan(42,[{label:'(옵션 없음)',finalPrice:1,instantPrice:100,salePrice:100,soldOut:false}],[{label:'●_아이소핑크 본드',finalPrice:4500,soldOut:true}]));
+    const r2=await c2.inspectHkd({productId:'42',productUrl:url(42)},catalog,'supplement');
+    assert.equal(r2.length,1);assert.equal(r2[0].status,'품절');
+    // 상품 페이지에 추가상품이 없으면 "추가상품 없음" 한 줄(검사했다는 표시)
+    const {c:c3}=boot(()=>scan(43,[{label:'(옵션 없음)',finalPrice:1,instantPrice:100,salePrice:100,soldOut:false}],[]));
+    const r3=await c3.inspectHkd({productId:'43',productUrl:url(43)},catalog,'supplement');
+    assert.equal(r3.length,1);assert.equal(r3[0].status,'추가상품 없음');
+  }
+  // 추가상품 검사 큐 — 옵션 없이 시작할 수 있고(mode:'supplement'), 목록이 없으면 시작이 거부된다. 상태 응답엔 목록이 실리지 않는다.
+  {
+    const supplements=[{code:'TP_GY48',name:'●_(48mm)회색면테이프 25m',expected:5000,use:'Y'}];
+    const {call}=boot(u=>u===url(51)?scan(51,[{label:'(옵션 없음)',finalPrice:1,salePrice:1,soldOut:false}],[{label:'●_(48mm)회색면테이프 25m',finalPrice:5000,soldOut:false}]):null);
+    assert.equal((await call('start',{kind:'hkd',mode:'supplement',items:[{productId:'51',productUrl:url(51)}]})).ok,false); // 목록 없음
+    assert.equal((await call('start',{kind:'hkd',mode:'supplement',items:[{productId:'51',productUrl:url(51)},{productId:'52',productUrl:url(52)}],supplements})).ok,true);
+    await settle();
+    assert.equal(store.priceTest.mode,'supplement');
+    assert.equal(store.priceTest.rows[0].status,'일치');assert.equal(store.priceTest.rows[0].kind,'추가상품');
+    assert.equal(store.priceTest.rows[1].status,'수집 실패');
+    const st=await call('status');
+    assert.equal(st.state.mode,'supplement');assert.equal(st.state.supplements,undefined);
+  }
+  console.log('PASS hkd supplements: name/code match, price diff, unused(N) flag, unlisted flag, sold-out, separate mode, queue');
   // 수집기가 즉시할인가를 못 찾으면(instantPrice 없음) 예전처럼 최대할인가로 비교하고 "쿠폰 포함가"로 표시한다
   {
     const {c}=boot(()=>scan(22,[{label:'A',code:'X',finalPrice:100000,salePrice:532000,soldOut:false}]));

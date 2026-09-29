@@ -241,6 +241,44 @@ function matchHkdOptions(storeRows, options) {
   return results;
 }
 
+// 한국단열 추가상품 검사 — 스토어 상품 페이지의 추가상품(collector supplements)을 관리자 화면의 추가상품 목록(catalog:
+// {code,name,expected,use})과 관리코드 → 이름 순으로 짝지어 가격을 비교한다. 상품별 목록이 아니라 한국단열 전체 마스터라서
+// "목록에 있는데 이 상품엔 없는 추가상품"은 알리지 않고, 스토어에 있는데 목록에 없는 것(추가상품 목록에 없음)만 알린다.
+// 사용여부 N인 추가상품이 스토어에서 쓰이고 있으면(품절·사용안함이 아니면) 사용여부 불일치.
+function normalizeSupplementName(text) {
+  return normalizeOptionText(String(text || '').replace(/[●★☆◆■※]/g, ''));
+}
+function matchHkdSupplements(storeSupplements, catalog) {
+  const byCode = new Map(), byName = new Map();
+  for (const c of catalog || []) {
+    const code = c.code ? String(c.code).toLowerCase() : null;
+    if (code && !byCode.has(code)) byCode.set(code, c);
+    const name = normalizeSupplementName(c.name);
+    if (name && !byName.has(name)) byName.set(name, c);
+  }
+  const results = [];
+  for (const row of storeSupplements || []) {
+    const code = row.code ? String(row.code).toLowerCase() : null;
+    let entry = null, source = null;
+    if (code && byCode.has(code)) { entry = byCode.get(code); source = '코드 매칭'; }
+    if (!entry) { const name = normalizeSupplementName(row.label); if (name && byName.has(name)) { entry = byName.get(name); source = '이름 매칭'; } }
+    const actual = Number.isFinite(row.finalPrice) ? row.finalPrice : null;
+    const label = '[추가상품] ' + (row.label || '');
+    if (!entry) {
+      results.push({ kind: '추가상품', label, code: row.code || null, actual, expected: null, diff: null, status: row.soldOut ? '품절' : '추가상품 목록에 없음', source: '매칭 안 됨' });
+      continue;
+    }
+    const expected = Number(entry.expected);
+    let status;
+    if (entry.use === 'N') status = row.soldOut ? '품절' : '사용여부 불일치';
+    else if (row.soldOut) status = '품절';
+    else if (!(expected > 0)) status = '단가 확인 불가';
+    else status = actual === expected ? '일치' : '불일치';
+    results.push({ kind: '추가상품', label, code: entry.code, name: entry.name, actual, expected: expected > 0 ? expected : null, diff: expected > 0 && actual != null ? actual - expected : null, status, source });
+  }
+  return results;
+}
+
 // 옵션 1개(row)를 보고 실제 계산에 쓸 {gradeId, thickness, area}를 알아낸다.
 // 비드법/PF보드가 아니면 단순히 mapping의 고정 grade_id/area + 라벨에서 두께만 뽑으면 된다.
 function resolveOptionMapping(mapping, row) {

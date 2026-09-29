@@ -1230,6 +1230,9 @@
 /* 몰별 화면 — 옵션 판매상태(품절/판매중지): 표에서 흐리게, 상태 선택칸과 헤드 배지 */
 .hk-iso-listing-table tr.is-soldout td { background: #fff7ed; color: #b45309; }
 .hk-iso-listing-table tr.is-stopped td { background: #f1f5f9; color: #94a3b8; }
+.hk-sub-table tr.is-inactive td { color: #94a3b8; }
+.hk-supp-use-select { width: 100%; padding: 3px 6px; font-size: 13px; }
+.hk-sub-table tr.is-inactive .hk-supp-use-select { color: #dc2626; font-weight: 700; }
 .hk-iso-listing-table tr.is-inactive td.hk-iso-draft-name { text-decoration: line-through; }
 .hk-iso-listing-table tr.is-inactive td.hk-stock-zero { color: #dc2626; font-weight: 800; }
 .hk-channel-status-select {

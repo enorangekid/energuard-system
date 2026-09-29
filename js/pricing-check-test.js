@@ -319,31 +319,22 @@
   // 스토어 쪽은 즉시할인만 적용된 "상품 가격"으로 비교한다 — 한국단열은 판매가를 높게 적고 즉시할인을 거는
   // 상품이 많아서 할인 전 판매가로 비교하면 할인액만큼 전부 틀어지고, 알림쿠폰까지 뺀 최대할인가로 비교하면
   // 쿠폰이 걸린 상품(5697937041)이 전부 -2,000으로 틀어진다.
-  const HKD_MIN_EXTENSION='0.30.1';
-  // 그룹상품(groupProduct)은 구성 상품마다 스토어 페이지를 따로 열어야 해서 33개면 오래 걸린다. 같은 관리코드는 가격이
-  // 같으니 기본은 코드별로 대표 1개씩만 검사하고(6개), fullGroup이면 전부 검사한다.
-  function gatherHkdItems(channelId,categoryId,fullGroup){
+  const HKD_MIN_EXTENSION='0.30.3';
+  // 그룹상품(groupProduct)도 구성 상품마다 스토어 페이지를 하나씩 전부 검사한다(사용자 결정 2026-09-29 — 느려도 전체 검증).
+  // 한때 같은 관리코드는 대표 1개만 보는 샘플링을 뒀다가 뺐다.
+  function gatherHkdItems(channelId,categoryId){
     const byId=new Map();
-    const sampledGroupCodes=new Set();
-    let skippedGroup=0;
     for(const product of HK_CHANNEL_LISTINGS[channelId]||[]){
       if(categoryId!=='all' && product.categoryId!==categoryId)continue;
       const id=String(product.productId);
       if(!/^\d+$/.test(id))continue;
-      if(product.groupProduct && product.groupProductCode && !fullGroup){
-        const key=`${product.groupProductCode||''}|${product.items.map(item=>item.productCode).join(',')}`;
-        if(sampledGroupCodes.has(key)){skippedGroup++;continue;}
-        sampledGroupCodes.add(key);
-      }
       const entry=byId.get(id)||{productId:id,productUrl:_hkChannelProductLink(channelId,product),options:[]};
       for(const item of product.items){
         entry.options.push({code:item.productCode,name:_hkChannelItemName(product.categoryId,product,item),expected:_hkChannelTargetPrice(product.categoryId,item.productCode,channelId,product,item),status:item.status||null});
       }
       byId.set(id,entry);
     }
-    const items=[...byId.values()];
-    items.skippedGroup=skippedGroup;
-    return items;
+    return [...byId.values()];
   }
   window.openHkStorePriceCheck=function(channelId) {
     if(window.currentUser?.role!=='admin')return;
@@ -369,10 +360,10 @@
             <span class="pctd-field-label">카테고리</span>
             <select class="pim-input" data-category><option value="all">전체</option>${categoryOptions}</select>
           </label>
-          <label class="pctd-checkbox" title="그룹상품은 구성 상품마다 페이지를 따로 열어야 해서 오래 걸립니다. 기본은 관리코드별 대표 1개만 검사합니다."><input type="checkbox" data-fullgroup> 그룹상품 전체 검사(느림)</label>
         </div>
         <div class="pctd-actions">
           <button type="button" class="pim-btn-confirm" data-run><i class="fa-solid fa-play"></i> 검사 시작</button>
+          <button type="button" class="pim-btn-confirm" data-run-supp title="각 상품 페이지의 추가상품을 '추가상품' 탭의 목록(단가표 판매가 + 추가비용)과 대조합니다. 옵션 검사와 따로 돌립니다."><i class="fa-solid fa-list-check"></i> 추가상품 검사</button>
           <button type="button" class="pim-btn-cancel" data-pause><i class="fa-solid fa-pause"></i> 일시정지</button>
           <button type="button" class="pim-btn-cancel" data-resume><i class="fa-solid fa-forward"></i> 이어서 검사</button>
           <label class="pctd-checkbox"><input type="checkbox" data-only checked> 확인 필요한 항목만</label>
@@ -387,18 +378,19 @@
     let snapshot=null,polling=false;
     const status=dialog.querySelector('[data-status]'),result=dialog.querySelector('[data-result]');
     const statusBar=dialog.querySelector('[data-statusbar]'),summary=dialog.querySelector('[data-summary]');
-    const okStatuses=['일치','품절'];
+    const okStatuses=['일치','품절','추가상품 없음'];
     function render(){
       const state=snapshot;
       if(!state || state.kind!=='hkd'){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();result.replaceChildren();return;}
       const counts={};for(const row of state.rows)counts[row.status]=(counts[row.status]||0)+1;
-      status.textContent=`${state.done}/${state.total}개 상품 · ${state.running?'진행 중':state.reason||'완료'}`;
+      status.textContent=`${state.mode==='supplement'?'추가상품 검사 · ':''}${state.done}/${state.total}개 상품 · ${state.running?'진행 중':state.reason||'완료'}`;
       statusBar.classList.toggle('running',!!state.running);
       statusBar.classList.toggle('error',!state.running && /실패|오류/.test(state.reason||''));
       summary.replaceChildren(...Object.entries(counts).map(([k,v])=>{
         const badge=document.createElement('span');badge.className='pricing-rate-badge '+statusBadgeClass(k);badge.textContent=k+' '+v+'건';return badge;
       }));
       dialog.querySelector('[data-run]').disabled=busy||state.running;
+      dialog.querySelector('[data-run-supp]').disabled=busy||state.running;
       dialog.querySelector('[data-resume]').disabled=state.running||state.done>=state.total;
       dialog.querySelector('[data-pause]').disabled=!state.running;
       const rows=state.rows.filter(row=>!dialog.querySelector('[data-only]').checked||!okStatuses.includes(row.status));
@@ -434,17 +426,22 @@
       const url=URL.createObjectURL(new Blob(['﻿'+lines.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='한국단열가격검사-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     };
     setInterval(()=>{if(dialog.open)refresh();},3000);refresh();
-    dialog.querySelector('[data-run]').onclick=async()=>{
-      if(busy)return;busy=true;const button=dialog.querySelector('[data-run]');button.disabled=true;result.replaceChildren();
+    // 옵션 검사와 추가상품 검사는 따로 돌린다(사용자 요청 2026-09-29 — 한 번에 하면 결과가 많고 오래 걸린다).
+    async function startHkdRun(mode){
+      if(busy)return;busy=true;const buttons=[...dialog.querySelectorAll('[data-run],[data-run-supp]')];buttons.forEach(b=>{b.disabled=true;});result.replaceChildren();
       try {
         status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || compareExtensionVersions(extension.version,HKD_MIN_EXTENSION)<0)throw Error(`통합 확장을 ${HKD_MIN_EXTENSION} 이상으로 업데이트·리로드해주세요.`);
-        const items=gatherHkdItems(channelId,dialog.querySelector('[data-category]').value,dialog.querySelector('[data-fullgroup]').checked);
+        const items=gatherHkdItems(channelId,dialog.querySelector('[data-category]').value);
         if(!items.length)throw Error('검사할 상품이 없습니다.');
-        await request('start',{kind:'hkd',items});
+        if(mode==='supplement'){
+          if(typeof window.hkSupplementCatalog!=='function')throw Error('추가상품 목록을 불러오지 못했습니다.');
+          await request('start',{kind:'hkd',mode:'supplement',items,supplements:window.hkSupplementCatalog()});
+        } else await request('start',{kind:'hkd',items});
         await refresh();
-        if(items.skippedGroup)status.textContent+=` · 그룹상품 ${items.skippedGroup}개는 같은 관리코드 대표만 검사(전체 검사는 체크)`;
       } catch(error){status.textContent=error.message || '검사 실패';}
-      finally{busy=false;button.disabled=!!snapshot?.running;}
-    };
+      finally{busy=false;buttons.forEach(b=>{b.disabled=!!snapshot?.running;});}
+    }
+    dialog.querySelector('[data-run]').onclick=()=>startHkdRun('options');
+    dialog.querySelector('[data-run-supp]').onclick=()=>startHkdRun('supplement');
   };
 })();

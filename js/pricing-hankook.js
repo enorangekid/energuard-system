@@ -24,6 +24,7 @@ const HK_CATEGORIES = [
   { id: 'hk_window',     label: '창문형단열재' },
   { id: 'hk_etc',        label: '기타단열재' },
   { id: 'hk_sub',        label: '부자재' },
+  { id: 'hk_supp',       label: '추가상품' },
 ];
 
 // 판매 채널 — 특정 카테고리에 속하지 않는 전사 상품 보기다. 한 채널 안에
@@ -317,6 +318,11 @@ window.setHkPricingTab = function(tabId, el) {
   document.querySelectorAll('#hkPricingBodyWrap .pricing-tab-pane').forEach(p => p.classList.remove('active'));
   if (el) el.classList.add('active');
   document.getElementById('pricing-tab-' + tabId)?.classList.add('active');
+  // 추가상품 탭은 다른 카테고리 단가표의 현재 판매가에서 가격이 계산되므로, 열 때마다 다시 그려서 방금 고친 값이 바로 보이게 한다.
+  if (tabId === 'hk_supp' && typeof renderHkSupplementPane === 'function') {
+    const suppPane = document.getElementById('pricing-tab-hk_supp');
+    if (suppPane) suppPane.innerHTML = renderHkSupplementPane();
+  }
   // 카테고리 탭을 고르면 "카테고리 모드" — 기준단가(1·2단계)는 보이고
   // 채널의 3단계 실제 등록 상품 표는 숨긴다. 채널 탭 쪽은 선택 표시를 지워서
   // 지금 보고 있는 화면과 맞지 않는 버튼이 같이 눌려 보이지 않게 한다.
@@ -362,6 +368,8 @@ function renderHkCategoryPane(tabId) {
   if (tabId === 'hk_wallpaper' && typeof renderHkWallpaperPane === 'function') return renderHkWallpaperPane();
   // 기타단열재도 같은 패턴으로 전용 파일에서 렌더한다.
   if (tabId === 'hk_etc' && typeof renderHkEtcPane === 'function') return renderHkEtcPane();
+  // 추가상품은 단가표에서 가격이 계산되는 목록이라(저장값 없음) 전용 파일에서 렌더한다.
+  if (tabId === 'hk_supp' && typeof renderHkSupplementPane === 'function') return renderHkSupplementPane();
 
   // 카테고리가 채워지면 여기에 전용 렌더 함수를 추가하면 됨 (renderHkIsopinkPane와 같은 패턴).
 

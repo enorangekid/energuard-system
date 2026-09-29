@@ -186,6 +186,8 @@ function hkDbCollectState() {
       } : {},
       // 기타단열재 원가 설정 — 상품군(필름난방보온재·캠핑용단열재)별 OPP필름·PE폼·하이덴필름·포장비.
       etcCosts: typeof HK_ETC_BOM !== 'undefined' ? { ...HK_ETC_BOM } : {},
+      // 추가상품 사용여부 — 코드 기본값과 다르게 바꾼 것만 { 상품코드: 'Y'|'N' }으로 저장한다(js/pricing-hankook-supplement.js).
+      supplementUse: typeof window.hkSupplementUseOverrides === 'function' ? window.hkSupplementUseOverrides() : {},
     },
     products,
     channels: JSON.parse(JSON.stringify(HK_CHANNEL_LISTINGS)),
@@ -206,6 +208,7 @@ function _hkDbStateToRows(state) {
     { key: 'bead_costs', value: s.beadCosts || {}, updated_at: now },
     { key: 'reflective_costs', value: s.reflectiveCosts || {}, updated_at: now },
     { key: 'etc_costs', value: s.etcCosts || {}, updated_at: now },
+    { key: 'supplement_use', value: s.supplementUse || {}, updated_at: now },
   ];
   const products = Object.entries(state.products).map(([code, p]) => ({
     product_code: code,
@@ -301,6 +304,7 @@ function _hkDbRowsToState(settingsRows, productRows, channelProductRows, channel
       beadCosts: map.bead_costs,
       reflectiveCosts: map.reflective_costs,
       etcCosts: map.etc_costs,
+      supplementUse: map.supplement_use,
     },
     products,
     channels,
@@ -346,6 +350,10 @@ function _hkDbApplyState(state) {
       if (finite(s.reflectiveCosts.roll?.[key])) HK_REFLECTIVE_ROLL_MASTER[key].cost = Number(s.reflectiveCosts.roll[key]);
     });
     window.hkReflectiveRefreshDerived?.(); // 판상형·롤형 원가를 새 설정으로 다시 계산한다
+  }
+  // 추가상품 사용여부 — 저장된 값이 있으면(빈 객체 포함) 코드 기본값 위에 덮어쓴다. 없으면 코드 기본값 그대로.
+  if (s.supplementUse && typeof s.supplementUse === 'object' && typeof window.hkSupplementApplyUseOverrides === 'function') {
+    window.hkSupplementApplyUseOverrides(s.supplementUse);
   }
   if (s.etcCosts && typeof HK_ETC_BOM !== 'undefined') {
     Object.keys(HK_ETC_BOM).forEach(lineKey => {
