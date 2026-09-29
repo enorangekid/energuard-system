@@ -2136,6 +2136,9 @@ function _hkCoupangSubPriceParts(productCode) {
 function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item) {
   // 아직 공통 원가표 상품코드가 없는 채널 전용 옵션은 받은 현재 판매가를 직접 기준값으로 쓴다.
   if (item && item.targetPrice != null && Number.isFinite(Number(item.targetPrice))) return Number(item.targetPrice);
+  // 한 상품 안에 다른 카테고리 옵션이 섞인 경우(예: 아이소핑크 상품 439904706에 단열벽지 옵션) — 옵션에
+  // categoryId를 적어두면 그 카테고리 가격표에서 가격을 가져온다(2026-09-29).
+  if (item && item.categoryId) categoryId = item.categoryId;
   if (channelId === 'coupang_sub') return _hkCoupangSubPriceParts(productCode)?.registered ?? null;
   const config = HK_CHANNEL_CONFIG[channelId];
   if (config && config.layout === 'coupang') return _hkCoupangPriceParts(categoryId, productCode, config, item, product)?.registered ?? null;

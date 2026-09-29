@@ -83,6 +83,38 @@ console.log('PASS collector upgrades sparse-then-rich product detail, never down
 }
 console.log('PASS collector splits base+priced-supplement listing into one row per thickness');
 
+// 한국단열 검사용 즉시할인가(2026-09-29): 상품 상세의 discountedSalePrice가 화면의 "상품 가격"(즉시할인만 적용),
+// product-benefits의 totalPayAmount가 알림쿠폰까지 뺀 "최대할인가". 옵션 추가금은 둘 다 그대로 더한다.
+{
+  const mk=(productData,benefitData)=>{
+    const w={addEventListener:(type,fn)=>{if(type==='message')networkListener=fn;}};
+    const c={window:w,location:{href:'https://smartstore.naver.com/hkdy/products/5697937041'},document:{title:'세경'},console:{log(){}},setInterval:()=>0,chrome:{runtime:{onMessage:{addListener:fn=>{messageListener=fn;}}}}};
+    vm.createContext(c);vm.runInContext(source,c);
+    networkListener({source:w,data:{source:'energuard-smartstore-network',url:'https://smartstore.naver.com/i/v2/channels/c/products/5697937041?withWindow=false',data:productData}});
+    if(benefitData)networkListener({source:w,data:{source:'energuard-smartstore-network',url:'https://smartstore.naver.com/i/v2/channels/c/product-benefits/5697937041',data:benefitData}});
+    let r;messageListener({type:'GET_COMPETITOR_SCAN_DATA'},null,v=>{r=v;});return r;
+  };
+  const benefit=pay=>({optimalDiscount:{totalDiscountResult:{summary:{totalPayAmount:pay}}}});
+  const detail={name:'세경아이소',salePrice:532000,discountedSalePrice:102000,optionCombinations:[{optionName1:'70T',price:0,stockQuantity:5},{optionName1:'100T',price:41000,stockQuantity:5}]};
+  const r=mk(detail,benefit(100000));
+  assert.equal(r.rows[0].finalPrice,100000);          // 최대할인가(에너가드 검사가 쓰는 값)는 그대로
+  assert.equal(r.rows[0].instantPrice,102000);        // 즉시할인가
+  assert.equal(r.rows[1].instantPrice,143000);        // 옵션 추가금은 그대로 더함
+  assert.equal(r.rows[0].salePrice,532000);
+  assert.equal(r.priceInfo.instantBase,102000);
+  // 쿠폰이 없으면 두 값이 같다
+  assert.equal(mk(detail,benefit(102000)).rows[0].instantPrice,102000);
+  // 필드가 없으면(discountedSalePrice 없음) 즉시할인가는 null — 검사는 최대할인가로 폴백
+  const noField=mk({name:'a',salePrice:532000,optionCombinations:[{optionName1:'x',price:0,stockQuantity:1}]},benefit(100000));
+  assert.equal(noField.rows[0].instantPrice,null);
+  // 엉뚱한 값(최대할인가보다 낮거나 할인 전 가격보다 높음)은 버린다
+  assert.equal(mk({...detail,discountedSalePrice:90000},benefit(100000)).rows[0].instantPrice,null);
+  assert.equal(mk({...detail,discountedSalePrice:600000},benefit(100000)).rows[0].instantPrice,null);
+  // 할인 응답이 아직 없어도(할인 없는 상품) 판매가 이하면 그대로 쓴다
+  assert.equal(mk(detail,null).rows[0].instantPrice,102000);
+  console.log('PASS collector reads instant-discount price separately from coupon-included max discount price');
+}
+
 // 실제 대유물류 응답: 기본 20T가 추가상품에도 중복되고 마지막에는 운송비가 섞여 있다.
 // 두께 상품만 남기고 기본상품과 같은 20T는 한 번만 반환해야 한다.
 {

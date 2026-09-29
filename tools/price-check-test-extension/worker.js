@@ -77,7 +77,9 @@ async function inspectHkd(item) {
     if (!Array.isArray(scan.rows) || !scan.rows.length) throw Error('페이지 옵션 확인 불가');
     const pageUrl = new URL(scan.productUrl);
     if (pageUrl.origin!==url.origin || pageUrl.pathname.replace(/\/$/,'')!==url.pathname.replace(/\/$/,'')) throw Error('수집 상품 주소 불일치');
-    return matchHkdOptions(scan.rows, item.options).map(row => ({productId:id, ...row}));
+    // 가격 후보(정가·즉시할인가·최대할인가 등 응답에서 읽은 값)는 상품의 첫 행에만 붙여서 결과에 남긴다 —
+    // 즉시할인가를 제대로 읽었는지 검사 결과에서 바로 볼 수 있게(2026-09-29).
+    return matchHkdOptions(scan.rows, item.options).map((row,index)=>({productId:id, ...row, ...(index===0&&scan.priceInfo?{priceInfo:scan.priceInfo}:{})}));
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }
 

@@ -316,8 +316,9 @@
   // 한국단열 네이버스토어(hkdy)의 옵션별 판매가가 몰별 적용 표의 "현재 판매가"와 같은지 본다.
   // 기대가격은 표와 똑같이 _hkChannelTargetPrice로 여기서 계산해 확장에 넘긴다 — 확장에 공식을
   // 따로 두지 않는다(에너가드 검사는 price-core.js에 공식을 이중으로 둬서 어긋난 적이 여러 번 있었다).
-  // 스토어 쪽은 에너가드 검사와 같이 할인 적용가로 비교한다(한국단열은 판매가를 높게 적고 즉시할인을
-  // 거는 상품이 많다 — 할인 전 판매가로 비교했더니 상품마다 할인액만큼 전부 틀어졌다).
+  // 스토어 쪽은 즉시할인만 적용된 "상품 가격"으로 비교한다 — 한국단열은 판매가를 높게 적고 즉시할인을 거는
+  // 상품이 많아서 할인 전 판매가로 비교하면 할인액만큼 전부 틀어지고, 알림쿠폰까지 뺀 최대할인가로 비교하면
+  // 쿠폰이 걸린 상품(5697937041)이 전부 -2,000으로 틀어진다.
   const HKD_MIN_EXTENSION='0.30.0';
   function gatherHkdItems(channelId,categoryId){
     const byId=new Map();
@@ -350,7 +351,7 @@
       </div>
       <div class="pv-body">
         <div class="pv-hint"><i class="fa-solid fa-circle-info"></i>
-          <span>한국단열 네이버스토어 상품을 하나씩 열어 옵션별 판매가를 몰별 적용 표의 현재 판매가와 비교합니다. 옵션은 관리코드(=상품코드)로 먼저, 없으면 옵션 이름으로 짝짓습니다. 에너가드 검사와 같이 즉시할인까지 적용된 가격으로 비교합니다.<br>통합 확장 ${HKD_MIN_EXTENSION} 이상을 설치한 Chrome에서 실행하세요.</span>
+          <span>한국단열 네이버스토어 상품을 하나씩 열어 옵션별 판매가를 몰별 적용 표의 현재 판매가와 비교합니다. 옵션은 관리코드(=상품코드)로 먼저, 없으면 옵션 이름으로 짝짓습니다. 스토어 화면의 "상품 가격"(즉시할인만 적용, 알림받기·쿠폰은 뺀 값)으로 비교합니다.<br>통합 확장 ${HKD_MIN_EXTENSION} 이상을 설치한 Chrome에서 실행하세요.</span>
         </div>
         <div class="pctd-controls">
           <label class="pctd-field">
@@ -391,7 +392,7 @@
       const rows=state.rows.filter(row=>!dialog.querySelector('[data-only]').checked||!okStatuses.includes(row.status));
       if(!rows.length){result.innerHTML='<p class="pricing-empty-msg"><i class="fa-solid fa-circle-check"></i> 표시할 항목이 없습니다.</p>';return;}
       const table=document.createElement('table');
-      const header=table.insertRow();for(const text of ['상품번호','스토어 옵션 / 사유','상품코드','스토어 (할인 적용)','단가표','차액','판정','매칭']){const th=document.createElement('th');th.textContent=text;header.appendChild(th);}
+      const header=table.insertRow();for(const text of ['상품번호','스토어 옵션 / 사유','상품코드','스토어 (즉시할인가)','단가표','차액','판정','매칭']){const th=document.createElement('th');th.textContent=text;header.appendChild(th);}
       for(const row of rows.slice(-500)){
         const tr=table.insertRow();
         const idTd=tr.insertCell();
@@ -402,7 +403,10 @@
           if(key==='status'){const badge=document.createElement('span');badge.className='pricing-rate-badge '+statusBadgeClass(value);badge.textContent=value;td.appendChild(badge);continue;}
           td.textContent=value==null?'—':typeof value==='number'?value.toLocaleString('ko-KR'):String(value);
           if(typeof value==='number')td.classList.add('pctd-num');
-          if(key==='actual'&&Number.isFinite(row.listPrice))td.title=`할인 전 판매가 ${row.listPrice.toLocaleString('ko-KR')}원`;
+          if(key==='actual'&&row.priceKind){
+            const won=v=>Number.isFinite(v)?v.toLocaleString('ko-KR')+'원':null;
+            td.title=[`비교 기준: ${row.priceKind}`,won(row.listPrice)&&`할인 전 판매가 ${won(row.listPrice)}`,won(row.actual)&&`${row.priceKind} ${won(row.actual)}`,won(row.maxPrice)&&`최대할인가(쿠폰 등 포함) ${won(row.maxPrice)}`].filter(Boolean).join('\n');
+          }
         }
       }
       result.replaceChildren(table);
@@ -414,7 +418,7 @@
     dialog.querySelector('[data-export]').onclick=()=>{
       if(!snapshot || snapshot.kind!=='hkd')return;
       const cell=v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';
-      const lines=[['상품번호','스토어 옵션/사유','상품코드','스토어(할인 적용)','할인 전 판매가','단가표','차액','판정','매칭'],...snapshot.rows.map(r=>[r.productId,r.label,r.code,r.actual,r.listPrice,r.expected,r.diff,r.status,r.source])];
+      const lines=[['상품번호','스토어 옵션/사유','상품코드','스토어(비교가)','비교 기준','할인 전 판매가','최대할인가','단가표','차액','판정','매칭','가격 후보(상품 첫 행)'],...snapshot.rows.map(r=>[r.productId,r.label,r.code,r.actual,r.priceKind,r.listPrice,r.maxPrice,r.expected,r.diff,r.status,r.source,r.priceInfo?JSON.stringify(r.priceInfo):''])];
       const url=URL.createObjectURL(new Blob(['﻿'+lines.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='한국단열가격검사-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     };
     setInterval(()=>{if(dialog.open)refresh();},3000);refresh();
