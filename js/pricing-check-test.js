@@ -320,19 +320,30 @@
   // 상품이 많아서 할인 전 판매가로 비교하면 할인액만큼 전부 틀어지고, 알림쿠폰까지 뺀 최대할인가로 비교하면
   // 쿠폰이 걸린 상품(5697937041)이 전부 -2,000으로 틀어진다.
   const HKD_MIN_EXTENSION='0.30.0';
-  function gatherHkdItems(channelId,categoryId){
+  // 그룹상품(groupProduct)은 구성 상품마다 스토어 페이지를 따로 열어야 해서 33개면 오래 걸린다. 같은 관리코드는 가격이
+  // 같으니 기본은 코드별로 대표 1개씩만 검사하고(6개), fullGroup이면 전부 검사한다.
+  function gatherHkdItems(channelId,categoryId,fullGroup){
     const byId=new Map();
+    const sampledGroupCodes=new Set();
+    let skippedGroup=0;
     for(const product of HK_CHANNEL_LISTINGS[channelId]||[]){
       if(categoryId!=='all' && product.categoryId!==categoryId)continue;
       const id=String(product.productId);
       if(!/^\d+$/.test(id))continue;
+      if(product.groupProduct && !fullGroup){
+        const key=`${product.groupProductCode||''}|${product.items.map(item=>item.productCode).join(',')}`;
+        if(sampledGroupCodes.has(key)){skippedGroup++;continue;}
+        sampledGroupCodes.add(key);
+      }
       const entry=byId.get(id)||{productId:id,productUrl:_hkChannelProductLink(channelId,product),options:[]};
       for(const item of product.items){
         entry.options.push({code:item.productCode,name:_hkChannelItemName(product.categoryId,product,item),expected:_hkChannelTargetPrice(product.categoryId,item.productCode,channelId,product,item),status:item.status||null});
       }
       byId.set(id,entry);
     }
-    return [...byId.values()];
+    const items=[...byId.values()];
+    items.skippedGroup=skippedGroup;
+    return items;
   }
   window.openHkStorePriceCheck=function(channelId) {
     if(window.currentUser?.role!=='admin')return;
@@ -358,6 +369,7 @@
             <span class="pctd-field-label">카테고리</span>
             <select class="pim-input" data-category><option value="all">전체</option>${categoryOptions}</select>
           </label>
+          <label class="pctd-checkbox" title="그룹상품은 구성 상품마다 페이지를 따로 열어야 해서 오래 걸립니다. 기본은 관리코드별 대표 1개만 검사합니다."><input type="checkbox" data-fullgroup> 그룹상품 전체 검사(느림)</label>
         </div>
         <div class="pctd-actions">
           <button type="button" class="pim-btn-confirm" data-run><i class="fa-solid fa-play"></i> 검사 시작</button>
@@ -426,10 +438,11 @@
       if(busy)return;busy=true;const button=dialog.querySelector('[data-run]');button.disabled=true;result.replaceChildren();
       try {
         status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || compareExtensionVersions(extension.version,HKD_MIN_EXTENSION)<0)throw Error(`통합 확장을 ${HKD_MIN_EXTENSION} 이상으로 업데이트·리로드해주세요.`);
-        const items=gatherHkdItems(channelId,dialog.querySelector('[data-category]').value);
+        const items=gatherHkdItems(channelId,dialog.querySelector('[data-category]').value,dialog.querySelector('[data-fullgroup]').checked);
         if(!items.length)throw Error('검사할 상품이 없습니다.');
         await request('start',{kind:'hkd',items});
         await refresh();
+        if(items.skippedGroup)status.textContent+=` · 그룹상품 ${items.skippedGroup}개는 같은 관리코드 대표만 검사(전체 검사는 체크)`;
       } catch(error){status.textContent=error.message || '검사 실패';}
       finally{busy=false;button.disabled=!!snapshot?.running;}
     };

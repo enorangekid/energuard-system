@@ -2202,6 +2202,32 @@ function _hkChannelBaseIndex(product) {
   return firstOnSale >= 0 ? firstOnSale : 0;
 }
 
+// 네이버 그룹상품(별도 상품번호의 상품들을 한 페이지로 묶은 것) — 상품번호 아래에 표시한다.
+// 그룹상품은 묶인 상품마다 상품번호가 따로라서 상품(항목 1개)마다 하나씩 등록한다(product.groupProduct: true).
+function _hkChannelGroupBadge(product) {
+  return product && product.groupProduct
+    ? '<div class="hk-group-badge" title="네이버 그룹상품에 묶인 상품 — 상품번호가 각자 따로입니다">그룹상품</div>'
+    : '';
+}
+
+/* 그룹상품 구성원은 가격검사 때문에 각 상품번호를 그대로 보존하되, 화면에서는 대표 그룹상품 한 줄 아래 접어 둔다. */
+const _hkExpandedChannelGroups = new Set(); // 펼쳐 둔 그룹 — 표가 다시 그려져도(상태·메모 수정 등) 접히지 않게 기억한다
+function hkToggleChannelGroup(button) {
+  const summaryRow = button?.closest('.hk-group-summary-row');
+  const tbody = summaryRow?.parentElement;
+  const groupCode = summaryRow?.dataset.groupCode;
+  if (!tbody || !groupCode) return;
+  const expanded = button.getAttribute('aria-expanded') === 'true';
+  if (expanded) _hkExpandedChannelGroups.delete(groupCode); else _hkExpandedChannelGroups.add(groupCode);
+  button.setAttribute('aria-expanded', String(!expanded));
+  summaryRow.classList.toggle('is-expanded', !expanded);
+  tbody.querySelectorAll('.hk-group-member-row').forEach(row => {
+    if (row.dataset.groupCode === groupCode) row.hidden = expanded;
+  });
+  const label = button.querySelector('.hk-group-toggle-label');
+  if (label) label.textContent = expanded ? '구성상품 보기' : '구성상품 접기';
+}
+
 function _hkChannelFindProduct(channelId, productId) {
   return (HK_CHANNEL_LISTINGS[channelId] || []).find(product => String(product.productId) === String(productId));
 }
@@ -2231,7 +2257,32 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
   });
 
   let rowsHtml = '';
+  const renderedGroupCodes = new Set();
+  const groupedProducts = new Map();
+  products.forEach(product => {
+    if (!product.groupProductCode) return;
+    const key = String(product.groupProductCode);
+    groupedProducts.set(key, (groupedProducts.get(key) || 0) + 1);
+  });
   products.forEach((product, groupIndex) => {
+    const groupProductCode = product.groupProductCode ? String(product.groupProductCode) : '';
+    if (groupProductCode && !renderedGroupCodes.has(groupProductCode)) {
+      renderedGroupCodes.add(groupProductCode);
+      const memberCount = groupedProducts.get(groupProductCode) || 0;
+      const groupExpanded = _hkExpandedChannelGroups.has(groupProductCode);
+      rowsHtml += `<tr class="hk-group-summary-row${groupExpanded ? ' is-expanded' : ''}" data-group-code="${groupProductCode}">
+        <td colspan="15">
+          <button type="button" class="hk-group-toggle" aria-expanded="${groupExpanded}" onclick="hkToggleChannelGroup(this)">
+            <span class="hk-group-toggle-icon"><i class="fa-solid fa-layer-group"></i></span>
+            <strong>${product.groupProductLabel || '그룹상품'}</strong>
+            <span class="hk-group-representative">대표 그룹상품 ${groupProductCode}</span>
+            <span class="hk-group-count">구성상품 ${memberCount}개</span>
+            <span class="hk-group-toggle-label">${groupExpanded ? '구성상품 접기' : '구성상품 보기'}</span>
+            <i class="fa-solid fa-chevron-down hk-group-chevron"></i>
+          </button>
+        </td>
+      </tr>`;
+    }
     product.items.forEach((item, i) => {
       const targetPrice = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
       const basePrice = baseByProduct[product.productId];
@@ -2243,9 +2294,9 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const shippingChanged = !inactive && item.prevShipping != null && product.baseShipping != null && item.prevShipping !== product.baseShipping;
       const priceChanged = !inactive && !!priceDiff;
       const productLink = _hkChannelProductLink(channelId, product);
-      const productIdValue = productLink
+      const productIdValue = (productLink
         ? `<a href="${productLink}" target="_blank" rel="noopener noreferrer">${product.productId}</a>`
-        : product.productId;
+        : product.productId) + _hkChannelGroupBadge(product);
       const productIdCell = i === 0
         ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${productIdValue}</td>`
         : '';
@@ -2261,7 +2312,8 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const baseTitle = baseInactive ? ' title="기준가 옵션이 품절·판매중지 상태입니다 — 다른 옵션을 기준으로 지정하세요"' : '';
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
-      rowsHtml += `<tr class="${(groupStartClass + statusClass).trim()}">
+      const memberClass = groupProductCode ? ' hk-group-member-row' : '';
+      rowsHtml += `<tr class="${(groupStartClass + statusClass + memberClass).trim()}"${groupProductCode ? ` data-group-code="${groupProductCode}"${_hkExpandedChannelGroups.has(groupProductCode) ? '' : ' hidden'}` : ''}>
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
         <td class="hk-iso-draft-code">${item.displayCode ?? item.productCode}</td>
         ${productIdCell}
@@ -2282,9 +2334,12 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
   });
 
   const optionCount = products.reduce((sum, product) => sum + product.items.length, 0);
+  const groupedProductCount = [...groupedProducts.values()].reduce((sum, count) => sum + count, 0);
+  const displayProductCount = products.length - groupedProductCount + groupedProducts.size;
+  const groupCountLabel = groupedProductCount ? ` · 그룹 구성 ${groupedProductCount}` : '';
   return `<div class="card pricing-cost-card hk-iso-channel-listing">
     <div class="pricing-result-header">
-      <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${products.length} · 옵션 ${optionCount}</span></div>
+      <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${displayProductCount}${groupCountLabel} · 옵션 ${optionCount}</span></div>
       <span class="pricing-result-hint">상품코드 기준 현재 판매가와 수정 전 판매가 비교 · <span class="hk-base-legend">파란 칸</span> = 기준가 옵션(옵션 옆 동그라미를 눌러 변경)</span>
     </div>
     <div class="pricing-table-scroll">
@@ -2345,7 +2400,7 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
       const priceDiff = (registered != null && item.prevPrice != null) ? registered - item.prevPrice : null;
       const priceChanged = !inactive && !!priceDiff;
       const link = _hkChannelProductLink(channelId, product);
-      const idValue = link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId;
+      const idValue = (link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId) + _hkChannelGroupBadge(product);
       const idCell = i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${idValue}</td>` : '';
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
@@ -2475,7 +2530,7 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
       const priceChanged = !inactive && !!priceDiff;
       const optionAdd = (finalPrice != null && basePrice != null) ? finalPrice - basePrice : null;
       const link = _hkChannelProductLink(channelId, product);
-      const idValue = link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId;
+      const idValue = (link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId) + _hkChannelGroupBadge(product);
       const idCell = i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${idValue}</td>` : '';
       const priceNumber = _hkIsoDraftNumber(finalPrice);
       const priceContent = multi
