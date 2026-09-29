@@ -319,7 +319,7 @@
   // 스토어 쪽은 즉시할인만 적용된 "상품 가격"으로 비교한다 — 한국단열은 판매가를 높게 적고 즉시할인을 거는
   // 상품이 많아서 할인 전 판매가로 비교하면 할인액만큼 전부 틀어지고, 알림쿠폰까지 뺀 최대할인가로 비교하면
   // 쿠폰이 걸린 상품(5697937041)이 전부 -2,000으로 틀어진다.
-  const HKD_MIN_EXTENSION='0.30.0';
+  const HKD_MIN_EXTENSION='0.30.1';
   // 그룹상품(groupProduct)은 구성 상품마다 스토어 페이지를 따로 열어야 해서 33개면 오래 걸린다. 같은 관리코드는 가격이
   // 같으니 기본은 코드별로 대표 1개씩만 검사하고(6개), fullGroup이면 전부 검사한다.
   function gatherHkdItems(channelId,categoryId,fullGroup){
@@ -330,7 +330,7 @@
       if(categoryId!=='all' && product.categoryId!==categoryId)continue;
       const id=String(product.productId);
       if(!/^\d+$/.test(id))continue;
-      if(product.groupProduct && !fullGroup){
+      if(product.groupProduct && product.groupProductCode && !fullGroup){
         const key=`${product.groupProductCode||''}|${product.items.map(item=>item.productCode).join(',')}`;
         if(sampledGroupCodes.has(key)){skippedGroup++;continue;}
         sampledGroupCodes.add(key);

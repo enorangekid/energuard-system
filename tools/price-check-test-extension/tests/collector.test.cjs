@@ -115,6 +115,26 @@ console.log('PASS collector splits base+priced-supplement listing into one row p
   console.log('PASS collector reads instant-discount price separately from coupon-included max discount price');
 }
 
+// 한국단열 검사(2026-09-29): 열반사단열재 그룹상품 구성 상품에는 면테이프 추가상품(이름에 48mm·100mm)이 붙어 있는데, 두께로
+// 읽혀 옵션 행이 됐다. ignoreSupplements로 요청하면(한국단열 검사) 추가상품을 무시하고 상품 하나(옵션 없음)만 돌려준다.
+{
+  const w={addEventListener:(type,fn)=>{if(type==='message')networkListener=fn;}};
+  const c={window:w,location:{href:'https://smartstore.naver.com/hkdy/products/12936160195'},document:{title:'빌트론'},console:{log(){}},setInterval:()=>0,chrome:{runtime:{onMessage:{addListener:fn=>{messageListener=fn;}}}}};
+  vm.createContext(c);vm.runInContext(source,c);
+  const supplementProducts=[{name:'●_(48mm)회색면테이프 25m',price:5000,stockQuantity:99},{name:'●_회색면테이프(100mm) 25m',price:8500,stockQuantity:99}];
+  networkListener({source:w,data:{source:'energuard-smartstore-network',url:'https://smartstore.naver.com/i/v2/channels/c/products/12936160195?withWindow=false',data:{name:'빌트론 열반사단열재 5T - 5m 일반형 비접착, 1개',salePrice:18000,stockQuantity:99,supplementProducts}}});
+  let plain;messageListener({type:'GET_COMPETITOR_SCAN_DATA'},null,v=>{plain=v;});
+  assert.equal(plain.rows.length,3);                    // 에너가드 검사는 예전 동작 그대로(추가상품을 두께 상품으로 봄)
+  let hkd;messageListener({type:'GET_COMPETITOR_SCAN_DATA',ignoreSupplements:true},null,v=>{hkd=v;});
+  assert.equal(hkd.rows.length,1);
+  assert.equal(hkd.rows[0].label,'(옵션 없음)');
+  assert.equal(hkd.rows[0].finalPrice,18000);
+  // 추가상품은 rows에서는 빠지지만 supplements로는 그대로 남아서, 나중에 추가상품만 검증할 때 쓸 수 있다
+  assert.deepEqual(hkd.supplements.map(s=>[s.label,s.finalPrice]),[['●_(48mm)회색면테이프 25m',5000],['●_회색면테이프(100mm) 25m',8500]]);
+  assert.equal(plain.supplements.length,2);
+  console.log('PASS collector ignores tape supplements for hkd checks (ignoreSupplements)');
+}
+
 // 실제 대유물류 응답: 기본 20T가 추가상품에도 중복되고 마지막에는 운송비가 섞여 있다.
 // 두께 상품만 남기고 기본상품과 같은 20T는 한 번만 반환해야 한다.
 {
