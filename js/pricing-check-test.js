@@ -334,7 +334,11 @@
       }
       byId.set(id,entry);
     }
-    return [...byId.values()];
+    // 전 옵션이 품절·판매중지인 상품(상품 자체가 품절)은 스토어에서 상품 정보를 못 읽어 "수집 실패"로 검사가 멈추므로 검사에서 뺀다(사용자 확인 2026-09-30, 방습초배지 598636390).
+    const all=[...byId.values()];
+    const live=all.filter(entry=>entry.options.some(option=>!option.status));
+    gatherHkdItems.skipped=all.length-live.length;
+    return live;
   }
   window.openHkStorePriceCheck=function(channelId) {
     if(window.currentUser?.role!=='admin')return;
@@ -442,12 +446,13 @@
       try {
         status.textContent='확장 연결 확인 중…';const extension=await request('ping');if(!extension.version || compareExtensionVersions(extension.version,HKD_MIN_EXTENSION)<0)throw Error(`통합 확장을 ${HKD_MIN_EXTENSION} 이상으로 업데이트·리로드해주세요.`);
         const items=gatherHkdItems(channelId,dialog.querySelector('[data-category]').value);
-        if(!items.length)throw Error('검사할 상품이 없습니다.');
+        if(!items.length)throw Error('검사할 상품이 없습니다.'+(gatherHkdItems.skipped?` (전 옵션 품절·판매중지 상품 ${gatherHkdItems.skipped}개는 검사에서 제외)`:''));
         if(mode==='supplement'){
           if(typeof window.hkSupplementCatalog!=='function')throw Error('추가상품 목록을 불러오지 못했습니다.');
           await request('start',{kind:'hkd',channelId,mode:'supplement',items,supplements:window.hkSupplementCatalog()});
         } else await request('start',{kind:'hkd',channelId,items});
         await refresh();
+        if(gatherHkdItems.skipped)status.textContent+=` · 전 옵션 품절·판매중지 상품 ${gatherHkdItems.skipped}개는 제외`;
       } catch(error){status.textContent=error.message || '검사 실패';}
       finally{busy=false;buttons.forEach(b=>{b.disabled=!!snapshot?.running;});}
     }
