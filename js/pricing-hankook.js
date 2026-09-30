@@ -2047,6 +2047,8 @@ function _hkChannelHkdPrice(categoryId, productCode) {
   if (categoryId === 'hk_reflective' && typeof window.hkReflectivePriceByCode === 'function') return window.hkReflectivePriceByCode(productCode);
   if (categoryId === 'hk_wallpaper' && typeof window.hkWallpaperPriceByCode === 'function') return window.hkWallpaperPriceByCode(productCode);
   if (categoryId === 'hk_etc' && typeof window.hkEtcPriceByCode === 'function') return window.hkEtcPriceByCode(productCode);
+  // 11번가 부자재(2026-09-30) — 부자재 판매가에 배율만 곱한다(옵션에 hkdShipping:0을 적어 배송비는 안 더함).
+  if (categoryId === 'hk_sub' && typeof window.hkSubPriceByCode === 'function') return window.hkSubPriceByCode(productCode);
   return null;
 }
 
@@ -2649,13 +2651,15 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
   products.forEach((product, groupIndex) => {
     const baseIndex = _hkChannelBaseIndex(product);
     const baseParts = _hkEsmPriceParts(categoryId, product.items[baseIndex]?.productCode, config, product.items[baseIndex]);
-    const basePrice = baseParts ? baseParts.finalPrice : null;
+    // product.basePrice가 있으면(상품 기준가가 어느 옵션 가격도 아닌 경우 — 2K·라이트폼 세트) 그 값을 기준가로 쓰고 기준 옵션 라디오는 없다(한국단열 표와 같은 규칙).
+    const fixedBase = product.basePrice != null;
+    const basePrice = fixedBase ? Number(product.basePrice) : (baseParts ? baseParts.finalPrice : null);
     product.items.forEach((item, i) => {
       optionCount += 1;
       const parts = _hkEsmPriceParts(categoryId, item.productCode, config, item);
       const finalPrice = parts ? parts.finalPrice : null;
       const inactive = !!item.status;
-      const isBase = i === baseIndex;
+      const isBase = !fixedBase && i === baseIndex;
       const multi = product.items.length > 1;
       const baseInactive = isBase && inactive && multi && product.items.some(other => !other.status);
       const priceDiff = (finalPrice != null && item.prevPrice != null) ? finalPrice - item.prevPrice : null;
@@ -2665,7 +2669,7 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
       const idValue = (link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId) + _hkChannelGroupBadge(product);
       const idCell = i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${idValue}</td>` : '';
       const priceNumber = _hkIsoDraftNumber(finalPrice);
-      const priceContent = multi
+      const priceContent = multi && !fixedBase
         ? `<label class="hk-base-pick" title="${isBase ? '이 상품의 기준가가 되는 옵션입니다' : '눌러서 이 옵션을 기준가로 지정'}"><input type="radio" name="hkbase-${channelId}-${product.productId}"${isBase ? ' checked' : ''} onchange="hkChannelSetBase('${channelId}','${product.productId}',${i})"><span>${priceNumber}</span></label>`
         : priceNumber;
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]

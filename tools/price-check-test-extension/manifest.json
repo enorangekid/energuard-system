@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "에너가드 가격검사 테스트",
-  "version": "0.31.5",
+  "version": "0.31.8",
   "permissions": [
     "tabs",
     "storage",

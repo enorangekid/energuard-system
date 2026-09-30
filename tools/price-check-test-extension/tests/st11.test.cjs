@@ -105,6 +105,38 @@ function boot(scan){
     assert.equal(r.filter(x=>x.status==='스토어에 없음').length,1); // 스토어에 10m 행이 없는 WP_P1_5_10 하나(20m 행은 단가표에 없음)
   }
 
+  // 부자재 — 관리코드에 규격이 없어 옵션 이름(공백·기호 무시)으로 짝짓는다(2026-09-30 11번가 부자재)
+  {
+    const sOpts=[{code:'T_EB_D',name:'타이거이지본드-일회용',expected:8900,status:null},{code:'T_EB_G',name:'타이거이지본드-건용',expected:9400,status:null},{code:'W_FC',name:'폼크리너',expected:4400,status:null},{code:'W_SFB_G',name:'월드스피드폼 (별도 폼건 필요)',expected:11400,status:null}];
+    const sRows=[{name:'타이거 이지본드 - 일회용',price:8900,qty:99},{name:'타이거이지본드-건용',price:9500,qty:99},{name:'폼크리너',price:4400,qty:0},{name:'모르는 상품',price:1000,qty:9}];
+    const r=c.match11stOptions('1712551327',sRows,sOpts);
+    const byCode=code=>r.find(x=>x.code===code);
+    assert.equal(byCode('T_EB_D').status,'일치');assert.match(byCode('T_EB_D').source,/이름 매칭/);
+    assert.equal(byCode('T_EB_G').status,'불일치');assert.equal(byCode('T_EB_G').diff,100);
+    assert.equal(byCode('W_FC').status,'품절');
+    assert.equal(r.filter(x=>x.status==='단가표에 없음'||x.status==='이름 해석 불가').length,1); // 모르는 상품
+    assert.equal(r.filter(x=>x.status==='스토어에 없음').length,1); // 월드스피드폼
+  }
+
+  // 부자재 — 스토어 옵션명이 우리 이름과 다르면 storeName(별칭)으로 짝짓고, 단품(옵션 없음)·품절 행도 처리한다(2026-09-30 실제 11번가 부자재 첫 검사)
+  {
+    const aOpts=[
+      {code:'W_B2_G',name:'월드폼본드B2 (폼건 전용)',storeName:'월드폼본드 / 월드폼본드B2 (폼건 전용)',expected:10300,status:null},
+      {code:'W_FC',name:'폼크리너',storeName:'폼세척제 / 랜덤',expected:4400,status:null},
+      {code:'HC_PEN',name:'펜형 열선커터기',storeName:'4_펜형 열선커터기',expected:37300,status:'soldout'},
+    ];
+    const aRows=[{name:'월드폼본드 / 월드폼본드B2 (폼건 전용)',price:10300,qty:9},{name:'폼세척제 / 랜덤',price:4500,qty:9},{name:'4_펜형 열선커터기',price:37300,qty:0},{name:'SSEN 폼건',price:9400,qty:0}];
+    const r=c.match11stOptions('1712551327',aRows,aOpts);
+    const byCode=code=>r.find(x=>x.code===code);
+    assert.equal(byCode('W_B2_G').status,'일치');assert.match(byCode('W_B2_G').source,/이름 매칭/);
+    assert.equal(byCode('W_FC').status,'불일치');assert.equal(byCode('W_FC').diff,100);
+    assert.equal(byCode('HC_PEN').status,'품절');
+    assert.equal(r.find(x=>x.label==='SSEN 폼건').status,'품절'); // 우리 표에 없는 품절 옵션은 품절로만 표시
+    // 옵션 없는 단품 — 우리 옵션이 하나뿐이면 짝짓는다
+    const s=c.match11stOptions('3112161423',[{name:'(옵션 없음)',price:4900,qty:null}],[{code:'H_025',name:'바인더 접착제',expected:4900,status:null}]);
+    assert.equal(s.length,1);assert.equal(s[0].status,'일치');assert.equal(s[0].code,'H_025');
+  }
+
   // 작업자: 옵션 검사 / 추가상품 검사 / 주소 제한 / 큐
   const gm='https://www.11st.co.kr/products/1848852975';
   {

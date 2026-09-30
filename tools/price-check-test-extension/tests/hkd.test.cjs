@@ -279,6 +279,19 @@ const url=id=>`https://smartstore.naver.com/hkdy/products/${id}`;
     const rows=await c.inspectEsm({marketplace:'auction',productId:'F392223636',productUrl:ac,code:'BL_13_10_DA',name:'13T 고급형 접착 10m',expected:111400});
     assert.equal(rows[0].status,'불일치');assert.equal(rows[0].diff,-100);assert.equal(rows[0].store,'auction');
   }
+  // 1단 옵션 상품(타이거폼 2K·라이트폼 세트 경질/연질) — 옵션 이름(또는 스토어 옵션명 별칭)으로 짝짓고 등록가(기존가+추가금)를 비교한다.
+  {
+    const gm='https://item.gmarket.co.kr/Item?goodscode=2031741045';
+    const {c}=boot(()=>({ok:true,marketplace:'gmarket',productId:'2031741045',productUrl:gm,registeredPrice:388800,rows:[
+      {type:'타이거폼2K 경질(주제+경화제) 1세트',size:'',prices:[388800]},{type:'타이거폼2K 연질(주제+경화제) 1세트',size:'',prices:[421300]}]}));
+    const options=[
+      {code:'T_2K_H',name:'타이거폼2K 경질',storeName:'타이거폼2K 경질(주제+경화제) 1세트',expected:388800,status:null},
+      {code:'T_2K_S',name:'타이거폼2K 연질',storeName:'타이거폼2K 연질(주제+경화제) 1세트',expected:421200,status:null}];
+    const rows=await c.inspectEsm({marketplace:'gmarket',productId:'2031741045',productUrl:gm,optionMode:true,options});
+    const by=code=>rows.find(r=>r.code===code);
+    assert.equal(rows.length,2);assert.equal(by('T_2K_H').status,'일치');assert.equal(by('T_2K_S').status,'불일치');assert.equal(by('T_2K_S').diff,100);
+    assert.equal(by('T_2K_H').label,'타이거폼2K 경질(주제+경화제) 1세트');
+  }
   // 단열벽지는 그룹상품이 아니라 옵션 상품(단열벽지→사이즈→디자인) — 사이즈별 등록가를 옵션마다 비교한다.
   {
     const gm='https://item.gmarket.co.kr/Item?goodscode=4751750159';

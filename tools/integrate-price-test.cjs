@@ -25,6 +25,6 @@ if(!m.content_scripts.some(c=>c.js.includes('boonimall-price-collector.js')))m.c
 for(const permission of ['https://item.gmarket.co.kr/*','https://itempage3.auction.co.kr/*','https://www.11st.co.kr/*'])if(!m.host_permissions.includes(permission))m.host_permissions.push(permission);
 if(!m.content_scripts.some(c=>c.js.includes('esm-price-collector.js')))m.content_scripts.push({matches:['https://item.gmarket.co.kr/Item*','https://itempage3.auction.co.kr/DetailView.aspx*'],js:['esm-price-collector.js'],run_at:'document_idle'});
 if(!m.content_scripts.some(c=>c.js.includes('st11-price-collector.js')))m.content_scripts.push({matches:['https://www.11st.co.kr/products/*'],js:['st11-price-collector.js'],run_at:'document_idle'});
-m.minimum_chrome_version='120';m.version='0.31.5';
+m.minimum_chrome_version='120';m.version='0.31.8';
 fs.writeFileSync(path.join(source,'manifest.json'),JSON.stringify(m,null,2)+'\n');
 console.log('Integrated price test v'+m.version+' into '+source);

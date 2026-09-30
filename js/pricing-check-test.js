@@ -319,7 +319,7 @@
   // 스토어 쪽은 즉시할인만 적용된 "상품 가격"으로 비교한다 — 한국단열은 판매가를 높게 적고 즉시할인을 거는
   // 상품이 많아서 할인 전 판매가로 비교하면 할인액만큼 전부 틀어지고, 알림쿠폰까지 뺀 최대할인가로 비교하면
   // 쿠폰이 걸린 상품(5697937041)이 전부 -2,000으로 틀어진다.
-  const HKD_MIN_EXTENSION='0.31.5'; // 0.31.5: 11번가 단열벽지는 색상 옵션을 (타입·길이)별 대표가 한 줄로 비교 / 0.31.4: 11번가 2단 옵션 수집 속도 개선(고정 대기 → 목록이 바뀌면 바로 진행) / 0.31.3: 11번가 두 옵션 가격이 서로 맞바뀐 경우 표시 / 0.31.2: 11번가 2단 옵션을 너무 일찍 눌러 목록을 못 찾던 문제(로딩 후 대기+재시도) / 0.31.1: 11번가 장수 읽기 수정("900x1800 10장"이 180010장으로 읽히던 문제) / 0.31.0: 11번가 옵션·추가상품 검사(2단 옵션은 눌러 가며 읽음, 규격으로 짝짓기) / 0.30.10: ESM 단열벽지는 옵션 상품이라 사이즈별 등록가를 옵션마다 검사(0.30.9: G마켓 기존가 영역의 할인률보다 라벨 뒤 금액을 우선)
+  const HKD_MIN_EXTENSION='0.31.8'; // 0.31.8: ESM 1단 옵션 상품(타이거폼 2K·라이트폼 경질/연질) 옵션 검사 / 0.31.7: 11번가 부자재 첫 검사 오류 수정(스토어 옵션명 별칭·품절 1단계·옵션 없는 단품·성인인증 상품) / 0.31.6: 11번가 부자재는 옵션 이름으로 짝짓기 / 0.31.5: 11번가 단열벽지는 색상 옵션을 (타입·길이)별 대표가 한 줄로 비교 / 0.31.4: 11번가 2단 옵션 수집 속도 개선(고정 대기 → 목록이 바뀌면 바로 진행) / 0.31.3: 11번가 두 옵션 가격이 서로 맞바뀐 경우 표시 / 0.31.2: 11번가 2단 옵션을 너무 일찍 눌러 목록을 못 찾던 문제(로딩 후 대기+재시도) / 0.31.1: 11번가 장수 읽기 수정("900x1800 10장"이 180010장으로 읽히던 문제) / 0.31.0: 11번가 옵션·추가상품 검사(2단 옵션은 눌러 가며 읽음, 규격으로 짝짓기) / 0.30.10: ESM 단열벽지는 옵션 상품이라 사이즈별 등록가를 옵션마다 검사(0.30.9: G마켓 기존가 영역의 할인률보다 라벨 뒤 금액을 우선)
   // 그룹상품(groupProduct)도 구성 상품마다 스토어 페이지를 하나씩 전부 검사한다(사용자 결정 2026-09-29 — 느려도 전체 검증).
   // 한때 같은 관리코드는 대표 1개만 보는 샘플링을 뒀다가 뺐다.
   function gatherHkdItems(channelId,categoryId){
@@ -337,7 +337,7 @@
         representativeOnly:channelId==='homepage'&&product.categoryId==='hk_wallpaper'
       };
       for(const item of product.items){
-        entry.options.push({code:item.productCode,name:_hkChannelItemName(product.categoryId,product,item),expected:_hkChannelTargetPrice(product.categoryId,item.productCode,channelId,product,item),status:item.status||null});
+        entry.options.push({code:item.productCode,name:_hkChannelItemName(product.categoryId,product,item),expected:_hkChannelTargetPrice(product.categoryId,item.productCode,channelId,product,item),status:item.status||null,...(item.storeName?{storeName:item.storeName}:{})});
       }
       byId.set(id,entry);
     }
@@ -358,12 +358,13 @@
         const id=String(market==='auction'?product.auctionProductId||'':product.productId||'');
         if(!id){if(market==='auction')missingAuction++;continue;}
         // 단열벽지는 그룹상품이 아니라 옵션 상품(단열벽지→사이즈→디자인 조합) — 옵션(사이즈)별 등록가를 각각 비교한다.
-        if(product.categoryId==='hk_wallpaper'){
+        // 한 상품번호에 옵션이 둘 이상인 옵션 상품(타이거폼 2K·라이트폼 세트 경질/연질 등)도 같은 옵션 검사로 본다.
+        if(product.categoryId==='hk_wallpaper'||active.length>1){
           items.push({
             marketplace:market,productId:id,
             productUrl:market==='auction'?`https://itempage3.auction.co.kr/DetailView.aspx?ItemNo=${id}`:`https://item.gmarket.co.kr/Item?goodscode=${id}`,
             name:product.groupName||`마스터 ${product.masterId}`,optionMode:true,
-            options:product.items.map(item=>({code:item.productCode,name:_hkChannelItemName(product.categoryId,product,item),expected:_hkChannelTargetPrice(product.categoryId,item.productCode,'esm',product,item),status:item.status||null}))
+            options:product.items.map(item=>({code:item.productCode,name:_hkChannelItemName(product.categoryId,product,item),expected:_hkChannelTargetPrice(product.categoryId,item.productCode,'esm',product,item),status:item.status||null,...(item.storeName?{storeName:item.storeName}:{})}))
           });
           continue;
         }
