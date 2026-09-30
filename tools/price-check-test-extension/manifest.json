@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "에너가드 가격검사 테스트",
-  "version": "0.30.10",
+  "version": "0.31.5",
   "permissions": [
     "tabs",
     "storage",
@@ -11,7 +11,8 @@
     "https://smartstore.naver.com/*",
     "https://boonimall.kr/*",
     "https://item.gmarket.co.kr/*",
-    "https://itempage3.auction.co.kr/*"
+    "https://itempage3.auction.co.kr/*",
+    "https://www.11st.co.kr/*"
   ],
   "background": {
     "service_worker": "worker.js"
@@ -52,6 +53,15 @@
       ],
       "js": [
         "esm-collector.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.11st.co.kr/products/*"
+      ],
+      "js": [
+        "st11-collector.js"
       ],
       "run_at": "document_idle"
     },

@@ -2896,8 +2896,8 @@ function _hkChannelListingHtmlBody(channelId) {
   const statusBadges = [['soldout', '품절'], ['stopped', '판매중지']]
     .filter(([key]) => statusCounts[key])
     .map(([key, label]) => `<span class="hk-channel-status-badge is-${key}">${label} ${statusCounts[key]}</span>`).join('');
-  // 스토어 가격검사: 스마트스토어 2곳·부니몰·ESM(G마켓/옥션). 모두 읽기 전용이며 가격은 바꾸지 않는다.
-  const storeCheckButton = (channelId === 'hkd' || channelId === 'hkd_life' || channelId === 'homepage' || channelId === 'esm') && window.currentUser?.role === 'admin'
+  // 스토어 가격검사: 스마트스토어 2곳·부니몰·ESM(G마켓/옥션)·11번가. 모두 읽기 전용이며 가격은 바꾸지 않는다.
+  const storeCheckButton = (channelId === 'hkd' || channelId === 'hkd_life' || channelId === 'homepage' || channelId === 'esm' || channelId === '11st') && window.currentUser?.role === 'admin'
     ? `<button type="button" class="pricing-margin-edit-btn" onclick="openHkStorePriceCheck('${channelId}')" title="실제 스토어의 옵션별 판매가가 이 표의 현재 판매가와 같은지 확인합니다(가격은 바꾸지 않음)">스토어 가격검사</button>`
     : '';
 

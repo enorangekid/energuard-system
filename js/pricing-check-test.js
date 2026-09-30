@@ -319,7 +319,7 @@
   // 스토어 쪽은 즉시할인만 적용된 "상품 가격"으로 비교한다 — 한국단열은 판매가를 높게 적고 즉시할인을 거는
   // 상품이 많아서 할인 전 판매가로 비교하면 할인액만큼 전부 틀어지고, 알림쿠폰까지 뺀 최대할인가로 비교하면
   // 쿠폰이 걸린 상품(5697937041)이 전부 -2,000으로 틀어진다.
-  const HKD_MIN_EXTENSION='0.30.10'; // 0.30.10: ESM 단열벽지는 옵션 상품이라 사이즈별 등록가를 옵션마다 검사(0.30.9: G마켓 기존가 영역의 할인률보다 라벨 뒤 금액을 우선)
+  const HKD_MIN_EXTENSION='0.31.5'; // 0.31.5: 11번가 단열벽지는 색상 옵션을 (타입·길이)별 대표가 한 줄로 비교 / 0.31.4: 11번가 2단 옵션 수집 속도 개선(고정 대기 → 목록이 바뀌면 바로 진행) / 0.31.3: 11번가 두 옵션 가격이 서로 맞바뀐 경우 표시 / 0.31.2: 11번가 2단 옵션을 너무 일찍 눌러 목록을 못 찾던 문제(로딩 후 대기+재시도) / 0.31.1: 11번가 장수 읽기 수정("900x1800 10장"이 180010장으로 읽히던 문제) / 0.31.0: 11번가 옵션·추가상품 검사(2단 옵션은 눌러 가며 읽음, 규격으로 짝짓기) / 0.30.10: ESM 단열벽지는 옵션 상품이라 사이즈별 등록가를 옵션마다 검사(0.30.9: G마켓 기존가 영역의 할인률보다 라벨 뒤 금액을 우선)
   // 그룹상품(groupProduct)도 구성 상품마다 스토어 페이지를 하나씩 전부 검사한다(사용자 결정 2026-09-29 — 느려도 전체 검증).
   // 한때 같은 관리코드는 대표 1개만 보는 샘플링을 뒀다가 뺐다.
   function gatherHkdItems(channelId,categoryId){
@@ -389,8 +389,10 @@
     const channelLabel=(typeof HK_CHANNELS!=='undefined'&&HK_CHANNELS.find(c=>c.id===channelId)?.label)||channelId;
     const isHomepage=channelId==='homepage';
     const isEsm=channelId==='esm';
+    const isSt11=channelId==='11st';
+    const expectedKind=isEsm?'esm':isSt11?'11st':'hkd'; // 확장에 남는 마지막 검사의 종류
     const storeSlug=channelId==='hkd_life'?'hkdylife':'hkdy';
-    const storeDescription=isEsm?'G마켓·옥션 상품 상세':isHomepage?'부니몰(boonimall.kr)':`${channelLabel} 네이버스토어(smartstore.naver.com/${storeSlug})`;
+    const storeDescription=isEsm?'G마켓·옥션 상품 상세':isSt11?'11번가(www.11st.co.kr) 상품 상세':isHomepage?'부니몰(boonimall.kr)':`${channelLabel} 네이버스토어(smartstore.naver.com/${storeSlug})`;
     const counts={};
     for(const product of HK_CHANNEL_LISTINGS[channelId]||[])counts[product.categoryId]=(counts[product.categoryId]||0)+1;
     const categoryOptions=HK_CATEGORIES.filter(c=>counts[c.id]).map(c=>`<option value="${c.id}">${c.label} (${counts[c.id]})</option>`).join('');
@@ -404,7 +406,7 @@
       </div>
       <div class="pv-body">
         <div class="pv-hint"><i class="fa-solid fa-circle-info"></i>
-          <span>${storeDescription} 상품을 하나씩 열어 몰별 적용 표의 현재 판매가와 비교합니다. ${isEsm?'그룹에 묶인 단품 상품번호별로 검사하며, 사이트 쿠폰가는 제외하고 판매자가 등록한 할인 전 가격(기존가/원가)을 비교합니다.':isHomepage?'부니몰은 관리코드가 보이지 않아 옵션 이름을 먼저 보고, 이름이 전혀 맞지 않으면서 옵션 수가 같을 때만 등록 순서로 짝짓습니다.':'옵션은 관리코드(=상품코드)로 먼저, 없으면 옵션 이름으로 짝짓습니다. 스토어 화면의 "상품 가격"(즉시할인만 적용, 알림받기·쿠폰은 뺀 값)으로 비교합니다.'}<br>통합 확장 ${HKD_MIN_EXTENSION} 이상을 설치한 Chrome에서 실행하세요.${isEsm?'<br><strong>⚠ 유의: G마켓·옥션은 한꺼번에 많이 검사하면 봇 차단 화면이 뜰 수 있습니다. 카테고리·판매처(G마켓/옥션)를 나눠서 조금씩 검사하세요. 차단 화면이 뜨면 브라우저에서 확인한 뒤 "이어서 검사"를 누르세요.</strong>':''}</span>
+          <span>${storeDescription} 상품을 하나씩 열어 몰별 적용 표의 현재 판매가와 비교합니다. ${isSt11?'11번가에는 관리코드가 보이지 않아 옵션 이름에서 재질·두께·규격(열반사는 두께·길이·등급, 단열벽지는 타입·두께·길이)을 읽어 단가표 관리코드와 짝짓습니다. 2단 옵션 상품은 옵션을 눌러 가며 읽습니다. 스토어 옵션의 이름과 가격이 서로 어긋나 있으면 "불일치"로 나옵니다. 재고 0인 옵션은 품절로 봅니다. 추가상품은 [추가상품 검사]로 따로 돌립니다(11번가 가격 = 한국단열가 × 1.08, 100원 올림).':isEsm?'그룹에 묶인 단품 상품번호별로 검사하며, 사이트 쿠폰가는 제외하고 판매자가 등록한 할인 전 가격(기존가/원가)을 비교합니다.':isHomepage?'부니몰은 관리코드가 보이지 않아 옵션 이름을 먼저 보고, 이름이 전혀 맞지 않으면서 옵션 수가 같을 때만 등록 순서로 짝짓습니다.':'옵션은 관리코드(=상품코드)로 먼저, 없으면 옵션 이름으로 짝짓습니다. 스토어 화면의 "상품 가격"(즉시할인만 적용, 알림받기·쿠폰은 뺀 값)으로 비교합니다.'}<br>통합 확장 ${HKD_MIN_EXTENSION} 이상을 설치한 Chrome에서 실행하세요.${isSt11?'<br><strong>⚠ 유의: 11번가도 한꺼번에 많이 검사하면 봇 차단 화면이 뜰 수 있습니다. 카테고리를 나눠서 조금씩 검사하세요. 차단 화면이 뜨면 브라우저에서 확인한 뒤 "이어서 검사"를 누르세요.</strong>':''}${isEsm?'<br><strong>⚠ 유의: G마켓·옥션은 한꺼번에 많이 검사하면 봇 차단 화면이 뜰 수 있습니다. 카테고리·판매처(G마켓/옥션)를 나눠서 조금씩 검사하세요. 차단 화면이 뜨면 브라우저에서 확인한 뒤 "이어서 검사"를 누르세요.</strong>':''}</span>
         </div>
         <div class="pctd-controls">
           <label class="pctd-field">
@@ -433,7 +435,7 @@
     const okStatuses=['일치','대표가 일치','품절','추가상품 없음'];
     function render(){
       const state=snapshot;
-      if(!state || state.kind!==(isEsm?'esm':'hkd')){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();result.replaceChildren();return;}
+      if(!state || state.kind!==expectedKind){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();result.replaceChildren();return;}
       // 확장에는 마지막 검사 하나만 남는다 — 다른 채널을 검사한 결과면 이 채널 결과로 보여주지 않는다.
       if(state.channelId && state.channelId!==channelId){
         const other=(typeof HK_CHANNELS!=='undefined'&&HK_CHANNELS.find(c=>c.id===state.channelId)?.label)||state.channelId;
@@ -455,11 +457,11 @@
       const rows=state.rows.filter(row=>!dialog.querySelector('[data-only]').checked||!okStatuses.includes(row.status));
       if(!rows.length){result.innerHTML='<p class="pricing-empty-msg"><i class="fa-solid fa-circle-check"></i> 표시할 항목이 없습니다.</p>';return;}
       const table=document.createElement('table');
-      const header=table.insertRow();for(const text of ['상품번호','스토어 옵션 / 사유','상품코드',isEsm?'ESM 등록가':isHomepage?'홈페이지 판매가':'스토어 (즉시할인가)','단가표','차액','판정','매칭']){const th=document.createElement('th');th.textContent=text;header.appendChild(th);}
+      const header=table.insertRow();for(const text of ['상품번호','스토어 옵션 / 사유','상품코드',isEsm?'ESM 등록가':isSt11?'11번가 판매가':isHomepage?'홈페이지 판매가':'스토어 (즉시할인가)','단가표','차액','판정','매칭']){const th=document.createElement('th');th.textContent=text;header.appendChild(th);}
       for(const row of rows.slice(-500)){
         const tr=table.insertRow();
         const idTd=tr.insertCell();
-        if((/^\d+$/.test(String(row.productId||'')))||/^[A-Z]\d+$/.test(String(row.productId||''))){const a=document.createElement('a');a.href=row.store==='auction'?`https://itempage3.auction.co.kr/DetailView.aspx?ItemNo=${row.productId}`:row.store==='gmarket'?`https://item.gmarket.co.kr/Item?goodscode=${row.productId}`:row.store==='boonimall'?`https://boonimall.kr/goods/view?no=${row.productId}`:`https://smartstore.naver.com/${/^(hkdy|hkdylife)$/.test(row.store||'')?row.store:storeSlug}/products/${row.productId}`;a.target='_blank';a.rel='noopener noreferrer';a.textContent=row.productId;idTd.appendChild(a);}
+        if((/^\d+$/.test(String(row.productId||'')))||/^[A-Z]\d+$/.test(String(row.productId||''))){const a=document.createElement('a');a.href=row.store==='auction'?`https://itempage3.auction.co.kr/DetailView.aspx?ItemNo=${row.productId}`:row.store==='gmarket'?`https://item.gmarket.co.kr/Item?goodscode=${row.productId}`:row.store==='boonimall'?`https://boonimall.kr/goods/view?no=${row.productId}`:row.store==='11st'?`https://www.11st.co.kr/products/${row.productId}`:`https://smartstore.naver.com/${/^(hkdy|hkdylife)$/.test(row.store||'')?row.store:storeSlug}/products/${row.productId}`;a.target='_blank';a.rel='noopener noreferrer';a.textContent=row.productId;idTd.appendChild(a);}
         else idTd.textContent=row.productId??'—';
         for(const key of ['label','code','actual','expected','diff','status','source']){
           const td=tr.insertCell();const value=row[key];
@@ -479,7 +481,7 @@
     dialog.querySelector('[data-only]').onchange=render;
     for(const action of ['pause','resume'])dialog.querySelector('[data-'+action+']').onclick=async()=>{try{await request(action);await refresh();}catch(e){status.textContent=e.message;}};
     dialog.querySelector('[data-export]').onclick=()=>{
-      if(!snapshot || snapshot.kind!==(isEsm?'esm':'hkd') || (snapshot.channelId && snapshot.channelId!==channelId))return;
+      if(!snapshot || snapshot.kind!==expectedKind || (snapshot.channelId && snapshot.channelId!==channelId))return;
       const cell=v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';
       const lines=[['상품번호','스토어 옵션/사유','상품코드','스토어(비교가)','비교 기준','할인 전 판매가','최대할인가','단가표','차액','판정','매칭','가격 후보(상품 첫 행)'],...snapshot.rows.map(r=>[r.productId,r.label,r.code,r.actual,r.priceKind,r.listPrice,r.maxPrice,r.expected,r.diff,r.status,r.source,r.priceInfo?JSON.stringify(r.priceInfo):''])];
       const url=URL.createObjectURL(new Blob(['﻿'+lines.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=channelLabel+'가격검사-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -494,6 +496,10 @@
         if(!items.length)throw Error('검사할 상품이 없습니다.'+(gatherHkdItems.skipped?` (전 옵션 품절·판매중지 상품 ${gatherHkdItems.skipped}개는 검사에서 제외)`:''));
         if(isEsm){
           await request('start',{kind:'esm',channelId:'esm',items});
+        } else if(isSt11){
+          // 11번가 추가상품 가격은 한국단열가가 아니라 지마켓/11번가가(한국단열가 × 1.08, 100원 올림)다.
+          if(mode==='supplement'&&typeof window.hkSupplementCatalog!=='function')throw Error('추가상품 목록을 불러오지 못했습니다.');
+          await request('start',{kind:'11st',channelId:'11st',mode,items,...(mode==='supplement'?{supplements:window.hkSupplementCatalog('market')}:{})});
         } else if(mode==='supplement'){
           if(typeof window.hkSupplementCatalog!=='function')throw Error('추가상품 목록을 불러오지 못했습니다.');
           await request('start',{kind:'hkd',channelId,mode:'supplement',items,supplements:window.hkSupplementCatalog()});

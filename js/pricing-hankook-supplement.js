@@ -135,8 +135,10 @@ window.hkSupplementRows = function() {
 };
 
 // 스토어 가격검사에 넘기는 목록 — 확장(price-core.js matchHkdSupplements)이 이름·코드로 짝지어 가격을 비교한다.
-window.hkSupplementCatalog = function() {
-  return window.hkSupplementRows().map(row => ({ code: row.code, name: row.name, group: row.group, expected: row.price, use: row.use }));
+// priceKey: 'price'(한국단열가, 기본) 또는 'market'(지마켓/11번가가 — 11번가 검사가 씀).
+window.hkSupplementCatalog = function(priceKey = 'price') {
+  const key = priceKey === 'market' ? 'market' : 'price';
+  return window.hkSupplementRows().map(row => ({ code: row.code, name: row.name, group: row.group, expected: row[key], use: row.use }));
 };
 
 function _hkSupplementGroupHtml(group, rows, groupIndex) {
