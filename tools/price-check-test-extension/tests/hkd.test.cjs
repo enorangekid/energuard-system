@@ -13,7 +13,7 @@ function boot(scanByUrl){
     },
     storage:{local:{get:async key=>structuredClone({[key]:store[key]}),set:async obj=>Object.assign(store,structuredClone(obj)),remove:async key=>delete store[key]}},
     alarms:{create:async(name,data)=>alarms.set(name,data),get:async n=>alarms.get(n),clear:async n=>alarms.delete(n),onAlarm:{addListener:()=>{}}},
-    runtime:{getManifest:()=>({version:'0.30.4'}),onStartup:{addListener:()=>{}},onMessage:{addListener:f=>listener=f}},
+    runtime:{getManifest:()=>({version:'0.30.5'}),onStartup:{addListener:()=>{}},onMessage:{addListener:f=>listener=f}},
   }};
   vm.createContext(c);vm.runInContext(coreSource,c);vm.runInContext(source,c);
   return {c,call:(action,payload)=>new Promise(resolve=>listener({type:'EG_PRICE_TEST',action,payload},{url:'http://127.0.0.1:5500/index.html'},resolve))};
@@ -227,4 +227,56 @@ const url=id=>`https://smartstore.naver.com/hkdy/products/${id}`;
     assert.equal(store.priceTest.channelId,null);
   }
   console.log('PASS hkd: code/name/single matching, sale-price comparison, ambiguity, sold-out/status, store guard(hkdy·hkdylife), queue');
+  // 부니몰 홈페이지 — 관리코드가 페이지에 없으므로 이름을 우선하고, 전혀 맞지 않으면서 개수가 같을 때만 등록 순서로 보조 매칭한다.
+  {
+    const homeUrl=id=>`https://boonimall.kr/goods/view?no=${id}`;
+    const homeScan=(id,rows)=>({ok:true,productUrl:homeUrl(id),rows});
+    const {c,call}=boot(()=>homeScan(184,[
+      {label:'접착식 아이소핑크 10T 600x900 (3장)',finalPrice:12600,instantPrice:12600,salePrice:12600,soldOut:false},
+      {label:'접착식 아이소핑크 20T 600x900 (1장)',finalPrice:7100,instantPrice:7100,salePrice:7100,soldOut:false},
+    ]));
+    const item={productId:'184',productUrl:homeUrl(184),options:[
+      {code:'IsoA_600_900_10_3',name:'완전히 다른 내부 이름 A',expected:12600},
+      {code:'IsoA_600_900_20_1',name:'완전히 다른 내부 이름 B',expected:7200},
+    ]};
+    const rows=await c.inspectHkd(item);
+    assert.equal(rows[0].store,'boonimall');assert.equal(rows[0].source,'등록 순서 매칭');assert.equal(rows[0].priceKind,'판매가');assert.equal(rows[0].status,'일치');
+    assert.equal(rows[1].status,'불일치');assert.equal(rows[1].diff,-100);
+    assert.equal((await call('start',{kind:'hkd',channelId:'homepage',items:[item]})).ok,true);
+    await settle();assert.equal(store.priceTest.channelId,'homepage');
+    for(const bad of ['https://boonimall.kr/goods/view?no=999','https://boonimall.kr/goods/catalog?no=184','https://evil.example/goods/view?no=184']){
+      const response=await call('start',{kind:'hkd',channelId:'homepage',items:[{...item,productUrl:bad}]});
+      assert.equal(response.ok,false,bad);
+    }
+  }
+  console.log('PASS homepage: boonimall URL guard, sale price, ordered fallback, queue channel');
+
+  // 부니몰 단열벽지는 색상 옵션을 전부 검사하지 않고 상품번호별 대표가 한 건만 비교한다.
+  {
+    const homeUrl=id=>`https://boonimall.kr/goods/view?no=${id}`;
+    const {c}=boot(()=>({ok:true,productUrl:homeUrl(97),basePrice:45000,rows:[
+      {label:'42.모노라인',finalPrice:45000,soldOut:false},
+      {label:'47.파벽 브라운',finalPrice:45000,soldOut:true},
+      {label:'56.플로라',finalPrice:45000,soldOut:false},
+    ]}));
+    const rows=await c.inspectHkd({productId:'97',productUrl:homeUrl(97),representativeOnly:true,options:[
+      {code:'WP_P1_5_10',name:'단열벽지 고급형1 10m',expected:45000}
+    ]});
+    assert.equal(rows.length,1);assert.equal(rows[0].status,'대표가 일치');assert.equal(rows[0].actual,45000);
+    assert.equal(rows[0].code,'WP_P1_5_10');assert.match(rows[0].source,/색상 옵션 3개 제외/);
+  }
+
+  // ESM은 G마켓 goodscode·옥션 ItemNo를 따로 열되 같은 단가표 등록가와 비교한다.
+  {
+    const gm='https://item.gmarket.co.kr/Item?goodscode=4586303844';
+    const {c}=boot(()=>({ok:true,marketplace:'gmarket',productId:'4586303844',productUrl:gm,registeredPrice:111300,discountedPrice:104630}));
+    const rows=await c.inspectEsm({marketplace:'gmarket',productId:'4586303844',productUrl:gm,code:'BL_13_10_DA',name:'13T 고급형 접착 10m',expected:111300});
+    assert.equal(rows.length,1);assert.equal(rows[0].status,'일치');assert.equal(rows[0].actual,111300);assert.equal(rows[0].maxPrice,104630);
+  }
+  {
+    const ac='https://itempage3.auction.co.kr/DetailView.aspx?ItemNo=F392223636';
+    const {c}=boot(()=>({ok:true,marketplace:'auction',productId:'F392223636',productUrl:ac,registeredPrice:111300,discountedPrice:104620}));
+    const rows=await c.inspectEsm({marketplace:'auction',productId:'F392223636',productUrl:ac,code:'BL_13_10_DA',name:'13T 고급형 접착 10m',expected:111400});
+    assert.equal(rows[0].status,'불일치');assert.equal(rows[0].diff,-100);assert.equal(rows[0].store,'auction');
+  }
 })().catch(e=>{console.error(e);process.exit(1)});

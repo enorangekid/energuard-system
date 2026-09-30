@@ -62,26 +62,60 @@ async function inspect(item, pricing) {
 function hkdProductPathOk(pathname, id) {
   return /^\/(hkdy|hkdylife)\/products\/\d+$/.test(String(pathname||'').replace(/\/$/,'')) && String(pathname).replace(/\/$/,'').endsWith('/products/'+id);
 }
+
+function esmProductUrlOk(url, marketplace, id) {
+  if (marketplace==='gmarket') return url.origin==='https://item.gmarket.co.kr'&&url.pathname.toLowerCase()==='/item'&&url.searchParams.get('goodscode')===id;
+  if (marketplace==='auction') return url.origin==='https://itempage3.auction.co.kr'&&url.pathname.toLowerCase()==='/detailview.aspx'&&String(url.searchParams.get('ItemNo')||url.searchParams.get('itemno')||'').toUpperCase()===id;
+  return false;
+}
+async function inspectEsm(item) {
+  const id=String(item.productId||'').trim();
+  const marketplace=item.marketplace;
+  if(item.unsupported)return [{productId:id,store:marketplace,label:item.label||'상품 구성 확인 필요',code:null,actual:null,expected:null,diff:null,status:'상품 구성 확인 필요',source:'한 상품번호에 상품코드 여러 개'}];
+  const url=new URL(item.productUrl);
+  if(!esmProductUrlOk(url,marketplace,id))throw Error('허용되지 않은 ESM 상품 주소');
+  const tab=await chrome.tabs.create({url:url.href,active:false});
+  await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
+  try{
+    let scan;
+    for(let n=0;n<25;n++){
+      await delay(600);
+      try{scan=await chrome.tabs.sendMessage(tab.id,{type:'GET_ESM_SCAN_DATA'});}catch{}
+      if(scan?.ok||scan?.error)break;
+    }
+    if(!scan?.ok)throw Error(scan?.error||'ESM 상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
+    if(scan.marketplace!==marketplace||String(scan.productId)!==id)throw Error('수집 상품 주소 불일치');
+    const actual=Number(scan.registeredPrice),expected=Number(item.expected);
+    if(!(actual>0))throw Error('ESM 등록 판매가 확인 불가');
+    const status=!(expected>0)?'단가 확인 불가':actual===expected?'일치':'불일치';
+    return [{productId:id,store:marketplace,label:item.name,code:item.code,actual,expected:expected>0?expected:null,diff:expected>0?actual-expected:null,status,source:`${marketplace==='auction'?'옥션':'G마켓'} 등록가`,priceKind:'등록 판매가',listPrice:actual,maxPrice:scan.discountedPrice||null}];
+  }finally{await chrome.tabs.remove(tab.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
+}
 async function inspectHkd(item, supplementCatalog, mode) {
   const id = String(item.productId);
   if (!/^\d+$/.test(id)) throw Error('상품번호 오류');
   const url = new URL(item.productUrl || 'https://smartstore.naver.com/hkdy/products/'+id);
-  if (url.origin!=='https://smartstore.naver.com' || !hkdProductPathOk(url.pathname, id)) throw Error('허용되지 않은 상품 주소');
-  const store = url.pathname.split('/')[1]; // 'hkdy' | 'hkdylife' — 결과 행에 남겨서 화면이 알맞은 스토어 링크를 건다
+  const isHomepage = url.origin==='https://boonimall.kr';
+  if (isHomepage) {
+    if (url.pathname.replace(/\/$/,'')!=='/goods/view' || url.searchParams.get('no')!==id) throw Error('허용되지 않은 상품 주소');
+    if (mode === 'supplement') throw Error('홈페이지 추가상품 검사는 아직 지원하지 않습니다.');
+  } else if (url.origin!=='https://smartstore.naver.com' || !hkdProductPathOk(url.pathname, id)) throw Error('허용되지 않은 상품 주소');
+  const store = isHomepage ? 'boonimall' : url.pathname.split('/')[1];
   const tab = await chrome.tabs.create({url:url.href,active:false});
   await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
   try {
     let scan;
-    for (let n=0;n<25;n++) {
-      await delay(1000);
-      try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_COMPETITOR_SCAN_DATA',ignoreSupplements:true}); } catch {}
-      if (scan?.ok && scan.detailUrl && scan.benefitReady) break;
+    for (let n=0;n<(isHomepage?20:25);n++) {
+      await delay(isHomepage?500:1000);
+      try { scan = await chrome.tabs.sendMessage(tab.id,{type:isHomepage?'GET_BOONIMALL_SCAN_DATA':'GET_COMPETITOR_SCAN_DATA',ignoreSupplements:true}); } catch {}
+      if (isHomepage ? scan?.ok : (scan?.ok && scan.detailUrl && scan.benefitReady)) break;
     }
-    if (!scan?.ok || !scan.detailUrl) throw Error('상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
-    endpoint(scan.detailUrl,id,'products');
+    if (!scan?.ok || (!isHomepage && !scan.detailUrl)) throw Error('상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
+    if (!isHomepage) endpoint(scan.detailUrl,id,'products');
     if (!Array.isArray(scan.rows) || !scan.rows.length) throw Error('페이지 옵션 확인 불가');
     const pageUrl = new URL(scan.productUrl);
     if (pageUrl.origin!==url.origin || pageUrl.pathname.replace(/\/$/,'')!==url.pathname.replace(/\/$/,'')) throw Error('수집 상품 주소 불일치');
+    if (isHomepage && pageUrl.searchParams.get('no')!==id) throw Error('수집 상품 주소 불일치');
     // 가격 후보(정가·즉시할인가·최대할인가 등 응답에서 읽은 값)는 상품의 첫 행에만 붙여서 결과에 남긴다 —
     // 즉시할인가를 제대로 읽었는지 검사 결과에서 바로 볼 수 있게(2026-09-29).
     // 추가상품 검사(2026-09-29)는 옵션 검사와 따로 돌린다(사용자 요청 — 한 번에 하면 결과가 많고 오래 걸린다). mode==='supplement'이면
@@ -92,7 +126,38 @@ async function inspectHkd(item, supplementCatalog, mode) {
       const found = matchHkdSupplements(scan.supplements, supplementCatalog).map(row=>({productId:id, store, ...row}));
       return found.length ? found : [{productId:id, store, kind:'추가상품', label:'(추가상품 없음)', code:null, actual:null, expected:null, diff:null, status:'추가상품 없음', source:'—'}];
     }
-    return matchHkdOptions(scan.rows, item.options).map((row,index)=>({productId:id, store, ...row, ...(index===0&&scan.priceInfo?{priceInfo:scan.priceInfo}:{})}));
+    let storeRows=scan.rows;
+    if (isHomepage && item.representativeOnly && item.options.length===1) {
+      const option=item.options[0];
+      const fallback=storeRows.find(row=>!row.soldOut&&Number.isFinite(Number(row.finalPrice))&&Number(row.finalPrice)>0);
+      const actual=Number.isFinite(Number(scan.basePrice))&&Number(scan.basePrice)>0 ? Number(scan.basePrice) : Number(fallback?.finalPrice);
+      const expected=Number(option.expected);
+      const validActual=Number.isFinite(actual)&&actual>0;
+      const validExpected=Number.isFinite(expected)&&expected>0;
+      const status=!validActual?'가격 확인 불가':!validExpected?'단가 확인 불가':actual===expected?'대표가 일치':'대표가 불일치';
+      return [{
+        productId:id, store, label:`${option.name} · 대표가`, code:option.code||null,
+        actual:validActual?actual:null, expected:validExpected?expected:null,
+        diff:validActual&&validExpected?actual-expected:null, status,
+        source:`대표가 검사 · 색상 옵션 ${storeRows.length}개 제외`, priceKind:'판매가', listPrice:null, maxPrice:null
+      }];
+    }
+    let ordered=false;
+    if (isHomepage) {
+      const first=matchHkdOptions(storeRows,item.options);
+      const matched=first.filter(row=>row.actual!=null&&row.expected!=null&&row.source!=='매칭 안 됨').length;
+      // 부니몰에는 관리코드가 노출되지 않는다. 이름으로 하나도 매칭되지 않고 양쪽 개수가 같을 때만
+      // 몰별 적용 표를 만들 때 입력한 등록 순서를 보조 기준으로 쓴다.
+      if (!matched && storeRows.length===item.options.length) {
+        ordered=true;
+        storeRows=storeRows.map((row,index)=>({...row,code:item.options[index]?.code||null}));
+      }
+    }
+    return matchHkdOptions(storeRows, item.options).map((row,index)=>({
+      productId:id, store, ...row,
+      ...(isHomepage?{priceKind:'판매가',listPrice:null,maxPrice:null,source:ordered?String(row.source||'').replace('코드 매칭','등록 순서 매칭'):String(row.source||'').replace(' · 쿠폰 포함가','')} : {}),
+      ...(index===0&&scan.priceInfo?{priceInfo:scan.priceInfo}:{})
+    }));
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }
 
@@ -258,7 +323,7 @@ async function processNext(){
     if(!state || !state.running)return;
     const orphan=(await chrome.storage.local.get('priceCheckTab')).priceCheckTab;
     if(orphan){const old=await chrome.tabs.get(orphan.id).catch(()=>null);if(old?.url===orphan.url)await chrome.tabs.remove(orphan.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
-    if(state.kind!=='competitor' && state.kind!=='hkd' && !state.listVisited){
+    if(!['competitor','hkd','esm'].includes(state.kind) && !state.listVisited){
       state.listVisited=[];
       // 카테고리별 목록 URL을 지정해뒀으면(state.listUrl, pricing-check-test.js의
       // CATEGORY_LIST_URL) 전체상품(/category/ALL)에서 찾는 대신 그 URL부터 시작한다 —
@@ -284,7 +349,7 @@ async function processNext(){
       if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
       return;
     }
-    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : state.kind==='hkd' ? (state.mode==='supplement' ? '한국단열 추가상품 검사' : '한국단열 옵션 검사') : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
+    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : state.kind==='esm' ? 'ESM 등록가 검사' : state.kind==='hkd' ? (state.channelId==='homepage'?'홈페이지 가격 검사':state.mode==='supplement' ? '한국단열 추가상품 검사' : '한국단열 옵션 검사') : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
     const item=state.items[state.done];
     if(!item){state.running=false;state.finishedAt=Date.now();await save(state);return;}
     state.currentProduct = state.kind==='competitor' ? item.link : item.productId;await save(state);
@@ -293,11 +358,17 @@ async function processNext(){
     let rows,failed=false;
     try{
       if (state.kind==='competitor') rows=await inspectCompetitor(item.link,item.entries);
+      else if (state.kind==='esm') rows=await inspectEsm(item);
       else if (state.kind==='hkd') rows=await inspectHkd(item,state.supplements,state.mode);
       else rows=listEligible(item)?[{productId:item.productId,status:'목록 수집 누락',label:'단품 매핑 — 목록에서 가격을 찾지 못했습니다.',source:'상품 목록'}]:await inspect(item,state.pricing);
     }catch(error){
-      failed=true;
-      rows = state.kind==='competitor' ? item.entries.map(e=>({...e,actual:null,diff:null,status:'수집 실패',errorMsg:error.message})) : [{productId:item.productId,status:'수집 실패',label:error.message}];
+      const errorMessage=error?.message||'상품 정보 수집 실패';
+      // ESM의 판매중지·삭제 상품은 해당 행만 실패로 남기고 다음 상품을 계속 검사한다.
+      // 로그인·봇 확인·차단 화면은 뒤 상품도 같은 원인으로 실패하므로 기존처럼 일시정지한다.
+      failed=state.kind!=='esm'||/(?:사이트 확인 화면|봇|bot|차단|로그인)/i.test(errorMessage);
+      rows = state.kind==='competitor'
+        ? item.entries.map(e=>({...e,actual:null,diff:null,status:'수집 실패',errorMsg:errorMessage}))
+        : [{productId:item.productId,productUrl:item.productUrl,store:item.marketplace||null,status:'수집 실패',label:errorMessage,source:state.kind==='esm'?(item.marketplace==='auction'?'옥션':'G마켓'):'—'}];
     }
     const latest=await readState();
     if(latest?.runId!==state.runId)return;
@@ -351,18 +422,35 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
         state={runId:crypto.randomUUID(),kind:'competitor',running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items};
         await save(state);await arm();processNext();return {ok:true};
       }
+      if(p?.kind==='esm'){
+        if(!Array.isArray(p.items)||!p.items.length)throw Error('검사할 ESM 상품이 없습니다.');
+        for(const it of p.items){
+          const id=String(it.productId||'').trim();
+          if(it.marketplace==='gmarket'&&!/^\d+$/.test(id))throw Error('G마켓 상품번호 오류');
+          if(it.marketplace==='auction'&&!/^[A-Z]\d+$/.test(id))throw Error('옥션 상품번호 오류');
+          if(!['gmarket','auction'].includes(it.marketplace))throw Error('ESM 판매처 오류');
+          if(!it.unsupported&&!esmProductUrlOk(new URL(String(it.productUrl||'')),it.marketplace,id))throw Error('허용되지 않은 ESM 상품 주소');
+        }
+        const channelId='esm';
+        state={runId:crypto.randomUUID(),kind:'esm',channelId,running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items};
+        await save(state);await arm();processNext();return {ok:true};
+      }
       if(p?.kind==='hkd'){
         if(!Array.isArray(p.items) || !p.items.length)throw Error('검사할 상품이 없습니다.');
         for(const it of p.items){
           if(!/^\d+$/.test(String(it.productId)))throw Error('상품번호 오류');
           const u=new URL(String(it.productUrl||'https://smartstore.naver.com/hkdy/products/'+it.productId));
-          if(u.origin!=='https://smartstore.naver.com'||!hkdProductPathOk(u.pathname,String(it.productId)))throw Error('허용되지 않은 상품 주소');
+          const homepage=p.channelId==='homepage';
+          const valid=homepage
+            ? u.origin==='https://boonimall.kr'&&u.pathname.replace(/\/$/,'')==='/goods/view'&&u.searchParams.get('no')===String(it.productId)
+            : u.origin==='https://smartstore.naver.com'&&hkdProductPathOk(u.pathname,String(it.productId));
+          if(!valid)throw Error('허용되지 않은 상품 주소');
           if(p.mode!=='supplement'&&(!Array.isArray(it.options)||!it.options.length))throw Error('검사 데이터 오류');
         }
         if(new Set(p.items.map(i=>String(i.productId))).size!==p.items.length)throw Error('중복 상품번호');
         // 추가상품 검사(mode:'supplement') — 옵션 검사와 따로 돌린다. 추가상품 목록(코드·이름·기대가격·사용여부)이 있어야 한다.
         const supplements=Array.isArray(p.supplements)?p.supplements.slice(0,500).filter(s=>s&&typeof s.name==='string').map(s=>({code:s.code?String(s.code):null,name:String(s.name).slice(0,200),group:s.group?String(s.group).slice(0,80):null,expected:Number.isFinite(Number(s.expected))?Number(s.expected):null,use:s.use==='N'?'N':'Y'})):null;
-        const mode=p.mode==='supplement'?'supplement':'options';
+        const mode=p.channelId==='homepage'?'options':p.mode==='supplement'?'supplement':'options';
         if(mode==='supplement'&&!(supplements&&supplements.length))throw Error('추가상품 목록이 없습니다');
         // 어느 채널(hkd 한국단열 / hkd_life 한국단열라이프)을 검사하는지 남겨 둔다 — 화면이 다른 채널의 검사 결과를 이 채널 결과로 보여주지 않게.
         const channelId=typeof p.channelId==='string'&&/^[a-z0-9_]{1,20}$/.test(p.channelId)?p.channelId:null;

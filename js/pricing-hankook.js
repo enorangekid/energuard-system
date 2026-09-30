@@ -2189,6 +2189,11 @@ function _hkChannelProductLink(channelId, product) {
   return '';
 }
 
+function _hkEsmAuctionProductLink(product) {
+  const itemNo=String(product?.auctionProductId||'').trim();
+  return /^[A-Z]\d+$/.test(itemNo) ? `https://itempage3.auction.co.kr/DetailView.aspx?ItemNo=${itemNo}` : '';
+}
+
 /* 옵션 판매상태 — item.status: 없음(판매중) / 'soldout'(품절) / 'stopped'(판매중지).
    품절·판매중지 옵션은 스토어에 가격을 맞출 필요가 없으니 "반영 대기"에서 빠지고 표에서 흐리게
    보인다. DB에는 hk_settings.channel_options(js/pricing-hankook-db.js)로 저장된다. */
@@ -2748,6 +2753,7 @@ function _hkEsmCategoryTableHtml(channelId, categoryId, products) {
       ${groupCell}
       <td>${product.masterId || '—'}</td>
       <td class="hk-esm-product-id">${_hkChannelProductLink(channelId, product) ? `<a href="${_hkChannelProductLink(channelId, product)}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId}</td>
+      <td class="hk-esm-product-id">${_hkEsmAuctionProductLink(product) ? `<a href="${_hkEsmAuctionProductLink(product)}" target="_blank" rel="noopener noreferrer">${product.auctionProductId}</a>` : '—'}</td>
       <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
       <td class="hk-iso-draft-code">${item.productCode}</td>
       <td class="hk-iso-listing-status"><select class="hk-channel-status-select${inactive ? ' is-' + item.status : ''}" onchange="hkChannelSetStatus('${channelId}','${product.productId}',${index},this.value)" title="옵션 판매상태">${statusOptions}</select></td>
@@ -2770,14 +2776,15 @@ function _hkEsmCategoryTableHtml(channelId, categoryId, products) {
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-iso-draft-table hk-iso-listing-table hk-esm-table">
         <colgroup>
-          <col style="width:150px"><col style="width:120px"><col style="width:110px"><col style="width:270px"><col style="width:150px">
+          <col style="width:150px"><col style="width:120px"><col style="width:125px"><col style="width:125px"><col style="width:270px"><col style="width:150px">
           <col style="width:100px"><col style="width:110px"><col style="width:90px"><col style="width:110px">
           <col style="width:110px"><col style="width:120px"><col style="width:110px"><col style="width:100px">
         </colgroup>
         <thead><tr>
           <th class="hk-iso-head-base">그룹명</th>
           <th class="hk-iso-head-base">마스터상품번호</th>
-          <th class="hk-iso-head-base">상품번호</th>
+          <th class="hk-iso-head-base">G마켓<br>상품번호</th>
+          <th class="hk-iso-head-base">옥션<br>상품번호</th>
           <th class="hk-iso-head-base">상품명</th>
           <th class="hk-iso-head-code">상품코드</th>
           <th class="hk-iso-head-base">판매상태</th>
@@ -2889,9 +2896,9 @@ function _hkChannelListingHtmlBody(channelId) {
   const statusBadges = [['soldout', '품절'], ['stopped', '판매중지']]
     .filter(([key]) => statusCounts[key])
     .map(([key, label]) => `<span class="hk-channel-status-badge is-${key}">${label} ${statusCounts[key]}</span>`).join('');
-  // 스토어 가격검사는 확장이 한국단열(hkdy)·한국단열라이프(hkdylife) 네이버스토어만 열 수 있어서 이 두 채널에만 둔다(라이프 추가 2026-09-30).
-  const storeCheckButton = (channelId === 'hkd' || channelId === 'hkd_life') && window.currentUser?.role === 'admin'
-    ? `<button type="button" class="pricing-margin-edit-btn" onclick="openHkStorePriceCheck('${channelId}')" title="네이버스토어의 옵션별 판매가가 이 표의 현재 판매가와 같은지 확인합니다(가격은 바꾸지 않음)">스토어 가격검사</button>`
+  // 스토어 가격검사: 스마트스토어 2곳·부니몰·ESM(G마켓/옥션). 모두 읽기 전용이며 가격은 바꾸지 않는다.
+  const storeCheckButton = (channelId === 'hkd' || channelId === 'hkd_life' || channelId === 'homepage' || channelId === 'esm') && window.currentUser?.role === 'admin'
+    ? `<button type="button" class="pricing-margin-edit-btn" onclick="openHkStorePriceCheck('${channelId}')" title="실제 스토어의 옵션별 판매가가 이 표의 현재 판매가와 같은지 확인합니다(가격은 바꾸지 않음)">스토어 가격검사</button>`
     : '';
 
   return `<div class="hk-channel-catalog-header card pricing-cost-card">
