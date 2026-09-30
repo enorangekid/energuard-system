@@ -106,6 +106,11 @@ function _hkDbLivePrice(entry) {
    { 채널ID: { 상품ID: { base: 상품코드, status: { 상품코드: 'soldout'|'stopped' },
                          manualPrice: { 상품코드: 숫자 }, memo: { 상품코드: 글 } } } }
    hk_settings.channel_options 한 줄로 저장하므로 별도 테이블/컬럼(SQL)이 필요 없다. */
+// 옵션을 가리키는 열쇠 — 보통 상품코드. 관리코드가 없는 옵션(쿠팡 창문형단열재 — 코드 공백)은 코드가 다 같은 ''라서 옵션 ID로 구분한다('opt:옵션ID').
+function _hkDbItemKey(item) {
+  return item.productCode || (item.optionId ? `opt:${item.optionId}` : '');
+}
+
 function _hkDbCollectChannelOptions() {
   const result = {};
   Object.entries(HK_CHANNEL_LISTINGS).forEach(([channelId, products]) => {
@@ -117,10 +122,13 @@ function _hkDbCollectChannelOptions() {
       const manual = {};
       const memo = {};
       product.items.forEach(item => {
-        if (item.status) status[item.productCode] = item.status;
+        const key = _hkDbItemKey(item);
+        // 판매상태 — 코드에 적어 둔 기본 상태(seedStatus, 예: 쿠팡 창문형단열재의 판매중지)와 같으면 저장하지 않고, 다르면 저장한다(기본이 판매중지인데 판매중으로 바꾼 건 'none').
+        if (item.seedStatus) { if ((item.status || '') !== item.seedStatus) status[key] = item.status || 'none'; }
+        else if (item.status) status[key] = item.status;
         // 쿠팡 위너 옵션의 수동 판매가와 옵션 메모(2026-09-21)
-        if (item.manualPrice != null) manual[item.productCode] = item.manualPrice;
-        if (item.memo) memo[item.productCode] = item.memo;
+        if (item.manualPrice != null) manual[key] = item.manualPrice;
+        if (item.memo) memo[key] = item.memo;
       });
       if (Object.keys(status).length) entry.status = status;
       if (Object.keys(manual).length) entry.manualPrice = manual;
@@ -192,6 +200,10 @@ function hkDbCollectState() {
       supplementPresets: typeof window.hkSupplementPresetsState === 'function' ? window.hkSupplementPresetsState() : [],
       // 창문형단열재 mvalue — 코드 기본값과 다르게 바꾼 것만 { '채널|재질|두께': 값 }으로 저장한다(js/pricing-hankook-window.js).
       windowMvalues: typeof window.hkWindowMvalueOverrides === 'function' ? window.hkWindowMvalueOverrides() : {},
+      // 창문형단열재 구간 가격 반영가 — 코드 기본값과 다르게 반영한 것만 { 관리코드: 가격 }으로 저장한다(한국단열 단가로 쓰는 값).
+      windowRangeApplied: typeof window.hkWindowAppliedPrices === 'function' ? window.hkWindowAppliedPrices() : {},
+      // 창문형단열재 쿠팡 개당단가 반영가 — 코드 기본값(현재 쿠팡 등록가)과 다르게 반영한 것만 { '재질_두께': 가격 }으로 저장한다.
+      windowCoupangApplied: typeof window.hkWindowCoupangAppliedPrices === 'function' ? window.hkWindowCoupangAppliedPrices() : {},
     },
     products,
     channels: JSON.parse(JSON.stringify(HK_CHANNEL_LISTINGS)),
@@ -215,6 +227,8 @@ function _hkDbStateToRows(state) {
     { key: 'supplement_use', value: s.supplementUse || {}, updated_at: now },
     { key: 'supplement_presets', value: s.supplementPresets || [], updated_at: now },
     { key: 'window_mvalues', value: s.windowMvalues || {}, updated_at: now },
+    { key: 'window_range_applied', value: s.windowRangeApplied || {}, updated_at: now },
+    { key: 'window_coupang_applied', value: s.windowCoupangApplied || {}, updated_at: now },
   ];
   const products = Object.entries(state.products).map(([code, p]) => ({
     product_code: code,
@@ -313,6 +327,8 @@ function _hkDbRowsToState(settingsRows, productRows, channelProductRows, channel
       supplementUse: map.supplement_use,
       supplementPresets: map.supplement_presets,
       windowMvalues: map.window_mvalues,
+      windowRangeApplied: map.window_range_applied,
+      windowCoupangApplied: map.window_coupang_applied,
     },
     products,
     channels,
@@ -371,6 +387,14 @@ function _hkDbApplyState(state) {
   if (s.windowMvalues && typeof s.windowMvalues === 'object' && typeof window.hkWindowApplyMvalueOverrides === 'function') {
     window.hkWindowApplyMvalueOverrides(s.windowMvalues);
   }
+  // 창문형단열재 구간 가격 반영가 — 저장된 값이 있으면(빈 객체 포함) 코드 기본값 위에 덮어쓴다. 채널 옵션의 수정 전 판매가는 아래 채널 단계에서 따로 덮어쓴다.
+  if (s.windowRangeApplied && typeof s.windowRangeApplied === 'object' && typeof window.hkWindowApplyAppliedPrices === 'function') {
+    window.hkWindowApplyAppliedPrices(s.windowRangeApplied);
+  }
+  // 창문형단열재 쿠팡 개당단가 반영가 — 저장된 값이 있으면(빈 객체 포함) 코드 기본값(현재 쿠팡 등록가) 위에 덮어쓰고, 그 값이 "수정 전 판매가"(마지막 저장값)가 된다.
+  if (s.windowCoupangApplied && typeof s.windowCoupangApplied === 'object' && typeof window.hkWindowApplyCoupangPrices === 'function') {
+    window.hkWindowApplyCoupangPrices(s.windowCoupangApplied);
+  }
   if (s.etcCosts && typeof HK_ETC_BOM !== 'undefined') {
     Object.keys(HK_ETC_BOM).forEach(lineKey => {
       Object.keys(HK_ETC_BOM[lineKey]).forEach(field => {
@@ -389,16 +413,22 @@ function _hkDbApplyState(state) {
       (products || []).forEach(product => {
         if (product.seedBaseCode) product.baseCode = product.seedBaseCode;
         else delete product.baseCode;
-        product.items.forEach(item => { delete item.status; delete item.manualPrice; });
+        // 판매상태는 기본값으로 되돌리되, 코드에 기본 상태(seedStatus)가 적힌 옵션은 그 상태로 돌린다.
+        product.items.forEach(item => {
+          if (item.seedStatus) item.status = item.seedStatus; else delete item.status;
+          delete item.manualPrice;
+        });
         const saved = s.channelOptions[channelId]?.[product.productId];
         if (!saved) return;
         if (saved.base && product.items.some(item => item.productCode === saved.base)) product.baseCode = saved.base;
         product.items.forEach(item => {
-          const status = saved.status?.[item.productCode];
-          if (status && HK_CHANNEL_STATUS[status]) item.status = status;
-          const manual = saved.manualPrice?.[item.productCode];
+          const key = _hkDbItemKey(item);
+          const status = saved.status?.[key];
+          if (status === 'none') delete item.status;
+          else if (status && HK_CHANNEL_STATUS[status]) item.status = status;
+          const manual = saved.manualPrice?.[key];
           if (manual != null && Number.isFinite(Number(manual))) item.manualPrice = Number(manual);
-          const memo = saved.memo?.[item.productCode];
+          const memo = saved.memo?.[key];
           if (typeof memo === 'string' && memo) item.memo = memo;
         });
       });
@@ -485,18 +515,29 @@ function _hkDbRerender() {
 }
 
 /* ─── 읽기/쓰기 ─── */
-async function _hkDbSelectAll(table, columns, orderColumns) {
+/* 1,000행씩 나눠 읽는다. parallelPages > 1이면 그 수만큼 페이지를 한꺼번에 요청한다(행이 1,000개를 넘는 큰 표 전용 —
+   창문형단열재 옵션 980개가 들어와 채널 옵션 표가 2페이지가 되면서 순차 요청만큼 불러오기가 늦어졌다, 2026-09-30).
+   작은 표는 1(기본)로 둔다 — 안 쓰는 빈 페이지 요청을 만들지 않으려고. */
+async function _hkDbSelectAll(table, columns, orderColumns, parallelPages = 1) {
   const client = _hkDbClient();
-  const rows = [];
-  for (let from = 0; ; from += 1000) {
+  const PAGE = 1000;
+  const fetchPage = async index => {
     let query = client.from(table).select(columns);
     orderColumns.forEach(column => { query = query.order(column, { ascending: true }); });
-    const { data, error } = await query.range(from, from + 999);
+    const { data, error } = await query.range(index * PAGE, index * PAGE + PAGE - 1);
     if (error) throw error;
-    rows.push(...(data || []));
-    if (!data || data.length < 1000) break;
+    return data || [];
+  };
+  const rows = [];
+  for (let start = 0; ; start += parallelPages) {
+    const pages = await Promise.all(Array.from({ length: parallelPages }, (_, offset) => fetchPage(start + offset)));
+    let done = false;
+    for (const page of pages) {
+      rows.push(...page);
+      if (page.length < PAGE) { done = true; break; }
+    }
+    if (done) return rows;
   }
-  return rows;
 }
 
 async function _hkDbFetchState() {
@@ -504,7 +545,7 @@ async function _hkDbFetchState() {
     _hkDbSelectAll('hk_settings', '*', ['key']),
     _hkDbSelectAll('hk_products', '*', ['product_code']),
     _hkDbSelectAll('hk_channel_products', '*', ['channel_id', 'sort_order']),
-    _hkDbSelectAll('hk_channel_items', '*', ['channel_id', 'product_id', 'sort_order']),
+    _hkDbSelectAll('hk_channel_items', '*', ['channel_id', 'product_id', 'sort_order'], 3), // 옵션 행이 가장 많은 표 — 3페이지를 한꺼번에
   ]);
   // 실제 적용가로 지정한 년월과 마지막 저장 시각은 단가 상태가 아니라 헤드 표시용 메타다.
   const liveRow = settings.find(row => row.key === 'live_month');
@@ -735,6 +776,8 @@ window.hkDbLoad = async function() {
   if (!client) { _hkDbSetMessage('Supabase에 연결되지 않았습니다 — 기본값으로 표시 중', 'error'); return; }
   _hkDb.loading = true;
   _hkDbSetMessage('');
+  // 저장 이력 목록은 단가 상태와 무관해서 같이 요청한다(예전엔 화면을 다 그린 뒤 순차로 불러서 그만큼 "불러오는 중"이 길어졌다).
+  const historyLoad = _hkDbRefreshHistoryList().catch(() => {});
   try {
     const state = await _hkDbFetchState();
     _hkDb.tablesMissing = false;
@@ -751,7 +794,7 @@ window.hkDbLoad = async function() {
       _hkDb.loadedMonth = HK_ISO_DRAFT_BASE_MONTH;
     }
     _hkDb.loaded = true;
-    await _hkDbRefreshHistoryList();
+    await historyLoad;
   } catch (error) {
     if (_hkDbIsMissingTable(error)) {
       _hkDb.tablesMissing = true;
@@ -821,6 +864,7 @@ window.hkDbSave = async function() {
     });
 
     if (typeof window.hkSubMarkSaved === 'function') window.hkSubMarkSaved(); // 부자재: 저장 전 표시(점선 이력·변경 전 원가)를 저장값 기준으로
+    if (typeof window.hkWindowMarkSaved === 'function') window.hkWindowMarkSaved(); // 창문형단열재 쿠팡 개당단가: 저장한 값이 새 "수정 전 판매가"
     if (typeof window._hkRefreshChannelListing === 'function') window._hkRefreshChannelListing(); // 차액·반영 대기를 0으로 다시 그림
     _hkDb.tablesMissing = false;
     _hkDb.hasSavedData = true;

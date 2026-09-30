@@ -2314,3 +2314,29 @@
 .hk-win-range-cell.is-base small { color: #2563eb; font-weight: 700; }
 .hk-section-changed { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #c2410c; background: #ffedd5; border: 1px solid #fdba74; }
 .hk-section-member-row td { background-color: #fcfcff; }
+/* 구간 가격표 — 계산가(반영 전)와 [반영] 버튼 */
+.hk-win-range-cell em { display: block; margin-top: 2px; font-style: normal; font-size: 11px; font-weight: 700; color: #c2410c; }
+.hk-win-range-cell.is-pending { outline: 1px dashed #f59e0b; outline-offset: -2px; background: #fffbeb; }
+.hk-win-range-cell.is-pending.is-changed { background: #fff7ed; }
+.hk-win-reflect-btn, .hk-win-reflect-all {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid #f59e0b; border-radius: 8px;
+  background: #fffbeb; color: #b45309; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.hk-win-reflect-btn:hover, .hk-win-reflect-all:hover { background: #fef3c7; }
+.hk-win-reflect-btn[hidden], .hk-win-reflect-all[hidden] { display: none; }
+/* 창문형단열재 쿠팡 개당단가 표 */
+.hk-cp-table td { white-space: nowrap; }
+.hk-cp-calc b { margin-right: 6px; }
+.hk-cp-calc.is-pending { background: #fffbeb; }
+.hk-cp-calc .hk-win-reflect-btn { padding: 2px 8px; font-size: 11px; }
+.hk-cp-prev { color: #64748b; }
+.hk-cp-input { width: 72px; }
+.hk-cp-diff { font-weight: 700; }
+/* 창문형단열재 카드 머리 — 제목은 줄바꿈 없이, 안내 문구는 오른쪽에 붙여서 남는 폭에 맞춘다 */
+#hkWindowSection .pricing-result-header { gap: 14px; }
+#hkWindowSection .pricing-result-title { white-space: nowrap; flex-shrink: 0; }
+#hkWindowSection .pricing-result-hint { text-align: right; }
+/* 구간 가격표 — 칸마다 상품코드(관리코드) 표시 스위치 */
+.hk-win-range-code { display: none; margin-top: 2px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; color: #6366f1; letter-spacing: -.2px; }
+.hk-win-show-codes .hk-win-range-code { display: block; }
+.hk-win-code-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; white-space: nowrap; }

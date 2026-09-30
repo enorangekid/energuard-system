@@ -2075,6 +2075,9 @@ function _hkEsmPriceParts(categoryId, productCode, config, item) {
    반환: { hkdPrice, hkdShipping, total, preCoupon, listPrice, couponOff, finalPrice, registered, winner }
    item.couponOff(10 또는 12)가 있으면 그 옵션은 그 할인율을 쓴다. */
 function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
+  // 관리코드가 없는 옵션은 계산할 게 없다. 쿠팡 창문형단열재(item.windowKey)는 코드를 만들어 붙였지만 한국단열 판매가에서 계산하는 옵션이 아니라(쿠팡가 탭의 반영 개당단가를 쓴다)
+  // 여기서는 건너뛴다 — 안 그러면 없는 코드를 찾느라 한국단열 표 전체를 옵션마다 훑는다.
+  if (!productCode || (item && item.windowKey)) return null;
   const hkdPrice = _hkChannelHkdPrice(categoryId, productCode);
   // item.hkdShipping이 있으면(쿠팡 표의 배송비가 배송 설정과 다른 옵션) 그 값을 우선한다.
   const hkdShipping = item && item.hkdShipping != null ? Number(item.hkdShipping) : _hkHkdShippingByCode(productCode);
@@ -2147,6 +2150,8 @@ function _hkCoupangSubPriceParts(productCode) {
 function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item) {
   // 아직 공통 원가표 상품코드가 없는 채널 전용 옵션은 받은 현재 판매가를 직접 기준값으로 쓴다.
   if (item && item.targetPrice != null && Number.isFinite(Number(item.targetPrice))) return Number(item.targetPrice);
+  // 쿠팡 창문형단열재 — 관리코드는 없지만 옵션명에서 재질·두께(windowKey)를 알아서, 쿠팡가 탭의 반영 개당단가가 등록 판매가다(js/pricing-hankook-window.js).
+  if (item && item.windowKey && typeof window.hkWindowCoupangPriceByKey === 'function') return window.hkWindowCoupangPriceByKey(item.windowKey);
   // 한 상품 안에 다른 카테고리 옵션이 섞인 경우(예: 아이소핑크 상품 439904706에 단열벽지 옵션) — 옵션에
   // categoryId를 적어두면 그 카테고리 가격표에서 가격을 가져온다(2026-09-29).
   if (item && item.categoryId) categoryId = item.categoryId;
@@ -2228,18 +2233,15 @@ function _hkChannelGroupBadge(product) {
 const _hkExpandedChannelSections = new Set();
 function hkToggleChannelSection(button) {
   const summaryRow = button?.closest('.hk-section-summary-row');
-  const tbody = summaryRow?.parentElement;
   const key = summaryRow?.dataset.sectionKey;
-  if (!tbody || !key) return;
+  if (!key) return;
   const expanded = button.getAttribute('aria-expanded') === 'true';
   if (expanded) _hkExpandedChannelSections.delete(key); else _hkExpandedChannelSections.add(key);
-  button.setAttribute('aria-expanded', String(!expanded));
-  summaryRow.classList.toggle('is-expanded', !expanded);
-  tbody.querySelectorAll('.hk-section-member-row').forEach(row => {
-    if (row.dataset.sectionKey === key) row.hidden = expanded;
-  });
-  const label = button.querySelector('.hk-group-toggle-label');
-  if (label) label.textContent = expanded ? '옵션 보기' : '옵션 접기';
+  // 접힌 구간은 행을 만들어 두지 않으므로 표를 다시 그린다. 누른 요약 줄이 화면에서 움직이지 않게 스크롤을 맞춘다.
+  const before = summaryRow.getBoundingClientRect().top;
+  window._hkRefreshChannelListing();
+  const after = [...document.querySelectorAll('.hk-section-summary-row')].find(row => row.dataset.sectionKey === key);
+  if (after) window.scrollBy(0, after.getBoundingClientRect().top - before);
 }
 
 /* 그룹상품 구성원은 가격검사 때문에 각 상품번호를 그대로 보존하되, 화면에서는 대표 그룹상품 한 줄 아래 접어 둔다. */
@@ -2331,24 +2333,10 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       </tr>`;
     }
     product.items.forEach((item, i) => {
-      const targetPrice = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
-      const basePrice = baseByProduct[product.productId];
-      const optionAdd = (targetPrice != null && basePrice != null) ? targetPrice - basePrice : null;
-      const inactive = !!item.status;
-      // 일부 실제 상품은 어느 옵션보다도 낮은 별도 기준가를 쓴다(2K·라이트폼 세트).
-      const isBase = product.basePrice == null && i === baseIndexByProduct[product.productId];
-      const priceDiff = (targetPrice != null && item.prevPrice != null) ? targetPrice - item.prevPrice : null;
-      const shippingChanged = !inactive && item.prevShipping != null && product.baseShipping != null && item.prevShipping !== product.baseShipping;
-      const priceChanged = !inactive && !!priceDiff;
-      const productLink = _hkChannelProductLink(channelId, product);
-      const productIdValue = (productLink
-        ? `<a href="${productLink}" target="_blank" rel="noopener noreferrer">${product.productId}</a>`
-        : product.productId) + _hkChannelGroupBadge(product);
-      // 구간(section)으로 접히는 상품은 첫 줄이 숨겨질 수 있어 rowspan 대신 줄마다 상품ID를 적는다.
+      // 구간(section)으로 접히는 상품 — 구간마다 요약 줄 하나를 그리고, 접힌 구간은 옵션 행을 아예 만들지 않는다
+      // (창문형단열재는 상품당 490행이라 접힌 채로도 다 그리면 표가 1.2MB·DOM 2만 개 늘어 채널 전환·불러오기가 느려졌다 — 2026-09-30).
+      // 펼치면(hkToggleChannelSection) 표를 다시 그려서 그 구간 행만 채운다.
       const sectionKey = item.section ? `${channelId}|${product.productId}|${item.section}` : '';
-      const productIdCell = item.section
-        ? `<td class="hk-iso-listing-id">${productIdValue}</td>`
-        : (i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${productIdValue}</td>` : '');
       if (sectionKey && (i === 0 || product.items[i - 1].section !== item.section)) {
         const stat = sectionStats[sectionKey];
         const sectionExpanded = _hkExpandedChannelSections.has(sectionKey);
@@ -2366,8 +2354,26 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
           </td>
         </tr>`;
       }
+      if (sectionKey && !_hkExpandedChannelSections.has(sectionKey)) return;
+      const targetPrice = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
+      const basePrice = baseByProduct[product.productId];
+      const optionAdd = (targetPrice != null && basePrice != null) ? targetPrice - basePrice : null;
+      const inactive = !!item.status;
+      // 일부 실제 상품은 어느 옵션보다도 낮은 별도 기준가를 쓴다(2K·라이트폼 세트).
+      const isBase = product.basePrice == null && i === baseIndexByProduct[product.productId];
+      const priceDiff = (targetPrice != null && item.prevPrice != null) ? targetPrice - item.prevPrice : null;
+      const shippingChanged = !inactive && item.prevShipping != null && product.baseShipping != null && item.prevShipping !== product.baseShipping;
+      const priceChanged = !inactive && !!priceDiff;
+      const productLink = _hkChannelProductLink(channelId, product);
+      const productIdValue = (productLink
+        ? `<a href="${productLink}" target="_blank" rel="noopener noreferrer">${product.productId}</a>`
+        : product.productId) + _hkChannelGroupBadge(product);
+      // 구간으로 접히는 상품은 구간의 첫 줄이 없을 수 있어 rowspan 대신 줄마다 상품ID를 적는다.
+      const productIdCell = item.section
+        ? `<td class="hk-iso-listing-id">${productIdValue}</td>`
+        : (i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${productIdValue}</td>` : '');
       const sectionClass = sectionKey ? ' hk-section-member-row' : '';
-      const sectionAttr = sectionKey ? ` data-section-key="${sectionKey}"${_hkExpandedChannelSections.has(sectionKey) ? '' : ' hidden'}` : '';
+      const sectionAttr = sectionKey ? ` data-section-key="${sectionKey}"` : '';
       const groupStartClass = (i === 0 && groupIndex > 0) ? ' hk-iso-listing-group-start' : '';
       const statusClass = inactive ? ` is-inactive is-${item.status}` : '';
       // 옵션이 둘 이상인 상품은 라디오로 기준가 옵션을 고른다(하나뿐이면 그 옵션이 곧 기준).
@@ -2453,14 +2459,60 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
   const categoryLabel = HK_CATEGORIES.find(c => c.id === categoryId)?.label || categoryId;
   const config = HK_CHANNEL_CONFIG[channelId];
   const num = _hkIsoDraftNumber;
+  // 창문형단열재 표는 한국단열(네이버) 판매가에서 계산하는 열(네이버 판매가·배송비, 총판매가, 판매가 ×1.05, 쿠폰 적용 전 판매가, 쿠폰 할인율, 쿠폰 적용 최종 판매가)이 필요 없어 뺀다
+  // (사용자 지시 2026-09-30) — 등록 판매가는 쿠팡가 탭의 반영 개당단가(재질·두께)다.
+  const slim = categoryId === 'hk_window';
+  const columnCount = slim ? 14 : 21;
   let rowsHtml = '';
   let optionCount = 0;
   let manualCount = 0;
+  // 옵션에 section(업체 등록 상품명)·sectionId(업체상품 ID)가 있으면 그 단위로 접는다 — 창문형단열재는 옵션이 640개라 접힌 채로도 다 그리면 표가 너무 크고 느려서,
+  // 접힌 구간은 요약 줄만 그리고 펼칠 때(hkToggleChannelSection) 표를 다시 그려 그 구간 행만 채운다. 상품이 여러 개(Product ID가 옵션마다 다름)여도 구간 하나로 묶는다.
+  const sectionStats = {};
+  products.forEach(product => product.items.forEach(item => {
+    if (!item.section) return;
+    const key = `${channelId}|${item.sectionId || ''}|${item.section}`;
+    const stat = sectionStats[key] || (sectionStats[key] = { count: 0, products: new Set(), min: null, max: null, changed: 0 });
+    stat.count++;
+    stat.products.add(product.productId);
+    if (item.prevPrice != null) {
+      stat.min = stat.min == null ? item.prevPrice : Math.min(stat.min, item.prevPrice);
+      stat.max = stat.max == null ? item.prevPrice : Math.max(stat.max, item.prevPrice);
+    }
+    const target = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
+    if (!item.status && target != null && item.prevPrice != null && target !== item.prevPrice) stat.changed++;
+  }));
+  let lastSectionKey = '';
   products.forEach((product, groupIndex) => {
     product.items.forEach((item, i) => {
       optionCount += 1;
+      const sectionKey = item.section ? `${channelId}|${item.sectionId || ''}|${item.section}` : '';
+      if (sectionKey && sectionKey !== lastSectionKey) {
+        const stat = sectionStats[sectionKey];
+        const sectionExpanded = _hkExpandedChannelSections.has(sectionKey);
+        rowsHtml += `<tr class="hk-group-summary-row hk-section-summary-row${sectionExpanded ? ' is-expanded' : ''}" data-section-key="${sectionKey}">
+          <td colspan="${columnCount}">
+            <button type="button" class="hk-group-toggle" aria-expanded="${sectionExpanded}" onclick="hkToggleChannelSection(this)">
+              <span class="hk-group-toggle-icon"><i class="fa-solid fa-table-cells"></i></span>
+              <strong>${item.section}</strong>
+              ${item.sectionId ? `<span class="hk-group-representative">업체상품 ${item.sectionId}</span>` : ''}
+              <span class="hk-group-count">상품 ${stat.products.size}개 · 옵션 ${stat.count}개${stat.min != null ? ` · 판매가 ${_hkIsoDraftNumber(stat.min)} ~ ${_hkIsoDraftNumber(stat.max)}원` : ''}</span>
+              ${stat.changed ? `<span class="hk-section-changed">가격 변경 ${stat.changed}개</span>` : ''}
+              <span class="hk-group-toggle-label">${sectionExpanded ? '옵션 접기' : '옵션 보기'}</span>
+              <i class="fa-solid fa-chevron-down hk-group-chevron"></i>
+            </button>
+          </td>
+        </tr>`;
+      }
+      lastSectionKey = sectionKey;
+      if (sectionKey && !_hkExpandedChannelSections.has(sectionKey)) return;
+      // 관리코드가 없는 옵션(창문형단열재)은 계산할 수 없는 칸을 "—" 대신 공백으로 둔다(사용자 요청 — 없는 데이터는 공백).
+      const blankMissing = !item.productCode || !!item.windowKey; // 창문형단열재는 한국단열 판매가에서 계산하는 옵션이 아니라 그 칸들이 비어 있다
+      const num = blankMissing ? (value, suffix) => (value == null ? '' : _hkIsoDraftNumber(value, suffix)) : _hkIsoDraftNumber;
       const parts = _hkCoupangPriceParts(categoryId, item.productCode, config, item, product);
-      const registered = parts ? parts.registered : null;
+      // 등록 판매가 — 일반 옵션은 한국단열 판매가에서 계산(parts), 창문형단열재 옵션은 재질·두께의 쿠팡 반영 개당단가(windowKey).
+      const windowPrice = item.windowKey && typeof window.hkWindowCoupangPriceByKey === 'function' ? window.hkWindowCoupangPriceByKey(item.windowKey) : null;
+      const registered = windowPrice != null ? windowPrice : (parts ? parts.registered : null);
       const isWinner = !!parts && parts.winner;
       const isManual = isWinner && parts.manual != null;
       if (isManual) manualCount += 1;
@@ -2469,36 +2521,41 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
       const priceChanged = !inactive && !!priceDiff;
       const link = _hkChannelProductLink(channelId, product);
       const idValue = (link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId) + _hkChannelGroupBadge(product);
-      const idCell = i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${idValue}</td>` : '';
+      // 구간(section)으로 접히는 옵션은 첫 줄이 없을 수 있어 rowspan 대신 줄마다 Product ID를 적는다.
+      const idCell = item.section
+        ? `<td class="hk-iso-listing-id">${idValue}</td>`
+        : (i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${idValue}</td>` : '');
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
-      const rowClass = `${i === 0 && groupIndex > 0 ? 'hk-iso-listing-group-start' : ''}${inactive ? ` is-inactive is-${item.status}` : ''}`.trim();
+      const rowClass = `${i === 0 && groupIndex > 0 && !item.section ? 'hk-iso-listing-group-start' : ''}${inactive ? ` is-inactive is-${item.status}` : ''}${sectionKey ? ' hk-section-member-row' : ''}`.trim();
       // 수동 판매가 — 위너 옵션만. 계산한 판매가와 얼마나 다른지 작게 보여준다.
       const manualGap = isManual ? parts.manual - parts.listPrice : 0;
       const manualCell = isWinner
         ? `<td class="hk-manual-cell${isManual ? ' is-manual' : ''}"><input type="text" inputmode="numeric" class="pricing-input-field hk-manual-input" value="${isManual ? parts.manual.toLocaleString() : ''}" placeholder="자동" title="다른 판매자와 가격을 맞추려고 직접 정한 판매가입니다. 비우면 계산한 판매가(×${config.listPercent / 100})를 씁니다." onchange="hkCoupangSetManualPrice('${channelId}','${product.productId}',${i},this.value)">${isManual ? `<small class="hk-manual-gap">계산가 ${manualGap > 0 ? '+' : ''}${num(manualGap)}</small>` : ''}</td>`
-        : '<td class="hk-manual-cell is-none">—</td>';
-      rowsHtml += `<tr class="${rowClass}">
+        : `<td class="hk-manual-cell is-none">${blankMissing ? '' : '—'}</td>`;
+      rowsHtml += `<tr class="${rowClass}"${sectionKey ? ` data-section-key="${sectionKey}"` : ''}>
         ${idCell}
         <td>${_hkCoupangOptionLink(channelId, product, item) ? `<a class="hk-option-link" href="${_hkCoupangOptionLink(channelId, product, item)}" target="_blank" rel="noopener noreferrer" title="쿠팡에서 이 옵션 열기">${item.optionId}</a>` : (item.optionId || '—')}</td>
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
-        <td class="hk-iso-draft-code">${item.productCode}</td>
+        <td class="hk-iso-draft-code">${item.productCode || ''}</td>
         <td class="hk-iso-listing-status"><select class="hk-channel-status-select${inactive ? ' is-' + item.status : ''}" onchange="hkChannelSetStatus('${channelId}','${product.productId}',${i},this.value)" title="옵션 판매상태">${statusOptions}</select></td>
-        <td>${num(parts?.hkdPrice)}</td>
+        ${slim ? '' : `<td>${num(parts?.hkdPrice)}</td>
         <td>${num(parts?.hkdShipping)}</td>
         <td>${num(parts?.total)}</td>
         <td>${num(parts?.listPrice)}</td>
         <td${isWinner ? ' title="위너 상품은 쿠폰을 먹이지 않아 쿠폰 적용 전 판매가가 없습니다"' : ''}>${isWinner ? '—' : num(parts?.preCoupon)}</td>
-        <td class="hk-coupon-off is-off-${parts && parts.couponOff != null ? parts.couponOff : (parts && parts.couponFlat != null ? 'flat' : 'none')}"${isWinner ? ' title="위너 상품은 쿠폰을 먹이지 않고 판매가를 그대로 받습니다"' : (parts && parts.couponFlat != null ? ' title="퍼센트가 아니라 원 단위 정액 쿠폰입니다"' : '')}>${isWinner ? '쿠폰 없음' : (parts && parts.couponFlat != null ? num(parts.couponFlat) + '원' : (parts && parts.couponOff != null ? parts.couponOff + '%' : '—'))}</td>
-        <td class="hk-price-final${isWinner ? ' is-plain' : ''}"${isWinner ? ' title="쿠폰이 없어서 등록 판매가와 같은 값입니다"' : ''}>${num(parts?.finalPrice)}</td>
+        <td class="hk-coupon-off is-off-${parts && parts.couponOff != null ? parts.couponOff : (parts && parts.couponFlat != null ? 'flat' : 'none')}"${isWinner ? ' title="위너 상품은 쿠폰을 먹이지 않고 판매가를 그대로 받습니다"' : (parts && parts.couponFlat != null ? ' title="퍼센트가 아니라 원 단위 정액 쿠폰입니다"' : '')}>${isWinner ? '쿠폰 없음' : (parts && parts.couponFlat != null ? num(parts.couponFlat) + '원' : (parts && parts.couponOff != null ? parts.couponOff + '%' : (blankMissing ? '' : '—')))}</td>
+        <td class="hk-price-final${isWinner ? ' is-plain' : ''}"${isWinner ? ' title="쿠폰이 없어서 등록 판매가와 같은 값입니다"' : ''}>${num(parts?.finalPrice)}</td>`}
         ${manualCell}
         <td class="hk-iso-ship-final-price${priceChanged ? ' is-changed' : ''}"${isManual ? ' title="수동 판매가를 쓰고 있습니다"' : ''}>${num(registered)}${isManual ? '<span class="hk-manual-tag">수동</span>' : ''}</td>
         <td class="hk-iso-listing-prev-price">${num(item.prevPrice)}</td>
-        <td class="hk-iso-listing-diff${priceChanged ? ' is-changed' : ''}">${priceDiff == null ? '—' : (priceDiff > 0 ? '+' : '') + num(priceDiff)}</td>
-        <td${_hkChannelStockCellAttrs(item)}>${num(_hkChannelStock(item, 99999))}</td>
-        <td>${product.baseShipping ? num(product.baseShipping) : '무료'}</td>
+        <td class="hk-iso-listing-diff${priceChanged ? ' is-changed' : ''}">${priceDiff == null ? (blankMissing ? '' : '—') : (priceDiff > 0 ? '+' : '') + num(priceDiff)}</td>
+        ${item.stockFixed != null
+          ? `<td>${num(item.stockFixed)}</td>` // 재고는 판매중·품절·판매중지 상관없이 늘 이 값(창문형단열재 = 99,999, 사용자 지시 2026-09-30)
+          : `<td${_hkChannelStockCellAttrs(item)}>${item.stockUnknown && !item.status ? '' : num(_hkChannelStock(item, 99999))}</td>`}
+        <td>${product.baseShipping == null ? '' : (product.baseShipping ? num(product.baseShipping) : '무료')}</td>
         <td>${num(product.jejuShipping)}</td>
-        <td>${product.returnExchange || '—'}</td>
+        <td>${product.returnExchange || (blankMissing ? '' : '—')}</td>
         <td class="hk-memo-cell"><input type="text" class="pricing-input-field hk-memo-input" value="${_hkEscapeAttr(item.memo || '')}" placeholder="메모" oninput="hkCoupangSetMemo('${channelId}','${product.productId}',${i},this.value)"></td>
       </tr>`;
     });
@@ -2508,14 +2565,16 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
   return `<div class="card pricing-cost-card hk-iso-channel-listing">
     <div class="pricing-result-header">
       <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${products.length} · 옵션 ${optionCount}</span>${manualBadge}</div>
-      <span class="pricing-result-hint">초록 칸 = <b>등록 판매가</b>(쿠팡에 입력하는 가격) · 일반: 쿠폰 적용 전 판매가(총판매가×${config.preCouponPercent / 100}, ${config.roundUp.toLocaleString()}원 올림)에 쿠폰(${config.couponOffShipping}%/${config.couponOffFree}%) · 위너: 쿠폰 없음, 수동 판매가가 있으면 그 값, 없으면 총판매가×${config.listPercent / 100}(${config.winnerRoundUnit.toLocaleString()}원 올림)</span>
+      <span class="pricing-result-hint">${slim
+        ? '초록 칸 = <b>등록 판매가</b>(쿠팡에 입력하는 가격) = 쿠팡가 탭의 반영 개당단가(옵션명의 재질·두께 기준)'
+        : `초록 칸 = <b>등록 판매가</b>(쿠팡에 입력하는 가격) · 일반: 쿠폰 적용 전 판매가(총판매가×${config.preCouponPercent / 100}, ${config.roundUp.toLocaleString()}원 올림)에 쿠폰(${config.couponOffShipping}%/${config.couponOffFree}%) · 위너: 쿠폰 없음, 수동 판매가가 있으면 그 값, 없으면 총판매가×${config.listPercent / 100}(${config.winnerRoundUnit.toLocaleString()}원 올림)`}</span>
     </div>
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-iso-draft-table hk-iso-listing-table hk-esm-table hk-coupang-table">
         <colgroup>
           <col style="width:100px"><col style="width:105px"><col style="width:300px"><col style="width:140px"><col style="width:100px">
-          <col style="width:100px"><col style="width:100px"><col style="width:110px"><col style="width:110px">
-          <col style="width:130px"><col style="width:90px"><col style="width:130px">
+          ${slim ? '' : `<col style="width:100px"><col style="width:100px"><col style="width:110px"><col style="width:110px">
+          <col style="width:130px"><col style="width:90px"><col style="width:130px">`}
           <col style="width:120px"><col style="width:130px"><col style="width:110px"><col style="width:100px">
           <col style="width:100px"><col style="width:90px"><col style="width:100px"><col style="width:100px"><col style="width:220px">
         </colgroup>
@@ -2525,13 +2584,13 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
           <th class="hk-iso-head-base">상품명</th>
           <th class="hk-iso-head-code">상품코드</th>
           <th class="hk-iso-head-base">판매상태</th>
-          <th class="hk-iso-head-base">네이버<br>판매가</th>
+          ${slim ? '' : `<th class="hk-iso-head-base">네이버<br>판매가</th>
           <th class="hk-iso-head-base">네이버<br>배송비</th>
           <th class="hk-iso-head-base">총판매가<br>(배송비 포함)</th>
           <th class="hk-iso-head-base">판매가<br>(×${config.listPercent / 100} 계산)</th>
           <th class="hk-iso-head-base">쿠폰 적용 전<br>판매가</th>
           <th class="hk-iso-head-base">쿠폰<br>할인율</th>
-          <th class="hk-iso-head-base">쿠폰 적용<br>최종 판매가</th>
+          <th class="hk-iso-head-base">쿠폰 적용<br>최종 판매가</th>`}
           <th class="hk-iso-head-manual">수동 판매가<br><span class="pricing-th-tiny">위너만 입력</span></th>
           <th class="hk-iso-head-rate">등록 판매가<br><span class="pricing-th-tiny">쿠팡에 입력</span></th>
           <th class="hk-iso-head-prev">수정 전 판매가</th>
