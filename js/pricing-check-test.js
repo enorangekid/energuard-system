@@ -319,7 +319,7 @@
   // 스토어 쪽은 즉시할인만 적용된 "상품 가격"으로 비교한다 — 한국단열은 판매가를 높게 적고 즉시할인을 거는
   // 상품이 많아서 할인 전 판매가로 비교하면 할인액만큼 전부 틀어지고, 알림쿠폰까지 뺀 최대할인가로 비교하면
   // 쿠폰이 걸린 상품(5697937041)이 전부 -2,000으로 틀어진다.
-  const HKD_MIN_EXTENSION='0.30.9'; // 0.30.9: G마켓 기존가 영역의 할인률보다 라벨 뒤 금액을 우선
+  const HKD_MIN_EXTENSION='0.30.10'; // 0.30.10: ESM 단열벽지는 옵션 상품이라 사이즈별 등록가를 옵션마다 검사(0.30.9: G마켓 기존가 영역의 할인률보다 라벨 뒤 금액을 우선)
   // 그룹상품(groupProduct)도 구성 상품마다 스토어 페이지를 하나씩 전부 검사한다(사용자 결정 2026-09-29 — 느려도 전체 검증).
   // 한때 같은 관리코드는 대표 1개만 보는 샘플링을 뒀다가 뺐다.
   function gatherHkdItems(channelId,categoryId){
@@ -352,10 +352,21 @@
     for(const product of HK_CHANNEL_LISTINGS.esm||[]){
       if(categoryId!=='all'&&product.categoryId!==categoryId)continue;
       const active=product.items.filter(item=>!item.status);
+      if(!active.length)continue; // 전 옵션 품절·판매중지 상품은 스토어 검사에서 제외(한국단열 검사와 같은 규칙)
       const markets=marketplace==='both'?['gmarket','auction']:[marketplace];
       for(const market of markets){
         const id=String(market==='auction'?product.auctionProductId||'':product.productId||'');
         if(!id){if(market==='auction')missingAuction++;continue;}
+        // 단열벽지는 그룹상품이 아니라 옵션 상품(단열벽지→사이즈→디자인 조합) — 옵션(사이즈)별 등록가를 각각 비교한다.
+        if(product.categoryId==='hk_wallpaper'){
+          items.push({
+            marketplace:market,productId:id,
+            productUrl:market==='auction'?`https://itempage3.auction.co.kr/DetailView.aspx?ItemNo=${id}`:`https://item.gmarket.co.kr/Item?goodscode=${id}`,
+            name:product.groupName||`마스터 ${product.masterId}`,optionMode:true,
+            options:product.items.map(item=>({code:item.productCode,name:_hkChannelItemName(product.categoryId,product,item),expected:_hkChannelTargetPrice(product.categoryId,item.productCode,'esm',product,item),status:item.status||null}))
+          });
+          continue;
+        }
         const option=active[0];
         items.push({
           marketplace:market,productId:id,
@@ -393,7 +404,7 @@
       </div>
       <div class="pv-body">
         <div class="pv-hint"><i class="fa-solid fa-circle-info"></i>
-          <span>${storeDescription} 상품을 하나씩 열어 몰별 적용 표의 현재 판매가와 비교합니다. ${isEsm?'그룹에 묶인 단품 상품번호별로 검사하며, 사이트 쿠폰가는 제외하고 판매자가 등록한 할인 전 가격(기존가/원가)을 비교합니다.':isHomepage?'부니몰은 관리코드가 보이지 않아 옵션 이름을 먼저 보고, 이름이 전혀 맞지 않으면서 옵션 수가 같을 때만 등록 순서로 짝짓습니다.':'옵션은 관리코드(=상품코드)로 먼저, 없으면 옵션 이름으로 짝짓습니다. 스토어 화면의 "상품 가격"(즉시할인만 적용, 알림받기·쿠폰은 뺀 값)으로 비교합니다.'}<br>통합 확장 ${HKD_MIN_EXTENSION} 이상을 설치한 Chrome에서 실행하세요.</span>
+          <span>${storeDescription} 상품을 하나씩 열어 몰별 적용 표의 현재 판매가와 비교합니다. ${isEsm?'그룹에 묶인 단품 상품번호별로 검사하며, 사이트 쿠폰가는 제외하고 판매자가 등록한 할인 전 가격(기존가/원가)을 비교합니다.':isHomepage?'부니몰은 관리코드가 보이지 않아 옵션 이름을 먼저 보고, 이름이 전혀 맞지 않으면서 옵션 수가 같을 때만 등록 순서로 짝짓습니다.':'옵션은 관리코드(=상품코드)로 먼저, 없으면 옵션 이름으로 짝짓습니다. 스토어 화면의 "상품 가격"(즉시할인만 적용, 알림받기·쿠폰은 뺀 값)으로 비교합니다.'}<br>통합 확장 ${HKD_MIN_EXTENSION} 이상을 설치한 Chrome에서 실행하세요.${isEsm?'<br><strong>⚠ 유의: G마켓·옥션은 한꺼번에 많이 검사하면 봇 차단 화면이 뜰 수 있습니다. 카테고리·판매처(G마켓/옥션)를 나눠서 조금씩 검사하세요. 차단 화면이 뜨면 브라우저에서 확인한 뒤 "이어서 검사"를 누르세요.</strong>':''}</span>
         </div>
         <div class="pctd-controls">
           <label class="pctd-field">

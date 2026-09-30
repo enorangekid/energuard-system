@@ -279,4 +279,38 @@ const url=id=>`https://smartstore.naver.com/hkdy/products/${id}`;
     const rows=await c.inspectEsm({marketplace:'auction',productId:'F392223636',productUrl:ac,code:'BL_13_10_DA',name:'13T 고급형 접착 10m',expected:111400});
     assert.equal(rows[0].status,'불일치');assert.equal(rows[0].diff,-100);assert.equal(rows[0].store,'auction');
   }
+  // 단열벽지는 그룹상품이 아니라 옵션 상품(단열벽지→사이즈→디자인) — 사이즈별 등록가를 옵션마다 비교한다.
+  {
+    const gm='https://item.gmarket.co.kr/Item?goodscode=4751750159';
+    const rows_=[
+      {type:'고급형1_5T',size:'10m',prices:[48600]},{type:'고급형1_5T',size:'20m',prices:[74600]},
+      {type:'고급형2_5T',size:'10m',prices:[53000]},{type:'고급형2_5T',size:'20m',prices:[90800]},
+      {type:'이중화이트_5T',size:'10m',prices:[58400]},{type:'이중화이트_5T',size:'20m',prices:[97200]},
+      {type:'추가형_5T',size:'10m',prices:[70000]},
+    ];
+    const {c}=boot(()=>({ok:true,marketplace:'gmarket',productId:'4751750159',productUrl:gm,registeredPrice:48600,rows:rows_}));
+    const options=[
+      ['고급형1 5T x 10m','WP_P1_5_10',48600],['고급형1 5T x 20m','WP_P1_5_20',74600],
+      ['고급형2 5T x 10m','WP_P2_5_10',53000],['고급형2 5T x 20m','WP_P2_5_20',90900], // 20m는 일부러 100원 다르게
+      ['이중화이트 5T x 10m','WP_DW_5_10',58400],['이중화이트 5T x 20m','WP_DW_5_20',97200],
+      ['3D실크벽지 5T x 10m','WP_SK_5_10',54000], // 스토어에 없는 옵션
+    ].map(([name,code,expected])=>({code,name:'단열벽지 '+name,expected,status:null}));
+    options.push({code:'WP_P1_5_23',name:'단열벽지 고급형1 5T x 2.3m',expected:20600,status:'stopped'}); // 판매중지는 "스토어에 없음"으로 안 본다
+    const rows=await c.inspectEsm({marketplace:'gmarket',productId:'4751750159',productUrl:gm,optionMode:true,options});
+    const by=code=>rows.find(r=>r.code===code);
+    assert.equal(by('WP_P1_5_10').status,'일치');assert.equal(by('WP_P1_5_20').status,'일치');
+    assert.equal(by('WP_P2_5_20').status,'불일치');assert.equal(by('WP_P2_5_20').diff,-100);
+    assert.equal(by('WP_DW_5_20').status,'일치');
+    assert.equal(by('WP_SK_5_10').status,'스토어에 없음');
+    assert.ok(!by('WP_P1_5_23'));
+    const extra=rows.find(r=>r.status==='단가표에 없음');assert.equal(extra.actual,70000);assert.match(extra.label,/추가형/);
+    assert.equal(rows.length,8); // 스토어 7행(매칭 6 + 단가표에 없음 1) + 스토어에 없음 1
+  }
+  {
+    const ac='https://itempage3.auction.co.kr/DetailView.aspx?ItemNo=B395500419';
+    // 옥션: 디자인별 추가금이 사이즈 안에서 다르면 어긋난 값을 결과로 남긴다.
+    const {c}=boot(()=>({ok:true,marketplace:'auction',productId:'B395500419',productUrl:ac,registeredPrice:48600,rows:[{type:'고급형1_5T',size:'20m',prices:[74600,74700]}]}));
+    const rows=await c.inspectEsm({marketplace:'auction',productId:'B395500419',productUrl:ac,optionMode:true,options:[{code:'WP_P1_5_20',name:'단열벽지 고급형1 5T x 20m',expected:74600,status:null}]});
+    assert.equal(rows.length,1);assert.equal(rows[0].status,'불일치');assert.equal(rows[0].actual,74700);assert.match(rows[0].source,/디자인별 가격 상이/);
+  }
 })().catch(e=>{console.error(e);process.exit(1)});

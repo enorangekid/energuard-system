@@ -1,4 +1,4 @@
-﻿const fs=require('fs'),path=require('path');
+const fs=require('fs'),path=require('path');
 const source=path.resolve('../Naver-rank/shopping-rank-extension');
 const sample=path.resolve('tools/price-check-test-extension');
 fs.copyFileSync(path.join(sample,'checker-content.js'),path.join(source,'checker-content.js'));
@@ -23,6 +23,6 @@ if(!m.host_permissions.includes('https://boonimall.kr/*'))m.host_permissions.pus
 if(!m.content_scripts.some(c=>c.js.includes('boonimall-price-collector.js')))m.content_scripts.push({matches:['https://boonimall.kr/goods/view*'],js:['boonimall-price-collector.js'],run_at:'document_idle'});
 for(const permission of ['https://item.gmarket.co.kr/*','https://itempage3.auction.co.kr/*'])if(!m.host_permissions.includes(permission))m.host_permissions.push(permission);
 if(!m.content_scripts.some(c=>c.js.includes('esm-price-collector.js')))m.content_scripts.push({matches:['https://item.gmarket.co.kr/Item*','https://itempage3.auction.co.kr/DetailView.aspx*'],js:['esm-price-collector.js'],run_at:'document_idle'});
-m.minimum_chrome_version='120';m.version='0.30.9';
+m.minimum_chrome_version='120';m.version='0.30.10';
 fs.writeFileSync(path.join(source,'manifest.json'),JSON.stringify(m,null,2)+'\n');
 console.log('Integrated price test v'+m.version+' into '+source);
