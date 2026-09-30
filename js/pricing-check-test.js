@@ -319,7 +319,7 @@
   // 스토어 쪽은 즉시할인만 적용된 "상품 가격"으로 비교한다 — 한국단열은 판매가를 높게 적고 즉시할인을 거는
   // 상품이 많아서 할인 전 판매가로 비교하면 할인액만큼 전부 틀어지고, 알림쿠폰까지 뺀 최대할인가로 비교하면
   // 쿠폰이 걸린 상품(5697937041)이 전부 -2,000으로 틀어진다.
-  const HKD_MIN_EXTENSION='0.30.3';
+  const HKD_MIN_EXTENSION='0.30.4'; // 0.30.4: 한국단열라이프(hkdylife) 스토어 주소 허용 + 검사 결과에 채널·스토어 기록
   // 그룹상품(groupProduct)도 구성 상품마다 스토어 페이지를 하나씩 전부 검사한다(사용자 결정 2026-09-29 — 느려도 전체 검증).
   // 한때 같은 관리코드는 대표 1개만 보는 샘플링을 뒀다가 뺐다.
   function gatherHkdItems(channelId,categoryId){
@@ -338,22 +338,25 @@
   }
   window.openHkStorePriceCheck=function(channelId) {
     if(window.currentUser?.role!=='admin')return;
-    const existing=document.getElementById('hkStorePriceCheckDialog');
+    // 채널마다 검사창이 따로다(한국단열 hkd · 한국단열라이프 hkd_life — 같은 스마트스토어 구조, 스토어만 다름).
+    const existing=document.getElementById('hkStorePriceCheckDialog-'+channelId);
     if(existing){existing.showModal();return;}
+    const channelLabel=(typeof HK_CHANNELS!=='undefined'&&HK_CHANNELS.find(c=>c.id===channelId)?.label)||channelId;
+    const storeSlug=channelId==='hkd_life'?'hkdylife':'hkdy';
     const counts={};
     for(const product of HK_CHANNEL_LISTINGS[channelId]||[])counts[product.categoryId]=(counts[product.categoryId]||0)+1;
     const categoryOptions=HK_CATEGORIES.filter(c=>counts[c.id]).map(c=>`<option value="${c.id}">${c.label} (${counts[c.id]})</option>`).join('');
-    const dialog=document.createElement('dialog');dialog.id='hkStorePriceCheckDialog';dialog.className='pv-dialog';
+    const dialog=document.createElement('dialog');dialog.id='hkStorePriceCheckDialog-'+channelId;dialog.className='pv-dialog';
     dialog.innerHTML=`<div class="pricing-input-modal-header">
         <div class="pim-header-left">
-          <span class="pim-title"><i class="fa-solid fa-magnifying-glass-dollar"></i> 한국단열 스토어 가격검사</span>
+          <span class="pim-title"><i class="fa-solid fa-magnifying-glass-dollar"></i> ${channelLabel} 스토어 가격검사</span>
           <span class="pim-sub">읽기 전용 · 가격 변경 없음</span>
         </div>
         <button type="button" class="pim-close-btn" data-close><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="pv-body">
         <div class="pv-hint"><i class="fa-solid fa-circle-info"></i>
-          <span>한국단열 네이버스토어 상품을 하나씩 열어 옵션별 판매가를 몰별 적용 표의 현재 판매가와 비교합니다. 옵션은 관리코드(=상품코드)로 먼저, 없으면 옵션 이름으로 짝짓습니다. 스토어 화면의 "상품 가격"(즉시할인만 적용, 알림받기·쿠폰은 뺀 값)으로 비교합니다.<br>통합 확장 ${HKD_MIN_EXTENSION} 이상을 설치한 Chrome에서 실행하세요.</span>
+          <span>${channelLabel} 네이버스토어(smartstore.naver.com/${storeSlug}) 상품을 하나씩 열어 옵션별 판매가를 몰별 적용 표의 현재 판매가와 비교합니다. 옵션은 관리코드(=상품코드)로 먼저, 없으면 옵션 이름으로 짝짓습니다. 스토어 화면의 "상품 가격"(즉시할인만 적용, 알림받기·쿠폰은 뺀 값)으로 비교합니다.<br>통합 확장 ${HKD_MIN_EXTENSION} 이상을 설치한 Chrome에서 실행하세요.</span>
         </div>
         <div class="pctd-controls">
           <label class="pctd-field">
@@ -382,6 +385,13 @@
     function render(){
       const state=snapshot;
       if(!state || state.kind!=='hkd'){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();result.replaceChildren();return;}
+      // 확장에는 마지막 검사 하나만 남는다 — 다른 채널을 검사한 결과면 이 채널 결과로 보여주지 않는다.
+      if(state.channelId && state.channelId!==channelId){
+        const other=(typeof HK_CHANNELS!=='undefined'&&HK_CHANNELS.find(c=>c.id===state.channelId)?.label)||state.channelId;
+        status.textContent=`마지막 검사는 ${other} 채널입니다 — 이 채널 검사 이력이 없습니다.`;statusBar.classList.remove('running','error');statusBar.classList.toggle('running',!!state.running);summary.replaceChildren();result.replaceChildren();
+        dialog.querySelector('[data-run]').disabled=busy||state.running;dialog.querySelector('[data-run-supp]').disabled=busy||state.running;dialog.querySelector('[data-pause]').disabled=true;dialog.querySelector('[data-resume]').disabled=true;
+        return;
+      }
       const counts={};for(const row of state.rows)counts[row.status]=(counts[row.status]||0)+1;
       status.textContent=`${state.mode==='supplement'?'추가상품 검사 · ':''}${state.done}/${state.total}개 상품 · ${state.running?'진행 중':state.reason||'완료'}`;
       statusBar.classList.toggle('running',!!state.running);
@@ -400,7 +410,7 @@
       for(const row of rows.slice(-500)){
         const tr=table.insertRow();
         const idTd=tr.insertCell();
-        if(/^\d+$/.test(String(row.productId||''))){const a=document.createElement('a');a.href=`https://smartstore.naver.com/hkdy/products/${row.productId}`;a.target='_blank';a.rel='noopener noreferrer';a.textContent=row.productId;idTd.appendChild(a);}
+        if(/^\d+$/.test(String(row.productId||''))){const a=document.createElement('a');a.href=`https://smartstore.naver.com/${/^(hkdy|hkdylife)$/.test(row.store||'')?row.store:storeSlug}/products/${row.productId}`;a.target='_blank';a.rel='noopener noreferrer';a.textContent=row.productId;idTd.appendChild(a);}
         else idTd.textContent=row.productId??'—';
         for(const key of ['label','code','actual','expected','diff','status','source']){
           const td=tr.insertCell();const value=row[key];
@@ -420,10 +430,10 @@
     dialog.querySelector('[data-only]').onchange=render;
     for(const action of ['pause','resume'])dialog.querySelector('[data-'+action+']').onclick=async()=>{try{await request(action);await refresh();}catch(e){status.textContent=e.message;}};
     dialog.querySelector('[data-export]').onclick=()=>{
-      if(!snapshot || snapshot.kind!=='hkd')return;
+      if(!snapshot || snapshot.kind!=='hkd' || (snapshot.channelId && snapshot.channelId!==channelId))return;
       const cell=v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';
       const lines=[['상품번호','스토어 옵션/사유','상품코드','스토어(비교가)','비교 기준','할인 전 판매가','최대할인가','단가표','차액','판정','매칭','가격 후보(상품 첫 행)'],...snapshot.rows.map(r=>[r.productId,r.label,r.code,r.actual,r.priceKind,r.listPrice,r.maxPrice,r.expected,r.diff,r.status,r.source,r.priceInfo?JSON.stringify(r.priceInfo):''])];
-      const url=URL.createObjectURL(new Blob(['﻿'+lines.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='한국단열가격검사-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      const url=URL.createObjectURL(new Blob(['﻿'+lines.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=channelLabel+'가격검사-'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     };
     setInterval(()=>{if(dialog.open)refresh();},3000);refresh();
     // 옵션 검사와 추가상품 검사는 따로 돌린다(사용자 요청 2026-09-29 — 한 번에 하면 결과가 많고 오래 걸린다).
@@ -435,8 +445,8 @@
         if(!items.length)throw Error('검사할 상품이 없습니다.');
         if(mode==='supplement'){
           if(typeof window.hkSupplementCatalog!=='function')throw Error('추가상품 목록을 불러오지 못했습니다.');
-          await request('start',{kind:'hkd',mode:'supplement',items,supplements:window.hkSupplementCatalog()});
-        } else await request('start',{kind:'hkd',items});
+          await request('start',{kind:'hkd',channelId,mode:'supplement',items,supplements:window.hkSupplementCatalog()});
+        } else await request('start',{kind:'hkd',channelId,items});
         await refresh();
       } catch(error){status.textContent=error.message || '검사 실패';}
       finally{busy=false;buttons.forEach(b=>{b.disabled=!!snapshot?.running;});}

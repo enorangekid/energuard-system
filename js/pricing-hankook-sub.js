@@ -209,7 +209,30 @@ function _hkSubMetrics(product, price = Number(product.price) || 0) {
   };
 }
 
+/* 원가 없는 항목(실외기 커버·어싱매트) — 공급원가·마진 칸은 "—", 판매가는 연필로 직접 고친다. */
+function _hkSubNoCostRowHtml(product, rowIndex) {
+  const difference = Number(product.price) - Number(product.previousPrice);
+  return `<tr data-row-index="${rowIndex}" data-product-code="${product.code}" data-no-cost="1">
+    <td class="hk-sub-name">${product.name}</td>
+    <td class="hk-iso-draft-code">${product.code}</td>
+    <td class="hk-sub-cost hk-sub-cost-cell hk-sub-no-cost" title="원가를 계산하지 않는 상품 — 판매가를 직접 관리합니다">원가 없음</td>
+    <td class="hk-sub-increase-none">—</td>
+    <td class="hk-sub-previous">${_hkIsoDraftNumber(product.previousPrice)}<small class="${difference > 0 ? 'up' : difference < 0 ? 'down' : ''}">${difference ? `${difference > 0 ? '+' : ''}${_hkIsoDraftNumber(difference)}` : '동일'}</small></td>
+    <td class="hk-iso-draft-price hk-sub-price-cell">
+      <div class="hk-iso-price-edit-wrap">
+        <input type="text" inputmode="numeric" class="pricing-input-field hk-iso-final-price-input" value="${Number(product.price).toLocaleString()}" data-original-price="${Number(product.price)}" onblur="finishHkSubPriceEdit(this)" onkeydown="handleHkSubPriceKey(event,this)" readonly aria-label="판매가">
+        <button type="button" class="hk-iso-row-price-edit-btn" onclick="beginHkSubPriceEdit(this)" title="판매가를 직접 수정"><i class="fa-solid fa-pen"></i></button>
+      </div>
+      <div class="hk-iso-price-history" hidden>변경 전 <span>${Number(product.price).toLocaleString()}원</span></div>
+    </td>
+    <td class="hk-sub-shipping">${product.shipping ? _hkIsoDraftNumber(product.shipping) : '—'}</td>
+    <td class="hk-sub-margin">—</td><td class="hk-sub-margin-rate">—</td><td class="hk-sub-fee">—</td><td class="hk-sub-vat">—</td>
+    <td class="hk-sub-net-margin">—</td><td class="hk-sub-net-rate">—</td><td class="hk-sub-ref-margin">—</td>
+  </tr>`;
+}
+
 function _hkSubRowHtml(product, rowIndex) {
+  if (product.noCost) return _hkSubNoCostRowHtml(product, rowIndex);
   const metrics = _hkSubMetrics(product);
   const difference = Number(product.price) - Number(product.previousPrice);
   return `<tr data-row-index="${rowIndex}" data-product-code="${product.code}" data-cost="${product.cost}">
@@ -339,7 +362,49 @@ window.recalcHkSubRow = function(input) {
   if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
 };
 
+/* 원가 없는 항목의 판매가 직접 수정 */
+window.beginHkSubPriceEdit = function(button) {
+  const input = button.closest('.hk-sub-price-cell')?.querySelector('.hk-iso-final-price-input');
+  if (!input) return;
+  input.dataset.editStartPrice = String(_hkIsoDraftParseNumber(input.value));
+  input.readOnly = false;
+  input.closest('.hk-sub-price-cell').classList.add('editing');
+  input.focus();
+  input.select();
+};
+
+window.finishHkSubPriceEdit = function(input) {
+  if (input.readOnly) return;
+  const row = input.closest('tr');
+  const product = HK_SUB_PRODUCTS[Number(row?.dataset.rowIndex)];
+  if (!row || !product) return;
+  const next = Math.max(0, Math.round(_hkIsoDraftParseNumber(input.value)));
+  product.price = next;
+  input.value = next.toLocaleString();
+  input.readOnly = true;
+  input.closest('.hk-sub-price-cell')?.classList.remove('editing');
+  _hkSubUpdateHistory(row);
+  if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
+};
+
+window.handleHkSubPriceKey = function(event, input) {
+  if (event.key === 'Enter') input.blur();
+  if (event.key === 'Escape') {
+    input.value = Number(input.dataset.editStartPrice || 0).toLocaleString();
+    input.blur();
+  }
+};
+
 function _hkSubUpdateHistory(row) {
+  if (row.dataset.noCost) {
+    const priceInput = row.querySelector('.hk-iso-final-price-input');
+    const priceHistory = row.querySelector('.hk-iso-price-history');
+    if (!priceInput) return;
+    const changed = _hkIsoDraftParseNumber(priceInput.value) !== Number(priceInput.dataset.originalPrice || 0);
+    if (priceHistory) priceHistory.hidden = !changed;
+    row.querySelector('.hk-sub-price-cell')?.classList.toggle('changed', changed);
+    return;
+  }
   const costInput = row.querySelector('.hk-sub-cost-input');
   const priceInput = row.querySelector('.hk-iso-final-price-input');
   const costHistory = row.querySelector('.hk-sub-cost-history');
@@ -561,6 +626,17 @@ window.hkSubMarkSaved = function() {
   HK_SUB_PRODUCTS.forEach(product => (product.increases || []).forEach(item => { delete item.pending; }));
   document.querySelectorAll('.hk-sub-table tbody tr').forEach(row => {
     const product = HK_SUB_PRODUCTS[Number(row.dataset.rowIndex)];
+    if (product && row.dataset.noCost) {
+      // 원가 없는 항목 — 방금 저장한 판매가가 새 "변경 전" 기준이다.
+      const priceInput = row.querySelector('.hk-iso-final-price-input');
+      if (priceInput) {
+        priceInput.dataset.originalPrice = String(product.price);
+        const span = row.querySelector('.hk-iso-price-history span');
+        if (span) span.textContent = `${Number(product.price).toLocaleString()}원`;
+        _hkSubUpdateHistory(row);
+      }
+      return;
+    }
     const costInput = row.querySelector('.hk-sub-cost-input');
     if (!product || !costInput) return;
     costInput.dataset.originalCost = String(product.cost);
@@ -580,7 +656,7 @@ window.hkSubProductIndex = function() {
     code: row.code,
     block: null,
     // 가격 인상 이력도 같은 JSON에 둔다(저장 전 표시용 pending 플래그는 저장하지 않는다).
-    ship: { subCost: Number(row.cost), increases: (row.increases || []).map(({ date, amount }) => ({ date, amount })) },
+    ship: { ...(row.noCost ? {} : { subCost: Number(row.cost) }), increases: (row.increases || []).map(({ date, amount }) => ({ date, amount })) },
     row,
     rowIndex,
     accordionId: 'sub_all',
@@ -592,6 +668,46 @@ window.hkSubPriceByCode = function(code) {
   const product = HK_SUB_PRODUCTS.find(item => item.code === code);
   return product ? Number(product.price) : null;
 };
+
+/* ═══════════════════════════════════════
+   실외기 커버·어싱매트 — 원가 없는 공통 부자재 (2026-09-30, 사용자 요청)
+   여러 몰(한국단열·한국단열라이프…)에서 같이 파는데 원가는 계산하지 않는다. 그래도 몰마다 가격을 맞추는 기준이 있어야 해서
+   판매가를 이 부자재 표에 두고(cost: null, noCost: true), 몰별 단가표는 관리코드로 이 가격을 가져간다.
+   - 공급원가·마진 칸은 "—"이고 판매가는 연필로 직접 고친다(원가 조정 없음). 저장은 다른 부자재와 같이 hk_products 판매가로.
+   - 관리코드: 절전커버 COVER_SAVE_{5|9|14|20|30}_{M|L|XL}, 방수커버 COVER_{PVC|TARP}_{A~E}, 어싱매트 EARTH_M / EARTH_L.
+   - 옵션 이름·치수는 사용자가 준 스토어 옵션명(PVC E형·타포린 E형 96cm, 타포린 C형 80x65x28).
+   - 어싱매트는 한국단열은 15,000/19,000, 한국단열라이프는 아직 옛 가격 16,000/20,000이다. 기준은 한국단열 가격이고,
+     라이프도 이 기준을 따라 "수정 전 16,000 → 15,000" 인하 반영 대기로 표에 보이게 했다(prevFixed).
+═══════════════════════════════════════ */
+const HK_OUTDOOR_COVER_SAVE = [
+  ['COVER_SAVE_5_M', '실외기 절전커버 5T 50cm x 70cm_중형', 5500], ['COVER_SAVE_5_L', '실외기 절전커버 5T 50cm x 110cm_대형', 6500], ['COVER_SAVE_5_XL', '실외기 절전커버 5T 50cm x 130cm_특대형', 7500],
+  ['COVER_SAVE_9_M', '실외기 절전커버 9T 50cm x 70cm_중형', 5800], ['COVER_SAVE_9_L', '실외기 절전커버 9T 50cm x 110cm_대형', 6500], ['COVER_SAVE_9_XL', '실외기 절전커버 9T 50cm x 130cm_특대형', 7500],
+  ['COVER_SAVE_14_M', '실외기 절전커버 14T 50cm x 70cm_중형', 11000], ['COVER_SAVE_14_L', '실외기 절전커버 14T 50cm x 110cm_대형', 12300], ['COVER_SAVE_14_XL', '실외기 절전커버 14T 50cm x 130cm_특대형', 14200],
+  ['COVER_SAVE_20_M', '실외기 절전커버 20T 50cm x 70cm_중형', 16000], ['COVER_SAVE_20_L', '실외기 절전커버 20T 50cm x 110cm_대형', 18000], ['COVER_SAVE_20_XL', '실외기 절전커버 20T 50cm x 130cm_특대형', 20000],
+  ['COVER_SAVE_30_M', '실외기 절전커버 30T 50cm x 70cm_중형', 24000], ['COVER_SAVE_30_L', '실외기 절전커버 30T 50cm x 110cm_대형', 25000], ['COVER_SAVE_30_XL', '실외기 절전커버 30T 50cm x 130cm_특대형', 27000],
+];
+const HK_OUTDOOR_COVER_WATERPROOF = [
+  ['COVER_PVC_A', '실외기 방수커버 PVC 58cm x 57cm x 28cm_A형', 5800],
+  ['COVER_PVC_B', '실외기 방수커버 PVC 70cm x 57cm x 28cm_B형', 6500],
+  ['COVER_PVC_C', '실외기 방수커버 PVC 80cm x 70cm x 35cm_C형', 7000],
+  ['COVER_PVC_D', '실외기 방수커버 PVC 90cm x 70cm x 35cm_D형', 7500],
+  ['COVER_PVC_E', '실외기 방수커버 PVC 96cm x 85cm x 38cm_E형', 8500],
+  ['COVER_TARP_A', '실외기 방수커버 타포린 58cm x 57cm x 28cm_A형', 14000],
+  ['COVER_TARP_B', '실외기 방수커버 타포린 70cm x 57cm x 28cm_B형', 14500],
+  ['COVER_TARP_C', '실외기 방수커버 타포린 80cm x 65cm x 28cm_C형', 18000],
+  ['COVER_TARP_D', '실외기 방수커버 타포린 90cm x 70cm x 35cm_D형', 18000],
+  ['COVER_TARP_E', '실외기 방수커버 타포린 96cm x 85cm x 38cm_E형', 22500],
+];
+const HK_EARTH_MAT = [
+  ['EARTH_M', '어싱매트 중형 (50cm x 90cm)', 15000],
+  ['EARTH_L', '어싱매트 대형 (50cm x 120cm)', 19000],
+];
+[...HK_OUTDOOR_COVER_SAVE, ...HK_OUTDOOR_COVER_WATERPROOF, ...HK_EARTH_MAT].forEach(([code, name, price]) => {
+  HK_SUB_PRODUCTS.push({
+    supplier: '실외기 커버·어싱매트', name, code, cost: null, noCost: true,
+    previousPrice: price, price, shipping: 3000, refMargin: null, increases: [],
+  });
+});
 
 /* ═══════════════════════════════════════
    한국단열라이프 채널 — 부자재 (2026-09-22 사용자 제공 표)
@@ -621,9 +737,10 @@ window.hkSubPriceByCode = function(code) {
     items,
     ...extra,
   });
-  const direct = (code, name, targetPrice) => item(code, name, targetPrice, {
+  // 공통 상품코드가 없는 항목은 코드 칸에 "—"를 보이고, 사용자가 정식 관리코드를 정한 항목(showCode)은 그 코드를 그대로 보여준다.
+  const direct = (code, name, targetPrice, { showCode = false } = {}) => item(code, name, targetPrice, {
     targetPrice,
-    displayCode: '—',
+    ...(showCode ? {} : { displayCode: '—' }),
   });
 
   HK_CHANNEL_LISTINGS.hkd_life = [
@@ -702,20 +819,14 @@ window.hkSubPriceByCode = function(code) {
       item('U_FB', '유니 패스트본드 건용', 6500),
     ]),
     product('12083617577', 3000, '5개마다', 10000, '6000/12000', [
-      direct('HKL_EARTH_M', '어싱매트 중형 (50cm x 90cm)', 16000),
-      direct('HKL_EARTH_L', '어싱매트 대형 (50cm x 120cm)', 20000),
+      // 관리코드 EARTH_M / EARTH_L — 사용자가 정함(2026-09-30, 임시였던 HKL_EARTH_M/L에서 바꿈). 스토어 옵션에도 이 관리코드를 등록하면 스토어 가격검사가 코드로 짝짓는다.
+      // 공통 부자재 가격(한국단열 15,000/19,000)을 따르되, 스토어에 지금 올라 있는 값(16,000/20,000)이 "수정 전"이라 표에 인하 반영 대기로 보인다(prevFixed).
+      item('EARTH_M', '어싱매트 중형 (50cm x 90cm)', 16000, { prevFixed: true }),
+      item('EARTH_L', '어싱매트 대형 (50cm x 120cm)', 20000, { prevFixed: true }),
     ]),
     product('12043329222', 3000, '5개마다', 10000, '6000/12000', [
-      direct('HKL_COVER_PVC_A', '실외기 방수커버 PVC 58cm x 57cm x 28cm_A형', 5800),
-      direct('HKL_COVER_PVC_B', '실외기 방수커버 PVC 70cm x 57cm x 28cm_B형', 6500),
-      direct('HKL_COVER_PVC_C', '실외기 방수커버 PVC 80cm x 70cm x 35cm_C형', 7000),
-      direct('HKL_COVER_PVC_D', '실외기 방수커버 PVC 90cm x 70cm x 35cm_D형', 7500),
-      direct('HKL_COVER_PVC_E', '실외기 방수커버 PVC 95cm x 85cm x 38cm_E형', 8500),
-      direct('HKL_COVER_TARP_A', '실외기 방수커버 타포린 58cm x 57cm x 28cm_A형', 14000),
-      direct('HKL_COVER_TARP_B', '실외기 방수커버 타포린 70cm x 57cm x 28cm_B형', 14500),
-      direct('HKL_COVER_TARP_C', '실외기 방수커버 타포린 80cm x 70cm x 35cm_C형', 18000),
-      direct('HKL_COVER_TARP_D', '실외기 방수커버 타포린 90cm x 70cm x 35cm_D형', 18000),
-      direct('HKL_COVER_TARP_E', '실외기 방수커버 타포린 95cm x 85cm x 38cm_E형', 22500),
+      // 실외기 방수커버 — 공통 부자재 표의 가격을 관리코드로 가져온다(아래 forEach가 수정 전 판매가를 맞춘다).
+      ...HK_OUTDOOR_COVER_WATERPROOF.map(([code, name]) => item(code, name, 0)),
     ]),
     product('12115378507', 7800, '1개마다', 16000, '16000/32000', [
       item('W_B2_G_B', '월드 폼본드 B2 건용_1박스', 105000),
@@ -795,7 +906,7 @@ window.hkSubPriceByCode = function(code) {
       const currentPrice = channelItem.targetPrice != null
         ? Number(channelItem.targetPrice)
         : window.hkSubPriceByCode(channelItem.productCode);
-      if (currentPrice != null && Number.isFinite(currentPrice)) channelItem.prevPrice = currentPrice;
+      if (!channelItem.prevFixed && currentPrice != null && Number.isFinite(currentPrice)) channelItem.prevPrice = currentPrice;
       channelItem.prevShipping = Number(channelProduct.baseShipping || 0);
     });
   });
@@ -893,6 +1004,38 @@ window.hkSubPriceByCode = function(code) {
       if (currentPrice != null && Number.isFinite(currentPrice)) channelItem.prevPrice = currentPrice;
     });
   });
+})();
+
+/* ═══════════════════════════════════════
+   한국단열(hkd) 채널 — 실외기 커버·어싱매트 (2026-09-30, 사용자가 준 한국단열 엑셀 표 26행 = 상품 3개)
+   - 4563030455: 실외기 절전커버 5T·9T·14T·20T·30T × 중형·대형·특대형 15개 + 방수커버 PVC 5·타포린 5 = 옵션 25개.
+   - 12650826381: 어싱매트_전기매트 중형 15,000 · 대형 19,000 / 13577623011: 어싱매트_발매트 중형 15,000 · 대형 19,000. 기준가 15,000.
+   - 배송비 3,000 · 5개마다 · 제주 10,000 · 교환/반품 6000/12000(표 그대로). 판매가는 부자재 탭의 '실외기 커버·어싱매트' 항목(원가 없는 공통 판매가)을 관리코드로 가져온다.
+     수정 전 판매가·배송비는 사용자 규칙대로 현재 값.
+   - 관리코드(사용자 지시 "코드는 네가 만든 걸로"): 절전커버 COVER_SAVE_{9|14|20|30}_{M|L|XL}, 방수커버 COVER_{PVC|TARP}_{A~E}(공용), 어싱매트 EARTH_M / EARTH_L(전기매트·발매트 둘 다 같은 크기 코드).
+   - 판매상태: 스토어 옵션표의 사용여부 N → 판매중지(절전커버 15개 전부 + PVC D·E + 타포린 C·D·E), Y → 판매중(PVC A·B·C, 타포린 A·B). 기준가 옵션은 판매중인 첫 옵션(PVC_A 5,800)이 된다.
+   - 최초 엑셀 표의 절전커버 14T 중형 1,100은 오타 → 11,000. 5T 3옵션(5,500/6,500/7,500)은 나중에 스토어 옵션표로 받아 추가.
+   - 방수커버 이름은 라이프와 같게(PVC E형·타포린 E형 96cm, 타포린 C형 80x65x28) 스토어 옵션명으로 맞췄다 — 이 표의 95cm·타포린 C형 80x70x35와 다르다.
+═══════════════════════════════════════ */
+(function addHkdOutdoorCoverProducts() {
+  // 판매가는 공통 부자재 표(HK_SUB_PRODUCTS의 원가 없는 항목)에서 관리코드로 가져온다. 수정 전 판매가는 현재 값.
+  const item = (productCode, productName, extra = {}) => ({
+    productCode, productName, prevPrice: window.hkSubPriceByCode(productCode), prevShipping: 3000, ...extra,
+  });
+  const product = (productId, items) => ({
+    categoryId: 'hk_sub', productId, baseShipping: 3000, shippingBasis: '5개마다', jejuShipping: 10000, returnExchange: '6000/12000', items,
+  });
+  // 스토어 옵션표(사용자 2026-09-30)의 사용여부 N인 옵션은 판매중지(코드 기본 상태 seedStatus — DB를 불러와도 유지).
+  // 절전커버 15개 전부 N, 방수커버는 PVC D·E, 타포린 C·D·E가 N(재고 0). 나머지(PVC A·B·C, 타포린 A·B)는 Y = 판매중.
+  const stoppedCodes = new Set(['COVER_PVC_D', 'COVER_PVC_E', 'COVER_TARP_C', 'COVER_TARP_D', 'COVER_TARP_E']);
+  const stopped = { status: 'stopped', seedStatus: 'stopped' };
+  const waterproof = HK_OUTDOOR_COVER_WATERPROOF.map(([code, name]) =>
+    item(code, name, stoppedCodes.has(code) ? { ...stopped } : {}));
+  HK_CHANNEL_LISTINGS.hkd.push(
+    product('4563030455', [...HK_OUTDOOR_COVER_SAVE.map(([code, name]) => item(code, name, { ...stopped })), ...waterproof]),
+    product('12650826381', [item('EARTH_M', '어싱매트_전기매트 중형'), item('EARTH_L', '어싱매트_전기매트 대형')]),
+    product('13577623011', [item('EARTH_M', '어싱매트_발매트 중형'), item('EARTH_L', '어싱매트_발매트 대형')]),
+  );
 })();
 
 /* ═══════════════════════════════════════

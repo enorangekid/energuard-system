@@ -1,4 +1,4 @@
-# 스토어 전체 가격검사 (통합 확장 0.28.0)
+﻿# 스토어 전체 가격검사 (통합 확장 0.28.0)
 
 실사용 파일은 Naver-rank/shopping-rank-extension에 반영됩니다. 이 폴더는 검사 기능 소스와 독립 시험용 확장입니다. 통합 확장과 별도 시험 확장을 동시에 켜지 마세요.
 
@@ -28,4 +28,4 @@
 node tools/price-check-test-extension/tests/queue.test.cjs
 node tools/price-check-test-extension/tests/hkd.test.cjs
 
-지원 관리자 주소: localhost, 127.0.0.1, enorangekid.github.io. 지원 스토어: energuardcompany, hkdy.
+지원 관리자 주소: localhost, 127.0.0.1, enorangekid.github.io. 지원 스토어: energuardcompany, hkdy, hkdylife(한국단열라이프 — 한국단열 몰별 적용 검사 전용, 0.30.4).

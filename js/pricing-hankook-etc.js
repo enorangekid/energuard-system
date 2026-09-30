@@ -41,6 +41,10 @@
      - HF_5_50: 98,000 → 123,000 / HF_5_25: 55,000 → 69,000 / HF_5_1: 2,000 → 2,500(엑셀 표의
        판매가A와 우연히 같은 값) / CP_5_1: 2,700 → 3,400.
    - 참고마진율도 새 판매가 기준으로 다시 계산(HF_5_50=25%, HF_5_25=30%, HF_5_1=40%, CP_5_1=55%).
+
+   2026-09-30 추가(사용자 요청): **방습초배지 상품군 — 원가 계산 없이 판매가만 관리**(noCost). 방습단열초배지 6개 + 초배용부직포 2개, 한국단열(hkd)
+   몰별 단가표에서 이 판매가를 관리코드로 가져간다. 원가·마진 칸은 "—", 판매가는 연필로 직접 수정. 관리코드는 내가 정했다:
+   DPS_{두께}_{길이m}(방습단열초배지 — 0.2T는 02, 1T·5T는 그대로) / CBF_01_{길이m}(초배용부직포 0.1T).
 ═══════════════════════════════════════ */
 
 // 상품군별 원가 구성비(원/㎡) — 편집하면 그 상품군 행 전체 원가가 다시 계산된다.
@@ -82,8 +86,22 @@ const HK_ETC_PRODUCTS = [
   { name: '캠핑용단열재(5T 가교)', spec: '5T*1*1m', code: 'CP_5_1', lineKey: 'camping', length: 1, includePack: true, shipping: 0, previousPrice: 2700, price: 3400, refMargin: 55 },
 ].map(row => ({ group: HK_ETC_BOM[row.lineKey].label, cost: 0, ...row }));
 
+// 방습초배지 — 원가 계산 없이 판매가만 둔다(cost: null, noCost: true). 이전 판매가 = 현재 판매가에서 시작.
+[
+  ['방습단열초배지', '0.2T 1m x 25m 비접착', 'DPS_02_25', 42000],
+  ['방습단열초배지', '1T 1m x 25m 비접착', 'DPS_1_25', 80000],
+  ['방습단열초배지', '5T 1m x 30m 비접착', 'DPS_5_30', 140000],
+  ['방습단열초배지', '0.2T 1m x 1m 비접착', 'DPS_02_1', 1800],
+  ['방습단열초배지', '1T 1m x 1m 비접착', 'DPS_1_1', 5000],
+  ['방습단열초배지', '5T 1m x 1m 비접착', 'DPS_5_1', 5500],
+  ['초배용부직포', '0.1T 1m x 1m 비접착', 'CBF_01_1', 1200],
+  ['초배용부직포', '0.1T 1m x 80m 비접착', 'CBF_01_80', 53000],
+].forEach(([name, spec, code, price]) => {
+  HK_ETC_PRODUCTS.push({ group: '방습초배지', name, spec, code, noCost: true, cost: null, shipping: null, previousPrice: price, price, refMargin: null });
+});
+
 function hkEtcRefreshDerived() {
-  HK_ETC_PRODUCTS.forEach(product => { product.cost = _hkEtcProductCost(product); });
+  HK_ETC_PRODUCTS.forEach(product => { if (!product.noCost) product.cost = _hkEtcProductCost(product); });
 }
 hkEtcRefreshDerived();
 
@@ -98,13 +116,15 @@ function _hkEtcMetrics(cost, price, shipping) {
 }
 
 function _hkEtcRowHtml(product, rowIndex) {
-  const metrics = _hkEtcMetrics(product.cost, product.price, product.shipping);
+  const noCost = !!product.noCost;
+  const metrics = noCost ? null : _hkEtcMetrics(product.cost, product.price, product.shipping);
+  const dash = '—';
   const difference = Number(product.price) - Number(product.previousPrice);
-  return `<tr data-row-index="${rowIndex}" data-product-code="${product.code}">
+  return `<tr data-row-index="${rowIndex}" data-product-code="${product.code}"${noCost ? ' data-no-cost="1"' : ''}>
     <td class="hk-sub-name">${product.name}</td>
     <td class="hk-reflective-spec" title="${product.spec}">${product.spec}</td>
     <td class="hk-iso-draft-code">${product.code}</td>
-    <td class="hk-etc-shipping">${_hkIsoDraftNumber(product.shipping)}</td>
+    <td class="hk-etc-shipping">${noCost ? dash : _hkIsoDraftNumber(product.shipping)}</td>
     <td class="hk-sub-previous">${_hkIsoDraftNumber(product.previousPrice)}<small class="${difference > 0 ? 'up' : difference < 0 ? 'down' : ''}">${difference ? `${difference > 0 ? '+' : ''}${_hkIsoDraftNumber(difference)}` : '동일'}</small></td>
     <td class="hk-iso-draft-price hk-sub-price-cell">
       <div class="hk-iso-price-edit-wrap">
@@ -113,12 +133,12 @@ function _hkEtcRowHtml(product, rowIndex) {
       </div>
       <div class="hk-iso-price-history" hidden>변경 전 <span>${Number(product.price).toLocaleString()}원</span><button type="button" onclick="revertHkEtcRowPrice(this)" title="변경 전 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
     </td>
-    <td class="hk-sub-margin">${_hkIsoDraftNumber(metrics.margin)}</td>
-    <td class="hk-sub-fee">${_hkIsoDraftNumber(metrics.fee)}</td>
-    <td class="hk-sub-vat">${_hkIsoDraftNumber(metrics.vat)}</td>
-    <td class="hk-sub-net-margin">${_hkIsoDraftNumber(metrics.netMargin)}</td>
-    <td class="hk-sub-net-rate">${_hkIsoDraftNumber(metrics.netRate, '%')}</td>
-    <td class="hk-sub-ref-margin">${_hkIsoDraftNumber(product.refMargin, '%')}</td>
+    <td class="hk-sub-margin"${noCost ? ' title="원가를 계산하지 않는 상품"' : ''}>${noCost ? dash : _hkIsoDraftNumber(metrics.margin)}</td>
+    <td class="hk-sub-fee">${noCost ? dash : _hkIsoDraftNumber(metrics.fee)}</td>
+    <td class="hk-sub-vat">${noCost ? dash : _hkIsoDraftNumber(metrics.vat)}</td>
+    <td class="hk-sub-net-margin">${noCost ? dash : _hkIsoDraftNumber(metrics.netMargin)}</td>
+    <td class="hk-sub-net-rate">${noCost ? dash : _hkIsoDraftNumber(metrics.netRate, '%')}</td>
+    <td class="hk-sub-ref-margin">${noCost ? dash : _hkIsoDraftNumber(product.refMargin, '%')}</td>
   </tr>`;
 }
 
@@ -218,12 +238,14 @@ window.recalcHkEtcRow = function(input) {
   const product = HK_ETC_PRODUCTS[Number(row.dataset.rowIndex)];
   if (!product) return;
   product.price = _hkIsoDraftParseNumber(input.value);
-  const metrics = _hkEtcMetrics(product.cost, product.price, product.shipping);
-  row.querySelector('.hk-sub-margin').textContent = _hkIsoDraftNumber(metrics.margin);
-  row.querySelector('.hk-sub-fee').textContent = _hkIsoDraftNumber(metrics.fee);
-  row.querySelector('.hk-sub-vat').textContent = _hkIsoDraftNumber(metrics.vat);
-  row.querySelector('.hk-sub-net-margin').textContent = _hkIsoDraftNumber(metrics.netMargin);
-  row.querySelector('.hk-sub-net-rate').textContent = _hkIsoDraftNumber(metrics.netRate, '%');
+  if (!product.noCost) {
+    const metrics = _hkEtcMetrics(product.cost, product.price, product.shipping);
+    row.querySelector('.hk-sub-margin').textContent = _hkIsoDraftNumber(metrics.margin);
+    row.querySelector('.hk-sub-fee').textContent = _hkIsoDraftNumber(metrics.fee);
+    row.querySelector('.hk-sub-vat').textContent = _hkIsoDraftNumber(metrics.vat);
+    row.querySelector('.hk-sub-net-margin').textContent = _hkIsoDraftNumber(metrics.netMargin);
+    row.querySelector('.hk-sub-net-rate').textContent = _hkIsoDraftNumber(metrics.netRate, '%');
+  }
   const historyEl = row.querySelector('.hk-iso-price-history');
   if (historyEl) historyEl.hidden = Number(input.dataset.originalPrice) === product.price;
   if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
@@ -313,5 +335,54 @@ window.hkEtcPriceByCode = function(code) {
       ['HF_5_25', '난방필름단열재 5T 1m x 25m', 55000],
       ['HF_5_50', '난방필름단열재 5T 1m x 50m', 98000],
     ]),
+  );
+})();
+
+/* ═══════════════════════════════════════
+   한국단열(hkd) 채널 — 방습초배지 (2026-09-30, 사용자가 준 표 10행 = 상품 4개, 옵션 10개).
+   판매가는 기타단열재 탭의 "방습초배지"(원가 없는 공통 판매가)를 관리코드로 가져온다. 수정 전 판매가는 현재 값.
+   - 표에서 재고가 "-"인 옵션은 판매중지(사용자 표 관례 — 타포린·마닉스 등과 같음): 560852218의 0.2T 25m, 598636390의 초배용부직포 1m,
+     2292742829의 0.2T 25m, 2292744287의 0.2T 1m. 나머지는 재고 기본(99,999,999).
+   - 기준가(표의 기준가 = 어느 옵션 가격): 560852218 = 5T 1x30m(140,000), 598636390 = 초배용부직포 1m(1,200, 판매중지 옵션이 기준),
+     2292742829 = 첫 옵션 53,000, 2292744287 = 5T 1x1m(5,500) → baseCode로 고정. 옵션추가금은 자동 계산.
+   - 배송비 0/5000, 기준 "-"/25개마다/15개마다, 제주 10,000, 교환/반품 20000/20000(560852218)·8000/16000은 표 그대로.
+═══════════════════════════════════════ */
+(function addBangseupChobaeHkdChannelProducts() {
+  const stopped = { status: 'stopped', seedStatus: 'stopped' };
+  const make = (productId, shipping, items, baseCode) => ({
+    categoryId: 'hk_etc',
+    productId,
+    baseShipping: shipping.base,
+    shippingBasis: shipping.basis,
+    jejuShipping: shipping.jeju,
+    returnExchange: shipping.exchange,
+    ...(baseCode ? { baseCode, seedBaseCode: baseCode } : {}),
+    items: items.map(([productCode, productName, flag]) => ({
+      productCode,
+      productName,
+      prevPrice: window.hkEtcPriceByCode(productCode),
+      prevShipping: shipping.base,
+      ...(flag === 'stopped' ? { ...stopped } : {}),
+    })),
+  });
+  HK_CHANNEL_LISTINGS.hkd.push(
+    make('560852218', { base: 0, basis: '-', jeju: 10000, exchange: '20000/20000' }, [
+      ['DPS_02_25', '방습단열초배지 0.2T 1m x 25m 비접착', 'stopped'],
+      ['DPS_1_25', '방습단열초배지 1T 1m x 25m 비접착'],
+      ['DPS_5_30', '방습단열초배지 5T 1m x 30m 비접착'],
+    ], 'DPS_5_30'),
+    make('598636390', { base: 5000, basis: '25개마다', jeju: 10000, exchange: '8000/16000' }, [
+      ['CBF_01_1', '초배용부직포 0.1T 1m x 1m 비접착', 'stopped'],
+      ['DPS_02_1', '방습단열초배지 0.2T 1m x 1m 비접착'],
+    ], 'CBF_01_1'),
+    make('2292742829', { base: 0, basis: '-', jeju: 10000, exchange: '8000/16000' }, [
+      ['CBF_01_80', '초배용부직포 0.1T 1m x 80m 비접착'],
+      ['DPS_02_25', '방습단열초배지 0.2T 1m x 25m 비접착', 'stopped'],
+    ]),
+    make('2292744287', { base: 5000, basis: '15개마다', jeju: 10000, exchange: '8000/16000' }, [
+      ['DPS_02_1', '방습단열초배지 0.2T 1m x 1m 비접착', 'stopped'],
+      ['DPS_1_1', '방습단열초배지 1T 1m x 1m 비접착'],
+      ['DPS_5_1', '방습단열초배지 5T 1m x 1m 비접착'],
+    ], 'DPS_5_1'),
   );
 })();

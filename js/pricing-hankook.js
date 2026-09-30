@@ -2381,8 +2381,8 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const priceContent = product.items.length > 1 && product.basePrice == null
         ? `<label class="hk-base-pick" title="${isBase ? '이 상품의 기준가가 되는 옵션입니다' : '눌러서 이 옵션을 기준가로 지정'}"><input type="radio" name="hkbase-${channelId}-${product.productId}"${isBase ? ' checked' : ''} onchange="hkChannelSetBase('${channelId}','${product.productId}',${i})"><span>${priceNumber}</span></label>`
         : priceNumber;
-      // 옵션이 하나뿐인 상품은 고를 다른 옵션이 없으니 경고하지 않는다.
-      const baseInactive = isBase && inactive && product.items.length > 1;
+      // 옵션이 하나뿐이거나 전 옵션이 품절·판매중지(상품 자체가 품절)면 기준으로 삼을 다른 옵션이 없으니 경고하지 않는다.
+      const baseInactive = isBase && inactive && product.items.length > 1 && product.items.some(other => !other.status);
       const baseTitle = baseInactive ? ' title="기준가 옵션이 품절·판매중지 상태입니다 — 다른 옵션을 기준으로 지정하세요"' : '';
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
@@ -2652,7 +2652,7 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
       const inactive = !!item.status;
       const isBase = i === baseIndex;
       const multi = product.items.length > 1;
-      const baseInactive = isBase && inactive && multi;
+      const baseInactive = isBase && inactive && multi && product.items.some(other => !other.status);
       const priceDiff = (finalPrice != null && item.prevPrice != null) ? finalPrice - item.prevPrice : null;
       const priceChanged = !inactive && !!priceDiff;
       const optionAdd = (finalPrice != null && basePrice != null) ? finalPrice - basePrice : null;
@@ -2889,8 +2889,8 @@ function _hkChannelListingHtmlBody(channelId) {
   const statusBadges = [['soldout', '품절'], ['stopped', '판매중지']]
     .filter(([key]) => statusCounts[key])
     .map(([key, label]) => `<span class="hk-channel-status-badge is-${key}">${label} ${statusCounts[key]}</span>`).join('');
-  // 스토어 가격검사는 확장이 한국단열 네이버스토어(hkdy)만 열 수 있어서 이 채널에만 둔다.
-  const storeCheckButton = channelId === 'hkd' && window.currentUser?.role === 'admin'
+  // 스토어 가격검사는 확장이 한국단열(hkdy)·한국단열라이프(hkdylife) 네이버스토어만 열 수 있어서 이 두 채널에만 둔다(라이프 추가 2026-09-30).
+  const storeCheckButton = (channelId === 'hkd' || channelId === 'hkd_life') && window.currentUser?.role === 'admin'
     ? `<button type="button" class="pricing-margin-edit-btn" onclick="openHkStorePriceCheck('${channelId}')" title="네이버스토어의 옵션별 판매가가 이 표의 현재 판매가와 같은지 확인합니다(가격은 바꾸지 않음)">스토어 가격검사</button>`
     : '';
 

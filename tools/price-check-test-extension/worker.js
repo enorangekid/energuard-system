@@ -58,11 +58,16 @@ async function inspect(item, pricing) {
 // 한국단열(hkdy) 몰별 적용 검사 — 기대가격은 관리자 화면이 옵션별로 계산해 넘긴다(item.options).
 // 에너가드 검사와 같이 할인 적용가(할인 응답의 기준가+옵션추가금)로 비교하므로 할인 응답을 기다린다.
 // 할인이 없는 상품은 할인 응답 자체가 안 올 수 있어서, 끝까지 안 오면 상세의 판매가로 비교한다.
+// 한국단열 스토어 두 곳(한국단열 hkdy · 한국단열라이프 hkdylife — 같은 스마트스토어 구조, 2026-09-30)의 상품 주소만 허용한다.
+function hkdProductPathOk(pathname, id) {
+  return /^\/(hkdy|hkdylife)\/products\/\d+$/.test(String(pathname||'').replace(/\/$/,'')) && String(pathname).replace(/\/$/,'').endsWith('/products/'+id);
+}
 async function inspectHkd(item, supplementCatalog, mode) {
   const id = String(item.productId);
   if (!/^\d+$/.test(id)) throw Error('상품번호 오류');
   const url = new URL(item.productUrl || 'https://smartstore.naver.com/hkdy/products/'+id);
-  if (url.origin!=='https://smartstore.naver.com' || url.pathname.replace(/\/$/,'')!=='/hkdy/products/'+id) throw Error('허용되지 않은 상품 주소');
+  if (url.origin!=='https://smartstore.naver.com' || !hkdProductPathOk(url.pathname, id)) throw Error('허용되지 않은 상품 주소');
+  const store = url.pathname.split('/')[1]; // 'hkdy' | 'hkdylife' — 결과 행에 남겨서 화면이 알맞은 스토어 링크를 건다
   const tab = await chrome.tabs.create({url:url.href,active:false});
   await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
   try {
@@ -84,10 +89,10 @@ async function inspectHkd(item, supplementCatalog, mode) {
     if (mode === 'supplement') {
       if (!Array.isArray(supplementCatalog) || !supplementCatalog.length) throw Error('추가상품 목록이 없습니다');
       if (!Array.isArray(scan.supplements)) throw Error('추가상품 정보를 읽지 못했습니다 — 확장을 새로고침하세요');
-      const found = matchHkdSupplements(scan.supplements, supplementCatalog).map(row=>({productId:id, ...row}));
-      return found.length ? found : [{productId:id, kind:'추가상품', label:'(추가상품 없음)', code:null, actual:null, expected:null, diff:null, status:'추가상품 없음', source:'—'}];
+      const found = matchHkdSupplements(scan.supplements, supplementCatalog).map(row=>({productId:id, store, ...row}));
+      return found.length ? found : [{productId:id, store, kind:'추가상품', label:'(추가상품 없음)', code:null, actual:null, expected:null, diff:null, status:'추가상품 없음', source:'—'}];
     }
-    return matchHkdOptions(scan.rows, item.options).map((row,index)=>({productId:id, ...row, ...(index===0&&scan.priceInfo?{priceInfo:scan.priceInfo}:{})}));
+    return matchHkdOptions(scan.rows, item.options).map((row,index)=>({productId:id, store, ...row, ...(index===0&&scan.priceInfo?{priceInfo:scan.priceInfo}:{})}));
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }
 
@@ -351,7 +356,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
         for(const it of p.items){
           if(!/^\d+$/.test(String(it.productId)))throw Error('상품번호 오류');
           const u=new URL(String(it.productUrl||'https://smartstore.naver.com/hkdy/products/'+it.productId));
-          if(u.origin!=='https://smartstore.naver.com'||u.pathname.replace(/\/$/,'')!=='/hkdy/products/'+it.productId)throw Error('허용되지 않은 상품 주소');
+          if(u.origin!=='https://smartstore.naver.com'||!hkdProductPathOk(u.pathname,String(it.productId)))throw Error('허용되지 않은 상품 주소');
           if(p.mode!=='supplement'&&(!Array.isArray(it.options)||!it.options.length))throw Error('검사 데이터 오류');
         }
         if(new Set(p.items.map(i=>String(i.productId))).size!==p.items.length)throw Error('중복 상품번호');
@@ -359,7 +364,9 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
         const supplements=Array.isArray(p.supplements)?p.supplements.slice(0,500).filter(s=>s&&typeof s.name==='string').map(s=>({code:s.code?String(s.code):null,name:String(s.name).slice(0,200),group:s.group?String(s.group).slice(0,80):null,expected:Number.isFinite(Number(s.expected))?Number(s.expected):null,use:s.use==='N'?'N':'Y'})):null;
         const mode=p.mode==='supplement'?'supplement':'options';
         if(mode==='supplement'&&!(supplements&&supplements.length))throw Error('추가상품 목록이 없습니다');
-        state={runId:crypto.randomUUID(),kind:'hkd',mode,running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items,supplements:mode==='supplement'?supplements:null};
+        // 어느 채널(hkd 한국단열 / hkd_life 한국단열라이프)을 검사하는지 남겨 둔다 — 화면이 다른 채널의 검사 결과를 이 채널 결과로 보여주지 않게.
+        const channelId=typeof p.channelId==='string'&&/^[a-z0-9_]{1,20}$/.test(p.channelId)?p.channelId:null;
+        state={runId:crypto.randomUUID(),kind:'hkd',channelId,mode,running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items,supplements:mode==='supplement'?supplements:null};
         await save(state);await arm();processNext();return {ok:true};
       }
       if(!p?.pricing?.id || p.pricing.is_live!==true || !Array.isArray(p.items) || !p.items.length || p.items.some(i=>!/^\d+$/.test(String(i.productId)) || !i.mapping))throw Error('검사 데이터 오류');

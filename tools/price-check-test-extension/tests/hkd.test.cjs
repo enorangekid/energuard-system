@@ -13,7 +13,7 @@ function boot(scanByUrl){
     },
     storage:{local:{get:async key=>structuredClone({[key]:store[key]}),set:async obj=>Object.assign(store,structuredClone(obj)),remove:async key=>delete store[key]}},
     alarms:{create:async(name,data)=>alarms.set(name,data),get:async n=>alarms.get(n),clear:async n=>alarms.delete(n),onAlarm:{addListener:()=>{}}},
-    runtime:{getManifest:()=>({version:'0.30.3'}),onStartup:{addListener:()=>{}},onMessage:{addListener:f=>listener=f}},
+    runtime:{getManifest:()=>({version:'0.30.4'}),onStartup:{addListener:()=>{}},onMessage:{addListener:f=>listener=f}},
   }};
   vm.createContext(c);vm.runInContext(coreSource,c);vm.runInContext(source,c);
   return {c,call:(action,payload)=>new Promise(resolve=>listener({type:'EG_PRICE_TEST',action,payload},{url:'http://127.0.0.1:5500/index.html'},resolve))};
@@ -198,5 +198,33 @@ const url=id=>`https://smartstore.naver.com/hkdy/products/${id}`;
     assert.equal(store.priceTest.rows[0].status,'일치');
     assert.equal(store.priceTest.rows[1].status,'수집 실패');
   }
-  console.log('PASS hkd: code/name/single matching, sale-price comparison, ambiguity, sold-out/status, store guard, queue');
+  // 한국단열라이프(hkdylife) — 한국단열과 같은 스마트스토어 구조(2026-09-30, 확장 0.30.4): 스토어 주소를 허용하고, 결과 행에 스토어를 남기고, 검사 채널을 기억한다.
+  {
+    const lifeUrl=id=>`https://smartstore.naver.com/hkdylife/products/${id}`;
+    const lifeScan=(id,rows)=>({ok:true,benefitReady:true,detailUrl:`https://smartstore.naver.com/i/v2/channels/abc/products/${id}`,benefitUrl:'y',productUrl:lifeUrl(id),rows});
+    const {c}=boot(()=>lifeScan(31,[{label:'A',code:'GL',finalPrice:500,salePrice:500,soldOut:false},{label:'B',code:'T_SR',finalPrice:2100,salePrice:2100,soldOut:false}]));
+    const rows=await c.inspectHkd({productId:'31',productUrl:lifeUrl(31),options:[{code:'GL',name:'A',expected:500},{code:'T_SR',name:'B',expected:2000}]});
+    assert.equal(rows[0].status,'일치');assert.equal(rows[0].store,'hkdylife');
+    assert.equal(rows[1].status,'불일치');assert.equal(rows[1].diff,100);
+    // 주소 안 상품번호가 다르거나(다른 상품), 허용하지 않는 스토어 이름은 거부
+    const {call}=boot(()=>null);
+    for(const bad of ['https://smartstore.naver.com/hkdylife/products/99','https://smartstore.naver.com/hkdylifex/products/32','https://smartstore.naver.com/otherstore/products/32','https://example.com/hkdylife/products/32']){
+      const r=await call('start',{kind:'hkd',channelId:'hkd_life',items:[{productId:'32',productUrl:bad,options:[{code:'A',name:'A',expected:1}]}]});
+      assert.equal(r.ok,false,bad);
+    }
+  }
+  {
+    const {call}=boot(u=>/hkdylife/.test(u)?{ok:true,benefitReady:true,detailUrl:'https://smartstore.naver.com/i/v2/channels/abc/products/41',benefitUrl:'y',productUrl:u,rows:[{label:'A',code:'A',finalPrice:1000,salePrice:1000,soldOut:false}]}:null);
+    const lifeItems=[{productId:'41',productUrl:'https://smartstore.naver.com/hkdylife/products/41',options:[{code:'A',name:'A',expected:1000}]}];
+    assert.equal((await call('start',{kind:'hkd',channelId:'hkd_life',items:lifeItems})).ok,true);
+    await settle();
+    assert.equal(store.priceTest.channelId,'hkd_life');
+    assert.equal(store.priceTest.rows[0].status,'일치');assert.equal(store.priceTest.rows[0].store,'hkdylife');
+    const status=await call('status');assert.equal(status.state.channelId,'hkd_life');assert.equal(status.state.items,undefined);
+    // 채널 이름에 이상한 값이 오면 기록하지 않는다
+    await call('start',{kind:'hkd',channelId:'../x<y>',items:lifeItems}).catch(()=>{});
+    await settle();
+    assert.equal(store.priceTest.channelId,null);
+  }
+  console.log('PASS hkd: code/name/single matching, sale-price comparison, ambiguity, sold-out/status, store guard(hkdy·hkdylife), queue');
 })().catch(e=>{console.error(e);process.exit(1)});

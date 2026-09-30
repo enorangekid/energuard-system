@@ -1,4 +1,4 @@
-const fs=require('fs'),path=require('path');
+﻿const fs=require('fs'),path=require('path');
 const source=path.resolve('../Naver-rank/shopping-rank-extension');
 const sample=path.resolve('tools/price-check-test-extension');
 fs.copyFileSync(path.join(sample,'checker-content.js'),path.join(source,'checker-content.js'));
@@ -11,12 +11,12 @@ fs.copyFileSync(path.join(sample,'list-collector.js'),path.join(source,'price-ch
 let s=fs.readFileSync(path.join(source,'service-worker.js'),'utf8');if(!s.includes('importScripts("price-check-test-worker.js")'))s+='\nimportScripts("price-check-test-worker.js");\n';fs.writeFileSync(path.join(source,'service-worker.js'),s);
 const m=JSON.parse(fs.readFileSync(path.join(source,'manifest.json'),'utf8'));
 if(!m.content_scripts.some(c=>c.js.includes('price-check-test-bridge.js')))m.content_scripts.push({matches:['http://127.0.0.1/*','http://localhost/*','https://enorangekid.github.io/*'],js:['price-check-test-bridge.js'],run_at:'document_start'});
-// 전체상품 목록 페이지에서 카드 가격을 긁는 조각 — checker-content.js의 scrapeProducts()를
-// 재사용하므로 반드시 그 뒤에 같은 컨텍스트로 실행돼야 한다(같은 content_scripts 항목에 append).
+// ?꾩껜?곹뭹 紐⑸줉 ?섏씠吏?먯꽌 移대뱶 媛寃⑹쓣 湲곷뒗 議곌컖 ??checker-content.js??scrapeProducts()瑜?
+// ?ъ궗?⑺븯誘濡?諛섎뱶??洹??ㅼ뿉 媛숈? 而⑦뀓?ㅽ듃濡??ㅽ뻾?쇱빞 ?쒕떎(媛숈? content_scripts ??ぉ??append).
 const listHost=m.content_scripts.find(c=>c.js.includes('checker-content.js'));
 if(listHost){if(!listHost.js.includes('price-check-list-collector.js'))listHost.js.push('price-check-list-collector.js');}
 else m.content_scripts.push({matches:['https://smartstore.naver.com/*'],exclude_matches:['https://smartstore.naver.com/*/products/*'],js:['checker-content.js','price-check-list-collector.js'],run_at:'document_idle'});
 if(!m.permissions.includes('alarms'))m.permissions.push('alarms');
-m.minimum_chrome_version='120';m.version='0.30.3';
+m.minimum_chrome_version='120';m.version='0.30.4';
 fs.writeFileSync(path.join(source,'manifest.json'),JSON.stringify(m,null,2)+'\n');
 console.log('Integrated price test v'+m.version+' into '+source);
