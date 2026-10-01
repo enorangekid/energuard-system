@@ -107,7 +107,9 @@ function _hkDbLivePrice(entry) {
                          manualPrice: { 상품코드: 숫자 }, memo: { 상품코드: 글 } } } }
    hk_settings.channel_options 한 줄로 저장하므로 별도 테이블/컬럼(SQL)이 필요 없다. */
 // 옵션을 가리키는 열쇠 — 보통 상품코드. 관리코드가 없는 옵션(쿠팡 창문형단열재 — 코드 공백)은 코드가 다 같은 ''라서 옵션 ID로 구분한다('opt:옵션ID').
+// 같은 상품코드를 여러 옵션이 공유하는 상품(쿠팡 단열벽지 — 유형별로 색상 수십 개)은 item.keyByOption으로 옵션 ID를 열쇠로 쓴다.
 function _hkDbItemKey(item) {
+  if (item.keyByOption && item.optionId) return `opt:${item.optionId}`;
   return item.productCode || (item.optionId ? `opt:${item.optionId}` : '');
 }
 

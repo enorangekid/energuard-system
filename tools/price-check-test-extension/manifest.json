@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "에너가드 가격검사 테스트",
-  "version": "0.31.8",
+  "version": "0.31.12",
   "permissions": [
     "tabs",
     "storage",
@@ -12,7 +12,8 @@
     "https://boonimall.kr/*",
     "https://item.gmarket.co.kr/*",
     "https://itempage3.auction.co.kr/*",
-    "https://www.11st.co.kr/*"
+    "https://www.11st.co.kr/*",
+    "https://www.coupang.com/*"
   ],
   "background": {
     "service_worker": "worker.js"
@@ -62,6 +63,15 @@
       ],
       "js": [
         "st11-collector.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.coupang.com/vp/products/*"
+      ],
+      "js": [
+        "coupang-collector.js"
       ],
       "run_at": "document_idle"
     },

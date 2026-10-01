@@ -1811,14 +1811,17 @@ HK_CHANNEL_LISTINGS['11st'] = [
      쿠폰 적용 전 판매가·쿠폰 할인율 칸은 화면에서 "—"/"쿠폰 없음"으로 비운다(사용자 확인). 위너 옵션의 이름은
      코드로 만들 수 없어 직접 적는다.
    - 배송비는 5장 기준이다(사용자 확인 2026-09-21): 1~5장 6,000 / 6~10장 12,000 / 20장 24,000. 그래서 위너 10T 600x900 10장·20장은 배송 설정 값(12,000 / 24,000)을 그대로 따른다 — 엑셀에는 6,000 / 12,000으로 적혀 있었지만 엑셀이 틀린 것으로 정리했다. 그 3행의 수정 전 판매가는 엑셀 값 그대로(32,030 / 63,840 / 32,030)라 새 계산가와 차액(+6,300 / +12,600 / +6,300)이 반영 대기로 뜬다.
-   행: [상품코드, 옵션 ID, 수정 전 판매가, (선택) 표시 상품명, (선택) 옵션 덮어쓰기 값 {hkdShipping, couponOff}] */
+   행: [상품코드, 옵션 ID, 수정 전 판매가, (선택) 표시 상품명, (선택) 옵션 덮어쓰기 값 {hkdPrice, hkdShipping, couponOff, couponCap}] */
 const _hkWinnerName = (spec, notWinner) => `${notWinner ? '위너아님_' : '위너_'}벽산아이소핑크 특호 ${spec}`;
 const HK_COUPANG_PRODUCTS = [
   ['6410758339', '5000', [['Iso_430_430_10_3', '91272690373', 9800], ['Iso_430_430_20_3', '91272690376', 14300], ['Iso_430_430_30_2', '91272690380', 13500], ['Iso_430_430_40_2', '91272690392', 15900],
                           ['Iso_430_430_50_2', '91272690383', 17800], ['Iso_430_430_70_1', '91272690387', 14700], ['Iso_430_430_100_1', '91272690389', 17700]]],
   ['8115891747', '5000', [['Iso_600_900_10_3', '91273057157', 14900], ['Iso_600_900_20_1', '91273057163', 12000], ['Iso_600_900_30_1', '91273057151', 13900], ['Iso_600_900_40_1', '91273057134', 16500],
                           ['Iso_600_900_50_1', '91273057139', 18600], ['Iso_600_900_70_1', '91273057129', 23900], ['Iso_600_900_100_1', '91273057143', 31300]]],
-  ['5202287414', '5000', [['IsoA_600_900_10_10', '94167230936', 62700], ['IsoA_600_900_20_5', '94167383082', 48200], ['IsoA_600_900_30_3', '91272792504', 39000],
+  // 10T 10장 묶음은 엑셀 메모 기준 네이버 장당 4,200원×10장=42,000원이고,
+  // 5장당 배송비 6,000원을 두 번 부과해 배송비가 12,000원이다. 1단계 공용 묶음 행의 48,000원과
+  // 뜻이 다르므로 이 쿠팡 옵션만 한국단열 판매가·배송비를 함께 명시한다.
+  ['5202287414', '5000', [['IsoA_600_900_10_10', '94167230936', 62700, null, { hkdPrice: 42000, hkdShipping: 12000 }], ['IsoA_600_900_20_5', '94167383082', 48200], ['IsoA_600_900_30_3', '91272792504', 39000],
                           ['IsoA_600_900_40_2', '91272792494', 34200], ['IsoA_600_900_50_2', '91272792491', 40600]], { namePrefix: '쿠팡전용_' }],
   ['4868769393', '10000', [['Iso_600_860_250_1', '91273210993', 81200], ['Iso_600_860_500_1', '91273210984', 156600], ['Iso_600_430_250_1', '91273234966', 46400], ['Iso_600_430_500_1', '91273234957', 87000]]],
   ['5830333163', '20000', [['Iso_900_1800_10_10', '91463660435', 63800], ['Iso_900_1800_20_5', '91463708028', 63800], ['IsoA_900_1800_10_10', '91463921374', 120700]]],
@@ -1831,7 +1834,7 @@ const HK_COUPANG_PRODUCTS = [
   ['8698533025', '20000', [['IsoA_900_1800_30_3', '91463978903', 89900]]],
   ['8698420299', '20000', [['IsoA_900_1800_40_2', '91463993265', 74900]]],
   ['8817063902', '20000', [['IsoA_900_1800_50_2', '91464002011', 93400]]],
-  ['8194369597', '40000', [['Iso_900_1800_70_3', '91273033944', 118400], ['Iso_900_1800_100_3', '91273033938', 165900], ['Iso_900_1800_250_1', '91273033924', 212300], ['Iso_900_1800_500_1', '91273033932', 426900]]],
+  ['8194369597', '40000', [['Iso_900_1800_70_3', '91273033944', 118400], ['Iso_900_1800_100_3', '91273033938', 165900], ['Iso_900_1800_250_1', '91273033924', 212300], ['Iso_900_1800_500_1', '91273033932', 426900, null, { couponCap: 30000 }]]],
   // 위너 상품
   ['9474591055', '20000', [
     ['IsoC_600_900_10_10',  '93925000104', 32030,  _hkWinnerName('10T 600x900 10장')],
@@ -2053,7 +2056,8 @@ function _hkChannelHkdPrice(categoryId, productCode) {
 }
 
 function _hkEsmPriceParts(categoryId, productCode, config, item) {
-  const hkdPrice = _hkChannelHkdPrice(categoryId, productCode);
+  // 채널 전용 묶음처럼 공용 단가표 행과 판매가 구성이 다른 옵션은 item.hkdPrice로 기준 상품가를 명시한다.
+  const hkdPrice = item && item.hkdPrice != null ? Number(item.hkdPrice) : _hkChannelHkdPrice(categoryId, productCode);
   // item.hkdShipping이 있으면(엑셀의 한국단열 배송비가 배송 설정 조회값과 다른 옵션 — 스티로폼 430/600은 전부 6,500) 그 값을 쓴다.
   const hkdShipping = item && item.hkdShipping != null ? Number(item.hkdShipping) : _hkHkdShippingByCode(productCode);
   if (hkdPrice == null || hkdShipping == null) return null;
@@ -2071,16 +2075,17 @@ function _hkEsmPriceParts(categoryId, productCode, config, item) {
 
 /* 쿠팡 가격 계산 — 전부 정수 계산(총판매가가 100원 단위라 ×1.16·×1.05도 정수다).
    일반(쿠폰형) 상품: 쿠폰 적용 전 = 총판매가×1.16을 100원 올림(딱 떨어지면 그대로), 참고 판매가 = ×1.05 100원 올림,
-     최종 = 쿠폰 적용 전 − 쿠폰 할인율. 등록 가격(registered) = 쿠폰 적용 전.
+     최종 = 쿠폰 적용 전 − 쿠폰 할인율을 계산한 뒤 쿠팡 표시 방식대로 10원 단위 버림. 등록 가격(registered) = 쿠폰 적용 전.
    위너 상품(product.pricing === 'winner'): 판매가 = 총판매가×1.05를 1,000원 단위 올림(winnerRoundUnit), 쿠폰 할인 없음
      (couponOff null·쿠폰 적용 전 없음), 최종 = 판매가 = 등록 가격. item.manualPrice(수동 판매가)가 있으면 그 값이 등록 가격.
    반환: { hkdPrice, hkdShipping, total, preCoupon, listPrice, couponOff, finalPrice, registered, winner }
-   item.couponOff(10 또는 12)가 있으면 그 옵션은 그 할인율을 쓴다. */
+   item.couponOff(10 또는 12)가 있으면 그 옵션은 그 할인율을 쓴다. item.couponCap이 있으면 할인액은 그 금액을 넘지 않는다. */
 function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
   // 관리코드가 없는 옵션은 계산할 게 없다. 쿠팡 창문형단열재(item.windowKey)는 코드를 만들어 붙였지만 한국단열 판매가에서 계산하는 옵션이 아니라(쿠팡가 탭의 반영 개당단가를 쓴다)
   // 여기서는 건너뛴다 — 안 그러면 없는 코드를 찾느라 한국단열 표 전체를 옵션마다 훑는다.
   if (!productCode || (item && item.windowKey)) return null;
-  const hkdPrice = _hkChannelHkdPrice(categoryId, productCode);
+  // 채널 전용 묶음처럼 공용 단가표 행과 판매가 구성이 다른 옵션은 item.hkdPrice로 기준 상품가를 명시한다.
+  const hkdPrice = item && item.hkdPrice != null ? Number(item.hkdPrice) : _hkChannelHkdPrice(categoryId, productCode);
   // item.hkdShipping이 있으면(쿠팡 표의 배송비가 배송 설정과 다른 옵션) 그 값을 우선한다.
   const hkdShipping = item && item.hkdShipping != null ? Number(item.hkdShipping) : _hkHkdShippingByCode(productCode);
   if (hkdPrice == null || hkdShipping == null) return null;
@@ -2127,6 +2132,16 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
   const couponOff = item && item.couponOff != null
     ? Number(item.couponOff)
     : (hkdShipping > 0 ? config.couponOffShipping : config.couponOffFree);
+  const uncappedDiscount = Math.floor(preCoupon * couponOff / 100);
+  const couponCap = item && item.couponCap != null ? Number(item.couponCap) : null;
+  const couponDiscount = couponCap != null && Number.isFinite(couponCap)
+    ? Math.min(uncappedDiscount, couponCap)
+    : uncappedDiscount;
+  // 쿠팡은 퍼센트 쿠폰 적용 결과를 10원 단위로 버린다. 할인 상한에 걸린 경우에는 등록가에서
+  // 상한액을 정확히 빼므로 별도의 10원 정리가 필요 없다(예: 426,900 - 30,000 = 396,900).
+  const finalPrice = couponCap != null && couponDiscount === couponCap
+    ? preCoupon - couponDiscount
+    : Math.floor((preCoupon - couponDiscount) / 10) * 10;
   return {
     hkdPrice,
     hkdShipping,
@@ -2134,7 +2149,9 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
     preCoupon,
     listPrice,
     couponOff,
-    finalPrice: Math.round(preCoupon * (100 - couponOff) / 100),
+    couponCap,
+    couponDiscount,
+    finalPrice,
     registered: preCoupon,
     winner: false,
   };
@@ -2187,7 +2204,7 @@ function _hkChannelProductLink(channelId, product) {
   if (channelId === 'esm') return `https://item.gmarket.co.kr/Item?goodscode=${product.productId}`;
   if (channelId === '11st') return `https://www.11st.co.kr/products/${product.productId}`;
   // 쿠팡: Product ID(노출상품ID)로 상품 페이지, 옵션은 뒤에 ?vendorItemId=옵션ID를 붙인다(_hkCoupangOptionLink).
-  if (channelId === 'coupang') return `https://www.coupang.com/vp/products/${product.productId}`;
+  if (channelId === 'coupang' || channelId === 'coupang_sub') return `https://www.coupang.com/vp/products/${product.productId}`;
   return '';
 }
 
@@ -2900,8 +2917,8 @@ function _hkChannelListingHtmlBody(channelId) {
   const statusBadges = [['soldout', '품절'], ['stopped', '판매중지']]
     .filter(([key]) => statusCounts[key])
     .map(([key, label]) => `<span class="hk-channel-status-badge is-${key}">${label} ${statusCounts[key]}</span>`).join('');
-  // 스토어 가격검사: 스마트스토어 2곳·부니몰·ESM(G마켓/옥션)·11번가. 모두 읽기 전용이며 가격은 바꾸지 않는다.
-  const storeCheckButton = (channelId === 'hkd' || channelId === 'hkd_life' || channelId === 'homepage' || channelId === 'esm' || channelId === '11st') && window.currentUser?.role === 'admin'
+  // 스토어 가격검사: 스마트스토어 2곳·부니몰·ESM(G마켓/옥션)·11번가·쿠팡. 모두 읽기 전용이며 가격은 바꾸지 않는다.
+  const storeCheckButton = (channelId === 'hkd' || channelId === 'hkd_life' || channelId === 'homepage' || channelId === 'esm' || channelId === '11st' || channelId === 'coupang' || channelId === 'coupang_sub') && window.currentUser?.role === 'admin'
     ? `<button type="button" class="pricing-margin-edit-btn" onclick="openHkStorePriceCheck('${channelId}')" title="실제 스토어의 옵션별 판매가가 이 표의 현재 판매가와 같은지 확인합니다(가격은 바꾸지 않음)">스토어 가격검사</button>`
     : '';
 

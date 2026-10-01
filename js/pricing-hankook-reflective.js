@@ -933,8 +933,8 @@ window.hkReflectivePriceByCode = function(code) {
 (function addReflectiveCoupangProducts() {
   const config = HK_CHANNEL_CONFIG.coupang;
   const group = (productId, jejuShipping, returnExchange, rows, opts = {}) => {
-    const items = rows.map(([optionId, code, hkdShipping, memo]) => {
-      const item = { productCode: code, optionId, hkdShipping };
+    const items = rows.map(([optionId, code, hkdShipping, memo, override]) => {
+      const item = { productCode: code, optionId, hkdShipping, ...(override || {}) };
       if (opts.couponOff != null) item.couponOff = opts.couponOff;
       if (memo) item.memo = memo;
       const parts = _hkCoupangPriceParts('hk_reflective', code, config, item, null);
@@ -953,7 +953,7 @@ window.hkReflectivePriceByCode = function(code) {
     // 1차 — 50m/25m/20m/10m 마스터롤(couponOff 12 강제) — 반품/교환비 미확인(임시 40,000)
     group('8232412643', 8000, '40000', [
       ['91289839102', 'BL_5_50_SN_R', 27000], ['91289839107', 'BL_5_50_DN_R', 27000],
-      ['91289839097', 'BL_5_50_SA_R', 27000], ['91289839110', 'BL_5_50_DA_R', 27000],
+      ['91289839097', 'BL_5_50_SA_R', 27000], ['91289839110', 'BL_5_50_DA_R', 27000, null, { couponCap: 30000 }],
     ], { couponOff: 12 }),
     group('5465024346', 8000, '40000', [
       ['91289798188', 'BL_6_25_SN_R', 27000], ['91289798162', 'BL_6_25_DN_R', 27000],

@@ -913,7 +913,8 @@ const HK_BEAD_11ST_GROUPS = [
 /* ═══════════════════════════════════════
    쿠팡 채널 — 스티로폼 (2026-09-22, 사용자가 준 표 61행 중 54행). 위너 상품은 이번엔 없음(사용자 확인).
    쿠폰은 두 종류다 — 대부분 퍼센트(10%, item.couponOff=10로 명시: 무료배송 상품도 예외 없이 10%라
-   기본값 12% 분기를 쓰면 안 된다), 노출상품ID 174891106 상품 11개만 정액 25,000원 쿠폰
+   기본값 12% 분기를 쓰면 안 된다), 단 `5999901388 / 91274176320`은 12% 쿠폰에 최대 할인 30,000원 제한이 있다.
+   노출상품ID 174891106 상품 11개만 정액 25,000원 쿠폰
    (item.couponFlat=25000 — _hkCoupangPriceParts의 새 분기: 등록가 = 참고 판매가(×1.05, 100원 올림) +
    25,000, 쿠폰 적용 후 최종가 = 참고 판매가. 원본 엑셀은 이 11행도 퍼센트 쿠폰과 같은 식으로 계산해
    틀린 값이 있었다 — 사용자가 정정함, 2026-09-22).
@@ -925,9 +926,10 @@ const HK_BEAD_11ST_GROUPS = [
 (function addBeadCoupangProducts() {
   const config = HK_CHANNEL_CONFIG.coupang;
   const group = (productId, returnExchange, rows) => {
-    const items = rows.map(([optionId, code, ship, couponFlat]) => {
-      const item = { productCode: code, optionId, hkdShipping: ship };
-      if (couponFlat != null) item.couponFlat = couponFlat; else item.couponOff = 10;
+    const items = rows.map(([optionId, code, ship, couponFlat, override]) => {
+      const item = { productCode: code, optionId, hkdShipping: ship, ...(override || {}) };
+      if (couponFlat != null) item.couponFlat = couponFlat;
+      else if (item.couponOff == null) item.couponOff = 10;
       const parts = _hkCoupangPriceParts('hk_bead', code, config, item, null);
       item.prevPrice = parts ? parts.registered : 0;
       return item;
@@ -971,7 +973,7 @@ const HK_BEAD_11ST_GROUPS = [
       ['91274154861', 'St_900_1800_200_1', 0], ['91274154867', 'St_900_1800_300_1', 0], ['91274154886', 'St_900_1800_400_1', 0],
       ['91274154880', 'St_900_1800_500_1', 0], ['91274154872', 'St_900_1800_600_1', 0],
       ['91274176290', 'Neo_900_1800_200_1', 0], ['91274176282', 'Neo_900_1800_300_1', 0], ['91274176299', 'Neo_900_1800_400_1', 0],
-      ['91274176310', 'Neo_900_1800_500_1', 0], ['91274176320', 'Neo_900_1800_600_1', 0],
+      ['91274176310', 'Neo_900_1800_500_1', 0], ['91274176320', 'Neo_900_1800_600_1', 0, null, { couponOff: 12, couponCap: 30000 }],
     ]),
     group('4868994758', '17500', [
       ['91274242173', 'Neo_600_900_200_1', 0], ['91274242193', 'Neo_600_900_300_1', 0], ['91274242200', 'Neo_600_900_400_1', 0],

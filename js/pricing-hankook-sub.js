@@ -1277,7 +1277,7 @@ const HK_EARTH_MAT = [
     }
     const product = byProduct.get(productId);
     const prevPrice = _hkChannelTargetPrice('hk_sub', code, 'coupang_sub', product, null) ?? 0;
-    product.items.push({ productCode: code, productName: name, prevPrice, prevShipping: shipping });
+    product.items.push({ productCode: code, productName: name, optionId, prevPrice, prevShipping: shipping });
   });
   HK_CHANNEL_LISTINGS.coupang_sub = [...byProduct.values()];
 })();
