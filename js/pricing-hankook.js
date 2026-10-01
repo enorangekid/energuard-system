@@ -335,10 +335,10 @@ window.setHkPricingTab = function(tabId, el) {
 
 /* 채널 선택 — 고르면 "채널 모드"로 바뀐다: 기준단가(1·2단계)는 숨기고
    그 채널의 3단계 실제 등록 상품 표만 보여준다. */
-window.setHkChannel = function(channelId, el) {
+window.setHkChannel = function(channelId, el, categoryId) {
   _activeHkChannel = channelId;
   window._activeHkChannel = channelId;
-  _activeHkChannelCategory = 'all';
+  _activeHkChannelCategory = categoryId || 'all'; // 검색에서 이동할 때(pricing-hankook-search.js)는 그 카테고리 표만 바로 그린다
   document.querySelectorAll('#hkChannelTabs .pricing-tab').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
   // 카테고리 탭 쪽 선택 표시도 지운다 — 지금은 채널 모드라 카테고리 탭 내용이
@@ -2188,11 +2188,26 @@ function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item
   return null;
 }
 
+/* 상품명을 따로 적지 않은 옵션(ESM·쿠팡 열반사단열재 등 — 상품코드만 있음)은 같은 코드가 다른 채널(한국단열·11번가·홈페이지…)에
+   이름과 함께 올라가 있으면 그 이름을 쓴다. 안 그러면 상품명 칸에도 상품코드가 또 나온다. 처음 한 번 만들어 둔다. */
+let _hkNameByCode = null;
+function _hkChannelNameFromOtherChannels(categoryId, code) {
+  if (!_hkNameByCode) {
+    _hkNameByCode = new Map();
+    ['hkd', '11st', 'homepage', 'hkd_life', 'esm', 'coupang', 'coupang_sub'].forEach(channelId => (HK_CHANNEL_LISTINGS[channelId] || []).forEach(product => product.items.forEach(item => {
+      if (!item.productName || item.productName === item.productCode || !item.productCode) return;
+      const key = `${item.categoryId || product.categoryId}|${item.productCode}`;
+      if (!_hkNameByCode.has(key)) _hkNameByCode.set(key, item.productName);
+    })));
+  }
+  return _hkNameByCode.get(`${categoryId}|${code}`) || '';
+}
+
 function _hkChannelItemName(categoryId, product, item) {
   if (item.productName) return item.productName;
   if (categoryId === 'hk_isopink') return _hkIsoProductNameFromCode(item.productCode);
   if (categoryId === 'hk_bead' && typeof window.hkBeadProductNameFromCode === 'function') return window.hkBeadProductNameFromCode(item.productCode);
-  return product.productName || item.productCode;
+  return product.productName || _hkChannelNameFromOtherChannels(categoryId, item.productCode) || item.productCode;
 }
 
 function _hkChannelProductLink(channelId, product) {
@@ -2411,7 +2426,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
       const memberClass = groupProductCode ? ' hk-group-member-row' : '';
-      rowsHtml += `<tr class="${(groupStartClass + statusClass + memberClass + sectionClass).trim()}"${groupProductCode ? ` data-group-code="${groupProductCode}"${_hkExpandedChannelGroups.has(groupProductCode) ? '' : ' hidden'}` : ''}${sectionAttr}>
+      rowsHtml += `<tr class="${(groupStartClass + statusClass + memberClass + sectionClass).trim()}" data-hk-key="${product.productId}|${i}"${groupProductCode ? ` data-group-code="${groupProductCode}"${_hkExpandedChannelGroups.has(groupProductCode) ? '' : ' hidden'}` : ''}${sectionAttr}>
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
         <td class="hk-iso-draft-code">${item.displayCode ?? item.productCode}</td>
         ${productIdCell}
@@ -2557,7 +2572,7 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
       const manualCell = isWinner
         ? `<td class="hk-manual-cell${isManual ? ' is-manual' : ''}"><input type="text" inputmode="numeric" class="pricing-input-field hk-manual-input" value="${isManual ? parts.manual.toLocaleString() : ''}" placeholder="자동" title="다른 판매자와 가격을 맞추려고 직접 정한 판매가입니다. 비우면 계산한 판매가(×${config.listPercent / 100})를 씁니다." onchange="hkCoupangSetManualPrice('${channelId}','${product.productId}',${i},this.value)">${isManual ? `<small class="hk-manual-gap">계산가 ${manualGap > 0 ? '+' : ''}${num(manualGap)}</small>` : ''}</td>`
         : `<td class="hk-manual-cell is-none">${blankMissing ? '' : '—'}</td>`;
-      rowsHtml += `<tr class="${rowClass}"${sectionKey ? ` data-section-key="${sectionKey}"` : ''}>
+      rowsHtml += `<tr class="${rowClass}" data-hk-key="${product.productId}|${i}"${sectionKey ? ` data-section-key="${sectionKey}"` : ''}>
         ${idCell}
         <td>${_hkCoupangOptionLink(channelId, product, item) ? `<a class="hk-option-link" href="${_hkCoupangOptionLink(channelId, product, item)}" target="_blank" rel="noopener noreferrer" title="쿠팡에서 이 옵션 열기">${item.optionId}</a>` : (item.optionId || '—')}</td>
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
@@ -2692,7 +2707,7 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
       const rowClass = `${i === 0 && groupIndex > 0 ? 'hk-iso-listing-group-start' : ''}${inactive ? ` is-inactive is-${item.status}` : ''}`.trim();
-      rowsHtml += `<tr class="${rowClass}">
+      rowsHtml += `<tr class="${rowClass}" data-hk-key="${product.productId}|${i}">
         ${idCell}
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
         <td class="hk-iso-draft-code">${item.productCode}</td>
@@ -2770,7 +2785,7 @@ function _hkEsmCategoryTableHtml(channelId, categoryId, products) {
     const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
       .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
     const rowClass = `${startsGroup && r > 0 ? 'hk-iso-listing-group-start' : ''}${inactive ? ` is-inactive is-${item.status}` : ''}`.trim();
-    rowsHtml += `<tr class="${rowClass}">
+    rowsHtml += `<tr class="${rowClass}" data-hk-key="${product.productId}|${index}">
       ${groupCell}
       <td>${product.masterId || '—'}</td>
       <td class="hk-esm-product-id">${_hkChannelProductLink(channelId, product) ? `<a href="${_hkChannelProductLink(channelId, product)}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId}</td>
