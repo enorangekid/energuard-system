@@ -154,6 +154,17 @@ function boot(scan){
     assert.equal(JSON.stringify(res.map(r=>r.status)),JSON.stringify(['일치','불일치','추가상품 목록에 없음']));assert.equal(res[1].diff,-100);assert.equal(res[0].store,'11st');
   }
   {
+    // 성인 인증 상품 — 상품 주소가 아닌 인증·로그인 주소로 넘어가면 실패가 아니라 '성인인증 필요'(이동한 주소 표시). 인증·로그인이 아닌 다른 주소면 멈추지 않는 일반 실패.
+    const run=async url=>{const {c:w}=boot(null);w.chrome.tabs.get=async()=>({url});return w.inspect11st({productId:'3112701490',productUrl:'https://www.11st.co.kr/products/3112701490',options:[{code:'H_HT',name:'하이테크 접착제',expected:5000}]},null,'options');};
+    for(const url of ['https://login.11st.co.kr/auth/front/login.tmall','https://www.11st.co.kr/adult/auth.tmall?x=1','https://member.11st.co.kr/certif/adult']){
+      const r=await run(url);assert.equal(r.length,1);assert.equal(r[0].status,'성인인증 필요');assert.match(r[0].source,/이동한 주소/);
+    }
+    await assert.rejects(()=>run('https://www.11st.co.kr/html/main.html'),/상품 페이지가 아닌 주소.*www\.11st\.co\.kr\/html\/main\.html/);
+    await assert.rejects(()=>run(''),/수집 실패/); // 주소를 알 수 없으면 예전처럼 일반 실패
+    // 일반 실패 메시지가 아니라 '이동' 메시지는 검사를 멈추는 문구(로그인·차단·봇)를 포함하지 않는다
+    try{await run('https://www.11st.co.kr/html/main.html');}catch(e){assert.doesNotMatch(e.message,/로그인|차단|봇|사이트 확인 화면/);}
+  }
+  {
     // 봇 확인 화면이면 실패로 남고 검사가 일시정지된다. 옵션이 안 읽히는 상품 하나는 실패 행만 남기고 계속한다.
     const {c:w,call}=boot((url)=>/1111$/.test(url)?{ok:false,error:'옵션 목록을 찾지 못했습니다.'}:{ok:true,productId:url.split('/').pop(),productUrl:url,rows:[{name:'스티로폼(3호)_10T-430x430(5장)',price:8700,qty:1}]});
     const items=['1111','2222'].map(id=>({productId:id,productUrl:'https://www.11st.co.kr/products/'+id,options:[{code:'St_430_430_10_5',name:'x',expected:8700,status:null}]}));

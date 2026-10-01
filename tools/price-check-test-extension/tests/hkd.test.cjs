@@ -279,6 +279,16 @@ const url=id=>`https://smartstore.naver.com/hkdy/products/${id}`;
     const rows=await c.inspectEsm({marketplace:'auction',productId:'F392223636',productUrl:ac,code:'BL_13_10_DA',name:'13T 고급형 접착 10m',expected:111400});
     assert.equal(rows[0].status,'불일치');assert.equal(rows[0].diff,-100);assert.equal(rows[0].store,'auction');
   }
+  // "잠시만 기다리십시오 / 봇 확인" 화면은 몇 번 읽는 동안 저절로 지나가기도 한다 — 바로 실패로 보지 않고 기다렸다가 읽는다.
+  {
+    const gm='https://item.gmarket.co.kr/Item?goodscode=926193434';let calls=0;
+    const {c}=boot(()=>++calls<=6?{ok:false,error:'사이트 확인 화면 — 브라우저에서 확인 후 이어서 검사해주세요.'}:{ok:true,marketplace:'gmarket',productId:'926193434',productUrl:gm,registeredPrice:9100,discountedPrice:8600});
+    const rows=await c.inspectEsm({marketplace:'gmarket',productId:'926193434',productUrl:gm,code:'X',name:'x',expected:9100});
+    assert.equal(rows[0].status,'일치');assert.ok(calls>6);
+    // 끝까지 안 지나가면(약 20초 분량) 그때 실패로 알린다
+    const {c:c2}=boot(()=>({ok:false,error:'사이트 확인 화면 — 브라우저에서 확인 후 이어서 검사해주세요.'}));
+    await assert.rejects(()=>c2.inspectEsm({marketplace:'gmarket',productId:'926193434',productUrl:gm,code:'X',name:'x',expected:9100}),/사이트 확인 화면/);
+  }
   // 1단 옵션 상품(타이거폼 2K·라이트폼 세트 경질/연질) — 옵션 이름(또는 스토어 옵션명 별칭)으로 짝짓고 등록가(기존가+추가금)를 비교한다.
   {
     const gm='https://item.gmarket.co.kr/Item?goodscode=2031741045';
