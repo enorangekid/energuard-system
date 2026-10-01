@@ -663,6 +663,11 @@
   box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
 .pgl-btn:hover { background: #eef2ff; border-color: #6366f1; color: #4338ca; }
+/* 글자가 긴 버튼("모음전 엑셀"·"상품코드 복사")용 — 폭을 글자에 맞춘다. 에너가드·한국단열 단가표가 같이 쓰는 공용 작은 버튼(.pgl-btn)의 크기 변형. */
+.pgl-btn.pgl-btn-wide { width: auto; padding: 3px 9px; }
+/* 세로로 쌓은 글자 버튼들(.pgl-btn-wide)을 가장 넓은 버튼 폭에 맞춰 같은 가로폭으로 맞춘다 — "상품코드 복사"와 "모음전 엑셀"처럼 글자 수가 다른 버튼용 */
+.pgl-btns.pgl-btns-fit { align-items: stretch; width: max-content; max-width: 100%; margin-left: auto; margin-right: auto; }
+.pgl-btn.is-done { background: #dcfce7; border-color: #86efac; color: #15803d; }
 .pgl-btn.pgl-empty { color: #94a3b8; border-color: #cbd5e1; background: #f8fafc; box-shadow: none; }
 .pgl-btn.pgl-empty:hover { color: #475569; border-color: #94a3b8; background: #eef2ff; }
 
@@ -1681,6 +1686,18 @@
 .hk-group-chevron { color: #6366f1; transition: transform .18s ease; }
 .hk-group-summary-row.is-expanded .hk-group-chevron { transform: rotate(180deg); }
 .hk-group-member-row td { background-color: #fcfcff; }
+/* 모음전·단품 머리 오른쪽의 [상품코드 복사] — 머리 전체가 접기 버튼이라 버튼을 그 옆에 따로 둔다 */
+.hk-kind-head { display: flex; align-items: center; }
+/* 제목·개수 쪽(왼쪽)과 접기 표시(오른쪽 끝)를 나눠 놓고, 복사 버튼을 제목 바로 옆에 둬서 표를 옆으로 넘기지 않아도 보이게 한다. 둘 다 접기·펼치기 버튼이다. */
+.hk-kind-head .hk-kind-toggle-main { flex: 0 0 auto; width: auto; }
+.hk-kind-head .hk-kind-toggle-rest { flex: 1 1 auto; min-width: 60px; }
+.hk-kind-copy { flex: 0 0 auto; margin: 0 6px; } /* 모양은 공용 .pgl-btn 그대로(글자 크기도 똑같이) — 머리 줄 안의 간격만 */
+/* 모음전 상품 / 단품 상품 아코디언 머리 — 단품은 회청색으로 구분 */
+.hk-kind-summary-row.is-kind-single td { border-top-color: #94a3b8 !important; border-bottom-color: #cbd5e1 !important; }
+.hk-kind-summary-row.is-kind-single .hk-group-toggle-icon { color: #475569; background: #e2e8f0; }
+.hk-kind-summary-row.is-kind-single .hk-group-representative { color: #475569; background: #f1f5f9; }
+.hk-kind-summary-row.is-kind-single .hk-group-toggle-label,
+.hk-kind-summary-row.is-kind-single .hk-group-chevron { color: #64748b; }
 .hk-iso-draft-table thead th.hk-iso-head-prev { color: #14532d; background: #86efac; }
 .hk-iso-draft-table thead th.hk-iso-head-diff { color: #7c2d12; background: #fdba74; }
 .hk-iso-listing-prev-price { background: #f0fdf4; color: #166534; font-weight: 700; }

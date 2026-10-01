@@ -1440,19 +1440,22 @@ const HK_CHANNEL_LISTINGS = {
       shippingBasis: '5개마다',
       jejuShipping: 10000,
       returnExchange: '8500/17000',
+      moeumLive: true, // [모음전 엑셀] — 확장이 스토어 페이지에서 옵션명·옵션 항목 제목을 읽어 만든다(js/pricing-hankook-moeum.js). 못 읽으면 아래 이름으로 만든다.
+      // storeName = 스마트스토어에 올라간 실제 옵션명(2026-10-01 사용자 확인). 단가표 이름과 달라서(예: "벽산아이소핑크 1호 10T 430x430 3장",
+      // 20T 600x900은 "세경아이소핑크 특호") 모음전 옵션 엑셀(js/pricing-hankook-moeum.js)은 이 이름을 그대로 쓴다.
       items: [
-        { productCode: 'Iso_430_430_10_3',  prevPrice: 2500,  prevShipping: 6000 },
-        { productCode: 'Iso_600_900_10_3',  prevPrice: 6500,  prevShipping: 6000 },
-        { productCode: 'Iso_430_430_20_3',  prevPrice: 5400,  prevShipping: 6000 },
-        { productCode: 'Iso_600_900_20_1',  prevPrice: 4000,  prevShipping: 6000 },
-        { productCode: 'Iso_430_430_30_2',  prevPrice: 5300,  prevShipping: 6000 },
-        { productCode: 'Iso_600_900_30_1',  prevPrice: 6700,  prevShipping: 6000 },
-        { productCode: 'Iso_430_430_40_2',  prevPrice: 7100,  prevShipping: 6000 },
-        { productCode: 'Iso_600_900_40_1',  prevPrice: 8300,  prevShipping: 6000 },
-        { productCode: 'IsoA_600_900_10_3', prevPrice: 11500, prevShipping: 6000 },
-        { productCode: 'IsoA_600_900_20_1', prevPrice: 6000,  prevShipping: 6000 },
-        { productCode: 'IsoA_600_900_30_1', prevPrice: 8200,  prevShipping: 6000 },
-        { productCode: 'IsoA_600_900_40_1', prevPrice: 10600, prevShipping: 6000 },
+        { productCode: 'Iso_430_430_10_3',  prevPrice: 2500,  prevShipping: 6000, storeName: '벽산아이소핑크 1호 10T 430x430 3장' },
+        { productCode: 'Iso_600_900_10_3',  prevPrice: 6500,  prevShipping: 6000, storeName: '벽산아이소핑크 1호 10T 600x900 3장' },
+        { productCode: 'Iso_430_430_20_3',  prevPrice: 5400,  prevShipping: 6000, storeName: '벽산아이소핑크 특호 20T 430x430 3장' },
+        { productCode: 'Iso_600_900_20_1',  prevPrice: 4000,  prevShipping: 6000, storeName: '세경아이소핑크 특호 20T 600x900 1장' },
+        { productCode: 'Iso_430_430_30_2',  prevPrice: 5300,  prevShipping: 6000, storeName: '벽산아이소핑크 특호 30T 430x430 2장' },
+        { productCode: 'Iso_600_900_30_1',  prevPrice: 6700,  prevShipping: 6000, storeName: '벽산아이소핑크 특호 30T 600x900 1장' },
+        { productCode: 'Iso_430_430_40_2',  prevPrice: 7100,  prevShipping: 6000, storeName: '벽산아이소핑크 특호 40T 430x430 2장' },
+        { productCode: 'Iso_600_900_40_1',  prevPrice: 8300,  prevShipping: 6000, storeName: '벽산아이소핑크 특호 40T 600x900 1장' },
+        { productCode: 'IsoA_600_900_10_3', prevPrice: 11500, prevShipping: 6000, storeName: '★접착벽산아이소핑크 10T 600x900 3장' },
+        { productCode: 'IsoA_600_900_20_1', prevPrice: 6000,  prevShipping: 6000, storeName: '★접착벽산아이소핑크 20T 600x900 1장' },
+        { productCode: 'IsoA_600_900_30_1', prevPrice: 8200,  prevShipping: 6000, storeName: '★접착벽산아이소핑크 30T 600x900 1장' },
+        { productCode: 'IsoA_600_900_40_1', prevPrice: 10600, prevShipping: 6000, storeName: '★접착벽산아이소핑크 40T 600x900 1장' },
       ],
     },
     {
@@ -1462,6 +1465,7 @@ const HK_CHANNEL_LISTINGS = {
       shippingBasis: '5개마다',
       jejuShipping: 10000,
       returnExchange: '8500/17000',
+      moeumLive: true, // [모음전 엑셀] — 옵션명·옵션 항목 제목은 확장이 스토어 상품 페이지에서 직접 읽는다(js/pricing-hankook-moeum.js)
       items: [
         { productCode: 'Iso_430_430_10_3',  prevPrice: 2500,  prevShipping: 6000 },
         { productCode: 'Iso_600_900_10_3',  prevPrice: 5400,  prevShipping: 6000 },
@@ -2283,6 +2287,145 @@ function hkToggleChannelSection(button) {
   if (after) window.scrollBy(0, after.getBoundingClientRect().top - before);
 }
 
+/* 모음전 상품(옵션 여럿)·단품(옵션 하나) 아코디언 — 채널 표의 카테고리 중 이 목록에 든 것만 두 묶음으로 나눈다(한국단열 아이소핑크).
+   네이버(스마트스토어) 채널 — hkd 한국단열 · hkd_life 한국단열라이프 — 의 다른 카테고리에도 같은 방식으로 늘릴 거라 공용으로 만들었다:
+   카테고리를 이 목록에 추가하면 되고('*' = 그 채널의 모든 카테고리), 머리 모양·[상품코드 복사]·펼침 기억·검색 연동은 전부 그대로 따라간다.
+   버튼 모양도 단가표 공용 작은 버튼(.pgl-btn)을 쓴다. 모음전 엑셀은 상품에 moeumLive: true를 적으면 된다(js/pricing-hankook-moeum.js). */
+const HK_CHANNEL_KIND_SPLIT = { hkd: ['hk_isopink'], hkd_life: [] };
+function _hkChannelKindSplit(channelId, categoryId) {
+  const list = HK_CHANNEL_KIND_SPLIT[channelId];
+  return !!list && (list.includes('*') || list.includes(categoryId));
+}
+const _hkChannelKindState = new Map(); // `${채널}|${카테고리}|moeum|single` → 펼침 여부(표를 다시 그려도 유지). 기본: 모음전 펼침, 단품 접힘.
+function _hkChannelKindOpen(key, kind) {
+  return _hkChannelKindState.has(key) ? _hkChannelKindState.get(key) : kind === 'moeum';
+}
+
+/* ── 공용 부품 — 모음전·단품 구분과 그 버튼은 아래 함수만 쓴다. 다른 레이아웃·카테고리·채널에 같은 구분이나 같은 버튼을 넣을 때
+   새 HTML·스타일을 따로 만들지 말고 이 함수를 그대로 부를 것(모양은 공용 .pgl-btn / .hk-group-summary-row 계열 CSS). ── */
+const _hkKindOfProduct = product => (product.items.length > 1 ? 'moeum' : 'single'); // 묶음 판정 — 옵션이 둘 이상이면 모음전, 하나면 단품
+const _hkKindLabel = { moeum: '모음전 상품', single: '단품 상품' };
+const _hkKindHint = { moeum: '옵션이 여러 개인 상품', single: '옵션이 하나인 상품' };
+/* [상품코드 복사] 글자 버튼 — 어디에 놓든 이 함수 하나로 만든다(묶음 머리·상품ID 칸이 같은 모양). 복사할 내용만 onclick으로 다르다. */
+function _hkCopyButtonHtml(onclick, title, extraClass = '') {
+  return `<button type="button" class="pgl-btn pgl-btn-wide${extraClass ? ' ' + extraClass : ''}" onclick="${onclick}" title="${title}">상품코드 복사</button>`;
+}
+/* 묶음 머리용 — 누르면 그 묶음 상품들의 상품번호가 줄바꿈으로 복사된다(hkCopyChannelKindCodes). */
+function _hkCopyCodesButtonHtml(channelId, categoryId, kind, count) {
+  return _hkCopyButtonHtml(`hkCopyChannelKindCodes(this,'${channelId}','${categoryId}','${kind}')`, `이 묶음 상품 ${count}개의 상품코드(상품번호)를 줄바꿈으로 복사합니다 — 네이버 상품관리에서 한꺼번에 검색할 때 붙여넣으세요`, 'hk-kind-copy');
+}
+/* [모음전 엑셀] 버튼 — 상품ID 칸용. 엑셀을 만들 수 있는 상품(moeumLive 등)에만 보인다(js/pricing-hankook-moeum.js). */
+function _hkMoeumExcelButtonHtml(channelId, product) {
+  if (typeof window.hkMoeumReady !== 'function' || !window.hkMoeumReady(channelId, product)) return '';
+  return `<button type="button" class="pgl-btn pgl-btn-wide" onclick="hkMoeumExcel('${channelId}','${product.productId}')" title="이 상품의 옵션 가격을 스마트스토어 옵션 일괄 수정 엑셀로 내려받습니다(대표가 = 기준가 옵션, 옵션가 = 현재 판매가 − 대표가)">모음전 엑셀</button>`;
+}
+/* 상품 한 개의 [상품코드 복사] — 상품ID 칸용. 묶음 머리와 같은 버튼 모양. */
+function _hkCopyProductCodeButtonHtml(product) {
+  return _hkCopyButtonHtml(`hkCopyProductCode(this,'${product.productId}')`, `이 상품의 상품코드(${product.productId})를 복사합니다`);
+}
+/* 상품ID 칸 아래 버튼 묶음 — 위에서부터 [상품코드 복사], (모음전 엑셀을 만들 수 있는 상품이면) [모음전 엑셀]. 상품ID 칸에는 이 함수만 쓴다. */
+function _hkProductButtonsHtml(channelId, product) {
+  return `<div class="pgl-btns pgl-btns-fit">${_hkCopyProductCodeButtonHtml(product)}${_hkMoeumExcelButtonHtml(channelId, product)}</div>`;
+}
+/* 한 카테고리 표의 구분 계획 — split(이 채널·카테고리에 적용하는지), ordered(모음전 → 단품 순서의 상품 목록), stats(묶음별 상품·옵션·가격 변경 수). */
+function _hkKindPlan(channelId, categoryId, products) {
+  const split = _hkChannelKindSplit(channelId, categoryId);
+  const kindOf = _hkKindOfProduct;
+  const ordered = split ? [...products.filter(p => kindOf(p) === 'moeum'), ...products.filter(p => kindOf(p) === 'single')] : products;
+  const stats = {};
+  if (split) {
+    products.forEach(product => {
+      const stat = stats[kindOf(product)] || (stats[kindOf(product)] = { products: 0, options: 0, changed: 0 });
+      stat.products++;
+      product.items.forEach(item => {
+        stat.options++;
+        const price = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
+        if (!item.status && price != null && item.prevPrice != null && price !== item.prevPrice) stat.changed++;
+      });
+    });
+  }
+  return { split, kindOf, ordered, stats, key: kind => `${channelId}|${categoryId}|${kind}`, open: kind => _hkChannelKindOpen(`${channelId}|${categoryId}|${kind}`, kind) };
+}
+/* 묶음 머리 줄(<tr>) — 제목·개수 쪽 / [상품코드 복사] / 접기 표시 쪽. 묶음의 상품 행에는 data-kind-key(plan.key(kind))를 붙이고 접혀 있으면 hidden을 준다. */
+function _hkKindHeaderRowHtml(channelId, categoryId, plan, kind, colspan) {
+  const stat = plan.stats[kind], open = plan.open(kind);
+  return `<tr class="hk-group-summary-row hk-kind-summary-row is-kind-${kind}${open ? ' is-expanded' : ''}" data-kind-key="${plan.key(kind)}">
+        <td colspan="${colspan}">
+          <div class="hk-kind-head">
+            <button type="button" class="hk-group-toggle hk-kind-toggle-main" aria-expanded="${open}" onclick="hkToggleChannelKind(this)">
+              <span class="hk-group-toggle-icon"><i class="fa-solid ${kind === 'moeum' ? 'fa-layer-group' : 'fa-cube'}"></i></span>
+              <strong>${_hkKindLabel[kind]}</strong>
+              <span class="hk-group-representative">${_hkKindHint[kind]}</span>
+              <span class="hk-group-count">상품 ${stat.products}개 · 옵션 ${stat.options}개</span>
+              ${stat.changed ? `<span class="hk-section-changed">가격 변경 ${stat.changed}개</span>` : ''}
+            </button>
+            ${_hkCopyCodesButtonHtml(channelId, categoryId, kind, stat.products)}
+            <button type="button" class="hk-group-toggle hk-kind-toggle-rest" aria-expanded="${open}" onclick="hkToggleChannelKind(this)" aria-label="${_hkKindLabel[kind]} 접기·펼치기">
+              <span class="hk-group-toggle-label">${open ? '접기' : '보기'}</span>
+              <i class="fa-solid fa-chevron-down hk-group-chevron"></i>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+}
+window.hkToggleChannelKind = function(button) {
+  const summaryRow = button?.closest('.hk-kind-summary-row');
+  const key = summaryRow?.dataset.kindKey;
+  if (!key) return;
+  const open = !summaryRow.classList.contains('is-expanded');
+  _hkChannelKindState.set(key, open);
+  summaryRow.classList.toggle('is-expanded', open);
+  summaryRow.querySelectorAll('.hk-group-toggle').forEach(toggle => toggle.setAttribute('aria-expanded', String(open)));
+  summaryRow.parentElement.querySelectorAll('tr[data-kind-key]').forEach(row => {
+    if (row !== summaryRow && row.dataset.kindKey === key) row.hidden = !open;
+  });
+  const label = summaryRow.querySelector('.hk-group-toggle-label');
+  if (label) label.textContent = open ? '접기' : '보기';
+};
+/* 모음전·단품 머리의 [상품코드 복사] — 그 묶음 상품들의 상품번호를 한 줄에 하나씩 클립보드로 복사한다(에너가드 단가표의 [모음전]·[단품] 코드 복사와 같은 방식). */
+/* 텍스트를 클립보드로 복사하고 결과(true/false)를 돌려준다 — 권한이 없으면 임시 입력칸으로 복사한다. 복사 버튼은 전부 이 함수를 쓴다. */
+async function _hkCopyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch {
+    const area = document.createElement('textarea');
+    area.value = text; area.style.position = 'fixed'; area.style.opacity = '0';
+    document.body.appendChild(area); area.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    area.remove();
+    return ok;
+  }
+}
+/* 복사한 직후 버튼 글자를 잠깐 "복사됨"으로 바꿔 결과를 보여 준다. */
+function _hkCopyFeedback(button, ok) {
+  if (!button) return;
+  const original = button.textContent;
+  button.textContent = ok ? '복사됨' : '복사 실패';
+  button.classList.toggle('is-done', ok);
+  setTimeout(() => { button.textContent = original; button.classList.remove('is-done'); }, 1400);
+}
+window.hkCopyChannelKindCodes = async function(button, channelId, categoryId, kind) {
+  const ids = [...new Set((HK_CHANNEL_LISTINGS[channelId] || [])
+    .filter(product => product.categoryId === categoryId && _hkKindOfProduct(product) === kind)
+    .map(product => String(product.productId)))];
+  if (!ids.length) return;
+  const ok = await _hkCopyText(ids.join('\n'));
+  const label = kind === 'moeum' ? '모음전' : '단품';
+  if (typeof showToast === 'function') showToast(ok ? `${label} 상품코드 ${ids.length}개가 복사되었습니다.` : '클립보드 복사에 실패했습니다.', ok ? 'success' : 'error');
+  _hkCopyFeedback(button, ok);
+};
+/* 상품ID 칸의 [상품코드 복사] — 그 상품의 상품코드(상품번호) 하나만 복사한다. */
+window.hkCopyProductCode = async function(button, productId) {
+  const ok = await _hkCopyText(String(productId));
+  if (typeof showToast === 'function') showToast(ok ? `상품코드 복사됨 — ${productId}` : '클립보드 복사에 실패했습니다.', ok ? 'success' : 'error');
+  _hkCopyFeedback(button, ok);
+};
+/* 검색(pricing-hankook-search.js)에서 그 상품으로 이동하기 전에 상품이 속한 묶음을 펼친다. */
+window.hkChannelKindExpand = function(channelId, product) {
+  if (!product || !_hkChannelKindSplit(channelId, product.categoryId)) return;
+  _hkChannelKindState.set(`${channelId}|${product.categoryId}|${_hkKindOfProduct(product)}`, true);
+};
+
 /* 그룹상품 구성원은 가격검사 때문에 각 상품번호를 그대로 보존하되, 화면에서는 대표 그룹상품 한 줄 아래 접어 둔다. */
 const _hkExpandedChannelGroups = new Set(); // 펼쳐 둔 그룹 — 표가 다시 그려져도(상태·메모 수정 등) 접히지 않게 기억한다
 function hkToggleChannelGroup(button) {
@@ -2352,7 +2495,19 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
     const key = String(product.groupProductCode);
     groupedProducts.set(key, (groupedProducts.get(key) || 0) + 1);
   });
-  products.forEach((product, groupIndex) => {
+  // 모음전 상품(옵션 여럿)과 단품(옵션 하나)을 아코디언 두 개로 나눠 보여준다(한국단열 아이소핑크, 2026-10-01 사용자 요청) — 공용 부품(_hkKindPlan 등) 사용.
+  // 모음전 → 단품 순서, 각 묶음 안의 순서는 그대로. 기본은 모음전 펼침·단품 접힘이고 펼침 상태는 표를 다시 그려도 기억한다.
+  const kindPlan = _hkKindPlan(channelId, categoryId, products);
+  const orderedProducts = kindPlan.ordered;
+  let lastKind = '';
+  orderedProducts.forEach((product, groupIndex) => {
+    const kind = kindPlan.split ? kindPlan.kindOf(product) : '';
+    const kindKey = kind ? kindPlan.key(kind) : '';
+    const kindOpen = kind ? kindPlan.open(kind) : true;
+    if (kind && kind !== lastKind) {
+      lastKind = kind;
+      rowsHtml += _hkKindHeaderRowHtml(channelId, categoryId, kindPlan, kind, 15);
+    }
     const groupProductCode = product.groupProductCode ? String(product.groupProductCode) : '';
     if (groupProductCode && !renderedGroupCodes.has(groupProductCode)) {
       renderedGroupCodes.add(groupProductCode);
@@ -2408,9 +2563,11 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
         ? `<a href="${productLink}" target="_blank" rel="noopener noreferrer">${product.productId}</a>`
         : product.productId) + _hkChannelGroupBadge(product);
       // 구간으로 접히는 상품은 구간의 첫 줄이 없을 수 있어 rowspan 대신 줄마다 상품ID를 적는다.
+      // 스토어 옵션명(storeName)이 전부 적힌 모음전 상품은 상품ID 칸 아래에 [모음전 엑셀] 버튼 — 스마트스토어 옵션 가격 일괄 수정 파일(js/pricing-hankook-moeum.js).
+      const productButtons = _hkProductButtonsHtml(channelId, product); // 상품코드 복사 + 모음전 엑셀 버튼(공용 부품)
       const productIdCell = item.section
         ? `<td class="hk-iso-listing-id">${productIdValue}</td>`
-        : (i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${productIdValue}</td>` : '');
+        : (i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${productIdValue}${productButtons}</td>` : '');
       const sectionClass = sectionKey ? ' hk-section-member-row' : '';
       const sectionAttr = sectionKey ? ` data-section-key="${sectionKey}"` : '';
       const groupStartClass = (i === 0 && groupIndex > 0) ? ' hk-iso-listing-group-start' : '';
@@ -2426,7 +2583,8 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
       const memberClass = groupProductCode ? ' hk-group-member-row' : '';
-      rowsHtml += `<tr class="${(groupStartClass + statusClass + memberClass + sectionClass).trim()}" data-hk-key="${product.productId}|${i}"${groupProductCode ? ` data-group-code="${groupProductCode}"${_hkExpandedChannelGroups.has(groupProductCode) ? '' : ' hidden'}` : ''}${sectionAttr}>
+      const hiddenByGroup = !!groupProductCode && !_hkExpandedChannelGroups.has(groupProductCode);
+      rowsHtml += `<tr class="${(groupStartClass + statusClass + memberClass + sectionClass).trim()}" data-hk-key="${product.productId}|${i}"${groupProductCode ? ` data-group-code="${groupProductCode}"` : ''}${kindKey ? ` data-kind-key="${kindKey}"` : ''}${hiddenByGroup || !kindOpen ? ' hidden' : ''}${sectionAttr}>
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
         <td class="hk-iso-draft-code">${item.displayCode ?? item.productCode}</td>
         ${productIdCell}

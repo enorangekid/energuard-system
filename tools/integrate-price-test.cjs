@@ -27,6 +27,6 @@ for(const permission of ['https://item.gmarket.co.kr/*','https://itempage3.aucti
 if(!m.content_scripts.some(c=>c.js.includes('esm-price-collector.js')))m.content_scripts.push({matches:['https://item.gmarket.co.kr/Item*','https://itempage3.auction.co.kr/DetailView.aspx*'],js:['esm-price-collector.js'],run_at:'document_idle'});
 if(!m.content_scripts.some(c=>c.js.includes('st11-price-collector.js')))m.content_scripts.push({matches:['https://www.11st.co.kr/products/*'],js:['st11-price-collector.js'],run_at:'document_idle'});
 if(!m.content_scripts.some(c=>c.js.includes('coupang-price-collector.js')))m.content_scripts.push({matches:['https://www.coupang.com/vp/products/*'],js:['coupang-price-collector.js'],run_at:'document_idle'});
-m.minimum_chrome_version='120';m.version='0.31.20';
+m.minimum_chrome_version='120';m.version='0.32.1';
 fs.writeFileSync(path.join(source,'manifest.json'),JSON.stringify(m,null,2)+'\n');
 console.log('Integrated price test v'+m.version+' into '+source);
