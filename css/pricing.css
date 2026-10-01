@@ -1389,12 +1389,21 @@
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+  line-height: 1; /* 글자와 숫자 배지의 줄 높이를 같게 — 안 그러면 글자가 배지보다 1~2px 아래로 처져 상하 중앙이 어긋난다 */
 }
 .hk-channel-category-filter span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
   color: #64748b;
   background: #f1f5f9;
   border-radius: 999px;
-  padding: 1px 6px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 .hk-channel-category-filter.active {
   color: #3730a3;
