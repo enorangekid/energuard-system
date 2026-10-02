@@ -29,7 +29,7 @@
      옵션명은 스토어에서 읽어 와 관리코드로 짝짓기 때문에, 스토어 옵션에 단가표와 같은 관리코드가 등록돼 있어야 만들어진다(안 맞으면 안내 후 중단). */
   window.hkMoeumReady = function (channelId, product) {
     if (!product || !Array.isArray(product.items) || product.items.length < 2 || !product.items.every(item => item.productCode)) return false;
-    const inKindSplit = typeof _hkChannelKindSplit === 'function' && _hkChannelKindSplit(channelId, product.categoryId);
+    const inKindSplit = typeof _hkChannelKindSplit === 'function' && (_hkChannelKindSplit(channelId, product.categoryId) || _hkChannelProductTabbed(channelId, product.categoryId));
     return inKindSplit || product.moeumLive === true || staticReady(product);
   };
 
@@ -50,10 +50,11 @@
   }
 
   function summaryRows(prices, basePrice) {
+    // 실제판매가(= 판매가 − 즉시할인가)는 옵션가 0원인 기준 옵션의 가격이어야 옵션가(= 옵션 판매가 − 대표가)가 맞는다. 기준 옵션이 가장 싼 상품이면 최저가와 같고(지금까지 전부),
+    // 기준 옵션보다 싼 옵션이 있는 상품(옵션가 음수 — 단열벽지 11502054249)은 기준 옵션 가격으로 둔다(2026-10-02, 예전엔 최저가를 써서 이런 상품은 3,000원 어긋났다).
     const maxOffset = Math.max(...prices) - basePrice;
-    const minPrice = Math.min(...prices);
     const listPrice = maxOffset * 2;
-    return { rows: [['판매가', listPrice], ['즉시할인가', listPrice - minPrice], ['실제판매가', minPrice], []], listPrice, minPrice };
+    return { rows: [['판매가', listPrice], ['즉시할인가', listPrice - basePrice], ['실제판매가', basePrice], []], listPrice, minPrice: basePrice };
   }
   const stockAndUse = item => { const status = item.status || ''; return [status ? 0 : 99999, status === 'stopped' ? 'N' : 'Y']; };
   const stamp = () => { const now = new Date(); return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`; };
@@ -88,13 +89,17 @@
       return { error: `스토어 옵션 중 관리코드가 단가표와 맞지 않는 것이 ${unmatched.length}개 있어 만들지 않았습니다 — ${unmatched.slice(0, 5).join(', ')}${unmatched.length > 5 ? ' …' : ''}` };
     }
     // 스토어 상품 페이지는 판매중지(사용 안 함) 옵션을 보여 주지 않아 읽히지 않는다. 그래도 엑셀에서 빠지면 업로드할 때 그 옵션이 스토어에서 어떻게 되는지 알 수 없으니,
-    // 단가표에서 판매중지인 옵션은 단가표 이름으로 파일 끝에 재고 0·사용여부 N으로 넣는다(1단 옵션만 — 이름을 열마다 나눌 수 없어서 2~3단은 제외하고 경고, 2026-10-02).
+    // 단가표에서 판매중지인 옵션은 단가표 이름으로 파일 끝에 재고 0·사용여부 N으로 넣는다(2026-10-02). 1단 옵션은 상품명 한 칸,
+    // 2~3단 옵션은 열마다 이름이 필요해서 항목에 optionNames(열 순서 목록)가 적혀 있을 때만 — 없으면 제외하고 경고.
     const stoppedAdded = [];
     product.items.forEach((item, index) => {
-      if (usedItems.has(index) || item.status !== 'stopped' || axes !== 1) return;
+      if (usedItems.has(index) || item.status !== 'stopped') return;
+      const names = axes === 1 ? [_hkChannelItemName(item.categoryId || product.categoryId, product, item)]
+        : (Array.isArray(item.optionNames) && item.optionNames.length === axes ? item.optionNames : null);
+      if (!names) return;
       usedItems.add(index);
       stoppedAdded.push(item.productCode);
-      body.push([_hkChannelItemName(item.categoryId || product.categoryId, product, item), calc.prices[index] - calc.basePrice, 0, String(item.productCode).trim(), 'N']);
+      body.push([...names, calc.prices[index] - calc.basePrice, 0, String(item.productCode).trim(), 'N']);
     });
     const absent = product.items.filter((_, i) => !usedItems.has(i)).map(item => item.productCode);
     const summary = summaryRows(calc.prices, calc.basePrice);

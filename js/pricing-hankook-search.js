@@ -221,6 +221,7 @@
     const { channelId, product, item, index } = hit;
     // 접힌 그룹상품·구간(옵션이 많은 상품)은 펼쳐 둬야 행이 그려진다 — 그리기 전에 펼침 상태를 먼저 기억시킨다.
     if (product.groupProductCode) _hkExpandedChannelGroups.add(String(product.groupProductCode));
+    window.hkChannelShowProductTab?.(channelId, product); // 상품마다 탭이 있는 카테고리(단열벽지)는 그 상품 탭으로
     window.hkChannelKindExpand?.(channelId, product); // 모음전·단품 아코디언에서 접힌 쪽에 있으면 펼친다
     if (item.section) {
       _hkExpandedChannelSections.add(`${channelId}|${product.productId}|${item.section}`);       // 일반 표

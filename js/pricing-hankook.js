@@ -2298,6 +2298,41 @@ function _hkChannelKindSplit(channelId, categoryId) {
   const list = HK_CHANNEL_KIND_SPLIT[channelId];
   return !!list && (list.includes('*') || list.includes(categoryId));
 }
+const HK_CHANNEL_KIND_ORDER_ONLY = { hkd: ['hk_wallpaper'], hkd_life: [] }; // 모음전 → 단품 → 그룹상품 순서로만 정렬하고 아코디언은 안 나누는 카테고리(단열벽지 — 아래 상품 탭으로 나눔, '전체'에서만 이 순서로 한 표에 보임)
+function _hkChannelKindOrderOnly(channelId, categoryId) {
+  const list = HK_CHANNEL_KIND_ORDER_ONLY[channelId];
+  return !!list && (list.includes('*') || list.includes(categoryId));
+}
+/* 상품마다 탭 — 이 목록의 카테고리를 고르면 상품(모음전·단품은 상품 하나씩, 그룹상품은 묶어서 하나)별 탭이 뜨고 고른 탭의 상품만 표로 보인다(한국단열 단열벽지,
+   옵션이 상품마다 수백 개라 한 표로 길어서 사용자 요청 2026-10-02). 탭 모양은 카테고리 칩(.hk-channel-category-filter) 그대로. 상품에 tabHint를 적으면 탭 글자에 덧붙는다. */
+const HK_CHANNEL_PRODUCT_TABS = { hkd: ['hk_wallpaper'], hkd_life: [] };
+function _hkChannelProductTabbed(channelId, categoryId) {
+  const list = HK_CHANNEL_PRODUCT_TABS[channelId];
+  return !!list && (list.includes('*') || list.includes(categoryId));
+}
+const _hkChannelProductTabState = new Map(); // `${채널}|${카테고리}` → 고른 탭 키('p:상품ID' 또는 'group')
+const _hkProductTabKey = product => (product.groupProduct ? 'group' : `p:${product.productId}`);
+function _hkChannelProductTabsOf(products) {
+  const rank = product => _hkKindRank[_hkKindOfProduct(product)];
+  const ordered = products.map((product, index) => [product, index]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(pair => pair[0]);
+  const tabs = new Map();
+  ordered.forEach(product => {
+    const key = _hkProductTabKey(product);
+    if (!tabs.has(key)) tabs.set(key, { key, label: key === 'group' ? '그룹상품' : `${product.productId}${product.tabHint ? ' ' + product.tabHint : ''}`, options: 0, products: [] });
+    const tab = tabs.get(key);
+    tab.products.push(product);
+    tab.options += product.items.length;
+  });
+  return [...tabs.values()];
+}
+window.setHkChannelProductTab = function(channelId, categoryId, key) {
+  _hkChannelProductTabState.set(`${channelId}|${categoryId}`, key);
+  window._hkRefreshChannelListing();
+};
+/* 검색으로 상품·옵션을 찾아 이동할 때 그 상품의 탭으로 맞춘다(js/pricing-hankook-search.js). */
+window.hkChannelShowProductTab = function(channelId, product) {
+  if (product && _hkChannelProductTabbed(channelId, product.categoryId)) _hkChannelProductTabState.set(`${channelId}|${product.categoryId}`, _hkProductTabKey(product));
+};
 const _hkChannelKindState = new Map(); // `${채널}|${카테고리}|moeum|single|group` → 펼침 여부(표를 다시 그려도 유지). 기본: 모음전 펼침, 단품·그룹상품 접힘.
 function _hkChannelKindOpen(key, kind) {
   return _hkChannelKindState.has(key) ? _hkChannelKindState.get(key) : kind === 'moeum';
@@ -2338,7 +2373,7 @@ function _hkKindPlan(channelId, categoryId, products) {
   const kindOf = _hkKindOfProduct;
   // 순서: 모음전 → 단품 → 그룹상품. 같은 묶음 안의 순서는 원래대로(안정 정렬이라 같은 그룹상품 코드의 상품은 붙어 있다).
   const rank = p => _hkKindRank[kindOf(p)];
-  const ordered = split ? products.map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(pair => pair[0]) : products;
+  const ordered = split || _hkChannelKindOrderOnly(channelId, categoryId) ? products.map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(pair => pair[0]) : products;
   const stats = {};
   if (split) {
     products.forEach(product => {
@@ -2496,6 +2531,22 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
     }
   }));
 
+  // 구간 위 묶음(item.sectionGroup — 단열벽지 종류) 요약: 옵션 수·판매중지·품절 수·가격 범위·변경 수.
+  const sectionGroupStats = {};
+  products.forEach(product => product.items.forEach(item => {
+    if (!item.sectionGroup) return;
+    const key = `${channelId}|${product.productId}|${item.sectionGroup}`;
+    const stat = sectionGroupStats[key] || (sectionGroupStats[key] = { count: 0, inactive: 0, min: null, max: null, changed: 0 });
+    const price = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
+    stat.count++;
+    if (item.status) stat.inactive++;
+    if (price != null) {
+      stat.min = stat.min == null ? price : Math.min(stat.min, price);
+      stat.max = stat.max == null ? price : Math.max(stat.max, price);
+      if (!item.status && item.prevPrice != null && price !== item.prevPrice) stat.changed++;
+    }
+  }));
+
   let rowsHtml = '';
   const renderedGroupCodes = new Set();
   const groupedProducts = new Map();
@@ -2539,11 +2590,40 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       // 구간(section)으로 접히는 상품 — 구간마다 요약 줄 하나를 그리고, 접힌 구간은 옵션 행을 아예 만들지 않는다
       // (창문형단열재는 상품당 490행이라 접힌 채로도 다 그리면 표가 1.2MB·DOM 2만 개 늘어 채널 전환·불러오기가 느려졌다 — 2026-09-30).
       // 펼치면(hkToggleChannelSection) 표를 다시 그려서 그 구간 행만 채운다.
+      // 구간 위에 묶음(item.sectionGroup)이 있으면 묶음 줄(접히지 않는 제목) → 구간 줄(접힘) → 옵션 행 순으로 보여준다(단열벽지 647994348·11502054249: 종류 → 사이즈, 상품 탭 안에서, 2026-10-02).
+      // 옵션 행이 접히면 상품ID 칸의 버튼이 안 보이니 맨 위에 상품 줄(상품ID·[상품코드 복사]·[모음전 엑셀])을 하나 둔다. 접힌 구간은 행을 만들지 않는다.
+      const sectionGroupKey = item.sectionGroup ? `${channelId}|${product.productId}|${item.sectionGroup}` : '';
+      if (i === 0 && sectionGroupKey) {
+        const link = _hkChannelProductLink(channelId, product);
+        rowsHtml += `<tr class="hk-group-summary-row hk-section-product-row">
+          <td colspan="15">
+            <div class="hk-kind-head">
+              <span class="hk-group-toggle-icon"><i class="fa-solid fa-box"></i></span>
+              <strong>${link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId}</strong>
+              <span class="hk-group-count">옵션 ${product.items.length}개</span>
+              ${_hkCopyProductCodeButtonHtml(product)}${_hkMoeumExcelButtonHtml(channelId, product)}
+            </div>
+          </td>
+        </tr>`;
+      }
+      if (sectionGroupKey && (i === 0 || product.items[i - 1].sectionGroup !== item.sectionGroup)) {
+        const stat = sectionGroupStats[sectionGroupKey];
+        rowsHtml += `<tr class="hk-group-summary-row hk-section-group-row is-expanded" data-section-group-key="${sectionGroupKey}">
+          <td colspan="15">
+            <div class="hk-group-toggle">
+              <span class="hk-group-toggle-icon"><i class="fa-solid fa-folder"></i></span>
+              <strong>${item.sectionGroup}</strong>
+              <span class="hk-group-count">옵션 ${stat.count}개${stat.inactive ? ` · 판매중지·품절 ${stat.inactive}개` : ''}${stat.min != null ? ` · ${_hkIsoDraftNumber(stat.min)} ~ ${_hkIsoDraftNumber(stat.max)}원` : ''}</span>
+              ${stat.changed ? `<span class="hk-section-changed">가격 변경 ${stat.changed}개</span>` : ''}
+            </div>
+          </td>
+        </tr>`;
+      }
       const sectionKey = item.section ? `${channelId}|${product.productId}|${item.section}` : '';
       if (sectionKey && (i === 0 || product.items[i - 1].section !== item.section)) {
         const stat = sectionStats[sectionKey];
         const sectionExpanded = _hkExpandedChannelSections.has(sectionKey);
-        rowsHtml += `<tr class="hk-group-summary-row hk-section-summary-row${sectionExpanded ? ' is-expanded' : ''}" data-section-key="${sectionKey}">
+        rowsHtml += `<tr class="hk-group-summary-row hk-section-summary-row${item.sectionGroup ? ' hk-section-in-group' : ''}${sectionExpanded ? ' is-expanded' : ''}" data-section-key="${sectionKey}">
           <td colspan="15">
             <button type="button" class="hk-group-toggle" aria-expanded="${sectionExpanded}" onclick="hkToggleChannelSection(this)">
               <span class="hk-group-toggle-icon"><i class="fa-solid fa-table-cells"></i></span>
@@ -3093,6 +3173,15 @@ function _hkChannelListingHtmlBody(channelId) {
     .concat(HK_CATEGORIES.filter(category => counts[category.id]).map(category => ({ ...category, count:counts[category.id] })));
   const filterButtons = filters.map(filter => `<button type="button" class="hk-channel-category-filter${_activeHkChannelCategory === filter.id ? ' active' : ''}" onclick="setHkChannelCategory('${filter.id}',this)">${filter.label}<span>${filter.count}</span></button>`).join('');
   const visibleCategories = HK_CATEGORIES.filter(category => counts[category.id] && (_activeHkChannelCategory === 'all' || _activeHkChannelCategory === category.id));
+  // 상품 탭(HK_CHANNEL_PRODUCT_TABS) — 그 카테고리를 골랐을 때만. '전체'에서는 예전처럼 모든 상품을 한 표로 보여준다.
+  const tabCategory = _hkChannelProductTabbed(channelId, _activeHkChannelCategory) && counts[_activeHkChannelCategory] ? _activeHkChannelCategory : '';
+  let productTabButtons = '', tabProducts = null;
+  if (tabCategory) {
+    const tabs = _hkChannelProductTabsOf(products.filter(product => product.categoryId === tabCategory));
+    const selected = tabs.find(tab => tab.key === _hkChannelProductTabState.get(`${channelId}|${tabCategory}`)) || tabs[0];
+    tabProducts = selected.products;
+    productTabButtons = `<div class="hk-channel-category-filters hk-channel-product-tabs">${tabs.map(tab => `<button type="button" class="hk-channel-category-filter${tab.key === selected.key ? ' active' : ''}" onclick="setHkChannelProductTab('${channelId}','${tabCategory}','${tab.key}')">${tab.label}<span>${tab.options}</span></button>`).join('')}</div>`;
+  }
   const optionCount = products.reduce((sum, product) => sum + product.items.length, 0);
   const pending = _hkChannelPendingCount(channelId);
   const statusCounts = _hkChannelStatusCounts(channelId);
@@ -3111,8 +3200,9 @@ function _hkChannelListingHtmlBody(channelId) {
         ${storeCheckButton}
       </div>
       <div class="hk-channel-category-filters">${filterButtons}</div>
+      ${productTabButtons}
     </div>
-    ${visibleCategories.map(category => _hkChannelCategoryTableHtml(channelId, category.id, products.filter(product => product.categoryId === category.id))).join('')}`;
+    ${visibleCategories.map(category => _hkChannelCategoryTableHtml(channelId, category.id, category.id === tabCategory ? tabProducts : products.filter(product => product.categoryId === category.id))).join('')}`;
 }
 
 window.setHkChannelCategory = function(categoryId) {

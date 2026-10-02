@@ -768,3 +768,137 @@ const HK_WALLPAPER_11ST_GROUPS = [
   // 열반사단열재 상품 505443624(hk_reflective)도 같은 11색(2026-10-02 사용자가 준 스토어 옵션 목록 — 화이트 그레이 품절, 모던라인 화이트 판매중지).
   addColors('505443624', 'hk_reflective', ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'], { WHGR: 'soldout', MDWH: 'stopped' });
 })();
+/* ═══════════════════════════════════════
+   한국단열(hkd) 단열벽지 상품 647994348·11502054249·669533622·7934125826·11351466629·11351478928·3394369231 — 종류 × 사이즈 × 디자인(색상) 3단 옵션 228개씩(669533622는 1m만 · 종류 × 디자인 2단 옵션 76개) (2026-10-02, 사용자가 정한 종류별 최종 구성).
+   고급형1 17(42~45·47~56·헥사곤 57~59) · 고급형2 32(04~41) · 이중화이트 10 · 3D 실크 17(옥스포드 8·클레이 8·모던라인 1) × 사이즈 3(2.3m·10m·20m).
+   번호 01~59는 종류 사이에서 한 번씩만 쓰인다(03.화이트크림은 단종이라 스토어엔 없지만 헷갈리지 않게 이중화이트에 판매중지로 넣음).
+   스토어 관리코드는 종류×길이 12개(WP_P1_5_23 …)를 색상 수십 개가 같이 써서, 색상별 품절·판매중지를 단가표에서 관리하고 모음전 엑셀을
+   관리코드로 짝지으려고 **색상별 관리코드**를 만들었다: 원래 코드 + "_" + 디자인 번호(번호가 있는 색상) 또는 약어(번호 없는 3D 실크벽지) —
+   예: WP_P1_5_23_42(고급형1 2.3m 모노라인), WP_SK_5_10_WHOX(실크 10m 화이트 옥스포드). 스토어 옵션의 관리코드도 이렇게 바꿔야 한다(일괄 수정 엑셀 사용).
+   가격은 priceCode(원래 코드)의 단열벽지 가격표를 쓴다. 판매상태(판매중지·품절)는 상품마다 다르다 — 아래 상품별 목록(스토어 옵션 표 기준: 사용여부 N은 판매중지, 재고 0인 Y는 품절).
+   실크 약어: OX=옥스포드·CL=클레이, WH 화이트·CW 코지 웜그레이·LG 라이트 그레이·PG 퓨어 그레이·FB 페브릭·HR 허브·DB 데님블루·CB 코지블루·MDWH 모던라인 화이트.
+   옵션 이름은 스토어 3칸(종류/사이즈/디자인) 그대로 optionNames에 둔다 — 판매중지 옵션은 스토어 상품 페이지에 안 보여 모음전 엑셀이 이 이름으로 넣는다.
+═══════════════════════════════════════ */
+(function addWallpaperColorOptionsToHouseNature() {
+  const TYPES = [
+    ['고급형1_5T', 'P1', ['42.모노라인', '43.스트라이프 베이지', '44.스트라이프 블루', '45.캔버스 그린', '47.파벽 브라운', '48.파스텔 민트', '49.파스텔 올리브', '50.파스텔 핑크', '51.에펠탑',
+      '52.러블리 하트', '53.파인트리', '54.한지', '55.피오레', '56.플로라', '57.헥사곤 소프트 퍼플', '58.헥사곤 다크 퍼플', '59.헥사곤 소프트 카키']],
+    ['고급형2_5T', 'P2', ['04.프랜치 바닐라', '05.프랜치 그린', '06.프랜치 블루', '07.프랜치 민트', '08.프랜치 핑크', '09.모스 그레이', '10.모스 민트', '12.럭스 스카이블루', '13.럭스 베이지',
+      '15.젠틀 바닐라', '16.젠틀 민트', '17.젠틀 라일락', '18.젠틀 라이트그레이', '19.젠틀 그레이', '21.코튼 블루', '22.코튼 핑크', '23.코튼 베이지', '24.코튼 그레이', '26.헤링본 그레이',
+      '27.헤링본 브라운', '28.헤링본 딥블루', '30.베이직 브라운', '31.베이직 다크퍼플', '32.베이직 그레이', '34.소프트 그레이', '35.소프트 올리브', '36.소프트 민트', '37.소프트 카키',
+      '38.소프트 핑크', '39.소프트 라임', '40.소프트 퍼플', '41.패브릭 그레이']],
+    ['이중화이트_5T', 'DW', ['01.화이트', '02.화이트 그레이', '03.화이트크림', '11.럭스 화이트', '14.젠틀 화이트', '20.코튼 화이트', '25.헤링본 화이트', '29.베이직 화이트', '33.소프트 화이트', '46.파벽 그레이']],
+    ['3D 실크벽지_5T', 'SK', ['화이트 옥스포드', '코지 웜그레이 옥스포드', '라이트 그레이 옥스포드', '퓨어 그레이 옥스포드', '페브릭 옥스포드', '허브 옥스포드', '데님블루 옥스포드', '코지블루 옥스포드',
+      '화이트 클레이', '코지 웜그레이 클레이', '라이트 그레이 클레이', '퓨어 그레이 클레이', '페브릭 클레이', '허브 클레이', '데님블루 클레이', '코지블루 클레이', '모던라인 화이트']],
+  ];
+  const SIZES = [['2.3m', '23'], ['10m', '10'], ['20m', '20']];
+  const SILK_DESIGNS = TYPES[3][2];
+  const SILK = {
+    '화이트 옥스포드': 'WHOX', '코지 웜그레이 옥스포드': 'CWOX', '라이트 그레이 옥스포드': 'LGOX', '퓨어 그레이 옥스포드': 'PGOX', '페브릭 옥스포드': 'FBOX', '허브 옥스포드': 'HROX',
+    '데님블루 옥스포드': 'DBOX', '코지블루 옥스포드': 'CBOX', '화이트 클레이': 'WHCL', '코지 웜그레이 클레이': 'CWCL', '라이트 그레이 클레이': 'LGCL', '퓨어 그레이 클레이': 'PGCL',
+    '페브릭 클레이': 'FBCL', '허브 클레이': 'HRCL', '데님블루 클레이': 'DBCL', '코지블루 클레이': 'CBCL', '모던라인 화이트': 'MDWH',
+  };
+  const designKey = design => (/^(\d+)\./.exec(design) || [])[1] || design; // 번호가 있으면 번호, 없으면(실크) 이름
+  // 상품별 판매상태 — [종류키, 디자인(번호 또는 실크 이름) 목록, (생략하면 사이즈 전부) 사이즈 목록]
+  // sizes(생략하면 2.3m·10m·20m)·layout(종류별 사이즈)·twoAxis(사이즈 칸이 없는 2단 옵션 — 종류(1m x 1m) / 디자인)·sizeDesign(종류 칸이 없는 2단 옵션 — 사이즈 / 디자인)으로 상품마다 옵션 모양이 달라진다.
+  const PRODUCTS = {
+    '647994348': {
+      moeumOptionTitles: ['하우스앤네이처 친환경단열벽지', '사이즈', '디자인'], // 모음전 엑셀 첫 줄 옵션 항목 제목(스토어와 같은 이름)
+      stopped: [['P1', ['57', '58', '59']], ['P2', ['18', '23', '41']], ['DW', ['03']], ['SK', ['모던라인 화이트']]],
+      soldout: [['P1', ['47']], ['P2', ['15'], ['20m']], ['DW', ['02']], ['SK', ['데님블루 옥스포드', '데님블루 클레이']], ['SK', ['화이트 클레이'], ['10m', '20m']]],
+    },
+    '11502054249': {
+      // 647994348과 같은 구성·상태(사용자 지시 2026-10-02 — 11502054249의 스토어 옵션 표가 틀렸을 수 있어 먼저 정리한 647994348을 기준으로 맞춘다).
+      // 종류 순서는 고급형2가 먼저(스토어와 같은 순서, 사용자 지시) — 그래서 기준 옵션(옵션가 0원)도 고급형2 2.3m다: 이 상품의 스토어 상품 기본가는 16,500원 = 고급형2 2.3m라서
+      // 고급형1은 −3,000원이어야 한다. (옵션가만 647994348처럼 고급형1 0원 기준으로 올렸다가 상품 기본가가 그대로라 전부 3,000원 높게 걸렸다 — 가격검사 189건, 2026-10-02.)
+      typeOrder: ['P2', 'P1', 'DW', 'SK'],
+      moeumOptionTitles: ['하우스앤네이처 친환경단열벽지', '사이즈', '디자인'],
+      stopped: [['P1', ['57', '58', '59']], ['P2', ['18', '23', '41']], ['DW', ['03']], ['SK', ['모던라인 화이트']]],
+      soldout: [['P1', ['47']], ['P2', ['15'], ['20m']], ['DW', ['02']], ['SK', ['데님블루 옥스포드', '데님블루 클레이']], ['SK', ['화이트 클레이'], ['10m', '20m']]],
+    },
+    '7934125826': {
+      // 3D 실크벽지만 파는 상품(옵션 3단: 종류(롤형/판상형) / 사이즈 / 디자인) — 647994348의 3D 실크 상태를 기준으로 맞춘다(사용자 지시 2026-10-02: 스토어 표에 오류가 있을 수 있다).
+      // 롤형 2.3m·10m·20m + 판상형 1m x 2.3m(10개, 코드 WP_SK_5_23_10).
+      layout: [
+        ['3D 실크벽지_5T(롤형)', 'SK', SILK_DESIGNS, SIZES],
+        ['3D 실크벽지_5T(판상형)', 'SK', SILK_DESIGNS, [['1m x 2.3m (10개)', '23_10']]],
+      ],
+      moeumOptionTitles: ['하우스앤네이처 친환경단열벽지', '사이즈', '디자인'],
+      stopped: [['SK', ['모던라인 화이트']]],
+      soldout: [['SK', ['데님블루 옥스포드', '데님블루 클레이']], ['SK', ['화이트 클레이'], ['10m', '20m', '1m x 2.3m (10개)']]],
+    },
+    '11351466629': {
+      // 옥스포드 시리즈 상품(옵션 2단: 사이즈 / 디자인 — 종류 칸 없음). 3D 실크 옥스포드 8개 디자인 × 2.3m·10m·20m. 647994348의 3D 실크 상태 기준(데님블루 옥스포드 품절).
+      layout: [['옥스포드 시리즈', 'SK', SILK_DESIGNS.filter(design => design.endsWith('옥스포드')), SIZES]],
+      sizeDesign: true,
+      moeumOptionTitles: ['사이즈', '디자인'],
+      soldout: [['SK', ['데님블루 옥스포드']]],
+    },
+    '11351478928': {
+      // 클레이 시리즈 상품(옵션 2단: 사이즈 / 디자인) — 11351466629(옥스포드 시리즈)와 같은 모양. 3D 실크 클레이 8개 디자인 × 2.3m·10m·20m. 647994348의 3D 실크 상태 기준
+      // (데님블루 클레이 품절, 화이트 클레이 10m·20m 품절).
+      layout: [['클레이 시리즈', 'SK', SILK_DESIGNS.filter(design => design.endsWith('클레이')), SIZES]],
+      sizeDesign: true,
+      moeumOptionTitles: ['사이즈', '디자인'],
+      soldout: [['SK', ['데님블루 클레이']], ['SK', ['화이트 클레이'], ['10m', '20m']]],
+    },
+    '3394369231': {
+      // 롤형(1m x 20m, 1롤) + 판상형(1m x 2.3m, 10개) 상품(옵션 3단: 종류(롤형/판상형) / 사이즈 / 디자인) — 종류 4개 × 두 형태, 옵션 152개. 647994348 기준으로 맞춘다.
+      // 롤형은 20m 가격표(WP_x_5_20), 판상형은 2.3m 10장 가격표(WP_x_5_23_10)를 쓴다. 기준은 고급형1 롤형(옵션가 0원).
+      layout: ['롤형', '판상형'].flatMap(form => TYPES.map(([type, key, designs]) => [`${type}(${form})`, key, designs, form === '롤형' ? [['1m x 20m (1롤)', '20']] : [['1m x 2.3m (10개)', '23_10']]])),
+      moeumOptionTitles: ['하우스앤네이처 친환경단열벽지', '사이즈', '디자인'],
+      stopped: [['P1', ['57', '58', '59']], ['P2', ['18', '23', '41']], ['DW', ['03']], ['SK', ['모던라인 화이트']]],
+      soldout: [['P1', ['47']], ['P2', ['15'], ['1m x 20m (1롤)']], ['DW', ['02']], ['SK', ['데님블루 옥스포드', '데님블루 클레이', '화이트 클레이']]],
+    },
+    '669533622': {
+      // 1m 상품(옵션 2단: 종류(1m x 1m) / 디자인). 647994348을 기준으로 맞춘다(사용자 지시 2026-10-02 — 이 상품의 스토어 옵션 표가 틀렸을 수 있다).
+      // 스토어 표에는 있었지만 647994348 기준에 없는 것: 고급형1의 23·41·46번(삭제), 고급형2의 42~45·47~56번(삭제), 이중화이트의 헥사곤 57~59번(고급형1로 이동).
+      sizes: [['1m', '1']],
+      twoAxis: true,
+      moeumOptionTitles: ['하우스앤네이처 친환경단열벽지', '디자인'],
+      stopped: [['P1', ['57', '58', '59']], ['P2', ['18', '23', '41']], ['DW', ['03']], ['SK', ['모던라인 화이트']]],
+      soldout: [['P1', ['47']], ['DW', ['02']], ['SK', ['데님블루 옥스포드', '데님블루 클레이']]],
+    },
+  };
+  const statusOf = (spec, key, design, size) => {
+    const hit = list => (list || []).some(([typeKey, designs, sizes]) => typeKey === key && designs.includes(designKey(design)) && (!sizes || sizes.includes(size)));
+    return hit(spec.stopped) ? 'stopped' : hit(spec.soldout) ? 'soldout' : '';
+  };
+  Object.entries(PRODUCTS).forEach(([productId, spec]) => {
+    const product = (HK_CHANNEL_LISTINGS.hkd || []).find(p => String(p.productId) === productId && p.categoryId === 'hk_wallpaper');
+    if (!product) return;
+    product.moeumOptionTitles = spec.moeumOptionTitles;
+    if (spec.baseCode) { product.baseCode = spec.baseCode; product.seedBaseCode = spec.baseCode; } // seedBaseCode — DB를 불러올 때 기본값으로 되돌려도 이 기준이 남게(pricing-hankook-db.js)
+    // typeOrder — 종류 순서(생략하면 고급형1 → 고급형2 → 이중화이트 → 3D 실크). 기준 옵션은 판매중인 첫 옵션이라 순서가 곧 기준이 된다.
+    const layout = spec.layout || TYPES.map(([type, key, designs]) => [type, key, designs, spec.sizes || SIZES]);
+    if (spec.typeOrder) layout.sort((a, b) => spec.typeOrder.indexOf(a[1]) - spec.typeOrder.indexOf(b[1]));
+    product.items = layout.flatMap(([type, key, designs, sizes]) => sizes.flatMap(([size, sizeKey]) => designs.map(design => {
+      const typeLabel = spec.twoAxis ? `${type}(${size} x ${size})` : type; // 2단 옵션은 종류 칸에 사이즈가 같이 적힌다(예: 고급형1_5T(1m x 1m))
+      const priceCode = `WP_${key}_5_${sizeKey}`;
+      const item = {
+        productCode: `${priceCode}_${SILK[design] || designKey(design)}`,
+        priceCode,
+        productName: spec.sizeDesign ? `${size} ${design}` : spec.twoAxis ? `${typeLabel} ${design}` : `${type} ${size} ${design}`,
+        optionNames: spec.sizeDesign ? [size, design] : spec.twoAxis ? [typeLabel, design] : [type, size, design],
+        sectionGroup: type.replace('_5T', ''), // 상품 탭 안에서 종류(고급형1 …) → 사이즈 두 겹으로 접는다(pricing-hankook.js sectionGroup)
+        section: `${type.replace('_5T', '')} · ${size}`,
+        prevPrice: _hkChannelTargetPrice('hk_wallpaper', priceCode, 'hkd', null, null) ?? 0,
+        prevShipping: product.baseShipping,
+      };
+      const status = statusOf(spec, key, design, size);
+      if (status) { item.status = status; item.seedStatus = status; }
+      return item;
+    })));
+  });
+})();
+
+/* 단열벽지 탭의 상품 탭 글자에 덧붙는 짧은 설명(pricing-hankook.js HK_CHANNEL_PRODUCT_TABS — 상품번호만으론 뭔지 몰라서). 내용은 단가표 옵션 구성 기준. */
+(function addWallpaperProductTabHints() {
+  const HINTS = {
+    '647994348': '색상별 2.3·10·20m', '11502054249': '색상별 2.3·10·20m', '669533622': '색상별 1m',
+    '3394369231': '색상별 롤형·판상형', '7934125826': '3D실크 롤형·판상형', '11351466629': '옥스포드 시리즈', '11351478928': '클레이 시리즈',
+  };
+  (HK_CHANNEL_LISTINGS.hkd || []).forEach(product => {
+    if (product.categoryId === 'hk_wallpaper' && HINTS[product.productId]) product.tabHint = HINTS[product.productId];
+  });
+})();

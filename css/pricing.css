@@ -2448,3 +2448,9 @@
 .hk-win-range-code { display: none; margin-top: 2px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; color: #6366f1; letter-spacing: -.2px; }
 .hk-win-show-codes .hk-win-range-code { display: block; }
 .hk-win-code-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; white-space: nowrap; }
+/* 상품마다 탭(단열벽지) — 카테고리 칩 줄 아래에 같은 모양으로 한 줄 더 */
+.hk-channel-product-tabs { margin-top: 8px; }
+/* 구간 위에 묶음(종류)이 있는 상품 — 묶음(종류) 줄은 접히지 않는 제목, 상품 줄(상품ID·버튼)은 가로로 정렬, 묶음 안의 구간 줄은 한 칸 들여쓴다 */
+.hk-section-group-row .hk-group-toggle { cursor: default; }
+.hk-section-product-row .hk-kind-head { gap: 10px; padding: 4px 6px; }
+.hk-section-in-group .hk-group-toggle { margin-left: 24px; width: calc(100% - 24px); }
