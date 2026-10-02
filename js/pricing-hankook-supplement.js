@@ -403,7 +403,9 @@ window.hkSupplementDownloadPreset = function(id) {
   XLSX.utils.book_append_sheet(workbook, sheet, 'Sheet1');
   const today = new Date();
   const stamp = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
-  XLSX.writeFile(workbook, `추가구성목록_${_hkSupplementChannelInfo(preset.channel).label}_${preset.name}_${stamp}.xlsx`);
+  // 11번가 추가구성 업로드는 .xls(엑셀 97-2003) 형식을 받는다(사용자 확인 2026-10-02) — 확장자를 .xls로 쓰면 XLSX가 그 형식으로 저장한다(pricing.js 스마트스토어 옵션 엑셀과 같은 방식). 스마트스토어는 .xlsx.
+  const extension = channel.format === '11st' ? 'xls' : 'xlsx';
+  XLSX.writeFile(workbook, `추가구성목록_${_hkSupplementChannelInfo(preset.channel).label}_${preset.name}_${stamp}.${extension}`);
 };
 
 /* ── 수정 모드: [수정] → (바꾸기 · 되돌리기) → [수정 완료] 또는 [수정 취소] ── */

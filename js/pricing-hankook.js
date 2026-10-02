@@ -3031,13 +3031,17 @@ function _hkEsmCategoryTableHtml(channelId, categoryId, products) {
     }
     const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
       .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
-    const rowClass = `${startsGroup && r > 0 ? 'hk-iso-listing-group-start' : ''}${inactive ? ` is-inactive is-${item.status}` : ''}`.trim();
+    // 재등록 계획 표시(js/pricing-hankook-bead.js planEsmNear100T) — plan 'stop' = 판매중단 예정(지금도 판매 중이라 상태는 그대로), 'new' = 신규 등록 예정(상품번호 없는 가상 상품).
+    const plan = item.plan === 'stop' || item.plan === 'new' ? item.plan : '';
+    const planBadge = plan === 'stop' ? '<span class="hk-channel-status-badge is-stopped hk-esm-plan-badge">판매중단 예정</span>'
+      : plan === 'new' ? '<span class="pricing-spec-badge hk-esm-plan-badge">신규 등록 예정</span>' : '';
+    const rowClass = `${startsGroup && r > 0 ? 'hk-iso-listing-group-start' : ''}${inactive ? ` is-inactive is-${item.status}` : ''}${plan ? ` hk-esm-plan-${plan}` : ''}`.trim();
     rowsHtml += `<tr class="${rowClass}" data-hk-key="${product.productId}|${index}">
       ${groupCell}
       <td>${product.masterId || '—'}</td>
-      <td class="hk-esm-product-id">${_hkChannelProductLink(channelId, product) ? `<a href="${_hkChannelProductLink(channelId, product)}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId}</td>
+      <td class="hk-esm-product-id">${product.planned === 'new' ? '<small>등록 전</small>' : (_hkChannelProductLink(channelId, product) ? `<a href="${_hkChannelProductLink(channelId, product)}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId)}</td>
       <td class="hk-esm-product-id">${_hkEsmAuctionProductLink(product) ? `<a href="${_hkEsmAuctionProductLink(product)}" target="_blank" rel="noopener noreferrer">${product.auctionProductId}</a>` : '—'}</td>
-      <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
+      <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)} ${planBadge}</td>
       <td class="hk-iso-draft-code">${item.productCode}</td>
       <td class="hk-iso-listing-status"><select class="hk-channel-status-select${inactive ? ' is-' + item.status : ''}" onchange="hkChannelSetStatus('${channelId}','${product.productId}',${index},this.value)" title="옵션 판매상태">${statusOptions}</select></td>
       <td>${_hkIsoDraftNumber(parts?.hkdPrice)}</td>
@@ -3051,9 +3055,11 @@ function _hkEsmCategoryTableHtml(channelId, categoryId, products) {
   });
 
   const multiplier = (config.markupPercent / 100).toLocaleString();
+  const planStop = rows.filter(row => row.item.plan === 'stop').length, planNew = rows.filter(row => row.item.plan === 'new').length;
+  const planBadges = `${planStop ? `<span class="hk-channel-status-badge is-stopped">판매중단 예정 ${planStop}</span>` : ''}${planNew ? `<span class="pricing-spec-badge">신규 등록 예정 ${planNew}</span>` : ''}`;
   return `<div class="card pricing-cost-card hk-iso-channel-listing">
     <div class="pricing-result-header">
-      <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${products.length} · 옵션 ${rows.length}</span></div>
+      <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${products.length} · 옵션 ${rows.length}</span>${planBadges}</div>
       <span class="pricing-result-hint">ESM 최종 판매가 = (한국단열 판매가 + 배송비) × ${multiplier}, ${config.roundUp.toLocaleString()}원 단위 올림</span>
     </div>
     <div class="pricing-table-scroll">

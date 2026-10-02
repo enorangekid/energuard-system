@@ -796,6 +796,44 @@ window.hkBeadProductNameFromCode = function(code) {
 })();
 
 /* ═══════════════════════════════════════
+   ESM 아이소핑크·스티로폼 430x430 / 600x900 — "총두께 100T 근처" 재등록 계획 (2026-10-02, 사용자 계획 — 화면에서 알아보기 쉽게 **표시만** 한다. 삭제·판매상태 변경은 하지 않음).
+   배경: 총두께(두께×장수)가 100T 근처가 아닌 옵션은 판매가 어려워 매번 전화가 와서, 판매를 중단하고 100T 근처 옵션으로 다시 등록해 재판매한다.
+   ESM은 옵션 수정이 안 돼 새로 등록해야 한다.
+   - **판매중단 예정(item.plan = 'stop')**: 총두께가 **70T 미만**인 옵션 전부(사용자 기준: "70T 한 장까지는 놔두고, 50T 1장·40T 1장처럼 100에 가깝지 않은 건 다 중단").
+     70T 이상(70T 1장·40T 2장 80T·30T 3장 90T·100T 이상 등)은 그대로. 지금도 판매 중이라 **판매상태는 건드리지 않고** 행에 빨간 표시만 한다.
+   - **신규 등록 예정(product.planned = 'new')**: 쿠팡에 등록된 옵션 중 ESM에 없는 것(가상 상품 — 상품번호 없음, 단가표에서 가격만 계산, 스토어 가격검사에서는 제외) — 총두께가 100T 근처(80~100T)인 14개:
+     접착식 아이소 600x900 10T×10·20T×5·30T×3·40T×2·50T×2, 스티로폼 600x900 10T×10·20T×5·30T×3·40T×2·50T×2, 접착식 스티로폼 600x900 20T×5·30T×3·50T×2,
+     스티로폼 430x430 40T×2. (쿠팡에 있는 스티로폼 430x430 10T×4는 총두께 40T라 뺐다.)
+   등록을 마치면 새 상품번호를 넣고 plan 표시를 지운다. 계획을 접으면 이 블록만 지우면 된다.
+═══════════════════════════════════════ */
+(function planEsmNear100T() {
+  const config = HK_CHANNEL_CONFIG.esm;
+  const esm = HK_CHANNEL_LISTINGS.esm;
+  const MIN_TOTAL_T = 70; // 총두께(두께×장수)가 이 값 미만이면 판매중단 예정
+  esm.forEach(product => product.items.forEach(item => {
+    const m = /^(?:Iso|IsoA|St|StA|Neo)_(?:430_430|600_900)_(\d+)_(\d+)$/.exec(item.productCode); // 430x430·600x900만(900x1800·250T 이상 규격 등은 이번 범위 아님)
+    if (m && Number(m[1]) * Number(m[2]) < MIN_TOTAL_T) item.plan = 'stop';
+  }));
+  // [카테고리, 그룹명, 상품코드] — 새 상품은 같은 그룹의 마지막 줄 바로 아래에 넣어 그룹 칸이 끊기지 않게 한다.
+  const ISO = ['hk_isopink', '아이소 430x430 / 600x900'], BEAD = ['hk_bead', '스티로폼 430x430 / 600x900'];
+  const NEW = [
+    ...['IsoA_600_900_10_10', 'IsoA_600_900_20_5', 'IsoA_600_900_30_3', 'IsoA_600_900_40_2', 'IsoA_600_900_50_2'].map(code => [...ISO, code]),
+    ...['St_430_430_40_2', 'St_600_900_10_10', 'St_600_900_20_5', 'St_600_900_30_3', 'St_600_900_40_2', 'St_600_900_50_2',
+      'StA_600_900_20_5', 'StA_600_900_30_3', 'StA_600_900_50_2'].map(code => [...BEAD, code]),
+  ];
+  NEW.forEach(([categoryId, groupName, productCode]) => {
+    if (esm.some(product => product.items.some(item => item.productCode === productCode))) return; // 이미 있으면 건너뜀
+    const item = { productCode, plan: 'new' };
+    if (categoryId === 'hk_bead') item.hkdShipping = 6500; // 이 그룹의 기존 옵션과 같은 배송비 규칙(스티로폼 430/600은 전부 6,500)
+    item.prevPrice = _hkEsmPriceParts(categoryId, productCode, config, item)?.finalPrice ?? 0; // 수정 전 판매가 = 지금 계산값(차액 0에서 시작)
+    const product = { categoryId, productId: `NEW_${productCode}`, masterId: '', groupName, planned: 'new', items: [item] };
+    let last = -1;
+    esm.forEach((entry, index) => { if (entry.categoryId === categoryId && entry.groupName === groupName) last = index; });
+    esm.splice(last >= 0 ? last + 1 : esm.length, 0, product);
+  });
+})();
+
+/* ═══════════════════════════════════════
    11번가 채널 — 스티로폼 (2026-09-22, 사용자가 준 표 9상품·113옵션). 아이소핑크 11번가(markupOptions
    레이아웃)와 같은 구조 — 상품 하나에 옵션 여러 개, 판매가는 HK_CHANNEL_CONFIG['11st']로 계산.
    - 430x430/600x900 계열(1848852975·1602435245·1548926732·1534558353·2265999489)은 엑셀의 한국단열

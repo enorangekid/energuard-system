@@ -351,6 +351,7 @@
     const items=[];let missingAuction=0;
     for(const product of HK_CHANNEL_LISTINGS.esm||[]){
       if(categoryId!=='all'&&product.categoryId!==categoryId)continue;
+      if(product.planned==='new')continue; // 아직 등록 전인 "신규 등록 예정" 가상 상품(상품번호 없음)은 스토어 검사에서 제외
       const active=product.items.filter(item=>!item.status);
       if(!active.length)continue; // 전 옵션 품절·판매중지 상품은 스토어 검사에서 제외(한국단열 검사와 같은 규칙)
       const markets=marketplace==='both'?['gmarket','auction']:[marketplace];

@@ -1093,6 +1093,41 @@ const HK_EARTH_MAT = [
 })();
 
 /* ═══════════════════════════════════════
+   11번가 채널 — 기타단열재 2상품 (2026-10-02, 사용자가 준 표: 추가상품 프리셋에는 있는데 11번가 몰별 표에 빠져 있었다).
+   - 3430746421 난방필름단열재 5T 1m x 1m 비접착(HF_5_1): 11번가 판매가 2,700 = 한국단열 2,500 × 1.08(배송비 5,000은 더하지 않는다 — 11번가는 hkdShipping 0, 사용자 표와 일치).
+     난방필름은 1m 한 가지뿐(사용자 확인).
+   - 1629927307 단열 초배지: 옵션 4개 — 방습단열초배지 0.2T·1T·5T(비접착 1m)와 초배용부직포 0.1T. 사용자가 준 옵션표에서 5T만 "사용함", 나머지 셋은 "임시품절"이었는데
+     오래 수정을 안 해 사실상 판매중지 상태라서 **판매중지**로 뒀다(사용자 지시 — 스토어는 사용자가 11번가에서 직접 고친다). 5T는 판매중(기준가 = 옵션가 0)이고 가격은 최신 단가표 값. 옵션명은 옵션표(초배지 두께 선택) 그대로. 11번가 단가는 부자재와 같은 규칙(× 1.08 100원 올림, 배송비 없음).
+═══════════════════════════════════════ */
+(function addEtc11stProducts() {
+  const config = HK_CHANNEL_CONFIG['11st'];
+  const make = (productId, rows, extra = {}) => {
+    const product = {
+      categoryId: 'hk_etc', productId,
+      items: rows.map(([productCode, productName, status]) => ({
+        productCode, productName, hkdShipping: 0, storeName: productName,
+        ...(status ? { status, seedStatus: status } : {}),
+      })),
+      ...extra,
+    };
+    if (extra.baseCode) product.seedBaseCode = extra.baseCode; // 11번가 배열은 seedBaseCode 초기화 루프보다 늦게 로드되므로 직접 채운다.
+    // 수정 전 판매가 = 지금 계산값(사용자 규칙). 기타단열재 단가표(pricing-hankook-etc.js)가 이 파일보다 늦게 로드돼 여기서 조회가 안 되니, 현재 계산값(한국단열가 × 1.08 100원 올림)을 적어 둔다.
+    const PREV = { HF_5_1: 2700, DPS_02_1: 2000, DPS_1_1: 5400, DPS_5_1: 6000, CBF_01_1: 1300 };
+    product.items.forEach(item => { item.prevPrice = PREV[item.productCode] ?? 0; });
+    return product;
+  };
+  HK_CHANNEL_LISTINGS['11st'].push(
+    make('3430746421', [['HF_5_1', '난방필름단열재 5T 1m x 1m 비접착']]),
+    make('1629927307', [
+      ['DPS_02_1', '방습단열초배지 0.2T (비접착 0.2T/1m)', 'stopped'],
+      ['DPS_1_1', '방습단열초배지 1T (비접착 1T/1m)', 'stopped'],
+      ['DPS_5_1', '방습단열초배지 5T (비접착 5T/1m)'],
+      ['CBF_01_1', '초배용부직포 0.1T (비접착 0.1T/1m)', 'stopped'],
+    ], { baseCode: 'DPS_5_1' }),
+  );
+})();
+
+/* ═══════════════════════════════════════
    홈페이지(부니몰) 채널 — 기타단열재·부자재 (2026-09-30, 사용자가 준 표: 상품 21개·옵션 52개).
    - 표의 단열벽지 8행(상품ID 97·95·98·251·250·96·252·253)은 홈페이지 채널에 이미 있어서 뺐다(사용자 "중복된 건 빼고").
    - 홈페이지는 마크업 없이 2단계 실판매가를 그대로 쓰는 채널이라 판매가는 카테고리 단가표(부자재 hkSubPriceByCode · 기타단열재 hkEtcPriceByCode)를 코드로 조회한다.

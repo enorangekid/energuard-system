@@ -2454,3 +2454,7 @@
 .hk-section-group-row .hk-group-toggle { cursor: default; }
 .hk-section-product-row .hk-kind-head { gap: 10px; padding: 4px 6px; }
 .hk-section-in-group .hk-group-toggle { margin-left: 24px; width: calc(100% - 24px); }
+/* ESM 100T 근처 재등록 계획(js/pricing-hankook-bead.js planEsmNear100T) — 판매중단 예정은 연한 빨강, 신규 등록 예정은 연한 초록으로 행을 표시 */
+.hk-esm-plan-stop td { background-color: #fff1f2; }
+.hk-esm-plan-new td { background-color: #f0fdf4; }
+.hk-esm-plan-badge { margin-left: 6px; }
