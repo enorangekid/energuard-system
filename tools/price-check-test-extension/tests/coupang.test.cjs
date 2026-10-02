@@ -33,6 +33,26 @@ const discountMismatch=workerContext.matchCoupangOptions('1',[{optionId:'2',regi
 assert.equal(discountMismatch[0].status,'할인가 불일치');
 const winnerMismatch=workerContext.matchCoupangOptions('1213202111',[{optionId:'94167949231',registeredPrice:39900,finalPrice:33800,discountRate:15,soldOut:false}],[{optionId:'94167949231',code:'WP_P1_5_10_C',expected:33900,expectedFinal:33900,winner:true}]);
 assert.equal(winnerMismatch[0].status,'불일치');assert.equal(winnerMismatch[0].actual,33800);assert.equal(winnerMismatch[0].diff,-100);assert.match(winnerMismatch[0].source,/위너 실제 판매가 기준/);
+// 페이지 데이터에 없는 기본 선택 옵션은 화면 가격으로 읽는다 — 가격 영역 글자의 숫자를 이어 붙이지 않고 "숫자원" 단위로 읽고, 다른 영역의 취소선은 등록가로 쓰지 않는다(실제 화면 글자, 2026-10-02)
+{
+  const make=(id,optionId,priceText)=>{
+    const ctx={URL,location:new URL(`https://www.coupang.com/vp/products/${id}?vendorItemId=${optionId}`),document:{scripts:[],body:{innerText:'정상 상품'},
+      querySelector:selector=>/price-container/.test(selector)?{textContent:priceText}:/del|\bs\b/.test(selector)?{textContent:'100,000'}:null,querySelectorAll:()=>[]},chrome:{runtime:{onMessage:{addListener:fn=>ctx.listener=fn}}}};
+    vm.createContext(ctx);vm.runInContext(collector,ctx);
+    let out;ctx.listener({type:'GET_COUPANG_SCAN_DATA',optionIds:[optionId]},null,v=>out=v);return out;
+  };
+  const a=make('5830333163','91463660435','12%56,140원(1개당 5,614원)63,800원7,660원할인').rows[0];
+  assert.equal(a.finalPrice,56140);assert.equal(a.registeredPrice,63800);assert.equal(a.discountRate,12);
+  const b=make('5994531539','91273973750','46,450원(1개당 9,290원)51,620원5,170원할인').rows[0];
+  assert.equal(b.finalPrice,46450);assert.equal(b.registeredPrice,51620);
+  const noDiscount=make('1','2','5,000원(1개당 1,000원)').rows[0];
+  assert.equal(noDiscount.finalPrice,5000);assert.equal(noDiscount.registeredPrice,5000);
+  // 등록가를 못 읽은 화면 읽기 옵션은 할인가로만 비교한다
+  const unknown=workerContext.matchCoupangOptions('1',[{optionId:'2',registeredPrice:null,finalPrice:56140,discountRate:0,soldOut:false,fallback:true}],[{optionId:'2',expected:63800,expectedFinal:56140}]);
+  assert.equal(unknown[0].status,'일치');assert.match(unknown[0].source,/등록가는 읽지 못함/);
+  const unknownBad=workerContext.matchCoupangOptions('1',[{optionId:'2',registeredPrice:null,finalPrice:50000,discountRate:0,soldOut:false,fallback:true}],[{optionId:'2',expected:63800,expectedFinal:56140}]);
+  assert.equal(unknownBad[0].status,'할인가 불일치');
+}
 // 쿠팡 접근 제한 화면(사용권한이 없습니다)은 차단으로 인식해 바로 멈춘다
 {
   const ctx2={URL,location:new URL('https://www.coupang.com/vp/products/8581386325?vendorItemId=500'),document:{scripts:[],body:{innerText:'요청하신 페이지의 사용권한이 없습니다.'},querySelector:()=>null,querySelectorAll:()=>[]},chrome:{runtime:{onMessage:{addListener:fn=>ctx2.listener=fn}}}};
