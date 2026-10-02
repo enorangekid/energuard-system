@@ -741,30 +741,30 @@ const HK_WALLPAPER_11ST_GROUPS = [
      6,300원이라 변경 없음이다.
    - 스토어 색상 옵션에 관리코드가 아직 없으면 검사에서는 "단가표에 없음"으로 나온다.
 ═══════════════════════════════════════ */
-/* 스티로폼 상품 437331834(hk_bead)에도 같은 식으로 단열벽지 1m 색상 옵션이 섞여 있다(2026-09-29 사용자 확인).
-   화이트 계열 7개는 이중화이트(WP_DW_5_1), "화이트 옥스포드·화이트 클레이" 2개는 실크형(WP_SK_5_1) 관리코드다.
+/* 스티로폼 상품 437331834(hk_bead)·열반사 상품 505443624(hk_reflective)에도 같은 식으로 단열벽지 1m 색상 옵션이 섞여 있다(2026-09-29 사용자 확인).
+   화이트 계열은 이중화이트(WP_DW_5_1), "화이트 옥스포드·화이트 클레이·모던라인 화이트"는 실크형(WP_SK_5_1) 관리코드다(2026-10-02부터는 색상별 코드, 아래).
    스토어 값은 둘 다 6,300원(9/29 가격검사) — 실판매가 6,300과 같다. */
 (function addWallpaperOptionsToMixedProducts() {
-  const add = (productId, categoryId, items) => {
+  // 색상마다 항목을 따로 둔다(2026-10-02, 색상별 품절·단종을 단가표에서 관리하고 모음전 엑셀을 관리코드로 짝짓기 위해).
+  // 관리코드 = 원래 코드 + 색상 약어(스토어 색상 옵션의 관리코드도 이렇게 바꿔야 한다), 가격은 priceCode(원래 코드)의 가격표를 쓴다.
+  // 이름은 스토어 옵션명 그대로. 상태는 스토어에서 확인한 값(화이트 그레이 품절, 모던라인 화이트 판매중지)을 seedStatus로 둔다.
+  const COLORS = {
+    WHTE: ['WP_DW_5_1', '화이트'], WHGR: ['WP_DW_5_1', '화이트 그레이'], LXWH: ['WP_DW_5_1', '럭스 화이트'], GTWH: ['WP_DW_5_1', '젠틀 화이트'],
+    CTWH: ['WP_DW_5_1', '코튼 화이트'], HBWH: ['WP_DW_5_1', '헤링본 화이트'], BSWH: ['WP_DW_5_1', '베이직 화이트'], SFWH: ['WP_DW_5_1', '소프트 화이트'],
+    WHOX: ['WP_SK_5_1', '화이트 옥스포드'], WHCL: ['WP_SK_5_1', '화이트 클레이'], MDWH: ['WP_SK_5_1', '모던라인 화이트'],
+  };
+  const addColors = (productId, categoryId, suffixes, seeds = {}) => {
     const product = (HK_CHANNEL_LISTINGS.hkd || []).find(p => String(p.productId) === productId && p.categoryId === categoryId);
     if (!product) return;
-    items.forEach(([productCode, productName]) => product.items.push({
-      categoryId: 'hk_wallpaper',
-      productCode,
-      productName,
-      prevPrice: 6300,
-      prevShipping: product.baseShipping,
-    }));
+    suffixes.forEach(suffix => {
+      const [baseCode, color] = COLORS[suffix];
+      const item = { categoryId: 'hk_wallpaper', productCode: `${baseCode}_${suffix}`, priceCode: baseCode, productName: `단열벽지 5T 1m x 1m ${color}`, prevPrice: 6300, prevShipping: product.baseShipping };
+      if (seeds[suffix]) { item.status = seeds[suffix]; item.seedStatus = seeds[suffix]; }
+      product.items.push(item);
+    });
   };
-  add('439904706', 'hk_isopink', [['WP_DW_5_1', '단열벽지 이중화이트 5T x 1m']]);
-  add('437331834', 'hk_bead', [
-    ['WP_DW_5_1', '단열벽지 이중화이트 5T x 1m'],
-    ['WP_SK_5_1', '단열벽지 실크형 5T x 1m'],
-  ]);
-  // 열반사단열재 상품 505443624(hk_reflective)도 같다(2026-09-29 사용자 확인). 색상 중 화이트 옥스포드·화이트 클레이·모던라인 화이트는
-  // 실크형(WP_SK_5_1), 나머지는 이중화이트(WP_DW_5_1).
-  add('505443624', 'hk_reflective', [
-    ['WP_DW_5_1', '단열벽지 이중화이트 5T x 1m'],
-    ['WP_SK_5_1', '단열벽지 실크형 5T x 1m'],
-  ]);
+  addColors('439904706', 'hk_isopink', ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'], { WHGR: 'soldout', MDWH: 'stopped' });
+  addColors('437331834', 'hk_bead', ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'], { WHGR: 'soldout', MDWH: 'stopped' });
+  // 열반사단열재 상품 505443624(hk_reflective)도 같은 11색(2026-10-02 사용자가 준 스토어 옵션 목록 — 화이트 그레이 품절, 모던라인 화이트 판매중지).
+  addColors('505443624', 'hk_reflective', ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'], { WHGR: 'soldout', MDWH: 'stopped' });
 })();

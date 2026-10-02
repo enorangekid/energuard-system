@@ -2178,6 +2178,8 @@ function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item
   // 한 상품 안에 다른 카테고리 옵션이 섞인 경우(예: 아이소핑크 상품 439904706에 단열벽지 옵션) — 옵션에
   // categoryId를 적어두면 그 카테고리 가격표에서 가격을 가져온다(2026-09-29).
   if (item && item.categoryId) categoryId = item.categoryId;
+  // priceCode — 스토어 관리코드(productCode)는 색상별로 따로 붙였지만 가격은 원래 상품코드의 가격표를 쓰는 옵션(단열벽지 색상 옵션, 2026-10-02).
+  if (item && item.priceCode) productCode = item.priceCode;
   if (channelId === 'coupang_sub') return _hkCoupangSubPriceParts(productCode)?.registered ?? null;
   const config = HK_CHANNEL_CONFIG[channelId];
   if (config && config.layout === 'coupang') return _hkCoupangPriceParts(categoryId, productCode, config, item, product)?.registered ?? null;
@@ -2291,21 +2293,24 @@ function hkToggleChannelSection(button) {
    네이버(스마트스토어) 채널 — hkd 한국단열 · hkd_life 한국단열라이프 — 의 다른 카테고리에도 같은 방식으로 늘릴 거라 공용으로 만들었다:
    카테고리를 이 목록에 추가하면 되고('*' = 그 채널의 모든 카테고리), 머리 모양·[상품코드 복사]·펼침 기억·검색 연동은 전부 그대로 따라간다.
    버튼 모양도 단가표 공용 작은 버튼(.pgl-btn)을 쓴다. 모음전 엑셀은 상품에 moeumLive: true를 적으면 된다(js/pricing-hankook-moeum.js). */
-const HK_CHANNEL_KIND_SPLIT = { hkd: ['hk_isopink'], hkd_life: [] };
+const HK_CHANNEL_KIND_SPLIT = { hkd: ['hk_isopink', 'hk_bead', 'hk_reflective'], hkd_life: [] };
 function _hkChannelKindSplit(channelId, categoryId) {
   const list = HK_CHANNEL_KIND_SPLIT[channelId];
   return !!list && (list.includes('*') || list.includes(categoryId));
 }
-const _hkChannelKindState = new Map(); // `${채널}|${카테고리}|moeum|single` → 펼침 여부(표를 다시 그려도 유지). 기본: 모음전 펼침, 단품 접힘.
+const _hkChannelKindState = new Map(); // `${채널}|${카테고리}|moeum|single|group` → 펼침 여부(표를 다시 그려도 유지). 기본: 모음전 펼침, 단품·그룹상품 접힘.
 function _hkChannelKindOpen(key, kind) {
   return _hkChannelKindState.has(key) ? _hkChannelKindState.get(key) : kind === 'moeum';
 }
 
 /* ── 공용 부품 — 모음전·단품 구분과 그 버튼은 아래 함수만 쓴다. 다른 레이아웃·카테고리·채널에 같은 구분이나 같은 버튼을 넣을 때
    새 HTML·스타일을 따로 만들지 말고 이 함수를 그대로 부를 것(모양은 공용 .pgl-btn / .hk-group-summary-row 계열 CSS). ── */
-const _hkKindOfProduct = product => (product.items.length > 1 ? 'moeum' : 'single'); // 묶음 판정 — 옵션이 둘 이상이면 모음전, 하나면 단품
-const _hkKindLabel = { moeum: '모음전 상품', single: '단품 상품' };
-const _hkKindHint = { moeum: '옵션이 여러 개인 상품', single: '옵션이 하나인 상품' };
+// 묶음 판정 — 네이버 그룹상품에 묶인 상품(groupProduct)이면 그룹상품, 아니면 옵션이 둘 이상이면 모음전, 하나면 단품. 화면 순서는 모음전 → 단품 → 그룹상품.
+const _hkKindOfProduct = product => (product.groupProduct ? 'group' : product.items.length > 1 ? 'moeum' : 'single');
+const _hkKindRank = { moeum: 0, single: 1, group: 2 };
+const _hkKindLabel = { moeum: '모음전 상품', single: '단품 상품', group: '그룹상품' };
+const _hkKindHint = { moeum: '옵션이 여러 개인 상품', single: '옵션이 하나인 상품', group: '네이버 그룹상품에 묶인 상품(상품번호가 각자 따로)' };
+const _hkKindIcon = { moeum: 'fa-layer-group', single: 'fa-cube', group: 'fa-boxes-stacked' };
 /* [상품코드 복사] 글자 버튼 — 어디에 놓든 이 함수 하나로 만든다(묶음 머리·상품ID 칸이 같은 모양). 복사할 내용만 onclick으로 다르다. */
 function _hkCopyButtonHtml(onclick, title, extraClass = '') {
   return `<button type="button" class="pgl-btn pgl-btn-wide${extraClass ? ' ' + extraClass : ''}" onclick="${onclick}" title="${title}">상품코드 복사</button>`;
@@ -2331,7 +2336,9 @@ function _hkProductButtonsHtml(channelId, product) {
 function _hkKindPlan(channelId, categoryId, products) {
   const split = _hkChannelKindSplit(channelId, categoryId);
   const kindOf = _hkKindOfProduct;
-  const ordered = split ? [...products.filter(p => kindOf(p) === 'moeum'), ...products.filter(p => kindOf(p) === 'single')] : products;
+  // 순서: 모음전 → 단품 → 그룹상품. 같은 묶음 안의 순서는 원래대로(안정 정렬이라 같은 그룹상품 코드의 상품은 붙어 있다).
+  const rank = p => _hkKindRank[kindOf(p)];
+  const ordered = split ? products.map((p, i) => [p, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(pair => pair[0]) : products;
   const stats = {};
   if (split) {
     products.forEach(product => {
@@ -2353,7 +2360,7 @@ function _hkKindHeaderRowHtml(channelId, categoryId, plan, kind, colspan) {
         <td colspan="${colspan}">
           <div class="hk-kind-head">
             <button type="button" class="hk-group-toggle hk-kind-toggle-main" aria-expanded="${open}" onclick="hkToggleChannelKind(this)">
-              <span class="hk-group-toggle-icon"><i class="fa-solid ${kind === 'moeum' ? 'fa-layer-group' : 'fa-cube'}"></i></span>
+              <span class="hk-group-toggle-icon"><i class="fa-solid ${_hkKindIcon[kind]}"></i></span>
               <strong>${_hkKindLabel[kind]}</strong>
               <span class="hk-group-representative">${_hkKindHint[kind]}</span>
               <span class="hk-group-count">상품 ${stat.products}개 · 옵션 ${stat.options}개</span>
@@ -2377,7 +2384,9 @@ window.hkToggleChannelKind = function(button) {
   summaryRow.classList.toggle('is-expanded', open);
   summaryRow.querySelectorAll('.hk-group-toggle').forEach(toggle => toggle.setAttribute('aria-expanded', String(open)));
   summaryRow.parentElement.querySelectorAll('tr[data-kind-key]').forEach(row => {
-    if (row !== summaryRow && row.dataset.kindKey === key) row.hidden = !open;
+    if (row === summaryRow || row.dataset.kindKey !== key) return;
+    // 그룹상품 구성 행은 묶음을 펼쳐도 자기 그룹 줄이 접혀 있으면 계속 숨긴다.
+    row.hidden = !open || (row.classList.contains('hk-group-member-row') && !_hkExpandedChannelGroups.has(row.dataset.groupCode));
   });
   const label = summaryRow.querySelector('.hk-group-toggle-label');
   if (label) label.textContent = open ? '접기' : '보기';
@@ -2410,7 +2419,7 @@ window.hkCopyChannelKindCodes = async function(button, channelId, categoryId, ki
     .map(product => String(product.productId)))];
   if (!ids.length) return;
   const ok = await _hkCopyText(ids.join('\n'));
-  const label = kind === 'moeum' ? '모음전' : '단품';
+  const label = { moeum: '모음전', single: '단품', group: '그룹상품' }[kind] || '';
   if (typeof showToast === 'function') showToast(ok ? `${label} 상품코드 ${ids.length}개가 복사되었습니다.` : '클립보드 복사에 실패했습니다.', ok ? 'success' : 'error');
   _hkCopyFeedback(button, ok);
 };
@@ -2513,7 +2522,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       renderedGroupCodes.add(groupProductCode);
       const memberCount = groupedProducts.get(groupProductCode) || 0;
       const groupExpanded = _hkExpandedChannelGroups.has(groupProductCode);
-      rowsHtml += `<tr class="hk-group-summary-row${groupExpanded ? ' is-expanded' : ''}" data-group-code="${groupProductCode}">
+      rowsHtml += `<tr class="hk-group-summary-row${groupExpanded ? ' is-expanded' : ''}" data-group-code="${groupProductCode}"${kindKey ? ` data-kind-key="${kindKey}"` : ''}${kindOpen ? '' : ' hidden'}>
         <td colspan="15">
           <button type="button" class="hk-group-toggle" aria-expanded="${groupExpanded}" onclick="hkToggleChannelGroup(this)">
             <span class="hk-group-toggle-icon"><i class="fa-solid fa-layer-group"></i></span>

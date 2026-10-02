@@ -1693,11 +1693,16 @@
 .hk-kind-head .hk-kind-toggle-rest { flex: 1 1 auto; min-width: 60px; }
 .hk-kind-copy { flex: 0 0 auto; margin: 0 6px; } /* 모양은 공용 .pgl-btn 그대로(글자 크기도 똑같이) — 머리 줄 안의 간격만 */
 /* 모음전 상품 / 단품 상품 아코디언 머리 — 단품은 회청색으로 구분 */
-.hk-kind-summary-row.is-kind-single td { border-top-color: #94a3b8 !important; border-bottom-color: #cbd5e1 !important; }
-.hk-kind-summary-row.is-kind-single .hk-group-toggle-icon { color: #475569; background: #e2e8f0; }
-.hk-kind-summary-row.is-kind-single .hk-group-representative { color: #475569; background: #f1f5f9; }
+.hk-kind-summary-row.is-kind-single td,
+.hk-kind-summary-row.is-kind-group td { border-top-color: #94a3b8 !important; border-bottom-color: #cbd5e1 !important; }
+.hk-kind-summary-row.is-kind-single .hk-group-toggle-icon,
+.hk-kind-summary-row.is-kind-group .hk-group-toggle-icon { color: #475569; background: #e2e8f0; }
+.hk-kind-summary-row.is-kind-single .hk-group-representative,
+.hk-kind-summary-row.is-kind-group .hk-group-representative { color: #475569; background: #f1f5f9; }
 .hk-kind-summary-row.is-kind-single .hk-group-toggle-label,
-.hk-kind-summary-row.is-kind-single .hk-group-chevron { color: #64748b; }
+.hk-kind-summary-row.is-kind-single .hk-group-chevron,
+.hk-kind-summary-row.is-kind-group .hk-group-toggle-label,
+.hk-kind-summary-row.is-kind-group .hk-group-chevron { color: #64748b; }
 .hk-iso-draft-table thead th.hk-iso-head-prev { color: #14532d; background: #86efac; }
 .hk-iso-draft-table thead th.hk-iso-head-diff { color: #7c2d12; background: #fdba74; }
 .hk-iso-listing-prev-price { background: #f0fdf4; color: #166534; font-weight: 700; }

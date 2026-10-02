@@ -71,25 +71,40 @@
       titles = (Array.isArray(product.moeumOptionTitles) && product.moeumOptionTitles.length >= axes ? product.moeumOptionTitles : (store.groupNames || [])).slice(0, axes);
       if (titles.length < axes) return { error: `${axes}단 옵션 상품이라 열마다 옵션 항목 이름이 필요합니다 — 상품에 moeumOptionTitles: [${Array.from({ length: axes }, (_, k) => `'이름${k + 1}'`).join(', ')}]을 적어 주세요.` };
     }
-    const unmatched = [], usedItems = new Set(), body = [];
+    const unmatched = [], usedItems = new Set(), body = [], storeSoldOut = [];
     store.rows.forEach(row => {
       const key = String(row.code || '').trim().toLowerCase();
       const index = byCode.has(key) ? byCode.get(key) : -1;
       if (index < 0) { unmatched.push(row.label || row.optionName1 || '(이름 없음)'); return; }
       usedItems.add(index);
       const item = product.items[index];
-      const [stock, use] = stockAndUse(item);
+      // 스토어에서 이미 품절인 옵션은 단가표에 품절 표시가 없어도 재고 0으로 낸다(엑셀을 올려 99999로 되살리는 것 방지, 2026-10-02).
+      let [stock, use] = stockAndUse(item);
+      if (row.soldOut && stock !== 0) { stock = 0; storeSoldOut.push(String(row.code).trim()); }
       const names = [row.optionName1, row.optionName2, row.optionName3].slice(0, axes).map(v => v || '');
       body.push([...names, calc.prices[index] - calc.basePrice, stock, String(row.code).trim(), use]);
     });
     if (unmatched.length) {
       return { error: `스토어 옵션 중 관리코드가 단가표와 맞지 않는 것이 ${unmatched.length}개 있어 만들지 않았습니다 — ${unmatched.slice(0, 5).join(', ')}${unmatched.length > 5 ? ' …' : ''}` };
     }
+    // 스토어 상품 페이지는 판매중지(사용 안 함) 옵션을 보여 주지 않아 읽히지 않는다. 그래도 엑셀에서 빠지면 업로드할 때 그 옵션이 스토어에서 어떻게 되는지 알 수 없으니,
+    // 단가표에서 판매중지인 옵션은 단가표 이름으로 파일 끝에 재고 0·사용여부 N으로 넣는다(1단 옵션만 — 이름을 열마다 나눌 수 없어서 2~3단은 제외하고 경고, 2026-10-02).
+    const stoppedAdded = [];
+    product.items.forEach((item, index) => {
+      if (usedItems.has(index) || item.status !== 'stopped' || axes !== 1) return;
+      usedItems.add(index);
+      stoppedAdded.push(item.productCode);
+      body.push([_hkChannelItemName(item.categoryId || product.categoryId, product, item), calc.prices[index] - calc.basePrice, 0, String(item.productCode).trim(), 'N']);
+    });
     const absent = product.items.filter((_, i) => !usedItems.has(i)).map(item => item.productCode);
     const summary = summaryRows(calc.prices, calc.basePrice);
     return {
       rows: [...summary.rows, [...titles, '옵션가', '재고수량', '관리코드', '사용여부'], ...body],
       warnings: absent.length ? [`단가표에는 있지만 스토어에서 읽히지 않은 옵션 ${absent.length}개(${absent.slice(0, 5).join(', ')}${absent.length > 5 ? ' …' : ''}) — 파일에는 넣지 않았습니다.`] : [],
+      notes: [
+        ...(stoppedAdded.length ? [`판매중지 옵션 ${stoppedAdded.length}개(${stoppedAdded.slice(0, 5).join(', ')}${stoppedAdded.length > 5 ? ' …' : ''})는 스토어 페이지에 안 보여서 단가표 이름으로 파일 끝에 넣었습니다(재고 0·사용여부 N).`] : []),
+        ...(storeSoldOut.length ? [`스토어에서 품절인데 단가표엔 품절 표시가 없는 옵션 ${storeSoldOut.length}개(${storeSoldOut.slice(0, 5).join(', ')}${storeSoldOut.length > 5 ? ' …' : ''}) — 재고 0으로 냈습니다. 단가표 판매상태도 품절로 바꿔 두세요.`] : []),
+      ],
       source: 'store', axes, titles, listPrice: summary.listPrice, minPrice: summary.minPrice,
     };
   }
@@ -138,7 +153,9 @@
   async function download(channelId, productId) {
     const product = findProduct(channelId, productId);
     let built = null, store = null, readError = '';
-    if (product?.moeumLive === true) {
+    // 버튼이 뜨는 상품은 전부 스토어에서 먼저 읽는다(moeumLive 표시와 무관 — 모음전 상품 전체에 버튼이 뜨게 바꾼 뒤 이 조건이 남아
+    // 있어서 새로 연결된 상품이 스토어를 읽지 않고 실패하던 문제, 2026-10-02 수정). 못 읽을 때만 단가표에 적어 둔 이름으로 만든다.
+    if (product) {
       try {
         const ping = await extensionRequest('ping', {}, 2500);
         if (!versionAtLeast(ping.version, MIN_EXTENSION)) throw Error(`확장을 ${MIN_EXTENSION} 이상으로 업데이트하세요(현재 ${ping.version}).`);
@@ -156,6 +173,7 @@
     XLSX.utils.book_append_sheet(wb, ws, '모음전 옵션');
     XLSX.writeFile(wb, built.fileName);
     toast(`모음전 옵션 엑셀 저장 완료 — ${built.source === 'store' ? '스토어 옵션명 기준' : '단가표 옵션명 기준'}, 대표가 ${built.basePrice.toLocaleString()}원`, 'success');
+    if (built.notes?.length) toast(built.notes.join('\n'), 'info');
   }
 
   window.hkMoeumExcel = function (channelId, productId) {
