@@ -428,6 +428,9 @@
         });
       }
       if(!options.length)continue;
+      // 전 옵션이 품절·판매중지인 상품은 검사에서 제외한다(한국단열·ESM 검사와 같은 규칙) — 쿠팡은 판매 중이 아닌 상품 페이지에 가격을 보여주지 않아
+      // 열어 봐야 "옵션 가격 수집 실패"만 나온다(쿠팡_부자재 타이거폼건 레드·블랙, 유니폼건 2026-10-06).
+      if(options.every(option=>option.status))continue;
       const firstOptionId=(options.find(option=>!option.status)||options[0]).optionId;
       items.push({productId,productUrl:`https://www.coupang.com/vp/products/${productId}?vendorItemId=${firstOptionId}`,options});
     }

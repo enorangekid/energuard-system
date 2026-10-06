@@ -1104,8 +1104,9 @@ const HK_EARTH_MAT = [
   const make = (productId, rows, extra = {}) => {
     const product = {
       categoryId: 'hk_etc', productId,
-      items: rows.map(([productCode, productName, status]) => ({
-        productCode, productName, hkdShipping: 0, storeName: productName,
+      // 네 번째 값 = 11번가 스토어 옵션명(우리 이름과 다른 경우 — 11번가 검사가 이 이름으로 짝짓는다). 없으면 productName.
+      items: rows.map(([productCode, productName, status, storeName]) => ({
+        productCode, productName, hkdShipping: 0, storeName: storeName || productName,
         ...(status ? { status, seedStatus: status } : {}),
       })),
       ...extra,
@@ -1117,7 +1118,8 @@ const HK_EARTH_MAT = [
     return product;
   };
   HK_CHANNEL_LISTINGS['11st'].push(
-    make('3430746421', [['HF_5_1', '난방필름단열재 5T 1m x 1m 비접착']]),
+    // 스토어 옵션명은 '난방필름_5T x 1m x 1m'(사용자 가격검사 결과 2026-10-06) — 상품명(난방필름단열재 5T 1m x 1m 비접착)과 달라 이름 매칭이 안 됐다.
+    make('3430746421', [['HF_5_1', '난방필름단열재 5T 1m x 1m 비접착', '', '난방필름_5T x 1m x 1m']]),
     make('1629927307', [
       ['DPS_02_1', '방습단열초배지 0.2T (비접착 0.2T/1m)', 'stopped'],
       ['DPS_1_1', '방습단열초배지 1T (비접착 1T/1m)', 'stopped'],

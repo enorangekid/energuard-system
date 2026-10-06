@@ -115,11 +115,22 @@ window.insertTodayHeader = function() {
 // 잘못 재해석해 텍스트가 중복되는 심각한 손상이 실제로 있었다(2026-08-12). 반드시
 // clipboard.convert()로 변환한 뒤 setContents(..., 'silent')로 넣어야 안전하다.
 // (media.js의 블로그/유튜브 에디터도 이 함수를 그대로 재사용한다.)
+// 📌 표(quill-table-better) 주의: 표가 든 delta를 setContents()로 넣으면 표 셀이 통째로 사라진다
+// (저장은 정상인데 다시 열면 빈 표만 남는 증상, 2026-10-06). 표가 있으면 비운 뒤 updateContents()로
+// 넣어야 복원된다. 또 root.innerHTML에 들어 있는 <temporary>(표 모듈의 임시 요소)를 DOMPurify가
+// 지우며 <br>을 남겨 불러올 때마다 빈 줄이 늘어나므로, sanitize 전에 미리 걷어낸다.
 function setQuillContent(quillInstance, html) {
     if (!quillInstance) return;
     if (!html) { quillInstance.setContents([], 'silent'); return; }
-    const delta = quillInstance.clipboard.convert({ html: sanitizeAdminHtml(html) });
-    quillInstance.setContents(delta, 'silent');
+    const clean = sanitizeAdminHtml(html.replace(/<temporary\b[^>]*>[\s\S]*?<\/temporary>/g, ''));
+    const delta = quillInstance.clipboard.convert({ html: clean });
+    const hasTable = delta.ops.some(op => op.attributes && Object.keys(op.attributes).some(key => key.startsWith('table')));
+    if (hasTable) {
+        quillInstance.setContents([], 'silent');
+        quillInstance.updateContents(delta, 'silent');
+    } else {
+        quillInstance.setContents(delta, 'silent');
+    }
 }
 
 // 📌 Quill 에디터 초기화 (Quill 2.x + quill-table-better, 에너가드랩 admin/work-notes.js에서 이식)
