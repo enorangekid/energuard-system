@@ -1315,3 +1315,71 @@ const HK_EARTH_MAT = [
   });
   HK_CHANNEL_LISTINGS.coupang_sub = [...byProduct.values()];
 })();
+
+/* ═══════════════════════════════════════
+   쿠팡 신규 상품 7개 추가 (2026-10-08) — 쿠팡 전체 목록(data/coupang_catalog.json)에는 있는데 단가표에 없던 상품(옵션 29개).
+   사용자 지시: 쿠팡이 합치거나 나눈 기존 상품의 Product ID는 맞추지 않고(합치면 보기 불편), 아예 없던 상품만 추가한다.
+   - 기타단열재 상품(방습단열초배지·난방필름·캠핑단열재)은 일반 `쿠팡` 채널로 분류하고 일반 쿠팡 계산식을 쓴다(2026-10-08 사용자 지시).
+     **방수·절전커버는 아직 쿠팡 현재가 그대로**(item.targetPrice, 차액 0) — 쿠팡 가격이 배송비를 얹은 값이라 사용자가 계산식을 정해 주면 targetPrice를 지우고 연결한다. 상품코드는 이름으로 짝지어 적었다.
+   - 판매상태는 쿠팡 목록 그대로(판매중지 = stopped, seedStatus). 쿠팡_부자재에는 방수/절전커버(부자재)만 둔다. (열반사 롤 `9200174387`도 한 번 추가했다가 단가표의 `8232412643`과 같은 상품의 옛 판매중지 등록이라 중복으로 보고 사용자 지시로 뺐다.)
+═══════════════════════════════════════ */
+(function addNewCoupangProducts() {
+  // [Product ID, 채널, 카테고리, 쿠팡 상품명, [[옵션 ID, 상품코드, 쿠팡 옵션명, 쿠팡 판매가, 판매중지면 1]]]
+  const products = [
+    ['176844369', 'coupang', 'hk_etc', "빌트론 방습단열초배지 1M / 롤", [
+      ['91287979203', 'DPS_02_1', "0.2T(비접착)[1m] 방습단열초배지_1M", 7140, 1],
+      ['91287979176', 'DPS_1_1', "1T(비접착)[1m] 방습단열초배지_1M", 10500, 1],
+      ['91287979159', 'DPS_5_1', "5T(비접착)[1m] 방습단열초배지_1M", 11030],
+      ['91287979185', 'DPS_02_25', "0.2T(비접착)[25m] 방습단열초배지_1Roll", 44100, 1],
+      ['91287979168', 'DPS_1_25', "1T(비접착)[25m] 방습단열초배지_1Roll", 72000, 1],
+      ['91287979144', 'DPS_5_30', "5T(비접착)[30m] 방습단열초배지_1Roll", 147000],
+      ['91287979151', 'CBF_01_1', "0.1T(비접착)[1m] 초배용부직포_1M", 6510, 1],
+      ['91287979195', 'CBF_01_80', "0.1T(비접착)[80m] 초배용부직포_1Roll", 55650, 1],
+    ]],
+    ['5321025116', 'coupang', 'hk_etc', "빌트론 방습단열초배지 (롤)", [
+      ['91288128206', 'DPS_02_25', "단열방습초배지 0.2T (비접착 25m)", 44100, 1],
+      ['91288128213', 'DPS_1_25', "단열방습초배지 1T (비접착 25m)", 84000, 1],
+      ['91288128227', 'DPS_5_30', "단열방습초배지 5T (비접착 30m)", 147000],
+      ['91288128221', 'CBF_01_80', "초배용부직포 0.1T (비접착 80m)", 55650, 1],
+    ]],
+    ['8416924985', 'coupang', 'hk_etc', "캠핑단열재 1M", [
+      ['91356673058', 'CP_5_1', "폭1M x 길이1M", 8300],
+    ]],
+    ['5314103490', 'coupang', 'hk_etc', "난방필름 단열재", [
+      ['91288093800', 'HF_5_25', "1개 난방필름 5T x 1m x 25m", 73000],
+      ['91288093790', 'HF_5_50', "1개 난방필름 5T x 1m x 50m", 130000],
+    ]],
+    ['8540230051', 'coupang_sub', 'hk_sub', "에어컨 실외기 방수커버", [
+      ['91288036627', 'COVER_PVC_A', "1개 PVC_A형(58cm x 57cmx28cm)", 9240],
+      ['91288036632', 'COVER_PVC_B', "1개 PVC_B형(70cmx57cmx28cm)", 9980],
+      ['91288036602', 'COVER_PVC_C', "1개 PVC_C형(80cm x 70cm x 35cm)", 10500],
+      ['91288036645', 'COVER_PVC_D', "1개 PVC_D형(90cm x 70cm x 35cm)", 11030, 1],
+      ['91288036637', 'COVER_PVC_E', "1개 PVC_E형(96cm x 85cm x 38cm)", 12080, 1],
+      ['91288036609', 'COVER_TARP_A', "1개 타포린_A형(58cm x 57cm x 28cm)", 17850],
+      ['91288036615', 'COVER_TARP_B', "1개 타포린_B형(70cm x 57cm x 28cm)", 18380],
+    ]],
+    ['5561094366', 'coupang_sub', 'hk_sub', "에어컨 실외기 방수커버", [
+      ['91288036621', 'COVER_TARP_C', "1개 타포린_C형(80cmx65cmx28cm)", 22050, 1],
+    ]],
+    ['5992324586', 'coupang_sub', 'hk_sub', "에어컨 실외기 절전커버", [
+      ['91288013787', 'COVER_SAVE_14_L', "1개 (14T-대형)14Tx50cmx110cm", 16070, 1],
+      ['91288013796', 'COVER_SAVE_14_M', "1개 (14T-중형)14Tx50cmx70cm", 14700, 1],
+      ['91288013814', 'COVER_SAVE_14_XL', "1개 (14T-특대형)14Tx50cmx130cm", 18060, 1],
+      ['91288013830', 'COVER_SAVE_9_L', "1개 (9T-대형)9Tx50cmx110cm", 9980, 1],
+      ['91288013807', 'COVER_SAVE_9_M', "1개 (9T-중형)9Tx50cmx70cm", 9240, 1],
+      ['91288013822', 'COVER_SAVE_9_XL', "1개 (9T-특대형)9Tx50cmx130cm", 11030, 1],
+    ]],
+  ];
+  products.forEach(([productId, channelId, categoryId, name, options]) => {
+    const list = HK_CHANNEL_LISTINGS[channelId];
+    if (!list || list.some(product => String(product.productId) === productId)) return; // 이미 있으면 건너뜀
+    list.push({
+      categoryId, productId, baseShipping: null, shippingBasis: '—', jejuShipping: null, returnExchange: '—',
+      items: options.map(([optionId, productCode, label, price, stopped]) => ({
+        productCode, optionId, productName: `${name} · ${label}`, prevPrice: price, prevShipping: null,
+        ...(categoryId === 'hk_etc' ? {} : { targetPrice: price }), // 기타단열재는 일반 쿠팡 계산식으로 계산한다. 커버는 아직 쿠팡 현재가 그대로.
+        ...(stopped ? { status: 'stopped', seedStatus: 'stopped' } : {}),
+      })),
+    });
+  });
+})();

@@ -2763,6 +2763,12 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
      등록 판매가: 쿠팡에 실제로 입력하는 가격 — 초록 강조는 이 칸 하나만. 일반은 쿠폰 적용 전 판매가,
                   위너는 수동 판매가(있으면) 아니면 판매가(×1.05)
      수정 전 판매가·차액은 등록 판매가 기준, 메모는 옵션마다 자유롭게 남긴다(위너 관련 메모 등). */
+/* 쿠팡 표의 Product ID 칸 — 이 상품의 옵션을 쿠팡 일괄변경 양식으로 내려받는 [쿠팡 양식] 버튼(js/pricing-hankook-coupang-excel.js). 관리자에게만 보인다. */
+function _hkCoupangExcelProductButtonHtml(channelId, product) {
+  if (window.currentUser?.role !== 'admin' || typeof window.hkCoupangExcelDownload !== 'function') return '';
+  return `<div class="pgl-btns pgl-btns-fit"><button type="button" class="pgl-btn pgl-btn-wide" onclick="hkCoupangExcelDownload('${channelId}',{productId:'${product.productId}'})" title="이 상품의 옵션을 쿠팡 일괄변경 양식으로 내려받습니다(단가표 값이 쿠팡 목록과 다른 옵션만 변경 칸이 채워집니다)">쿠팡 양식</button></div>`;
+}
+
 function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
   const categoryLabel = HK_CATEGORIES.find(c => c.id === categoryId)?.label || categoryId;
   const config = HK_CHANNEL_CONFIG[channelId];
@@ -2820,7 +2826,7 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
       const parts = _hkCoupangPriceParts(categoryId, item.productCode, config, item, product);
       // 등록 판매가 — 일반 옵션은 한국단열 판매가에서 계산(parts), 창문형단열재 옵션은 재질·두께의 쿠팡 반영 개당단가(windowKey).
       const windowPrice = item.windowKey && typeof window.hkWindowCoupangPriceByKey === 'function' ? window.hkWindowCoupangPriceByKey(item.windowKey) : null;
-      const registered = windowPrice != null ? windowPrice : (parts ? parts.registered : null);
+      const registered = windowPrice != null ? windowPrice : (parts ? parts.registered : (item.targetPrice != null ? Number(item.targetPrice) : null)); // 계산식에 아직 안 연결한 옵션(쿠팡 신규 추가)은 받은 현재 판매가(targetPrice)
       const isWinner = !!parts && parts.winner;
       const isManual = isWinner && parts.manual != null;
       if (isManual) manualCount += 1;
@@ -2832,7 +2838,7 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
       // 구간(section)으로 접히는 옵션은 첫 줄이 없을 수 있어 rowspan 대신 줄마다 Product ID를 적는다.
       const idCell = item.section
         ? `<td class="hk-iso-listing-id">${idValue}</td>`
-        : (i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${idValue}</td>` : '');
+        : (i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${idValue}${_hkCoupangExcelProductButtonHtml(channelId, product)}</td>` : '');
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
       const rowClass = `${i === 0 && groupIndex > 0 && !item.section ? 'hk-iso-listing-group-start' : ''}${inactive ? ` is-inactive is-${item.status}` : ''}${sectionKey ? ' hk-section-member-row' : ''}`.trim();
@@ -3220,12 +3226,19 @@ function _hkChannelListingHtmlBody(channelId) {
   const storeCheckButton = (channelId === 'hkd' || channelId === 'hkd_life' || channelId === 'homepage' || channelId === 'esm' || channelId === '11st' || channelId === 'coupang' || channelId === 'coupang_sub') && window.currentUser?.role === 'admin'
     ? `<button type="button" class="pricing-margin-edit-btn" onclick="openHkStorePriceCheck('${channelId}')" title="실제 스토어의 옵션별 판매가가 이 표의 현재 판매가와 같은지 확인합니다(가격은 바꾸지 않음)">스토어 가격검사</button>`
     : '';
+  // 쿠팡 윙 일괄변경 엑셀(js/pricing-hankook-coupang-excel.js, 2026-10-08) — 짝짓기는 전부 옵션 ID로(Product ID는 쿠팡에서 바뀔 수 있다).
+  //  [쿠팡 수정 엑셀] 지금 고른 분류(전체·아이소핑크…)의 옵션 전부를 쿠팡 양식으로 내려받기 — 단가표를 안 고쳤어도 나온다(단가표 값이 쿠팡 목록과 다른 옵션만 변경 칸이 채워짐). 상품 한 개만은 상품 줄의 [쿠팡 양식].
+  //  [쿠팡 목록 등록] 쿠팡의 전체 옵션 목록 엑셀을 올려 목록을 갱신(쿠팡에 상품·옵션이 바뀔 때만)
+  const coupangExcelButton = (channelId === 'coupang' || channelId === 'coupang_sub') && window.currentUser?.role === 'admin'
+    ? `<button type="button" class="pricing-margin-edit-btn" onclick="hkCoupangExcelDownload('${channelId}')" title="지금 고른 분류(전체·아이소핑크·스티로폼…)의 옵션 전부를 쿠팡 일괄변경 양식으로 내려받습니다. 단가표를 안 고쳤어도 나오고, 단가표 값이 쿠팡 목록과 다른 옵션만 판매가격·판매상태 칸이 채워집니다(단가표는 바꾸지 않음)">쿠팡 수정 엑셀</button>`
+      + `<button type="button" class="pricing-margin-edit-btn" onclick="hkCoupangCatalogPick()" title="쿠팡 윙에서 내려받은 전체 옵션 목록 엑셀(여러 개 가능)을 옵션 ID별로 저장해 목록을 갱신합니다. 쿠팡에 상품·옵션이 바뀌었을 때만 하면 됩니다.">쿠팡 목록 등록</button>`
+    : '';
 
   return `<div class="hk-channel-catalog-header card pricing-cost-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">${channelLabel} — 몰별 적용·검증<span class="pricing-spec-badge">전체 상품 ${products.length} · 옵션 ${optionCount}</span><span class="hk-channel-pending-badge${pending ? ' has-pending' : ''}">반영 대기 ${pending}</span>${statusBadges}</div>
         <span class="pricing-result-hint">수정 전 판매가·배송비 = 마지막으로 저장한 값 (단가표를 저장하면 현재 값으로 바뀝니다)</span>
-        ${storeCheckButton}
+        ${storeCheckButton}${coupangExcelButton}
       </div>
       <div class="hk-channel-category-filters">${filterButtons}</div>
       ${productTabButtons}

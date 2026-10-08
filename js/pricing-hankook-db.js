@@ -520,11 +520,12 @@ function _hkDbRerender() {
 /* 1,000행씩 나눠 읽는다. parallelPages > 1이면 그 수만큼 페이지를 한꺼번에 요청한다(행이 1,000개를 넘는 큰 표 전용 —
    창문형단열재 옵션 980개가 들어와 채널 옵션 표가 2페이지가 되면서 순차 요청만큼 불러오기가 늦어졌다, 2026-09-30).
    작은 표는 1(기본)로 둔다 — 안 쓰는 빈 페이지 요청을 만들지 않으려고. */
-async function _hkDbSelectAll(table, columns, orderColumns, parallelPages = 1) {
+async function _hkDbSelectAll(table, columns, orderColumns, parallelPages = 1, filter = null) {
   const client = _hkDbClient();
   const PAGE = 1000;
   const fetchPage = async index => {
     let query = client.from(table).select(columns);
+    if (filter) query = filter(query);
     orderColumns.forEach(column => { query = query.order(column, { ascending: true }); });
     const { data, error } = await query.range(index * PAGE, index * PAGE + PAGE - 1);
     if (error) throw error;
@@ -544,7 +545,8 @@ async function _hkDbSelectAll(table, columns, orderColumns, parallelPages = 1) {
 
 async function _hkDbFetchState() {
   const [settings, products, channelProducts, channelItems] = await Promise.all([
-    _hkDbSelectAll('hk_settings', '*', ['key']),
+    // 쿠팡 전체 옵션 목록(key 'coupang_catalog', js/pricing-hankook-coupang-excel.js)은 수백 KB라 단가를 불러올 때는 가져오지 않는다 — 최근 저장 시각에도 안 섞이게.
+    _hkDbSelectAll('hk_settings', '*', ['key'], 1, query => query.neq('key', 'coupang_catalog')),
     _hkDbSelectAll('hk_products', '*', ['product_code']),
     _hkDbSelectAll('hk_channel_products', '*', ['channel_id', 'sort_order']),
     _hkDbSelectAll('hk_channel_items', '*', ['channel_id', 'product_id', 'sort_order'], 3), // 옵션 행이 가장 많은 표 — 3페이지를 한꺼번에
