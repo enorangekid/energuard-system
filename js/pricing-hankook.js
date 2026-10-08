@@ -2184,10 +2184,14 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
 /* 쿠팡_부자재(2026-09-22, 사용자가 준 엑셀 58행) — 다른 쿠팡 채널과 계산식이 다르다: 배송비를 더하지
    않고 부자재 판매가만 ×1.05 한 뒤 "100원 단위 반올림"(올림이 아니라 반올림, 엑셀 58행 전부와 일치
    확인)한다. 쿠폰·수수료 개념이 없는 단순 채널이라 전용 함수를 따로 둔다. */
-function _hkCoupangSubPriceParts(productCode) {
+function _hkCoupangSubPriceParts(productCode, item) {
   const hkdPrice = typeof window.hkSubPriceByCode === 'function' ? window.hkSubPriceByCode(productCode) : null;
   if (hkdPrice == null) return null;
-  return { hkdPrice, registered: Math.round(hkdPrice * 1.05 / 100) * 100 };
+  // 기본 = 배송비 없이 ×1.05, 100원 단위 반올림. 옵션에 hkdShipping(원)·roundUnit(원)이 적혀 있으면 (한국단열 판매가 + 배송비) ×1.05를 그 단위로 반올림한다
+  // — 방수커버·절전커버(쿠팡 신규 추가, 2026-10-08)는 (판매가 + 3,000) ×1.05를 10원 단위로 반올림하는 식이 쿠팡 현재가 14개와 전부 맞는다.
+  const shipping = item && item.hkdShipping != null ? Number(item.hkdShipping) : 0;
+  const unit = item && item.roundUnit != null ? Number(item.roundUnit) : 100;
+  return { hkdPrice, hkdShipping: shipping, registered: Math.round((hkdPrice + shipping) * 105 / (100 * unit)) * unit };
 }
 
 function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item) {
@@ -2200,7 +2204,7 @@ function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item
   if (item && item.categoryId) categoryId = item.categoryId;
   // priceCode — 스토어 관리코드(productCode)는 색상별로 따로 붙였지만 가격은 원래 상품코드의 가격표를 쓰는 옵션(단열벽지 색상 옵션, 2026-10-02).
   if (item && item.priceCode) productCode = item.priceCode;
-  if (channelId === 'coupang_sub') return _hkCoupangSubPriceParts(productCode)?.registered ?? null;
+  if (channelId === 'coupang_sub') return _hkCoupangSubPriceParts(productCode, item)?.registered ?? null;
   const config = HK_CHANNEL_CONFIG[channelId];
   if (config && config.layout === 'coupang') return _hkCoupangPriceParts(categoryId, productCode, config, item, product)?.registered ?? null;
   if (config && config.markupPercent) return _hkEsmPriceParts(categoryId, productCode, config, item)?.finalPrice ?? null;

@@ -1296,7 +1296,6 @@ const HK_EARTH_MAT = [
     ['USB 롱나이프팁 추가', 'HC_USB_LK', '5380315904', '91295962620', 3000],
     ['USB 조각용팁 추가', 'HC_USB_T', '5380315904', '91295962610', 3000],
     ['플라스틱 평헤라', 'SC_PHE', '184938310', '92616891530', 3000],
-    ['플라스틱평헤라', 'SC_PHE', '8299630714', '91732181099', 3000],
     ['OPP테이프', 'TP_TR', '8710176581', '91300559552', 3000],
     ['은박테이프', 'TP_AL', '8520194034', '91300559555', 3000],
     ['은박테이프 (50mm x 40m)', 'TP_AL', '184630054', '91300528706', 3000],
@@ -1304,6 +1303,7 @@ const HK_EARTH_MAT = [
     ['대형커터칼', 'CK_L', '2347262583', '91300614970', 3000],
     ['회색면테이프100mm x 25M', 'TP_GY100', '8336023187', '91300581699', 3000],
   ];
+  const stoppedOptionIds = new Set(['91295772951', '91703742174']);
   const byProduct = new Map();
   rows.forEach(([name, code, productId, optionId, shipping]) => {
     if (!byProduct.has(productId)) {
@@ -1311,7 +1311,10 @@ const HK_EARTH_MAT = [
     }
     const product = byProduct.get(productId);
     const prevPrice = _hkChannelTargetPrice('hk_sub', code, 'coupang_sub', product, null) ?? 0;
-    product.items.push({ productCode: code, productName: name, optionId, prevPrice, prevShipping: shipping });
+    const isStopped = stoppedOptionIds.has(optionId);
+    product.items.push({ productCode: code, productName: name, optionId, prevPrice, prevShipping: shipping,
+      ...(isStopped ? { status: 'stopped', seedStatus: 'stopped' } : {})
+    });
   });
   HK_CHANNEL_LISTINGS.coupang_sub = [...byProduct.values()];
 })();
@@ -1320,7 +1323,7 @@ const HK_EARTH_MAT = [
    쿠팡 신규 상품 7개 추가 (2026-10-08) — 쿠팡 전체 목록(data/coupang_catalog.json)에는 있는데 단가표에 없던 상품(옵션 29개).
    사용자 지시: 쿠팡이 합치거나 나눈 기존 상품의 Product ID는 맞추지 않고(합치면 보기 불편), 아예 없던 상품만 추가한다.
    - 기타단열재 상품(방습단열초배지·난방필름·캠핑단열재)은 일반 `쿠팡` 채널로 분류하고 일반 쿠팡 계산식을 쓴다(2026-10-08 사용자 지시).
-     **방수·절전커버는 아직 쿠팡 현재가 그대로**(item.targetPrice, 차액 0) — 쿠팡 가격이 배송비를 얹은 값이라 사용자가 계산식을 정해 주면 targetPrice를 지우고 연결한다. 상품코드는 이름으로 짝지어 적었다.
+     **방수·절전커버는 한국단열 판매가에서 계산**한다(2026-10-08 사용자 지시): 쿠팡_부자재 계산식에 배송비 3,000원을 더하고 10원 단위로 반올림 — (한국단열 판매가 + 3,000) ×1.05 → 쿠팡 현재가 14개와 전부 일치(차액 0). 상품코드는 이름으로 짝지어 적었다.
    - 판매상태는 쿠팡 목록 그대로(판매중지 = stopped, seedStatus). 쿠팡_부자재에는 방수/절전커버(부자재)만 둔다. (열반사 롤 `9200174387`도 한 번 추가했다가 단가표의 `8232412643`과 같은 상품의 옛 판매중지 등록이라 중복으로 보고 사용자 지시로 뺐다.)
 ═══════════════════════════════════════ */
 (function addNewCoupangProducts() {
@@ -1377,7 +1380,7 @@ const HK_EARTH_MAT = [
       categoryId, productId, baseShipping: null, shippingBasis: '—', jejuShipping: null, returnExchange: '—',
       items: options.map(([optionId, productCode, label, price, stopped]) => ({
         productCode, optionId, productName: `${name} · ${label}`, prevPrice: price, prevShipping: null,
-        ...(categoryId === 'hk_etc' ? {} : { targetPrice: price }), // 기타단열재는 일반 쿠팡 계산식으로 계산한다. 커버는 아직 쿠팡 현재가 그대로.
+        ...(categoryId === 'hk_etc' ? {} : { hkdShipping: 3000, roundUnit: 10 }), // 기타단열재는 일반 쿠팡 계산식. 커버(부자재)는 쿠팡_부자재 계산식에 배송비 3,000·10원 반올림을 얹는다(_hkCoupangSubPriceParts).
         ...(stopped ? { status: 'stopped', seedStatus: 'stopped' } : {}),
       })),
     });

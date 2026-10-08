@@ -714,17 +714,18 @@ const HK_WALLPAPER_11ST_GROUPS = [
      반품/교환비는 9옵션 중 8개가 10000/20000이라 그 값으로 통일(피오레 1옵션만 20000/40000 — 나머지
      그룹과 같은 "그룹 다수값 통일" 규칙). */
   const winnerVariants = [
-    ['피오레', '94167949231'], ['에펠탑', '94167949229'], ['파벽브라운', '94167949228'], ['한지', '94167949230'],
+    ['피오레', '94167949231'], ['에펠탑', '94167949229'], ['파벽브라운', '94167949228', 'stopped'], ['한지', '94167949230'],
     ['프렌치바닐라', '94175430663'], ['프렌치그린', '94175430664'], ['프렌치핑크', '94175430662'],
     ['모스그레이', '94175430665'], ['모스민트', '94175430667'],
   ];
   HK_CHANNEL_LISTINGS.coupang.push({
     categoryId: 'hk_wallpaper', productId: '1213202111', pricing: 'winner',
     baseShipping: 0, shippingBasis: '무료', jejuShipping: 10000, returnExchange: '20000',
-    items: winnerVariants.map(([label, optionId]) => ({
+    items: winnerVariants.map(([label, optionId, status]) => ({
       productCode: 'WP_P1_5_10_C', optionId, hkdShipping: 0,
       productName: `위너_단열벽지_${label}_10m`,
       prevPrice: 35500,
+      ...(status ? { status, seedStatus: status } : {}),
     })),
   });
 })();
