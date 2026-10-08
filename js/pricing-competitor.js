@@ -701,7 +701,7 @@ async function _injectCompColumns(tabId, gradeId, skipFetch) {
   for (let i = 0; i < COMP_COUNT; i++) {
     const cPrice = document.createElement('col');
     cPrice.className = 'cp-col';
-    cPrice.style.width = '82px';
+    cPrice.style.width = '88px'; // 82→88: 순수마진율·마진율 이전대비 열을 좁힌 만큼(18px ÷ 업체 3곳) 넓힘
     colgroup.appendChild(cPrice);
     const cDiff = document.createElement('col');
     cDiff.className = 'cp-col';

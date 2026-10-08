@@ -233,6 +233,17 @@ function diffBadge(curr, prev) {
   return `<span class="pricing-diff-badge ${diff>0?'up':'down'}">${sign}${Number(diff).toLocaleString('ko-KR')}</span>`;
 }
 
+/* 마진율 변동 배지 — 최종판매가 이전대비(diffBadge)와 같은 비교 기준(실제 적용가 또는 이전달)으로 마진율이 몇 %p 바뀌었는지 보여 준다(2026-10-08 사용자 요청).
+   결과 표의 "마진율 이전대비" 열(순수마진율 오른쪽)에 둔다 — 한 칸에 겹쳐 두면 뭉쳐 보여서 열로 분리(2026-10-08).
+   마진율 칸(r.marginRate)은 반올림한 정수라 작은 변화가 안 보여서, 변동은 순수마진÷판매가를 반올림 전 값으로 계산해 소수 첫째 자리까지 쓴다. */
+function _rawMarginRate(r) { return r && r.realPrice > 0 ? (r.netMargin / r.realPrice) * 100 : null; }
+function rateDiffBadge(curr, prev) {
+  if (curr == null || prev == null) return '<span style="color:#d1d5db;font-size:12px;">—</span>';
+  const diff = Math.round((curr - prev) * 10) / 10;
+  if (diff === 0) return '<span style="color:#94a3b8;font-size:12px;">±0</span>';
+  return `<span class="pricing-diff-badge ${diff > 0 ? 'up' : 'down'}" title="마진율 변동(%p) — 순수마진÷최종판매가, 반올림 전 값 기준 · 최종판매가 이전대비와 같은 비교 대상">${diff > 0 ? '+' : ''}${diff.toFixed(1)}%</span>`;
+}
+
 /* 핵심 공통 계산 — 모든 상품에서 사용 */
 function calcSheetRow(costPerM2, marginPerM2, t, area) {
   const sellPerM2    = costPerM2 + marginPerM2;
@@ -282,8 +293,8 @@ function compareFrSheetRealPrice(costPerM2, marginPerSheet, area) {
 
 /* 불연단열재 결과 행 HTML
    컬럼: 품명 | 두께 | m²당원가 | 장당마진 | 장당원가 | 장당판매가 | VAT포함판매가 | 최종판매가 | 이전대비 | 마진금액 | 부가세 | 수수료6% | 순수마진 | 마진율 */
-function _frResultRow(t, r, badge, extraCells) {
-  if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
+function _frResultRow(t, r, badge, extraCells, rateBadge = '') {
+  if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="13" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
   const overrideCls = r.overridden ? ' pricing-price-override' : '';
   const overrideTitle = r.overridden ? ' title="경쟁가 또는 지정 차액을 정확히 맞추기 위해 마진 계산 대신 판매가를 직접 고정함"' : '';
   return `<tr data-t="${t}">${extraCells}
@@ -300,12 +311,13 @@ function _frResultRow(t, r, badge, extraCells) {
     <td class="td-num">${fmt(r.commission)}</td>
     <td class="td-num">${fmt(r.netMargin)}</td>
     <td class="td-diff"><span class="pricing-rate-badge ${rateClass(r.marginRate)}">${r.marginRate}%</span></td>
+    <td class="td-diff">${rateBadge || '<span style="color:#d1d5db;font-size:12px;">—</span>'}</td>
   </tr>`;
 }
 
 /* 결과 테이블 행 HTML (비드법·PU·PF·아이소핑크 공통) */
-function _resultRow(t, r, badge, extraCells) {
-  if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="12" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
+function _resultRow(t, r, badge, extraCells, rateBadge = '') {
+  if (!r) return `<tr data-t="${t}">${extraCells}<td class="td-thick">${t}</td><td colspan="13" style="text-align:center;color:#d1d5db;font-size:12px;">원가 미입력</td></tr>`;
   const overrideCls = r.overridden ? ' pricing-price-override' : '';
   const overrideTitle = r.overridden ? ' title="경쟁가 또는 지정 차액을 정확히 맞추기 위해 마진 계산 대신 판매가를 직접 고정함"' : '';
   // 2026-09-10: 아이소핑크 특호 탭에서, 같은 두께의 1호보다 얼마나 더 비싼지 실제
@@ -323,6 +335,7 @@ function _resultRow(t, r, badge, extraCells) {
     <td class="td-num">${fmt(r.marginAmt)}</td><td class="td-num">${fmt(r.vat)}</td><td class="td-num">${fmt(r.commission)}</td>
     <td class="td-num">${fmt(r.netMargin)}</td>
     <td class="td-diff"><span class="pricing-rate-badge ${rateClass(r.marginRate)}">${r.marginRate}%</span></td>
+    <td class="td-diff">${rateBadge || '<span style="color:#d1d5db;font-size:12px;">—</span>'}</td>
   </tr>`;
 }
 
@@ -1242,8 +1255,10 @@ function _recalcTab(tabId) {
       const prevCost    = (_compareData && costId) ? (_compareData[costId] || 0) : null;
       const prevMargin  = _compareData ? _getMargin(tabId, grade, t, _compareData.margins ?? _compareData) : null;
       const badge       = diffBadge(r?.realPrice, prevCost ? compareFrSheetRealPrice(prevCost, prevMargin, grade.area) : null);
+      const prevRate    = prevCost ? _rawMarginRate(calcFrSheetRow(prevCost, prevMargin, grade.area)) : null;
+      const rateBadge   = rateDiffBadge(_rawMarginRate(r), prevRate);
       const nameTd      = i === 0 ? _nameCell(tabId, grade, rows.length) : '';
-      return _frResultRow(t, r, badge, nameTd);
+      return _frResultRow(t, r, badge, nameTd, rateBadge);
     }).join('');
     renderAllInputDiff();
     return;
@@ -1269,8 +1284,10 @@ function _recalcTab(tabId) {
     const prevCost    = (_compareData && costId) ? (_compareData[costId] || 0) : null;
     const prevMargin  = _compareData ? _getMargin(tabId, grade, t, _compareData.margins ?? _compareData) : null;
     const badge       = diffBadge(r?.realPrice, prevCost ? compareRealPrice(prevCost, prevMargin, tEff, grade.area) : null);
+    const prevRate    = prevCost ? _rawMarginRate(calcSheetRow(prevCost, prevMargin, tEff, grade.area)) : null;
+    const rateBadge   = rateDiffBadge(_rawMarginRate(r), prevRate);
     const nameTd      = i === 0 ? _nameCell(tabId, grade, rows.length) : '';
-    return _resultRow(t, r, badge, nameTd);
+    return _resultRow(t, r, badge, nameTd, rateBadge);
   }).join('');
 
   renderAllInputDiff();
@@ -2239,6 +2256,7 @@ function _resultThead(extraCols, sellUnit) {
       <th rowspan="2" class="pricing-col-highlight">실제<br>장당판매가</th>
       <th rowspan="2" class="pricing-col-diff">이전<br>대비</th>
       <th colspan="5" class="pricing-col-margin-group">마진 분석</th>
+      <th rowspan="2" class="pricing-col-diff">마진율<br>이전대비</th>
     </tr>
     <tr>
       <th class="pricing-col-margin">마진금액</th>
@@ -2357,7 +2375,7 @@ function buildIsopinkTab() {
     <colgroup>
       <col style="width:100px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
       <col style="width:90px"><col style="width:90px"><col style="width:90px"><col style="width:72px">
-      <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:70px">
+      <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:66px"><col style="width:66px">
     </colgroup>
     ${_resultThead(['품명'], 'mm')}
     <tbody id="isopinkTableBody"></tbody>
@@ -2399,7 +2417,7 @@ function buildBeadTab() {
     <colgroup>
       <col style="width:100px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
       <col style="width:90px"><col style="width:90px"><col style="width:90px"><col style="width:72px">
-      <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:70px">
+      <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:66px"><col style="width:66px">
     </colgroup>
     ${_resultThead(['품명'])}
     <tbody id="beadTableBody"></tbody>
@@ -2439,7 +2457,7 @@ function buildPuTab() {
     <colgroup>
       <col style="width:100px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
       <col style="width:90px"><col style="width:90px"><col style="width:90px"><col style="width:72px">
-      <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:70px">
+      <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:66px"><col style="width:66px">
     </colgroup>
     ${_resultThead(['품명'])}
     <tbody id="puTableBody"></tbody>
@@ -2520,7 +2538,7 @@ function buildPfTab() {
     <colgroup>
       <col style="width:100px"><col style="width:60px"><col style="width:72px"><col style="width:55px"><col style="width:72px">
       <col style="width:90px"><col style="width:90px"><col style="width:90px"><col style="width:72px">
-      <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:70px">
+      <col style="width:85px"><col style="width:72px"><col style="width:70px"><col style="width:70px"><col style="width:66px"><col style="width:66px">
     </colgroup>
     ${_resultThead(['품명'])}
     <tbody id="pfTableBody"></tbody>
@@ -2564,7 +2582,7 @@ function buildFrTab() {
       <col style="width:75px"><col style="width:80px">
       <col style="width:85px"><col style="width:85px"><col style="width:90px">
       <col style="width:90px"><col style="width:72px">
-      <col style="width:80px"><col style="width:72px"><col style="width:72px"><col style="width:75px"><col style="width:70px">
+      <col style="width:80px"><col style="width:72px"><col style="width:72px"><col style="width:75px"><col style="width:66px"><col style="width:66px">
     </colgroup>
     <thead>
       <tr>
@@ -2578,6 +2596,7 @@ function buildFrTab() {
         <th rowspan="2" class="pricing-col-highlight">최종<br>판매가</th>
         <th rowspan="2" class="pricing-col-diff">이전<br>대비</th>
         <th colspan="5" class="pricing-col-margin-group">마진 분석</th>
+        <th rowspan="2" class="pricing-col-diff">마진율<br>이전대비</th>
       </tr>
       <tr>
         <th class="pricing-col-margin">마진금액</th>
