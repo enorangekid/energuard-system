@@ -25,6 +25,9 @@
        DROP POLICY IF EXISTS "anon read competitor_names" ON competitor_names;
        CREATE POLICY "anon read competitor_names" ON competitor_names FOR SELECT TO anon USING (true);
      (쓰기 권한은 절대 주지 않음 — 이 페이지는 애초에 저장/편집 버튼 자체가 없음)
+     2026-10-08: 한국단열 단가표도 보여준다(제품별 단가 카테고리 8개 + 몰별 적용 7개 + 이력 조회). hk_settings·hk_products·
+     hk_channel_products·hk_channel_items·hk_history는 sql/hankook_pricing_tables.sql에서 이미 anon에 권한이 열려 있어 추가 SQL은 없다
+     (그 SQL은 anon에 쓰기 권한도 주므로, 이 페이지는 저장 버튼을 두지 않고 입력칸을 잠가 읽기만 한다).
      =============================================================== -->
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
@@ -94,6 +97,15 @@
     max-width: 100%; overflow-x: hidden;
   }
   .pricing-table-scroll { overflow-x: auto !important; }
+
+  /* 한국단열(2026-10-08) — 편집·반영 버튼은 보기 전용 페이지에서 숨긴다. 판매가 칸의 연필·되돌리기,
+     부자재 원가 조정, 창문형 반영 버튼이 대상이고, 실제 차단은 아래 스크립트가 맡는다. 실제 적용가 미지정 경고는 관리자용이라 숨김. */
+  .hk-iso-row-price-edit-btn,
+  .hk-sub-cost-adjust-btn,
+  .hk-win-reflect-btn,
+  .hk-win-reflect-all,
+  [onclick^="revertHk"],
+  #hkDbLiveBadge.warn { display:none !important; }
 </style>
 </head>
 <body>
@@ -117,8 +129,8 @@
             <span><strong>단가표</strong></span>
           </span>
           <!-- 회사 선택 — 앱가격은 이 보기 전용 페이지엔 불필요해서 뺌(요청 없음).
-               한국단열은 아직 데이터 연동 전이라 "준비중" 안내만 뜨지만(setPricingCompany
-               내부 로직, pricing.js), 옵션 자체는 존재를 알 수 있게 남겨둠(2026-09-02). -->
+               한국단열은 2026-10-08부터 아래 #hkPricingTabsBar/#hkPricingBodyWrap에 실제 단가표가 뜬다
+               (그 전에는 "준비중" 안내만 떴음 — setPricingCompany, pricing.js). -->
           <div class="store-chips" id="pricingCompanyChips">
             <button type="button" class="store-select" data-action="toggle-pricing-company-menu" aria-label="회사 선택">
               <span id="pricingCompanyLabel">에너가드컴퍼니</span>
@@ -163,6 +175,24 @@
             <i class="fa-solid fa-file-excel"></i> 엑셀 저장
           </button>
         </div>
+        <!-- 한국단열 선택 시 헤드 우측(2026-10-08) — 통합관리시스템의 #hkPricingHeaderRight에서 "단가표 저장"만 뺀 것.
+             setPricingCompany('hkd')가 이 id를 찾아 켜고 끄며, 동작은 js/pricing-hankook-db.js가 맡는다. -->
+        <div class="pricing-header-right" id="hkPricingHeaderRight" style="display:none;">
+          <span class="pricing-last-saved" id="hkDbLastSaved"></span>
+          <span class="pricing-live-badge" id="hkDbLiveBadge"></span>
+          <div class="pricing-history-wrap" id="hkDbHistoryWrap">
+            <button type="button" class="pricing-history-btn" id="hkDbHistoryBtn" onclick="hkDbToggleHistory()">
+              <i class="fa-solid fa-clock-rotate-left"></i> 이력
+              <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:2px;"></i>
+            </button>
+            <div class="pricing-history-dropdown" id="hkDbHistoryDropdown">
+              <div class="pricing-history-header">저장된 단가 이력 (단가 기준 년월)</div>
+              <div id="hkDbHistoryList" class="pricing-history-list">
+                <div class="pricing-history-empty">저장된 이력이 없습니다</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </h3>
     </div>
 
@@ -190,6 +220,11 @@
       <div id="pricing-tab-pf"      class="pricing-tab-pane"></div>
       <div id="pricing-tab-fr"      class="pricing-tab-pane"></div>
     </div>
+
+    <!-- 한국단열 — 제품별 단가(카테고리) 탭과 본문. 렌더는 js/pricing-hankook.js의 initHkPricingTabs()가 맡고,
+         몰별 적용(채널) 탭도 2026-10-08부터 보여준다(판매상태·기준 옵션·메모 입력은 잠김). -->
+    <div class="pricing-tabs-bar" id="hkPricingTabsBar" style="display:none;"></div>
+    <div class="pricing-body-wrap" id="hkPricingBodyWrap" style="display:none;"></div>
 
   </div>
 </div>
@@ -261,6 +296,17 @@
 
 <script src="js/pricing.js"></script>
 <script src="js/pricing-competitor.js"></script>
+<script src="js/pricing-hankook.js"></script>
+<script src="js/pricing-hankook-bead.js"></script>
+<script src="js/pricing-hankook-sub.js"></script>
+<script src="js/pricing-hankook-reflective.js"></script>
+<script src="js/pricing-hankook-wallpaper.js"></script>
+<script src="js/pricing-hankook-etc.js"></script>
+<script src="js/pricing-hankook-window.js"></script>
+<script src="js/pricing-hankook-window-coupang.js"></script>
+<script src="js/pricing-hankook-esm-auction.js"></script>
+<script src="js/pricing-hankook-supplement.js"></script>
+<script src="js/pricing-hankook-db.js"></script>
 <script>
   // pricing.js가 자기 DOMContentLoaded 리스너(initPricingTabs)를 이미 등록해둔 뒤에
   // 이 스크립트가 실행되므로, 여기서 등록하는 리스너는 항상 그 다음에 실행된다
@@ -291,6 +337,56 @@
       });
     });
   });
+</script>
+<script>
+  /* ═══ 한국단열 보기 전용 잠금(2026-10-08) ═══
+     한국단열 화면(js/pricing-hankook*.js)은 DB에서 값을 불러온 뒤 다시 그리기 때문에, 위의 한 번짜리 잠금으로는 부족하다 —
+     본문이 바뀔 때마다 입력칸을 다시 잠그고, 보기용(탭·아코디언·이력) 말고는 클릭을 막는다. 저장 버튼은 아예 없고
+     currentUser가 없어 스토어 검사 버튼도 안 나온다. */
+  (function () {
+    const ALLOWED = new Set([
+      'setHkPricingTab', 'setHkIsoSuperTab', 'setHkBeadSuperTab', 'hkWindowSetView', 'hkSupplementSetView',
+      'toggleHkIsoAccordion', 'hkWindowToggleRange', 'hkWindowToggleCoupangPay', 'hkWindowCopyRadio',
+      'toggleHkIsoShippingSection', 'hkDbToggleHistory', 'hkDbRestoreHistory',
+      // 몰별 적용(채널) 화면의 보기용 — 분류 필터, 접기·펴기, 상품코드 복사. 판매상태·기준 옵션·메모·수동가는 입력칸 잠금으로 막는다.
+      'setHkChannelCategory', 'hkToggleChannelKind', 'hkToggleChannelGroup', 'hkToggleChannelSection', 'hkCopyChannelKindCodes', 'hkCopyProductCode',
+    ]);
+    function lockHkInputs() {
+      document.querySelectorAll('#hkPricingBodyWrap input, #hkPricingBodyWrap select, #hkPricingBodyWrap textarea').forEach((el) => {
+        const type = (el.type || '').toLowerCase();
+        if (el.tagName === 'SELECT' || type === 'checkbox' || type === 'radio' || type === 'month') el.disabled = true;
+        else el.readOnly = true;
+        el.tabIndex = -1;
+      });
+    }
+    let lockQueued = false;
+    function queueLock() {
+      if (lockQueued) return;
+      lockQueued = true;
+      setTimeout(() => { lockQueued = false; lockHkInputs(); }, 30); // rAF는 백그라운드 탭에서 멈추므로 타이머를 쓴다
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      const body = document.getElementById('hkPricingBodyWrap');
+      if (body) new MutationObserver(queueLock).observe(body, { childList: true, subtree: true });
+      lockHkInputs();
+    });
+    document.addEventListener('click', (event) => {
+      const el = event.target.closest && event.target.closest('#hkPricingBodyWrap [onclick], #hkPricingHeaderRight [onclick]');
+      if (!el) return;
+      const name = (el.getAttribute('onclick') || '').split('(')[0].trim();
+      if (!ALLOWED.has(name)) { event.preventDefault(); event.stopImmediatePropagation(); }
+    }, true);
+    // 이력에서 년월을 골라 보는 것도 화면 표시일 뿐이다 — "저장 안 된 변경" 표시는 남기지 않는다.
+    window.addEventListener('load', () => {
+      const restore = window.hkDbRestoreHistory;
+      if (typeof restore !== 'function') return;
+      window.hkDbRestoreHistory = async function (...args) {
+        await restore.apply(this, args);
+        _hkDb.dirty = false;
+        _hkDbRenderBar();
+      };
+    });
+  })();
 </script>
 </body>
 </html>
