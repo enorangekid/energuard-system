@@ -2612,8 +2612,10 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       // 펼치면(hkToggleChannelSection) 표를 다시 그려서 그 구간 행만 채운다.
       // 구간 위에 묶음(item.sectionGroup)이 있으면 묶음 줄(접히지 않는 제목) → 구간 줄(접힘) → 옵션 행 순으로 보여준다(단열벽지 647994348·11502054249: 종류 → 사이즈, 상품 탭 안에서, 2026-10-02).
       // 옵션 행이 접히면 상품ID 칸의 버튼이 안 보이니 맨 위에 상품 줄(상품ID·[상품코드 복사]·[모음전 엑셀])을 하나 둔다. 접힌 구간은 행을 만들지 않는다.
+      // 종류 묶음(sectionGroup)이 없어도 구간으로 접히면서 [모음전 엑셀]이 열린 상품(창문형 구간 상품 5012855593, 2026-10-08)에는 같은 상품 줄을 둔다.
       const sectionGroupKey = item.sectionGroup ? `${channelId}|${product.productId}|${item.sectionGroup}` : '';
-      if (i === 0 && sectionGroupKey) {
+      const needsProductRow = !!sectionGroupKey || (!!item.section && typeof window.hkMoeumReady === 'function' && window.hkMoeumReady(channelId, product));
+      if (i === 0 && needsProductRow) {
         const link = _hkChannelProductLink(channelId, product);
         rowsHtml += `<tr class="hk-group-summary-row hk-section-product-row">
           <td colspan="15">

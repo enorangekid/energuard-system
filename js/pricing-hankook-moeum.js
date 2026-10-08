@@ -27,10 +27,13 @@
   /* [모음전 엑셀] 버튼을 보일 상품 — 모음전 상품(옵션이 여러 개)이면 전부. 모음전·단품 구분을 적용하는 채널·카테고리(HK_CHANNEL_KIND_SPLIT)의 모음전 상품이거나,
      moeumLive 표시가 있거나, 스토어 옵션명이 옵션마다 전부 적혀 있는 상품. 단품(옵션 하나)에는 없다.
      옵션명은 스토어에서 읽어 와 관리코드로 짝짓기 때문에, 스토어 옵션에 단가표와 같은 관리코드가 등록돼 있어야 만들어진다(안 맞으면 안내 후 중단). */
+  // 스마트스토어 채널(한국단열·한국단열라이프)의 이 카테고리는 옵션이 여러 개인 상품 전부에 버튼을 연다(2026-10-08 — 상품마다 moeumLive를 적지 않아도 되게).
+  // 1단 옵션이면 열 제목이 '제품선택'이라 따로 줄 정보가 없고, 옵션명은 눌렀을 때 확장이 스토어에서 읽는다. 2~3단 옵션이면 만들 때 moeumOptionTitles를 적으라는 안내가 뜬다.
+  const AUTO_CATEGORIES = { hkd: ['hk_sub'], hkd_life: ['hk_sub'] };
   window.hkMoeumReady = function (channelId, product) {
     if (!product || !Array.isArray(product.items) || product.items.length < 2 || !product.items.every(item => item.productCode)) return false;
     const inKindSplit = typeof _hkChannelKindSplit === 'function' && (_hkChannelKindSplit(channelId, product.categoryId) || _hkChannelProductTabbed(channelId, product.categoryId));
-    return inKindSplit || product.moeumLive === true || staticReady(product);
+    return inKindSplit || product.moeumLive === true || staticReady(product) || (AUTO_CATEGORIES[channelId] || []).includes(product.categoryId);
   };
 
   /* 화면과 같은 가격 계산(_hkChannelTargetPrice) — 옵션별 현재 판매가와 대표가(기준 옵션). */
@@ -52,11 +55,15 @@
   function summaryRows(prices, basePrice) {
     // 실제판매가(= 판매가 − 즉시할인가)는 옵션가 0원인 기준 옵션의 가격이어야 옵션가(= 옵션 판매가 − 대표가)가 맞는다. 기준 옵션이 가장 싼 상품이면 최저가와 같고(지금까지 전부),
     // 기준 옵션보다 싼 옵션이 있는 상품(옵션가 음수 — 단열벽지 11502054249)은 기준 옵션 가격으로 둔다(2026-10-02, 예전엔 최저가를 써서 이런 상품은 3,000원 어긋났다).
-    const maxOffset = Math.max(...prices) - basePrice;
+    // 옵션가가 전부 0 이하인 상품(기준 옵션이 가장 비싼 방습단열초배지 560852218 — 0.2T −98,000 · 1T −60,000 · 5T 0)은 최대 옵션가가 0이라 판매가가 0원으로 나오던 것을,
+    // 이 경우에만 가장 싼 옵션과의 차이(옵션가 절댓값 최대)로 계산한다(2026-10-08). 양수 옵션가가 있는 기존 상품은 값이 그대로다.
+    let maxOffset = Math.max(...prices) - basePrice;
+    if (maxOffset <= 0) maxOffset = basePrice - Math.min(...prices);
     const listPrice = maxOffset * 2;
     return { rows: [['판매가', listPrice], ['즉시할인가', listPrice - basePrice], ['실제판매가', basePrice], []], listPrice, minPrice: basePrice };
   }
-  const stockAndUse = item => { const status = item.status || ''; return [status ? 0 : 99999, status === 'stopped' ? 'N' : 'Y']; };
+  // 재고는 기본 99999. 스토어 재고가 99만대인 상품은 상품에 moeumStock을 적어 그 값으로 낸다(난방필름 4705673971 = 999999 — 99999로 내면 재고가 줄어든다).
+  const stockAndUse = (item, product) => { const status = item.status || ''; return [status ? 0 : (Number(product && product.moeumStock) || 99999), status === 'stopped' ? 'N' : 'Y']; };
   const stamp = () => { const now = new Date(); return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`; };
 
   /* 스토어에서 읽은 옵션(store.rows: {optionName1~3, code…})으로 엑셀 행을 만든다. 순서·이름은 스토어 그대로, 가격은 단가표 값.
@@ -80,7 +87,7 @@
       usedItems.add(index);
       const item = product.items[index];
       // 스토어에서 이미 품절인 옵션은 단가표에 품절 표시가 없어도 재고 0으로 낸다(엑셀을 올려 99999로 되살리는 것 방지, 2026-10-02).
-      let [stock, use] = stockAndUse(item);
+      let [stock, use] = stockAndUse(item, product);
       if (row.soldOut && stock !== 0) { stock = 0; storeSoldOut.push(String(row.code).trim()); }
       const names = [row.optionName1, row.optionName2, row.optionName3].slice(0, axes).map(v => v || '');
       body.push([...names, calc.prices[index] - calc.basePrice, stock, String(row.code).trim(), use]);
@@ -118,7 +125,7 @@
   function buildFromStatic(channelId, product, calc) {
     if (!staticReady(product)) return { error: '스토어에서 옵션명을 읽지 못했고, 단가표에 적어 둔 스토어 옵션명도 없습니다.' };
     const summary = summaryRows(calc.prices, calc.basePrice);
-    const body = product.items.map((item, i) => { const [stock, use] = stockAndUse(item); return [String(item.storeName).trim(), calc.prices[i] - calc.basePrice, stock, item.productCode, use]; });
+    const body = product.items.map((item, i) => { const [stock, use] = stockAndUse(item, product); return [String(item.storeName).trim(), calc.prices[i] - calc.basePrice, stock, item.productCode, use]; });
     return {
       rows: [...summary.rows, [product.moeumOptionTitle || DEFAULT_TITLE, '옵션가', '재고수량', '관리코드', '사용여부'], ...body],
       warnings: ['스토어에서 옵션명을 읽지 못해 단가표에 적어 둔 이름으로 만들었습니다 — 업로드 전에 스토어 옵션명과 같은지 확인하세요.'],

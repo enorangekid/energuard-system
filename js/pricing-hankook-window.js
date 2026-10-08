@@ -646,6 +646,11 @@ const HK_WINDOW_RANGE_ITEM_INDEX = new Map(); // 관리코드 → 한국단열 �
       shippingBasis: '-',
       jejuShipping: null,
       returnExchange: '',
+      // [모음전 엑셀](js/pricing-hankook-moeum.js) — 3단 옵션(가로 구간 × 세로 구간 × 두께)이라 열 제목을 적는다(스토어 옵션 항목 이름 그대로, 사용자 옵션 목록 2026-10-08).
+      // 옵션가 0원 = 기준 옵션 = 첫 옵션 {prefix}_500_500_40 이고 가격은 위 반영가라, 스토어의 옵션가(St_500_500_50 = 550 …)와 그대로 맞는다.
+      // 스티로폼 5012855593(옵션 목록 대조 2026-10-08)과 아이소핑크 11984357778(같은 날 옵션 목록 20개 대조 일치) 둘 다 열었다.
+      moeumLive: true,
+      moeumOptionTitles: ['가로사이즈 범위', '세로사이즈 범위', '단열재 두께'],
       items,
     });
   });

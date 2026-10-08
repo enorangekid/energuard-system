@@ -336,6 +336,10 @@ window.hkEtcPriceByCode = function(code) {
       ['HF_5_50', '난방필름단열재 5T 1m x 50m', 98000],
     ]),
   );
+  // [모음전 엑셀](js/pricing-hankook-moeum.js, 2026-10-08) — 사용자가 준 스토어 옵션 목록의 옵션가(25m 0 · 50m 54,000)가 단가표(69,000 → 123,000)와 일치.
+  // 이 상품의 스토어 재고는 99만대(999,747·999,782)라 파일 재고도 999999로 낸다(기본 99999로 내면 재고가 줄어든다).
+  const heating = HK_CHANNEL_LISTINGS.hkd.find(product => String(product.productId) === '4705673971');
+  if (heating) { heating.moeumLive = true; heating.moeumStock = 999999; }
 })();
 
 /* ═══════════════════════════════════════
@@ -349,6 +353,7 @@ window.hkEtcPriceByCode = function(code) {
 ═══════════════════════════════════════ */
 (function addBangseupChobaeHkdChannelProducts() {
   const stopped = { status: 'stopped', seedStatus: 'stopped' };
+  const soldout = { status: 'soldout', seedStatus: 'soldout' };
   const make = (productId, shipping, items, baseCode) => ({
     categoryId: 'hk_etc',
     productId,
@@ -362,13 +367,14 @@ window.hkEtcPriceByCode = function(code) {
       productName,
       prevPrice: window.hkEtcPriceByCode(productCode),
       prevShipping: shipping.base,
-      ...(flag === 'stopped' ? { ...stopped } : {}),
+      ...(flag === 'stopped' ? { ...stopped } : flag === 'soldout' ? { ...soldout } : {}),
     })),
   });
   HK_CHANNEL_LISTINGS.hkd.push(
+    // 2026-10-08 스토어 옵션 목록에 맞춤: 0.2T 25m·1T 25m는 재고 0·사용 Y라 품절(예전엔 0.2T를 판매중지·1T를 판매중으로 뒀다).
     make('560852218', { base: 0, basis: '-', jeju: 10000, exchange: '20000/20000' }, [
-      ['DPS_02_25', '방습단열초배지 0.2T 1m x 25m 비접착', 'stopped'],
-      ['DPS_1_25', '방습단열초배지 1T 1m x 25m 비접착'],
+      ['DPS_02_25', '방습단열초배지 0.2T 1m x 25m 비접착', 'soldout'],
+      ['DPS_1_25', '방습단열초배지 1T 1m x 25m 비접착', 'soldout'],
       ['DPS_5_30', '방습단열초배지 5T 1m x 30m 비접착'],
     ], 'DPS_5_30'),
     make('598636390', { base: 5000, basis: '25개마다', jeju: 10000, exchange: '8000/16000' }, [
@@ -379,10 +385,17 @@ window.hkEtcPriceByCode = function(code) {
       ['CBF_01_80', '초배용부직포 0.1T 1m x 80m 비접착', 'stopped'], // 상품 전체 품절(사용자 확인 2026-09-30)
       ['DPS_02_25', '방습단열초배지 0.2T 1m x 25m 비접착', 'stopped'],
     ]),
+    // 2026-10-08 스토어 옵션 목록에 맞춤: 0.2T 1m는 재고 0·사용 Y라 품절(예전엔 판매중지), 1T 1m는 사용 N이라 판매중지 그대로.
     make('2292744287', { base: 5000, basis: '15개마다', jeju: 10000, exchange: '8000/16000' }, [
-      ['DPS_02_1', '방습단열초배지 0.2T 1m x 1m 비접착', 'stopped'],
-      ['DPS_1_1', '방습단열초배지 1T 1m x 1m 비접착'],
+      ['DPS_02_1', '방습단열초배지 0.2T 1m x 1m 비접착', 'soldout'],
+      ['DPS_1_1', '방습단열초배지 1T 1m x 1m 비접착', 'stopped'], // 스토어 사용 N(2026-10-08)
       ['DPS_5_1', '방습단열초배지 5T 1m x 1m 비접착'],
     ], 'DPS_5_1'),
   );
+  // [모음전 엑셀](js/pricing-hankook-moeum.js, 2026-10-08) — 560852218: 사용자가 준 스토어 옵션 목록의 옵션가(0.2T −98,000 · 1T −60,000 · 5T 0)가 단가표(42,000 · 80,000 · 기준 140,000)와 일치.
+  const chobae = HK_CHANNEL_LISTINGS.hkd.find(product => String(product.productId) === '560852218');
+  if (chobae) chobae.moeumLive = true;
+  // 2292744287: 스토어 옵션 목록의 옵션가(0.2T −3,700 · 1T −500 · 5T 0)가 단가표와 일치. 이 상품 재고는 99만대(999,657)라 파일 재고도 999999로 낸다.
+  const chobae1m = HK_CHANNEL_LISTINGS.hkd.find(product => String(product.productId) === '2292744287');
+  if (chobae1m) { chobae1m.moeumLive = true; chobae1m.moeumStock = 999999; }
 })();
