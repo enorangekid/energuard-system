@@ -1806,8 +1806,17 @@ const HK_11ST_OPTIONS_A = [
   ['Iso_430_430_100_1', 16500],
   ['IsoA_600_900_10_3', 20100], ['IsoA_600_900_20_1', 14200], ['IsoA_600_900_30_1', 16500], ['IsoA_600_900_40_1', 19200], ['IsoA_600_900_50_1', 22200],
 ];
+/* 11번가에 올라간 옵션명(필수옵션선택) — 11번가 옵션 엑셀(js/pricing-hankook-11st-excel.js)이 그대로 쓴다. HK_11ST_OPTIONS_A와 같은 순서.
+   1534504863의 이름은 사용자가 준 옵션 엑셀(2026-10-08) 그대로다. 20T·70T의 600x900만 세경 제품이다. */
+const HK_11ST_NAMES_1534504863 = [
+  '벽산아이소핑크 KS정품_10T-430㎜x430㎜(3장)', '벽산아이소핑크 KS정품_10T-600㎜x900㎜(3장)', '벽산아이소핑크 KS정품_20T-430㎜x430㎜(3장)', '세경아이소핑크 KS정품_20T-600㎜x900㎜(1장)',
+  '벽산아이소핑크 KS정품_30T-430㎜x430㎜(2장)', '벽산아이소핑크 KS정품_30T-600㎜x900㎜(1장)', '벽산아이소핑크 KS정품_40T-430㎜x430㎜(2장)', '벽산아이소핑크 KS정품_40T-600㎜x900㎜(1장)',
+  '벽산아이소핑크 KS정품_50T-430㎜x430㎜(2장)', '벽산아이소핑크 KS정품_50T-600㎜x900㎜(1장)', '벽산아이소핑크 KS정품_70T-430㎜x430㎜(1장)', '세경아이소핑크 KS정품_70T-600㎜x900㎜(1장)',
+  '벽산아이소핑크 KS정품_100T-430㎜x430㎜(1장)',
+  '★ 접착식 벽산아이소핑크_10T-600㎜x900㎜(3장)', '★ 접착식 벽산아이소핑크_20T-600㎜x900㎜(1장)', '★ 접착식 벽산아이소핑크_30T-600㎜x900㎜(1장)', '★ 접착식 벽산아이소핑크_40T-600㎜x900㎜(1장)', '★ 접착식 벽산아이소핑크_50T-600㎜x900㎜(1장)',
+];
 HK_CHANNEL_LISTINGS['11st'] = [
-  { productId: '1534504863', baseCode: 'Iso_600_900_20_1',  items: HK_11ST_OPTIONS_A },
+  { productId: '1534504863', baseCode: 'Iso_600_900_20_1',  names11st: HK_11ST_NAMES_1534504863, items: HK_11ST_OPTIONS_A },
   { productId: '1541883159', baseCode: 'Iso_600_900_20_1',  items: HK_11ST_OPTIONS_A },
   { productId: '1536001162', items: [['Iso_600_900_70_1', 22300], ['Iso_600_900_100_1', 29100]] },
   { productId: '2929100660', items: [['Iso_600_430_250_1', 43200], ['Iso_600_860_250_1', 75600], ['Iso_600_430_500_1', 81000], ['Iso_600_860_500_1', 145800]] },
@@ -1822,7 +1831,7 @@ HK_CHANNEL_LISTINGS['11st'] = [
   categoryId: 'hk_isopink',
   ...product,
   // 옵션 객체는 상품마다 따로 만든다(같은 배열을 두 상품이 공유하면 한쪽의 판매상태 변경이 다른 쪽에 번진다)
-  items: product.items.map(([productCode, prevPrice]) => ({ productCode, prevPrice })),
+  items: product.items.map(([productCode, prevPrice], i) => ({ productCode, prevPrice, ...(product.names11st ? { name11st: product.names11st[i] } : {}) })),
 }));
 
 /* 쿠팡 채널(2026-09-21, 사용자가 준 표). productId=Product ID, 옵션마다 옵션 ID(optionId)가 따로다.
@@ -2380,6 +2389,11 @@ function _hkCopyCodesButtonHtml(channelId, categoryId, kind, count) {
 }
 /* [모음전 엑셀] 버튼 — 상품ID 칸용. 엑셀을 만들 수 있는 상품(moeumLive 등)에만 보인다(js/pricing-hankook-moeum.js). */
 function _hkMoeumExcelButtonHtml(channelId, product) {
+  // 11번가는 같은 이름의 버튼이 11번가 옵션 엑셀(.xls, js/pricing-hankook-11st-excel.js)을 내려받는다.
+  if (channelId === '11st') {
+    if (typeof window.hk11stExcelReady !== 'function' || !window.hk11stExcelReady(product)) return '';
+    return `<button type="button" class="pgl-btn pgl-btn-wide" onclick="hk11stExcel('${product.productId}')" title="이 상품의 옵션 가격을 11번가 옵션 일괄 수정 엑셀(.xls)로 내려받습니다(옵션가격 = 옵션 판매가 − 기준가, 옵션명은 11번가에서 읽어 옵니다)">모음전 엑셀</button>`;
+  }
   if (typeof window.hkMoeumReady !== 'function' || !window.hkMoeumReady(channelId, product)) return '';
   return `<button type="button" class="pgl-btn pgl-btn-wide" onclick="hkMoeumExcel('${channelId}','${product.productId}')" title="이 상품의 옵션 가격을 스마트스토어 옵션 일괄 수정 엑셀로 내려받습니다(대표가 = 기준가 옵션, 옵션가 = 현재 판매가 − 대표가)">모음전 엑셀</button>`;
 }
@@ -2959,6 +2973,19 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
 
   let rowsHtml = '';
   let optionCount = 0;
+  // 옵션이 많은 상품(11번가 단열벽지 — 유형·길이마다 색상 수십 개)은 옵션에 section을 적어 두면 구간마다 한 줄 요약으로 접는다(쿠팡·한국단열 표와 같은 방식:
+  // hkToggleChannelSection, 기본 접힘, 펼침 상태는 표를 다시 그려도 기억). 요약 줄에 옵션 수·품절·판매중지 수를 보여 준다.
+  const sectionStats = {};
+  products.forEach(product => product.items.forEach(item => {
+    if (!item.section) return;
+    const key = `${channelId}|${product.productId}|${item.section}`;
+    const stat = sectionStats[key] || (sectionStats[key] = { count: 0, soldout: 0, stopped: 0, changed: 0 });
+    stat.count += 1;
+    if (item.status === 'soldout') stat.soldout += 1;
+    if (item.status === 'stopped') stat.stopped += 1;
+    const price = _hkEsmPriceParts(categoryId, item.productCode, config, item)?.finalPrice;
+    if (!item.status && price != null && item.prevPrice != null && price !== item.prevPrice) stat.changed += 1;
+  }));
   products.forEach((product, groupIndex) => {
     const baseIndex = _hkChannelBaseIndex(product);
     const baseParts = _hkEsmPriceParts(categoryId, product.items[baseIndex]?.productCode, config, product.items[baseIndex]);
@@ -2967,6 +2994,26 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
     const basePrice = fixedBase ? Number(product.basePrice) : (baseParts ? baseParts.finalPrice : null);
     product.items.forEach((item, i) => {
       optionCount += 1;
+      const sectionKey = item.section ? `${channelId}|${product.productId}|${item.section}` : '';
+      if (sectionKey && (i === 0 || product.items[i - 1].section !== item.section)) {
+        const stat = sectionStats[sectionKey];
+        const sectionExpanded = _hkExpandedChannelSections.has(sectionKey);
+        const link = _hkChannelProductLink(channelId, product);
+        rowsHtml += `<tr class="hk-group-summary-row hk-section-summary-row${sectionExpanded ? ' is-expanded' : ''}" data-section-key="${sectionKey}">
+          <td colspan="13">
+            <button type="button" class="hk-group-toggle" aria-expanded="${sectionExpanded}" onclick="hkToggleChannelSection(this)">
+              <span class="hk-group-toggle-icon"><i class="fa-solid fa-table-cells"></i></span>
+              <strong>${item.section}</strong>
+              <span class="hk-group-representative">${link ? `<a href="${link}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${product.productId}</a>` : product.productId}</span>
+              <span class="hk-group-count">옵션 ${stat.count}개${stat.soldout ? ` · 품절 ${stat.soldout}개` : ''}${stat.stopped ? ` · 판매중지 ${stat.stopped}개` : ''}</span>
+              ${stat.changed ? `<span class="hk-section-changed">가격 변경 ${stat.changed}개</span>` : ''}
+              <span class="hk-group-toggle-label">${sectionExpanded ? '옵션 접기' : '옵션 보기'}</span>
+              <i class="fa-solid fa-chevron-down hk-group-chevron"></i>
+            </button>
+          </td>
+        </tr>`;
+      }
+      if (sectionKey && !_hkExpandedChannelSections.has(sectionKey)) return; // 접힌 구간은 행을 만들지 않는다
       const parts = _hkEsmPriceParts(categoryId, item.productCode, config, item);
       const finalPrice = parts ? parts.finalPrice : null;
       const inactive = !!item.status;
@@ -2978,7 +3025,10 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
       const optionAdd = (finalPrice != null && basePrice != null) ? finalPrice - basePrice : null;
       const link = _hkChannelProductLink(channelId, product);
       const idValue = (link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId) + _hkChannelGroupBadge(product);
-      const idCell = i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${idValue}</td>` : '';
+      // 구간으로 접히는 상품은 구간의 첫 줄이 없을 수 있어 rowspan 대신 줄마다 상품번호를 적는다(버튼은 첫 줄에만).
+      const idCell = item.section
+        ? `<td class="hk-iso-listing-id">${idValue}${i === 0 ? _hkProductButtonsHtml(channelId, product) : ''}</td>`
+        : (i === 0 ? `<td class="hk-iso-listing-id" rowspan="${product.items.length}">${idValue}${_hkProductButtonsHtml(channelId, product)}</td>` : '');
       const priceNumber = _hkIsoDraftNumber(finalPrice);
       const priceContent = multi && !fixedBase
         ? `<label class="hk-base-pick" title="${isBase ? '이 상품의 기준가가 되는 옵션입니다' : '눌러서 이 옵션을 기준가로 지정'}"><input type="radio" name="hkbase-${channelId}-${product.productId}"${isBase ? ' checked' : ''} onchange="hkChannelSetBase('${channelId}','${product.productId}',${i})"><span>${priceNumber}</span></label>`
@@ -2986,7 +3036,7 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
       const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
         .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
       const rowClass = `${i === 0 && groupIndex > 0 ? 'hk-iso-listing-group-start' : ''}${inactive ? ` is-inactive is-${item.status}` : ''}`.trim();
-      rowsHtml += `<tr class="${rowClass}" data-hk-key="${product.productId}|${i}">
+      rowsHtml += `<tr class="${rowClass}${sectionKey ? ' hk-section-member-row' : ''}" data-hk-key="${product.productId}|${i}"${sectionKey ? ` data-section-key="${sectionKey}"` : ''}>
         ${idCell}
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
         <td class="hk-iso-draft-code">${item.productCode}</td>

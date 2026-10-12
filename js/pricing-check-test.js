@@ -336,7 +336,16 @@
         // 단가표에도 대표 코드 하나만 두었으므로 색상별 옵션 검사가 아니라 대표가만 비교한다.
         representativeOnly:channelId==='homepage'&&product.categoryId==='hk_wallpaper'
       };
+      // 색상 옵션이 같은 상품코드를 공유하는 상품(11번가 단열벽지 — 유형·길이마다 색상 수십 개, item.keyByOption)은 가격이 같으니 검사에는 상품코드마다 대표 하나만 보낸다
+      // (판매 중인 첫 색상, 없으면 첫 색상) — 색상별 판매상태는 옵션 엑셀·단가표에서 관리하고, 스토어 검사는 유형별 대표가만 본다.
+      const repOfCode=new Map();
       for(const item of product.items){
+        if(!item.keyByOption)continue;
+        const best=repOfCode.get(item.productCode);
+        if(!best||(best.status&&!item.status))repOfCode.set(item.productCode,item);
+      }
+      for(const item of product.items){
+        if(item.keyByOption&&repOfCode.get(item.productCode)!==item)continue;
         entry.options.push({code:item.productCode,name:_hkChannelItemName(product.categoryId,product,item),expected:_hkChannelTargetPrice(product.categoryId,item.productCode,channelId,product,item),status:item.status||null,...(item.storeName?{storeName:item.storeName}:{})});
       }
       byId.set(id,entry);
