@@ -1627,7 +1627,6 @@
 .hk-sub-inc-del { border: 0; background: transparent; color: #94a3b8; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
 .hk-sub-inc-del:hover { color: #dc2626; background: #fef2f2; }
 .hk-sub-inc-add { margin-top: 10px; }
-.hk-sub-derived-price-input { cursor: default !important; }
 .hk-sub-table .hk-sub-previous { color: #64748b; background: #f8fafc; }
 .hk-sub-table .hk-sub-previous small { display: block; margin-top: 3px; color: #94a3b8; font-size: 10px; }
 .hk-sub-table .hk-sub-previous small.up { color: #dc2626; }

@@ -254,8 +254,11 @@ function _hkSubRowHtml(product, rowIndex) {
     <td class="hk-sub-increase" onclick="openHkSubIncreaseModal(this)" title="눌러서 가격 인상 이력 보기·수정 (공급원가와 판매가를 같은 금액만큼 올린 기록)">${_hkSubIncreaseCellInner(product)}</td>
     <td class="hk-sub-previous">${_hkIsoDraftNumber(product.previousPrice)}<small class="${difference > 0 ? 'up' : difference < 0 ? 'down' : ''}">${difference ? `${difference > 0 ? '+' : ''}${_hkIsoDraftNumber(difference)}` : '동일'}</small></td>
     <td class="hk-iso-draft-price hk-sub-price-cell">
-      <input type="text" class="pricing-input-field hk-iso-final-price-input hk-sub-derived-price-input" value="${Number(product.price).toLocaleString()}" data-original-price="${Number(product.price)}" readonly tabindex="-1" aria-label="공급원가 연동 판매가">
-      <div class="hk-iso-price-history" hidden>변경 전 <span>${Number(product.price).toLocaleString()}원</span></div>
+      <div class="hk-iso-price-edit-wrap">
+        <input type="text" inputmode="numeric" class="pricing-input-field hk-iso-final-price-input" value="${Number(product.price).toLocaleString()}" data-original-price="${Number(product.price)}" onblur="finishHkSubPriceEdit(this)" onkeydown="handleHkSubPriceKey(event,this)" readonly aria-label="판매가">
+        <button type="button" class="hk-iso-row-price-edit-btn" onclick="beginHkSubPriceEdit(this)" title="판매가를 직접 수정 — 공급원가는 그대로이고 마진만 바뀝니다(공급원가를 고치면 이 가격에서 같은 금액만큼 움직입니다)"><i class="fa-solid fa-pen"></i></button>
+      </div>
+      <div class="hk-iso-price-history" hidden>변경 전 <span>${Number(product.price).toLocaleString()}원</span><button type="button" onclick="revertHkSubPrice(this)" title="변경 전 판매가로 되돌리기"><i class="fa-solid fa-rotate-left"></i></button></div>
     </td>
     <td class="hk-sub-shipping">${product.shipping ? _hkIsoDraftNumber(product.shipping) : '—'}</td>
     <td class="hk-sub-margin">${_hkIsoDraftNumber(metrics.margin)}</td>
@@ -320,7 +323,7 @@ function _hkSubAccordionHtml(group, groupIndex) {
 /* 위쪽 설정 카드 — 아이소핑크·스티로폼 카드와 같은 자리에 단가 기준 년월을 둔다(한국단열 전체에 하나). */
 function _hkSubSettingsCard() {
   return `<div class="card pricing-cost-card hk-iso-draft-margin-card" data-draft-tab="sub-shared">
-    <div class="pricing-section-title">공통 설정 <span class="pricing-section-sub">— 공급원가를 고치면 판매가가 같은 금액만큼 함께 움직입니다 · 연필: 공급원가 직접 수정 · 조정액: +200 / -100 · 조정하면 가격 인상 이력에 오늘 날짜로 자동 기록(칸을 눌러 수정)</span></div>
+    <div class="pricing-section-title">공통 설정 <span class="pricing-section-sub">— 공급원가를 고치면 판매가가 같은 금액만큼 함께 움직입니다 · 공급원가 칸 연필: 공급원가 직접 수정 · 판매가 칸 연필: 판매가 직접 수정(마진만 바뀜) · 조정액: +200 / -100 · 조정하면 가격 인상 이력에 오늘 날짜로 자동 기록(칸을 눌러 수정)</span></div>
     <div class="pricing-cost-footer hk-iso-shared-cost-controls">
       <div class="pricing-base-month-wrap">
         <label class="pricing-base-month-label" for="hkSubBaseMonth">단가 기준 년월</label>
@@ -383,6 +386,21 @@ window.finishHkSubPriceEdit = function(input) {
   input.value = next.toLocaleString();
   input.readOnly = true;
   input.closest('.hk-sub-price-cell')?.classList.remove('editing');
+  // 원가 있는 행은 판매가만 바뀌므로 마진·수수료·부가세·마진율을 다시 계산한다(공급원가·가격 인상 이력은 건드리지 않는다).
+  if (!row.dataset.noCost) window.recalcHkSubRow(input);
+  _hkSubUpdateHistory(row);
+  if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
+};
+
+/* 직접 고친 판매가를 변경 전(저장 기준) 값으로 되돌린다 — 공급원가는 그대로 둔다. */
+window.revertHkSubPrice = function(button) {
+  const row = button.closest('tr');
+  const input = row?.querySelector('.hk-iso-final-price-input');
+  const product = HK_SUB_PRODUCTS[Number(row?.dataset.rowIndex)];
+  if (!row || !input || !product) return;
+  product.price = Number(input.dataset.originalPrice || 0);
+  input.value = product.price.toLocaleString();
+  if (!row.dataset.noCost) window.recalcHkSubRow(input);
   _hkSubUpdateHistory(row);
   if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
 };
