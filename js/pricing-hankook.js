@@ -197,10 +197,13 @@ const HK_ISO_DRAFT_ADHESIVE_900X1800_BUNDLE_ROWS = [
   { name:'아이소핑크 50T', unit:220, spec:'50*900*1800', sheetCost:12350, sheetPrice:33500, saleSize:'900*1800-2',  saleCost:24700, price:67000, margin:42300, fee:4020, vat:6700, shipping:'', netMargin:31580, rate:47, refMargin:45 },
 ];
 
+// 2026-10-12(사용자 지시): 30T~180T를 30T~40T(mid_lo) / 50T~180T(mid)로 나눴다. 기존 mid 값·이력은 그대로고 mid_lo만 새 구간이며,
+// 처음 값은 기존 30T~180T 값(198)과 같아서 가격이 안 바뀐다(옛 저장분에 mid_lo가 없으면 불러올 때 mid 값으로 채운다 — pricing-hankook-db.js).
 const HK_ISO_DRAFT_BASE_COSTS = {
-  thin: 260,  // 10T~20T
-  mid: 198,   // 30T~180T
-  thick: 201, // 185T 이상
+  thin: 260,   // 10T~20T
+  mid_lo: 198, // 30T~40T
+  mid: 198,    // 50T~180T
+  thick: 201,  // 185T 이상
 };
 const HK_ISO_DRAFT_EXTRA_MARGINS = {
   10:-10, 20:-10, 30:27, 40:27, 50:22,
@@ -503,6 +506,7 @@ function _hkIsoDraftExpectedPrice(saleCost, referenceMargin, shipping = 0) {
 
 function _hkIsoDraftBaseBand(thickness) {
   if (Number(thickness) <= 20) return 'thin';
+  if (Number(thickness) <= 40) return 'mid_lo';
   if (Number(thickness) <= 180) return 'mid';
   return 'thick';
 }
@@ -516,7 +520,8 @@ function _hkIsoDraftBaseCost(thickness) {
 function _hkIsoDraftMarginCard() {
   const rangeRows = [
     { band:'thin', label:'10T ~ 20T' },
-    { band:'mid', label:'30T ~ 180T' },
+    { band:'mid_lo', label:'30T ~ 40T' },
+    { band:'mid', label:'50T ~ 180T' },
     { band:'thick', label:'185T 이상' },
   ].map(({ band, label }) => `<tr>
     <td><span class="pricing-range-label">${label}</span></td>

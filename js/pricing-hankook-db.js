@@ -346,6 +346,8 @@ function _hkDbApplyState(state) {
     Object.keys(HK_ISO_DRAFT_BASE_COSTS).forEach(band => {
       if (finite(s.baseCosts[band])) HK_ISO_DRAFT_BASE_COSTS[band] = Number(s.baseCosts[band]);
     });
+    // 2026-10-12: 30T~40T 구간(mid_lo)이 새로 생겼다 — 예전 저장분·이력에는 없으니 그때의 30T~180T 값(mid)으로 채워 가격이 바뀌지 않게 한다.
+    if (!finite(s.baseCosts.mid_lo) && finite(s.baseCosts.mid)) HK_ISO_DRAFT_BASE_COSTS.mid_lo = Number(s.baseCosts.mid);
   }
   if (s.extraMargins) {
     Object.keys(HK_ISO_DRAFT_EXTRA_MARGINS).forEach(thickness => {

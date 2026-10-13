@@ -176,6 +176,14 @@ const ALL_COST_FIELDS = [
   ...FR_GRADES.flatMap(g => g.rows.map(t => `fr_cost_${g.id}_t${t}`)),
 ];
 
+/* 2026-10-12(사용자 지시): 아이소핑크 원가 구간을 세분화했다 — 1호·특호 모두 30T~180T를 30T~40T / 50T~180T로 나눈다.
+   기존 필드는 그대로 두고(cost_900_1800_mid·1ho_mid가 이제 50T~180T 구간의 값) 30T~40T만 새 필드로 추가했다.
+   DB 컬럼을 늘리지 않으려고 새 필드는 margins JSON에 같이 저장한다(ISO_EXTRA_COST_FIELDS → ALL_MARGIN_FIELDS).
+   새 필드를 비워 두면 기존 30T~180T 값(mid·1ho_mid)을 그대로 쓴다 — 그래서 옛 이력과 지금 가격은 하나도 안 바뀌고, 30T~40T만 따로 정하고 싶을 때 채우면 된다.
+   fieldVal(화면·캐시)·cval(앱 가격 동기화)·_compareCostOf(이전대비)·_isoGetCost_fromData(견적서)가 모두 이 대체 규칙(ISO_COST_FALLBACK)을 따른다. */
+const ISO_EXTRA_COST_FIELDS = ['cost_900_1800_s30', 'cost_900_1800_1ho_s30'];
+const ISO_COST_FALLBACK = { cost_900_1800_s30: 'cost_900_1800_mid', cost_900_1800_1ho_s30: 'cost_900_1800_1ho_mid' };
+
 /* 경쟁사 "동일가로만 맞춤"에서 정수 마진 특성상 정확히 그 가격을 못 만드는 경우
    (두께가 클수록 마진 1단위 변화폭이 커져서 100원 단위를 건너뛰기도 함, 2026-09-04
    사용자 발견) — 마진 계산을 무시하고 가격 자체를 그 경쟁사가로 강제 고정하는 필드.
@@ -196,6 +204,7 @@ const ALL_PRICE_OVERRIDE_FIELDS = [
 const ALL_MARGIN_FIELDS = [
   ...[...new Set(PF_GRADES.map(g => g.mk))].flatMap(mk => PF_ROWS.map(t => `pf_base_${mk}_t${t}`)),
   ...ISOPINK_ROWS.map(t => `margin_iso_t${t}`),
+  ...ISO_EXTRA_COST_FIELDS, // 새 원가 구간(30T~40T) — 원가지만 DB 컬럼 대신 margins JSON에 저장
   // 2026-09-08: 아이소핑크 1호 신설 — 특호와 겹치는 30T~300T 구간은 독립 마진 필드
   ...ISOPINK_ROWS.filter(t => t >= 30).map(t => `margin_iso_1ho_t${t}`),
   ...ALL_PRICE_OVERRIDE_FIELDS,
@@ -224,7 +233,18 @@ function fieldVal(id) {
     if (cached.costs && cached.costs[id] != null) return parseFloat(cached.costs[id]) || 0;
     if (cached.margins && cached.margins[id] != null) return parseFloat(cached.margins[id]) || 0;
   }
+  // 새 원가 구간(30T~40T)이 비어 있으면 기존 30T~180T 원가를 쓴다(ISO_COST_FALLBACK)
+  if (ISO_COST_FALLBACK[id]) return fieldVal(ISO_COST_FALLBACK[id]);
   return 0;
+}
+
+/* 이전대비 비교 이력에서 원가 한 칸을 읽는다 — 새 원가 구간(30T~40T)은 margins JSON에 있고, 비어 있으면 기존 구간 값으로 대체한다. */
+function _compareCostOf(costId) {
+  if (!_compareData || !costId) return null;
+  let v = _compareData[costId];
+  if (v == null || v === '') v = _compareData.margins?.[costId];
+  if ((v == null || v === '' || Number(v) === 0) && ISO_COST_FALLBACK[costId]) return _compareCostOf(ISO_COST_FALLBACK[costId]);
+  return v || 0;
 }
 
 function diffBadge(curr, prev) {
@@ -419,7 +439,9 @@ function _updateCompareModeUI() {
 function _isoGetCost(t) {
   const thin1 = fieldVal('cost_900_1800_thin1'), thin2 = fieldVal('cost_900_1800_thin2');
   const mid   = fieldVal('cost_900_1800_mid'),   thick = fieldVal('cost_900_1800_thick');
-  if (t<=15) return thin1; if (t<=25) return thin2; if (t<=180) return mid; return thick;
+  if (t<=15) return thin1; if (t<=25) return thin2;
+  if (t<=40) return fieldVal('cost_900_1800_s30'); // 30T~40T(새 구간, 비어 있으면 mid)
+  if (t<=180) return mid; return thick;
 }
 function _isoGetMargin(t, src) {
   const k = `margin_iso_t${t}`;
@@ -471,7 +493,9 @@ function _isoCalcRow(t) {
 function _isoGetCost_fromData(s, t) {
   const t1=s.cost_900_1800_thin1||0, t2=s.cost_900_1800_thin2||0;
   const m=s.cost_900_1800_mid||0, th=s.cost_900_1800_thick||0;
-  if(t<=15) return t1; if(t<=25) return t2; if(t<=180) return m; return th;
+  if(t<=15) return t1; if(t<=25) return t2;
+  if(t<=40) return s.cost_900_1800_s30 || m; // 30T~40T(새 구간 — margins JSON에 있고, 비어 있으면 mid)
+  if(t<=180) return m; return th;
 }
 
 /* ── 경쟁사 최저가 자동 맞춤(아이소핑크) ──────────────────────────────
@@ -1054,9 +1078,11 @@ function _getCostId(tabId, grade, t) {
     if (grade.id === '1ho') {
       if (t <= 15) return 'cost_900_1800_thin1';
       if (t <= 25) return 'cost_900_1800_thin2';
-      return t <= 180 ? 'cost_900_1800_1ho_mid' : 'cost_900_1800_1ho_thick';
+      if (t <= 40) return 'cost_900_1800_1ho_s30'; // 30T~40T (2026-10-12 새 구간)
+      return t <= 180 ? 'cost_900_1800_1ho_mid' : 'cost_900_1800_1ho_thick'; // 50T~180T / 185T+
     }
-    return t <= 180 ? 'cost_900_1800_mid' : 'cost_900_1800_thick';
+    if (t <= 40) return 'cost_900_1800_s30'; // 특호 30T~40T (2026-10-12 새 구간)
+    return t <= 180 ? 'cost_900_1800_mid' : 'cost_900_1800_thick'; // 50T~180T / 185T+
   }
   if (tabId === 'bead') {
     return (grade.id === 'ib_09' || grade.id === 'ib_06') ? 'bead_cost_ib' : `bead_cost_${grade.id}`;
@@ -1254,7 +1280,7 @@ function _recalcTab(tabId) {
       const overrideEl  = document.getElementById(_getOverrideId(tabId, grade, t));
       const overrideVal = overrideEl && overrideEl.value.trim() !== '' ? parseFloat(overrideEl.value) : null;
       if (r && overrideVal) r = _applyPriceOverride(r, overrideVal, r.vatCost);
-      const prevCost    = (_compareData && costId) ? (_compareData[costId] || 0) : null;
+      const prevCost    = _compareCostOf(costId);
       const prevMargin  = _compareData ? _getMargin(tabId, grade, t, _compareData.margins ?? _compareData) : null;
       const badge       = diffBadge(r?.realPrice, prevCost ? compareFrSheetRealPrice(prevCost, prevMargin, grade.area) : null);
       const prevRate    = prevCost ? _rawMarginRate(calcFrSheetRow(prevCost, prevMargin, grade.area)) : null;
@@ -1283,7 +1309,7 @@ function _recalcTab(tabId) {
       const price1ho = _isoGradeRealPrice(g1ho, t);
       if (price1ho != null) r.diffFrom1ho = r.realPrice - price1ho;
     }
-    const prevCost    = (_compareData && costId) ? (_compareData[costId] || 0) : null;
+    const prevCost    = _compareCostOf(costId);
     const prevMargin  = _compareData ? _getMargin(tabId, grade, t, _compareData.margins ?? _compareData) : null;
     const badge       = diffBadge(r?.realPrice, prevCost ? compareRealPrice(prevCost, prevMargin, tEff, grade.area) : null);
     const prevRate    = prevCost ? _rawMarginRate(calcSheetRow(prevCost, prevMargin, tEff, grade.area)) : null;
@@ -1482,7 +1508,13 @@ async function syncAppProductPrices(source) {
   if (typeof supabaseClient === 'undefined' || !supabaseClient) return;
   const costsData   = source?.costs || {};
   const marginsData = source?.margins || {};
-  const cval = (id) => (id && costsData[id] != null) ? (parseFloat(costsData[id]) || 0) : 0;
+  // 새 원가 구간(30T~40T)은 margins JSON에 있고 비어 있으면 기존 구간 값을 쓴다(ISO_COST_FALLBACK)
+  const cval = (id) => {
+    if (!id) return 0;
+    const raw = costsData[id] != null ? costsData[id] : marginsData[id];
+    const n = parseFloat(raw) || 0;
+    return n || (ISO_COST_FALLBACK[id] ? cval(ISO_COST_FALLBACK[id]) : 0);
+  };
 
   const updates = [];
 
@@ -2338,7 +2370,7 @@ function buildIsopinkTab() {
       <thead><tr><th>품명</th><th>두께 구간</th><th>원가 (원/mm)<br><span class="pricing-th-tiny" style="font-weight:400;color:#94a3b8">= 원/m² ÷ 두께(mm)</span></th><th class="pricing-col-diff">이전대비</th></tr></thead>
       <tbody>
         <tr class="pcut-grade-row">
-          <td rowspan="4" class="pcut-name-cell pcut-grade1">Ⅱ-A<br><span class="pcut-name-sub">압출법 단열재<br>(1호)</span></td>
+          <td rowspan="5" class="pcut-name-cell pcut-grade1">Ⅱ-A<br><span class="pcut-name-sub">압출법 단열재<br>(1호)</span></td>
           <td><span class="pricing-range-label">10T ~ 15T</span></td>
           <td><input type="text" inputmode="numeric" id="cost_900_1800_thin1" class="pricing-input-field pcut-cost-field" placeholder="0" oninput="recalcIsopink()"></td>
           <td class="pcut-diff-cell" id="diff_cost_900_1800_thin1"><span class="pcut-diff-empty">—</span></td>
@@ -2347,7 +2379,11 @@ function buildIsopinkTab() {
           <td><input type="text" inputmode="numeric" id="cost_900_1800_thin2" class="pricing-input-field pcut-cost-field" placeholder="0" oninput="recalcIsopink()"></td>
           <td class="pcut-diff-cell" id="diff_cost_900_1800_thin2"><span class="pcut-diff-empty">—</span></td>
         </tr><tr>
-          <td><span class="pricing-range-label">30T ~ 180T</span></td>
+          <td><span class="pricing-range-label">30T ~ 40T</span></td>
+          <td><input type="text" inputmode="numeric" id="cost_900_1800_1ho_s30" class="pricing-input-field pcut-cost-field" placeholder="비우면 50T~180T 값" title="비워 두면 50T~180T 원가를 그대로 씁니다" oninput="recalcIsopink()"></td>
+          <td class="pcut-diff-cell" id="diff_cost_900_1800_1ho_s30"><span class="pcut-diff-empty">—</span></td>
+        </tr><tr>
+          <td><span class="pricing-range-label">50T ~ 180T</span></td>
           <td><input type="text" inputmode="numeric" id="cost_900_1800_1ho_mid" class="pricing-input-field pcut-cost-field" placeholder="0" oninput="recalcIsopink()"></td>
           <td class="pcut-diff-cell" id="diff_cost_900_1800_1ho_mid"><span class="pcut-diff-empty">—</span></td>
         </tr><tr>
@@ -2356,8 +2392,12 @@ function buildIsopinkTab() {
           <td class="pcut-diff-cell" id="diff_cost_900_1800_1ho_thick"><span class="pcut-diff-empty">—</span></td>
         </tr>
         <tr class="pcut-grade-row">
-          <td rowspan="2" class="pcut-name-cell pcut-special">Ⅱ-B-2<br><span class="pcut-name-sub">압출법 단열재<br>(특호)</span></td>
-          <td><span class="pricing-range-label">30T ~ 180T</span></td>
+          <td rowspan="3" class="pcut-name-cell pcut-special">Ⅱ-B-2<br><span class="pcut-name-sub">압출법 단열재<br>(특호)</span></td>
+          <td><span class="pricing-range-label">30T ~ 40T</span></td>
+          <td><input type="text" inputmode="numeric" id="cost_900_1800_s30" class="pricing-input-field pcut-cost-field" placeholder="비우면 50T~180T 값" title="비워 두면 50T~180T 원가를 그대로 씁니다" oninput="recalcIsopink()"></td>
+          <td class="pcut-diff-cell" id="diff_cost_900_1800_s30"><span class="pcut-diff-empty">—</span></td>
+        </tr><tr>
+          <td><span class="pricing-range-label">50T ~ 180T</span></td>
           <td><input type="text" inputmode="numeric" id="cost_900_1800_mid" class="pricing-input-field pcut-cost-field" placeholder="0" oninput="recalcIsopink()"></td>
           <td class="pcut-diff-cell" id="diff_cost_900_1800_mid"><span class="pcut-diff-empty">—</span></td>
         </tr><tr>

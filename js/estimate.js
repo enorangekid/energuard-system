@@ -185,7 +185,8 @@ function _estGetRealPrice(productId, t) {
 
     // ── 아이소핑크 ──
     if (productId.startsWith('iso_')) {
-      const cost = _isoGetCost_fromData(liveCosts, t);
+      // 새 원가 구간(30T~40T)은 margins JSON에 같이 저장돼 있어서 합쳐서 넘긴다(pricing.js ISO_EXTRA_COST_FIELDS)
+      const cost = _isoGetCost_fromData({ ...liveCosts, ...(marginSrc || {}) }, t);
       if (!cost) return null;
       const margin = _isoGetMargin(t, marginSrc);
       // "동일가로만 맞춤" 오버라이드(2026-09-04, pricing.js의 ALL_PRICE_OVERRIDE_FIELDS
