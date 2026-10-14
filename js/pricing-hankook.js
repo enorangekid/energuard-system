@@ -332,6 +332,8 @@ window.setHkPricingTab = function(tabId, el) {
     const suppPane = document.getElementById('pricing-tab-hk_supp');
     if (suppPane) suppPane.innerHTML = renderHkSupplementPane();
   }
+  // 경쟁사 가격 탭은 한국단열 판매가를 열 때마다 다시 읽어 와서 방금 고친 값이 바로 비교에 반영되게 한다.
+  if (tabId === 'hk_compare' && typeof window.hkCompareOnOpen === 'function') window.hkCompareOnOpen();
   // 카테고리 탭을 고르면 "카테고리 모드" — 기준단가(1·2단계)는 보이고
   // 채널의 3단계 실제 등록 상품 표는 숨긴다. 채널 탭 쪽은 선택 표시를 지워서
   // 지금 보고 있는 화면과 맞지 않는 버튼이 같이 눌려 보이지 않게 한다.
@@ -381,6 +383,8 @@ function renderHkCategoryPane(tabId) {
   if (tabId === 'hk_window' && typeof renderHkWindowPane === 'function') return renderHkWindowPane();
   // 추가상품은 단가표에서 가격이 계산되는 목록이라(저장값 없음) 전용 파일에서 렌더한다.
   if (tabId === 'hk_supp' && typeof renderHkSupplementPane === 'function') return renderHkSupplementPane();
+  // 경쟁사 가격 비교(js/pricing-hankook-compare.js) — 그 파일을 불러온 화면에서만 탭이 생긴다.
+  if (tabId === 'hk_compare' && typeof renderHkComparePane === 'function') return renderHkComparePane();
 
   // 카테고리가 채워지면 여기에 전용 렌더 함수를 추가하면 됨 (renderHkIsopinkPane와 같은 패턴).
 
@@ -453,7 +457,7 @@ function _hkIsoDraftUpdateRowTooltip(row) {
   const isBead = row.dataset.line === 'bead';
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-margin-per-mm'), isBead
     ? `적용 원가: ${_hkNumberFormat.format(marginPerMm)}원/mm\n기본 원가(원/㎡·mm) × 원장 면적 + 추가마진(공통 원가 설정 카드)이고 두께와 관계없이 같습니다.`
-    : `적용 원가: ${_hkNumberFormat.format(marginPerMm)}원/mm\n구간 기본 원가 ${_hkNumberFormat.format(_hkIsoDraftBaseCost(thickness))}원/mm + 두께별 추가마진으로 계산됩니다.`);
+    : `적용 원가: ${_hkNumberFormat.format(marginPerMm)}원/mm\n구간 실제 원가 ${_hkNumberFormat.format(_hkIsoDraftBaseCost(thickness))}원/mm와 별개로 직접 입력한 값입니다(공통 원가 카드 ② 적용 원가 표).`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-sheet-cost'),
     `원가 = 적용 원가 ${_hkNumberFormat.format(marginPerMm)}원/mm × ${thickness}T${addonText}\n= ${_hkNumberFormat.format(sheetCost)}원`);
   _hkIsoDraftSetTooltip(row.children[4],
@@ -480,7 +484,14 @@ function _hkIsoDraftUpdateRowTooltip(row) {
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-net-margin'),
     `장당마진 = 마진 ${_hkIsoDraftNumber(rawMargin)}원 - 수수료 ${_hkNumberFormat.format(fee)}원 - 부가세 ${_hkNumberFormat.format(vat)}원${shipping ? ` - 배송비 ${_hkNumberFormat.format(shipping)}원` : ''}\n= ${_hkIsoDraftNumber(rawNetMargin)}원${rawNetMargin !== netMargin ? ` → 반올림 ${_hkNumberFormat.format(netMargin)}원` : ''}`);
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-rate'),
-    `순수마진율 = 장당마진 ${_hkNumberFormat.format(netMargin)}원 ÷ 최종 판매가 ${_hkNumberFormat.format(finalPrice)}원 × 100\n= ${rate}%`);
+    `순수마진율(적용) = 장당마진 ${_hkNumberFormat.format(netMargin)}원 ÷ 최종 판매가 ${_hkNumberFormat.format(finalPrice)}원 × 100\n= ${rate}%\n직접 입력한 적용 원가 기준입니다.`);
+  const actualRateCell = row.querySelector('.hk-iso-draft-rate-actual');
+  if (actualRateCell) {
+    const actual = _hkIsoDraftActualMargin(thickness, fixedCostAddon, saleSize, finalPrice, shipping);
+    const actualNet = finalPrice - actual.saleCost - fee - vat - shipping;
+    _hkIsoDraftSetTooltip(actualRateCell,
+      `순수마진율(실제) = (최종 판매가 ${_hkNumberFormat.format(finalPrice)}원 - 실제 판매원가 ${_hkNumberFormat.format(Math.round(actual.saleCost))}원 - 수수료 ${_hkNumberFormat.format(fee)}원 - 부가세 ${_hkNumberFormat.format(vat)}원${shipping ? ` - 배송비 ${_hkNumberFormat.format(shipping)}원` : ''}) ÷ 최종 판매가\n= ${_hkNumberFormat.format(Math.round(actualNet))}원 → ${actual.rate}%\n실제 원가 ${_hkNumberFormat.format(_hkIsoDraftBaseCost(thickness))}원/mm 기준입니다.`);
+  }
   _hkIsoDraftSetTooltip(row.querySelector('.hk-iso-draft-ref-margin'),
     `참고마진 ${referenceMargin}%\n예상판매가가 달성해야 하는 목표 순수마진율입니다.`);
 }
@@ -502,6 +513,17 @@ function _hkIsoDraftExpectedPrice(saleCost, referenceMargin, shipping = 0) {
     price += 100;
   }
   return price;
+}
+
+/* 실제 원가 기준 순수마진율 — 직접 입력한 적용 원가로 계산한 순수마진율과 따로 본다.
+   실제 원가 = 구간 실제 원가 × 두께 + 접착 가공비. 반환: { saleCost, rate } */
+function _hkIsoDraftActualMargin(thickness, fixedCostAddon, saleSize, price, shipping) {
+  const divisor = _hkIsoDraftDivisor(saleSize);
+  const quantity = Number(String(saleSize).split('-').pop()) || 1;
+  const saleCost = (_hkIsoDraftBaseCost(thickness) * Number(thickness) + Number(fixedCostAddon || 0)) / divisor * quantity;
+  if (!(price > 0)) return { saleCost, rate: 0 };
+  const net = price - saleCost - Math.round(price * 0.06) - Math.round(price * 0.10) - Number(shipping || 0);
+  return { saleCost, rate: Math.round(net / price * 100) };
 }
 
 function _hkIsoDraftBaseBand(thickness) {
@@ -528,16 +550,24 @@ function _hkIsoDraftMarginCard() {
     <td><input type="text" inputmode="numeric" id="hkIsoDraftBaseCost-${band}" class="pricing-input-field hk-iso-base-cost-input" value="${HK_ISO_DRAFT_BASE_COSTS[band]}" oninput="updateHkIsoDraftBaseCost('${band}',this)" onblur="formatHkIsoDraftPrice(this)"></td>
   </tr>`).join('');
 
+  // 두께별 적용 원가 표 — 적용 원가는 직접 입력한다(updateHkIsoAppliedCost). 저장 형식은 그대로 '추가마진'(= 적용 − 실제)이다.
+  const appliedRows = Object.keys(HK_ISO_DRAFT_EXTRA_MARGINS).map(thickness => {
+    const base = _hkIsoDraftBaseCost(Number(thickness));
+    const extra = Number(HK_ISO_DRAFT_EXTRA_MARGINS[thickness] || 0);
+    return `<tr>
+    <td><span class="pricing-range-label">${thickness}T</span></td>
+    <td class="hk-iso-base-cost-preview" data-thickness="${thickness}">${_hkIsoDraftNumber(base)}</td>
+    <td><input type="text" inputmode="numeric" class="pricing-input-field hk-iso-base-cost-input hk-iso-applied-cost-input" data-thickness="${thickness}" value="${base + extra}" oninput="updateHkIsoAppliedCost(${thickness},this)" onblur="formatHkIsoDraftPrice(this)"></td>
+  </tr>`;
+  }).join('');
+
   return `<div class="card pricing-cost-card hk-iso-draft-margin-card" data-draft-tab="shared">
-    <div class="pricing-section-title">공통 원가·배송 설정 <span class="pricing-section-sub">— 두께구간 기본 원가 + 두께별 추가마진 · 배송 정책</span></div>
+    <div class="pricing-section-title">공통 원가·배송 설정 <span class="pricing-section-sub">— 두께구간 실제 원가 · 두께별 적용 원가 · 배송 정책</span></div>
     <div class="pricing-cost-footer hk-iso-shared-cost-controls">
       <div class="pricing-base-month-wrap">
         <label class="pricing-base-month-label" for="hkIsoBaseMonth">단가 기준 년월</label>
         <input type="month" id="hkIsoBaseMonth" class="pricing-input-field pricing-month-field" value="${HK_ISO_DRAFT_BASE_MONTH}" oninput="hkIsoSetBaseMonth(this.value)">
       </div>
-      <button type="button" class="pricing-margin-edit-btn" onclick="openHkIsoDraftMarginModal()">
-        <i class="fa-solid fa-sliders"></i> 마진 편집
-      </button>
       <button type="button" class="pricing-margin-edit-btn" onclick="openHkIsoAdhesiveModal()" title="접착식 원장 한 장마다 원가에 더하는 가공비를 수정합니다.">
         <i class="fa-solid fa-layer-group"></i> 접착 가공비
       </button>
@@ -547,9 +577,17 @@ function _hkIsoDraftMarginCard() {
     </div>
     <div class="pricing-cost-card-inner">
       <div class="pricing-input-table-wrap">
+        <div class="pricing-section-sub" style="margin-bottom:6px;font-weight:700;color:#334155;">① 실제 원가 <span style="font-weight:400;">— 매입 기준(마진율 '실제'의 기준)</span></div>
         <table class="pricing-cost-unified-table hk-iso-base-cost-table">
-          <thead><tr><th>두께 구간</th><th>기본 원가<br><span class="pricing-th-tiny">원/mm</span></th></tr></thead>
+          <thead><tr><th>두께 구간</th><th>실제 원가<br><span class="pricing-th-tiny">원/mm</span></th></tr></thead>
           <tbody>${rangeRows}</tbody>
+        </table>
+      </div>
+      <div class="pricing-input-table-wrap" style="margin-left:28px;">
+        <div class="pricing-section-sub" style="margin-bottom:6px;font-weight:700;color:#334155;">② 적용 원가 <span style="font-weight:400;">— 직접 입력 · 판매원가와 '적용' 마진율의 기준</span></div>
+        <table class="pricing-cost-unified-table hk-iso-base-cost-table">
+          <thead><tr><th>두께</th><th>실제 원가<br><span class="pricing-th-tiny">원/mm</span></th><th>적용 원가<br><span class="pricing-th-tiny">원/mm</span></th></tr></thead>
+          <tbody>${appliedRows}</tbody>
         </table>
       </div>
     </div>
@@ -672,6 +710,8 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, f
   const showUnified = !(draft && draft.hideUnifiedShipping);
   const deductShipping = !(draft && draft.deductShipping === false);
   const shippingHeader = (draft && draft.shippingHeader) || '배송비';
+  // 스티로폼 행(draft.line)은 원가 구조가 달라 실제 마진율 칸을 두지 않는다.
+  const showActual = !(draft && draft.line);
   let currentThickness = null;
   let currentSheetCost = null;
   let currentMarginPerMm = null;
@@ -713,6 +753,7 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, f
     <td class="hk-iso-draft-shipping${deductShipping ? '' : ' hk-iso-ref-only'}">${row.shipping ? _hkIsoDraftNumber(row.shipping) : '—'}</td>
     <td class="hk-iso-draft-net-margin">${_hkIsoDraftNumber(row.netMargin)}</td>
     <td class="hk-iso-draft-rate">${_hkIsoDraftNumber(row.rate, '%')}</td>
+    ${showActual ? `<td class="hk-iso-draft-rate-actual">${_hkIsoDraftNumber(_hkIsoDraftActualMargin(currentThickness, fixedCostAddon, row.saleSize, Number(row.price), calcShipping).rate, '%')}</td>` : ''}
     <td class="hk-iso-draft-ref-margin">${_hkIsoDraftNumber(row.refMargin, '%')}</td>
   </tr>`;
   }).join('');
@@ -737,7 +778,8 @@ function _hkIsoDraftSalesTable(tabId, sourceRows, priceHeader, saleGroupLabel, f
           <th rowspan="2" class="hk-iso-head-margin">부가세<br>10%</th>
           <th rowspan="2" class="hk-iso-head-margin">${shippingHeader}</th>
           <th rowspan="2" class="hk-iso-head-margin">장당마진</th>
-          <th rowspan="2" class="hk-iso-head-rate">순수마진율</th>
+          <th rowspan="2" class="hk-iso-head-rate">${showActual ? '순수마진율<br>(적용)' : '순수마진율'}</th>
+          ${showActual ? '<th rowspan="2" class="hk-iso-head-rate">순수마진율<br>(실제)</th>' : ''}
           <th rowspan="2" class="hk-iso-ref-margin-head">참고마진</th>
         </tr>
         <tr class="hk-iso-draft-unit-row">
@@ -3514,35 +3556,6 @@ window.handleHkIsoRowPriceKey = function(event, input) {
   }
 };
 
-window.openHkIsoDraftMarginModal = function() {
-  const modal = document.getElementById('hkIsoMarginModal');
-  const body = document.getElementById('hkIsoMarginModalBody');
-  if (!modal || !body) return;
-  const rows = Object.entries(HK_ISO_DRAFT_EXTRA_MARGINS).map(([thickness, margin]) => {
-    const baseCost = _hkIsoDraftBaseCost(Number(thickness));
-    return `<tr>
-      <td class="pim-td-t">${thickness}T</td>
-      <td class="hk-iso-base-cost-preview">${_hkIsoDraftNumber(baseCost)}</td>
-      <td><input type="text" inputmode="numeric" id="hkIsoMarginModal-${thickness}" class="pim-input pim-input-margin" value="${margin}" style="width:82px" oninput="previewHkIsoDraftMargin(${thickness},this)"></td>
-      <td class="hk-iso-applied-cost-preview" data-modal-thickness="${thickness}">${_hkIsoDraftNumber(baseCost + Number(margin))}</td>
-    </tr>`;
-  }).join('');
-  body.innerHTML = `<div class="pim-section-title">아이소핑크 — 두께별 추가마진 (원/mm)</div>
-    <div class="pim-margin-hint">추가마진은 구간 기본 원가에 더해집니다. 음수를 입력하면 기본 원가보다 낮아집니다.</div>
-    <div class="pim-table-scroll-wrap">
-      <table class="pim-table pim-margin-only-table hk-iso-margin-modal-table">
-        <thead><tr><th>두께</th><th>기본 원가</th><th>추가마진</th><th>적용 원가</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
-  modal.style.display = 'flex';
-};
-
-window.closeHkIsoDraftMarginModal = function() {
-  const modal = document.getElementById('hkIsoMarginModal');
-  if (modal) modal.style.display = 'none';
-};
-
 /* 접착 가공비(접착식 원장 한 장당 원가에 더하는 고정 금액) 편집 창 */
 window.openHkIsoAdhesiveModal = function() {
   const modal = document.getElementById('hkIsoAdhesiveModal');
@@ -3585,21 +3598,6 @@ window.hkIsoSetBaseMonth = function(value) {
   });
 };
 
-window.previewHkIsoDraftMargin = function(thickness, input) {
-  const preview = document.querySelector(`.hk-iso-applied-cost-preview[data-modal-thickness="${thickness}"]`);
-  if (preview) preview.textContent = _hkIsoDraftNumber(_hkIsoDraftBaseCost(thickness) + _hkIsoDraftParseNumber(input.value));
-};
-
-window.confirmHkIsoDraftMarginModal = function() {
-  Object.keys(HK_ISO_DRAFT_EXTRA_MARGINS).forEach(thickness => {
-    const input = document.getElementById(`hkIsoMarginModal-${thickness}`);
-    if (input) HK_ISO_DRAFT_EXTRA_MARGINS[thickness] = _hkIsoDraftParseNumber(input.value);
-  });
-  Object.keys(HK_ISO_DRAFT_EXTRA_MARGINS).forEach(thickness => _hkIsoDraftApplySharedCost(Number(thickness)));
-  closeHkIsoDraftMarginModal();
-  if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
-};
-
 function _hkIsoDraftApplySharedCost(thickness) {
   const baseCost = _hkIsoDraftBaseCost(thickness);
   const extraMargin = Number(HK_ISO_DRAFT_EXTRA_MARGINS[thickness] || 0);
@@ -3607,16 +3605,37 @@ function _hkIsoDraftApplySharedCost(thickness) {
   document.querySelectorAll(`.hk-iso-base-cost-preview[data-thickness="${thickness}"]`).forEach(cell => {
     cell.textContent = _hkIsoDraftNumber(baseCost);
   });
-  document.querySelectorAll(`.hk-iso-applied-cost-preview[data-thickness="${thickness}"]`).forEach(cell => {
-    cell.textContent = _hkIsoDraftNumber(appliedCost);
+  document.querySelectorAll(`.hk-iso-applied-cost-input[data-thickness="${thickness}"]`).forEach(input => {
+    if (document.activeElement !== input) input.value = _hkIsoDraftNumber(appliedCost);
   });
   window.updateHkIsoDraftMargin('shared', Number(thickness), { value: appliedCost });
 }
 
+/* 실제 원가를 바꿔도 적용 원가는 그대로 둔다(적용 원가는 사람이 정한 값) — 저장 값인 추가마진(= 적용 − 실제)을 그만큼 맞춘다. */
 window.updateHkIsoDraftBaseCost = function(band) {
+  const input = document.getElementById(`hkIsoDraftBaseCost-${band}`);
+  const previous = Number(HK_ISO_DRAFT_BASE_COSTS[band] || 0);
+  const next = input ? _hkIsoDraftParseNumber(input.value) : previous;
+  if (next !== previous) {
+    Object.keys(HK_ISO_DRAFT_EXTRA_MARGINS).forEach(thickness => {
+      if (_hkIsoDraftBaseBand(thickness) === band) {
+        HK_ISO_DRAFT_EXTRA_MARGINS[thickness] = Number(HK_ISO_DRAFT_EXTRA_MARGINS[thickness] || 0) + previous - next;
+      }
+    });
+    HK_ISO_DRAFT_BASE_COSTS[band] = next;
+  }
   Object.keys(HK_ISO_DRAFT_EXTRA_MARGINS).forEach(thickness => {
     if (_hkIsoDraftBaseBand(thickness) === band) _hkIsoDraftApplySharedCost(Number(thickness));
   });
+  if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
+};
+
+/* 두께별 적용 원가를 직접 입력한다 — 저장은 예전 형식 그대로 추가마진(= 적용 원가 − 실제 원가)으로 한다. */
+window.updateHkIsoAppliedCost = function(thickness, input) {
+  const applied = _hkIsoDraftParseNumber(input.value);
+  HK_ISO_DRAFT_EXTRA_MARGINS[thickness] = applied - _hkIsoDraftBaseCost(Number(thickness));
+  _hkIsoDraftApplySharedCost(Number(thickness));
+  if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
 };
 
 /* 행 하나의 원가(mm당 원가 × 두께 + 접착 가공비)를 새로 계산해서 판매원가·예상판매가·마진을 갱신한다.
@@ -3697,6 +3716,11 @@ window.recalcHkIsoDraftRow = function(input) {
   row.querySelector('.hk-iso-draft-vat').textContent = _hkIsoDraftNumber(vat);
   row.querySelector('.hk-iso-draft-net-margin').textContent = _hkIsoDraftNumber(netMargin);
   row.querySelector('.hk-iso-draft-rate').textContent = _hkIsoDraftNumber(rate, '%');
+  const actualCell = row.querySelector('.hk-iso-draft-rate-actual');
+  if (actualCell) {
+    const actual = _hkIsoDraftActualMargin(row.dataset.thickness, _hkIsoDraftParseNumber(row.dataset.fixedCostAddon), row.dataset.saleSize, price, shipping);
+    actualCell.textContent = _hkIsoDraftNumber(actual.rate, '%');
+  }
   _hkIsoDraftUpdateRowTooltip(row);
   _hkIsoRefreshUnifiedRowElement(row);
 };
@@ -3707,8 +3731,6 @@ window.formatHkIsoDraftPrice = function(input) {
 };
 
 document.addEventListener('click', function(event) {
-  const modal = document.getElementById('hkIsoMarginModal');
-  if (modal && event.target === modal) closeHkIsoDraftMarginModal();
   const adhesiveModal = document.getElementById('hkIsoAdhesiveModal');
   if (adhesiveModal && event.target === adhesiveModal) closeHkIsoAdhesiveModal();
   const shippingModal = document.getElementById('hkIsoShippingModal');
