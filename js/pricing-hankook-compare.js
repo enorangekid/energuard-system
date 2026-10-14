@@ -49,12 +49,12 @@
       ],
     },
     {
-      // 열반사단열재 — 같은 길이·같은 두께끼리 "두께 × 제품 옵션"별 판매가를 비교한다(kind:'unit'). 길이 1·5·10·25·50M를 탭으로 고른다.
+      // 열반사단열재 — 같은 길이·같은 두께끼리 "두께 × 제품 옵션"별 판매가를 비교한다(kind:'unit'). 길이 1·5·10·20·25·50M를 탭으로 고른다.
       // 옵션 키는 빌트론 상품코드(BL_{두께}_{길이}_{SN|SA|DN|DA})의 끝 두 글자와 같다 — S 일반형·D 고급형, N 비접착·A 한쪽접착.
       // id는 처음 1M만 만들 때의 'refl_1m'을 그대로 둔다(저장된 자료와 이어지게). 길이는 줄의 len 값(없으면 1)이다.
       id: 'refl_1m', kind: 'unit', categoryId: 'hk_reflective', unitLabel: 'M',
       title: '열반사단열재 경쟁사 가격 비교표',
-      lengths: [1, 5, 10, 25, 50],
+      lengths: [1, 5, 10, 20, 25, 50],
       keyword: /열반사|알루미늄|은박|빌트론|열 반사|단열\s*롤/i,
       thicknesses: [5, 6, 10, 13],
       options: [
@@ -178,6 +178,17 @@
     try { price = _hkChannelHkdPrice(table.categoryId, code); } catch (e) { price = null; }
     const { ship, every } = shippingInfo(code);
     return { t, code, sheets, price, ship, every, spec: table.size };
+  }
+
+  /* 업체 상품 주소 — 두께·규격마다 상품이 다른 업체가 있어 여러 개일 수 있다. 저장값은 문자열(예전) 또는 배열이다. */
+  const asList = v => (Array.isArray(v) ? v : (v ? [v] : [])).map(x => String(x).trim()).filter(Boolean);
+  /* 길이마다 표는 서로 독립이다(업체 종류도, 판매 상품도, 상품 주소도 길이마다 다를 수 있다). 주소 키: '업체'(= 1M), '업체@5'(= 5M) …
+     길이 사이에 주소를 물려받지 않는다. 주소가 따로 적혀 있지 않으면 그 길이 칸이 읽힌 상품 페이지(줄의 link)를 보여 준다. */
+  function companyLinks(table, name, len = 1) {
+    const specific = asList((state.links[table.id] || {})[len > 1 ? `${name}@${len}` : name]);
+    if (specific.length) return specific;
+    // 따로 적힌 주소가 없으면, 그 길이 칸들이 읽힌 상품 페이지(두께마다 상품이 다른 업체는 여러 개)를 중복 없이 보여 준다
+    return [...new Set((state.rows[table.id] || []).filter(r => r.comp === name && r.link && (Number(r.len) || 1) === len).map(r => r.link))];
   }
 
   /* 길이(M) — 줄에 len이 없으면 1M(처음 1M만 만들 때 저장된 줄). */
@@ -355,11 +366,27 @@
      칸을 비우면 그 업체 가격을 지운다. 새 업체는 [+ 업체]로 열을 더한다. 링크·확인일은 칸에 마우스를 올리면 보인다. */
   const matrixComps = {}; // tableId → 그리는 순간의 업체 열 순서(칸 편집 핸들러가 인덱스로 찾는다)
 
-  function matrixCompsOf(table) {
-    const rows = state.rows[table.id] || [];
+  /* 길이별로 따로 두는 '가격 줄은 없지만 열은 남겨 둔' 업체 목록 — extraComps[표][길이] = [이름…]. */
+  function extraList(tableId, len, create) {
+    const all = state.extraComps = state.extraComps || {};
+    if (Array.isArray(all[tableId])) all[tableId] = { 1: all[tableId] }; // 예전 형식(길이 구분 없음 = 1M)
+    const byLen = all[tableId] = all[tableId] || {};
+    return create ? (byLen[len] = byLen[len] || []) : (byLen[len] || []);
+  }
+
+  /* 그 길이에 있는 업체(가격 줄이 있거나 열만 남겨 둔 업체). */
+  function matrixCompsOf(table, len = 1) {
     const names = [];
-    rows.forEach(r => { if (r.comp && !names.includes(r.comp)) names.push(r.comp); });
-    (state.extraComps && state.extraComps[table.id] || []).forEach(n => { if (!names.includes(n)) names.push(n); });
+    (state.rows[table.id] || []).forEach(r => { if (r.comp && rowLen(r) === len && !names.includes(r.comp)) names.push(r.comp); });
+    extraList(table.id, len).forEach(n => { if (!names.includes(n)) names.push(n); });
+    return names;
+  }
+
+  /* 모든 길이를 합친 업체 이름(저장·수집 대상 계산용). */
+  function matrixCompsAll(table) {
+    const names = [];
+    const lens = new Set([...(table.lengths || [1]), ...(state.rows[table.id] || []).map(rowLen)]);
+    [...lens].sort((a, b) => a - b).forEach(len => matrixCompsOf(table, len).forEach(n => { if (!names.includes(n)) names.push(n); }));
     return names;
   }
 
@@ -417,19 +444,26 @@
 
   function unitTableHtml(table, listId) {
     const rows = state.rows[table.id] || [];
-    const comps = matrixComps[table.id] = matrixCompsOf(table);
+    const len = uiOf(table.categoryId).len || 1; // 지금 고른 길이(M)
+    // 그 길이에서 파는 상품이 없는 업체(예: 1M에만 있는 업체)는 이 길이 표에서 열을 뺀다. [편집] 중에는 업체를 관리할 수 있게 모두 보인다.
+    const comps = matrixComps[table.id] = matrixCompsOf(table, len)
+      .filter(name => editingOn(table) || rows.some(r => r.comp === name && rowLen(r) === len && num(r.price)));
     const thicknesses = [...new Set([...table.thicknesses, ...rows.map(r => Number(r.t))])].sort((a, b) => a - b);
     const withShip = withShipOn(table);
-    const len = uiOf(table.categoryId).len || 1; // 지금 고른 길이(M)
     const compW = Math.floor(48 / Math.max(comps.length, 1));
     const C = 'text-align:center;'; // 숫자·머리글을 모두 가운데 맞춤 — 머리글과 숫자가 어긋나 보이지 않게
     const head = `<colgroup><col style="width:7%"><col style="width:12%">${comps.map(() => `<col style="width:${compW}%">`).join('')}<col style="width:18%"><col style="width:${100 - 7 - 12 - compW * comps.length - 18}%"></colgroup>
       <thead><tr><th>두께</th><th>제품 옵션</th>
         ${comps.map((name, ci) => {
-          const url = (state.links[table.id] || {})[name] || (rows.find(r => r.comp === name && r.link) || {}).link || '';
-          const icon = url ? ` <a href="${esc(url)}" target="_blank" rel="noopener" title="비교 상품 페이지" style="color:#a5b4fc;margin-left:4px;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>` : '';
+          const urls = companyLinks(table, name, len);
+          const icon = urls.length === 1
+            ? ` <a href="${esc(urls[0])}" target="_blank" rel="noopener" title="${len}M 비교 상품 페이지" style="color:#a5b4fc;margin-left:4px;"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`
+            : (urls.length > 1
+              ? ` <span role="button" tabindex="0" title="${len}M 비교 상품 페이지 ${urls.length}개 — 눌러서 목록 보기" onclick="hkCmpShowLinks(event,'${table.id}',${ci})" style="margin-left:4px;cursor:pointer;color:#a5b4fc;"><i class="fa-solid fa-arrow-up-right-from-square"></i><span style="font-size:10px;margin-left:2px;">${urls.length}</span></span>`
+              : '');
+          const linkEdit = COMPANY_EDITABLE && editingOn(table) ? ` <span role="button" tabindex="0" title="${esc(name)} ${len}M 비교 상품 주소 편집" onclick="hkCmpEditLinks('${table.id}',${ci})" style="margin-left:6px;cursor:pointer;color:#a5b4fc;"><i class="fa-solid fa-pen"></i></span>` : '';
           const del = COMPANY_EDITABLE && editingOn(table) ? ` <span role="button" tabindex="0" title="${esc(name)} 열 삭제" onclick="hkCmpDelComp('${table.id}',${ci})" style="margin-left:8px;cursor:pointer;color:#94a3b8;"><i class="fa-solid fa-xmark"></i></span>` : '';
-          return `<th>${esc(name)}${icon}${del}</th>`;
+          return `<th>${esc(name)}${icon}${linkEdit}${del}</th>`;
         }).join('')}
         <th style="background:#4f46e5;">한국단열(빌트론)<br>${len}M ${withShip ? '판매가+배송비' : '판매가'}</th><th>최저가 대비</th></tr></thead>`;
     // 배송비 줄 — 업체마다 배송비와 N개마다를 직접 입력한다(확장으로 수집되지 않는다).
@@ -453,7 +487,12 @@
         const per = shipPerUnit(table, shipKey(name, len));
         const tip = row ? `${row.checked ? `확인일 ${row.checked}` : '확인일 기록 없음'}${row.link ? ' · 링크 있음' : ''}${withShip && per != null ? ` · 판매가 ${Number(price).toLocaleString('ko-KR')} + 배송비 ${Math.round(per).toLocaleString('ko-KR')}` : ''}` : '';
         if (!EDITABLE) {
-          return `<td style="border-left:1px solid #eef2f7;${C}" title="${esc(tip)}"><span style="font-size:13px;font-weight:600;color:#334155;">${shown === '' ? '<span style="color:#d5dbe3;font-weight:400;">—</span>' : Math.round(shown).toLocaleString('ko-KR')}</span></td>`;
+          const valueHtml = shown === '' ? '<span style="color:#d5dbe3;font-weight:400;">—</span>' : Math.round(shown).toLocaleString('ko-KR');
+          // 이 가격이 나온 상품 페이지가 기록돼 있으면 눌러서 연다(길이·두께마다 상품이 다른 업체도 칸마다 맞는 페이지)
+          const cellInner = shown !== '' && row && row.link
+            ? `<a href="${esc(row.link)}" target="_blank" rel="noopener" title="이 가격이 나온 상품 페이지 열기" style="font-size:13px;font-weight:600;color:#334155;text-decoration:none;border-bottom:1px dotted #94a3b8;">${valueHtml}</a>`
+            : `<span style="font-size:13px;font-weight:600;color:#334155;">${valueHtml}</span>`;
+          return `<td style="border-left:1px solid #eef2f7;${C}" title="${esc(tip)}">${cellInner}</td>`;
         }
         return `<td style="border-left:1px solid #eef2f7;"><input type="text" inputmode="numeric" class="pricing-input-field" data-hkcm="${t}|${opt.key}|${ci}" title="${esc(tip)}"
             style="width:100%;height:26px;padding:0 6px;font-size:12px;text-align:center;" value="${price === '' ? '' : Number(price).toLocaleString('ko-KR')}" placeholder=""
@@ -526,8 +565,8 @@
     if (value == null) {
       if (idx >= 0) list.splice(idx, 1);
       // 마지막 가격을 지워도 업체 열은 남겨 둔다(열 삭제는 머리글의 ×).
-      const extra = state.extraComps = state.extraComps || {};
-      if (!(extra[tableId] || (extra[tableId] = [])).includes(comp)) extra[tableId].push(comp);
+      const kept = extraList(tableId, len, true);
+      if (!kept.includes(comp)) kept.push(comp);
       input.value = '';
     } else {
       input.value = value.toLocaleString('ko-KR');
@@ -545,28 +584,97 @@
   window.hkCmpAddComp = function (tableId) {
     const name = String(window.prompt('추가할 경쟁사 이름을 입력하세요') || '').trim();
     if (!name) return;
-    if (matrixCompsOf(tableOf(tableId)).includes(name)) { toast(`"${name}"은(는) 이미 있습니다.`, 'error'); return; }
+    const len = uiOf(tableOf(tableId).categoryId).len || 1;
+    if (matrixCompsOf(tableOf(tableId), len).includes(name)) { toast(`"${name}"은(는) ${len}M 표에 이미 있습니다.`, 'error'); return; }
     const url = String(window.prompt('비교할 상품 페이지 주소를 입력하세요(스마트스토어 상품 주소, 없으면 비워 두세요)') || '').trim();
     if (url && !/^https:\/\/smartstore\.naver\.com\/[^/]+\/products\/\d+\/?$/.test(url)) {
       toast('스마트스토어 상품 주소 형식이 아닙니다(https://smartstore.naver.com/스토어/products/번호).', 'error');
       return;
     }
-    const extra = state.extraComps = state.extraComps || {};
-    (extra[tableId] = extra[tableId] || []).push(name);
-    if (url) (state.links[tableId] = state.links[tableId] || {})[name] = url;
+    extraList(tableId, len, true).push(name);
+    if (url) (state.links[tableId] = state.links[tableId] || {})[len > 1 ? `${name}@${len}` : name] = [url];
     markDirty();
     rerender();
+  };
+
+  /* 업체 비교 상품 주소 편집 — 한 줄에 하나(두께·규격마다 상품이 다르면 여러 개). 수집은 적힌 주소를 모두 연다. */
+  window.hkCmpEditLinks = function (tableId, ci) {
+    const table = tableOf(tableId);
+    const name = (matrixComps[tableId] || [])[ci];
+    if (!table || !name) return;
+    const len = uiOf(table.categoryId).len || 1;
+    const linkKey = len > 1 ? `${name}@${len}` : name;
+    const ownLinks = asList((state.links[tableId] || {})[linkKey]);
+    let dialog = document.getElementById('hkCompareLinksDialog');
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.id = 'hkCompareLinksDialog';
+      dialog.className = 'pv-dialog';
+      document.body.appendChild(dialog);
+    }
+    dialog.innerHTML = `<div class="pricing-input-modal-header">
+        <div class="pim-header-left">
+          <span class="pim-title"><i class="fa-solid fa-link"></i> ${esc(name)} · ${len}M 비교 상품 주소</span>
+          <span class="pim-sub">한 줄에 하나 · 스마트스토어 상품 주소</span>
+        </div>
+        <button type="button" class="pim-close-btn" data-close><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="pv-body">
+        <div class="pv-hint"><i class="fa-solid fa-circle-info"></i>
+          <span>길이마다 표는 서로 독립이라 ${len}M 표에만 쓰는 주소입니다. 같은 길이의 상품이 두께마다 따로 있으면 여러 줄로 적습니다. [경쟁사 가격 확인]은 모든 길이 표의 주소를 열어 읽고, 읽은 옵션은 길이에 맞는 표에 들어갑니다.</span>
+        </div>
+        <textarea class="pim-input" data-links rows="6" spellcheck="false" style="width:100%;height:auto;font-size:13px;line-height:1.5;padding:10px;" placeholder="https://smartstore.naver.com/스토어/products/상품번호">${esc(ownLinks.join('\n'))}</textarea>
+        <div class="pctd-status-bar" data-statusbar><span data-status role="status"></span></div>
+        <div class="pctd-actions">
+          <button type="button" class="pim-btn-confirm" data-save><i class="fa-solid fa-check"></i> 확인</button>
+          <button type="button" class="pim-btn-cancel" data-cancel>취소</button>
+        </div>
+      </div>`;
+    const close = () => dialog.close();
+    dialog.querySelector('[data-close]').onclick = close;
+    dialog.querySelector('[data-cancel]').onclick = close;
+    dialog.querySelector('[data-save]').onclick = () => {
+      const lines = [...new Set(dialog.querySelector('[data-links]').value.split(/\r?\n/).map(l => l.trim()).filter(Boolean))];
+      const bad = lines.filter(l => !SMARTSTORE_PRODUCT.test(l));
+      if (bad.length) { dialog.querySelector('[data-status]').textContent = `스마트스토어 상품 주소 형식이 아닙니다: ${bad[0]}`; return; }
+      (state.links[tableId] = state.links[tableId] || {})[linkKey] = lines;
+      markDirty();
+      rerender();
+      close();
+    };
+    dialog.showModal();
+  };
+
+  window.hkCmpShowLinks = function (event, tableId, ci) {
+    event.stopPropagation();
+    const table = tableOf(tableId);
+    const name = (matrixComps[tableId] || [])[ci];
+    if (!table || !name) return;
+    document.getElementById('hkCmpLinksPopup')?.remove();
+    const len = uiOf(table.categoryId).len || 1;
+    const pop = document.createElement('div');
+    pop.id = 'hkCmpLinksPopup';
+    const rect = event.currentTarget.getBoundingClientRect();
+    pop.style.cssText = `position:fixed;z-index:9000;left:${Math.max(8, rect.left - 40)}px;top:${rect.bottom + 6}px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.15);padding:8px 10px;max-width:420px;font-size:12px;`;
+    pop.innerHTML = `<div style="font-weight:700;color:#334155;margin-bottom:6px;">${esc(name)} · ${len}M 상품 주소</div>` + companyLinks(table, name, len)
+      .map((u, i) => `<div style="margin:3px 0;"><a href="${esc(u)}" target="_blank" rel="noopener" style="color:#4f46e5;word-break:break-all;">${i + 1}. ${esc(u.replace('https://smartstore.naver.com/', ''))}</a></div>`).join('');
+    document.body.appendChild(pop);
+    setTimeout(() => document.addEventListener('click', function close() { pop.remove(); document.removeEventListener('click', close); }), 0);
   };
 
   window.hkCmpDelComp = function (tableId, ci) {
     const name = (matrixComps[tableId] || [])[ci];
     if (!name) return;
-    const count = (state.rows[tableId] || []).filter(r => r.comp === name).length;
-    if (!window.confirm(`"${name}" 열을 지울까요? 입력된 가격 ${count}건이 함께 지워집니다.`)) return;
-    state.rows[tableId] = (state.rows[tableId] || []).filter(r => r.comp !== name);
-    if (state.extraComps && state.extraComps[tableId]) state.extraComps[tableId] = state.extraComps[tableId].filter(n => n !== name);
-    if (state.links[tableId]) state.links[tableId][name] = '';
-    if (state.shipping[tableId]) Object.keys(state.shipping[tableId]).filter(k => k === name || k.startsWith(`${name}@`)).forEach(k => delete state.shipping[tableId][k]);
+    const len = uiOf(tableOf(tableId).categoryId).len || 1;
+    const count = (state.rows[tableId] || []).filter(r => r.comp === name && rowLen(r) === len).length;
+    if (!window.confirm(`"${name}"을(를) ${len}M 표에서 지울까요? 이 길이의 가격 ${count}건이 함께 지워집니다(다른 길이 표는 그대로입니다).`)) return;
+    state.rows[tableId] = (state.rows[tableId] || []).filter(r => !(r.comp === name && rowLen(r) === len));
+    const kept = extraList(tableId, len, true);
+    const at = kept.indexOf(name);
+    if (at >= 0) kept.splice(at, 1);
+    const key = len > 1 ? `${name}@${len}` : name;
+    if (state.links[tableId]) state.links[tableId][key] = [];
+    if (state.shipping[tableId]) delete state.shipping[tableId][key];
     markDirty();
     rerender();
   };
@@ -806,9 +914,20 @@
         }
         const savedCompanies = saved.value.companies;
         if (savedCompanies && typeof savedCompanies === 'object') {
-          const extra = state.extraComps = state.extraComps || {};
           TABLES.forEach(table => {
-            if (Array.isArray(savedCompanies[table.id])) extra[table.id] = [...new Set([...(extra[table.id] || []), ...savedCompanies[table.id]])];
+            const entry = savedCompanies[table.id];
+            if (!entry) return;
+            if (Array.isArray(entry)) {
+              // 예전 형식(길이 구분 없음): 가격 줄이 하나도 없는 업체만 1M 열로 남긴다
+              entry.forEach(name => {
+                if (!(state.rows[table.id] || []).some(r => r.comp === name)) { const l = extraList(table.id, 1, true); if (!l.includes(name)) l.push(name); }
+              });
+            } else {
+              Object.entries(entry).forEach(([len, names]) => {
+                const l = extraList(table.id, Number(len) || 1, true);
+                (names || []).forEach(n => { if (!l.includes(n)) l.push(n); });
+              });
+            }
           });
         }
         const savedShipping = saved.value.shipping;
@@ -847,17 +966,26 @@
     const links = {};
     TABLES.forEach(table => {
       if (table.kind !== 'unit') return;
-      const names = new Set(matrixCompsOf(table));
-      links[table.id] = Object.fromEntries(Object.entries(state.links[table.id] || {}).filter(([name, url]) => url && names.has(name)));
+      const names = new Set(matrixCompsAll(table));
+      links[table.id] = Object.fromEntries(Object.entries(state.links[table.id] || {})
+        .filter(([key, url]) => asList(url).length && names.has(key.split('@')[0])).map(([key, url]) => [key, asList(url)]));
     });
     const shipping = {};
     TABLES.forEach(table => {
       if (table.kind !== 'unit') return;
-      const names = new Set([...matrixCompsOf(table), OURS_SHIP_KEY]);
+      const names = new Set([...matrixCompsAll(table), OURS_SHIP_KEY]);
       shipping[table.id] = Object.fromEntries(Object.entries(state.shipping[table.id] || {}).filter(([key, v]) => names.has(key.split('@')[0]) && v && (v.fee !== '' && v.fee != null)));
     });
     const companies = {};
-    TABLES.forEach(table => { if (table.kind === 'unit') companies[table.id] = matrixCompsOf(table); });
+    TABLES.forEach(table => {
+      if (table.kind !== 'unit') return;
+      const byLen = {};
+      [...new Set([...(table.lengths || [1]), ...(state.rows[table.id] || []).map(rowLen)])].forEach(len => {
+        const names = matrixCompsOf(table, len);
+        if (names.length) byLen[len] = names;
+      });
+      companies[table.id] = byLen;
+    });
     const now = new Date().toISOString();
     const { error } = await c.from('hk_settings').upsert({ key: SETTING_KEY, value: { version: 1, rows, links, shipping, companies }, updated_at: now }, { onConflict: 'key' });
     state.saving = false;
@@ -952,10 +1080,18 @@
     const sources = [String(scan.option_label || ''), String(scan.product_name || '')];
     const firstOf = detect => { for (const text of sources) { const v = detect(text); if (v != null) return v; } return null; };
     const t = firstOf(text => { const m = text.match(/(\d{1,2})\s*[Tt]\b/) || text.match(/(\d{1,2})\s*(?:mm|㎜)/); return m ? Number(m[1]) : null; });
-    const length = firstOf(text => { const m = text.match(/(\d+(?:\.\d+)?)\s*(?:[mM]\b|미터)/); return m ? Number(m[1]) : null; });
+    const length = firstOf(text => {
+      const wide = text.match(/(\d+(?:\.\d+)?)\s*[mM]\s*[xX×*]\s*(\d+(?:\.\d+)?)\s*[mM]\b/); // 폭 x 길이("1m X 5m") → 길이는 뒤쪽
+      if (wide) return Number(wide[2]);
+      const m = text.match(/(\d+(?:\.\d+)?)\s*(?:[mM]\b|미터)/);
+      return m ? Number(m[1]) : null;
+    });
+    // 같은 상점에 섞여 있는 다른 제품(단열벽지, 동박 단열재)은 이 표의 대상이 아니라 해석 불가로 세지 않고 건너뛴다(undefined).
+    if (/벽지|동박/.test(sources[0])) return undefined;
     if (t == null || length == null) return null; // 두께나 길이를 못 읽음(길이가 표에 없으면 호출 쪽이 조용히 건너뛴다)
     const adhesive = firstOf(text => (/비\s*(?:접착|점착)|무\s*(?:접착|점착)|비접|접착\s*없/.test(text) ? false : (/점착|접착/.test(text) ? true : null)));
-    const grade = firstOf(text => (/양면|고급|프리미엄|이중/.test(text) ? 'D' : (/단면|일반|기본|스탠다드/.test(text) ? 'S' : null)));
+    // 1면 = 단면(일반), 2면 = 양면(고급) — 업체마다 표기가 달라 같이 읽는다(예: "(1면 은박)")
+    const grade = firstOf(text => (/양면|2\s*면|고급|프리미엄|이중/.test(text) ? 'D' : (/단면|1\s*면|한\s*면|일반|기본|스탠다드/.test(text) ? 'S' : null)));
     if (adhesive == null || grade == null) return null;
     return { t, len: length, opt: grade + (adhesive ? 'A' : 'N') };
   }
@@ -987,32 +1123,52 @@
   }
 
   function collectTargets(table) {
-    const rows = state.rows[table.id] || [];
-    return matrixCompsOf(table).map(name => ({
-      name,
-      link: (state.links[table.id] || {})[name] || (rows.find(r => r.comp === name && r.link) || {}).link || '',
-    })).filter(item => SMARTSTORE_PRODUCT.test(item.link));
+    const seenLinks = new Set();
+    const items = [];
+    const lens = [...new Set([...(table.lengths || [1]), ...(state.rows[table.id] || []).map(rowLen)])].sort((a, b) => a - b);
+    lens.forEach(len => matrixCompsOf(table, len).forEach(name => companyLinks(table, name, len).forEach(link => {
+      if (SMARTSTORE_PRODUCT.test(link) && !seenLinks.has(link)) { seenLinks.add(link); items.push({ name, link }); }
+    })));
+    return items;
   }
 
   /* 확장이 돌려준 원본 옵션 → 표의 (업체, 두께, 옵션)에 짝지어 이전 값과 비교한 행 목록. */
   function collectResults(table, scanState) {
     const rawRows = (scanState && scanState.rows) || [];
+    // 한 상품 페이지에 여러 길이가 들어 있어도, 사용자가 그 업체를 등록한 길이(그 길이 표에 있거나 그 길이에 주소를 적은 경우)에만 반영한다.
+    const registered = (comp, len) => matrixCompsOf(table, len).includes(comp)
+      || asList((state.links[table.id] || {})[len > 1 ? `${comp}@${len}` : comp]).length > 0;
     const current = state.rows[table.id] || [];
     const keyOf = (comp, t, opt, len) => `${comp}|${t}|${opt}|${len}`;
     const optLabel = (key, len) => `${len}M ${(table.options.find(o => o.key === key) || {}).label || key}`;
     const results = [];
+    const byKey = new Map(); // 같은 칸 중복 정리용: 칸 키 → results 안의 위치
+    const usable = r => r.status !== '품절' && r.status !== '가격 확인 불가' && r.actual > 0;
+    const pushCell = (key, entry) => {
+      if (!byKey.has(key)) { byKey.set(key, results.length); results.push(entry); return; }
+      const at = byKey.get(key), old = results[at];
+      if ((usable(entry) && !usable(old)) || (usable(entry) && usable(old) && entry.actual < old.actual)) results[at] = entry;
+    };
     const seen = new Set();
     const okComps = new Set();
+    const failedComps = new Set();
     rawRows.forEach(raw => {
       if (raw.status === '수집 실패') {
+        failedComps.add(raw.name);
         results.push({ comp: raw.name, status: '수집 실패', note: raw.errorMsg || '', link: raw.link });
         return;
       }
       okComps.add(raw.name);
       const unit = parseUnitScan({ option_label: raw.label, product_name: raw.productName });
-      if (unit && !table.lengths.includes(unit.len)) return; // 표에 없는 길이(15M·20M 등)는 대상이 아니다
+      if (unit === undefined) return; // 벽지·동박 등 다른 제품
+      if (unit && !table.lengths.includes(unit.len)) return; // 표에 없는 길이(15M 등)는 대상이 아니다
       if (!unit) { results.push({ comp: raw.name, status: '옵션 해석 불가', label: raw.label, link: raw.link }); return; }
       if (unitOurs(table, unit.t, unit.opt, unit.len).price == null) return; // 한국단열이 안 파는 옵션
+      if (!registered(raw.name, unit.len)) {
+        // 등록하지 않은 길이는 반영하지 않고 알려만 준다(원하면 그 길이 탭에서 [편집] → [경쟁사 추가]로 등록)
+        pushCell(keyOf(raw.name, unit.t, unit.opt, unit.len), { comp: raw.name, t: unit.t, len: unit.len, opt: unit.opt, optLabel: optLabel(unit.opt, unit.len), label: raw.label, before: null, actual: raw.finalPrice, diff: null, status: '등록 안 된 길이', link: raw.link });
+        return;
+      }
       seen.add(keyOf(raw.name, unit.t, unit.opt, unit.len));
       const cur = current.find(x => x.comp === raw.name && Number(x.t) === unit.t && x.opt === unit.opt && rowLen(x) === unit.len);
       const before = cur && num(cur.price) ? num(cur.price) : null;
@@ -1023,11 +1179,13 @@
       else if (before == null) status = '신규';
       else if (before === actual) status = '일치';
       else status = '변경';
-      results.push({ comp: raw.name, t: unit.t, len: unit.len, opt: unit.opt, optLabel: optLabel(unit.opt, unit.len), label: raw.label, before, actual, diff: before != null && actual > 0 ? actual - before : null, status, link: raw.link });
+      pushCell(keyOf(raw.name, unit.t, unit.opt, unit.len), { comp: raw.name, t: unit.t, len: unit.len, opt: unit.opt, optLabel: optLabel(unit.opt, unit.len), label: raw.label, before, actual, diff: before != null && actual > 0 ? actual - before : null, status, link: raw.link });
     });
-    // 수집은 됐는데 표에 있던 옵션이 스토어에서 안 보이는 경우(판매 중지·옵션 삭제 가능성)
-    current.forEach(x => {
-      if (!okComps.has(x.comp) || !num(x.price)) return;
+    // 수집은 됐는데 표에 있던 옵션이 스토어에서 안 보이는 경우(판매 중지·옵션 삭제 가능성).
+    // 수집이 끝난 뒤에만 판정한다 — 진행 중에는 한 업체의 다른 상품 페이지를 아직 안 읽었을 뿐이라 거짓으로 '안 보임'이 떴다 사라졌다.
+    const finished = !!scanState && !scanState.running && scanState.done >= scanState.total;
+    (finished ? current : []).forEach(x => {
+      if (!okComps.has(x.comp) || failedComps.has(x.comp) || !num(x.price)) return;
       if (seen.has(keyOf(x.comp, Number(x.t), x.opt, rowLen(x)))) return;
       if (unitOurs(table, Number(x.t), x.opt, rowLen(x)).price == null) return;
       results.push({ comp: x.comp, t: Number(x.t), len: rowLen(x), opt: x.opt, optLabel: optLabel(x.opt, rowLen(x)), before: num(x.price), actual: null, diff: null, status: '스토어에서 안 보임', link: x.link || '' });
@@ -1047,13 +1205,20 @@
     let applied = 0;
     results.filter(r => (r.status === '변경' || r.status === '신규') && r.actual > 0).forEach(r => {
       const cur = list.find(x => x.comp === r.comp && Number(x.t) === r.t && x.opt === r.opt && rowLen(x) === (r.len || 1));
-      if (cur) { cur.price = r.actual; cur.checked = today(); if (!cur.link && r.link) cur.link = r.link; }
+      if (cur) { cur.price = r.actual; cur.checked = today(); if (r.link) cur.link = r.link; }
       else list.push({ id: state.nextId++, comp: r.comp, t: r.t, opt: r.opt, len: r.len || 1, price: r.actual, link: r.link || '', checked: today() });
-      const extra = state.extraComps = state.extraComps || {};
-      if (!(extra[table.id] || (extra[table.id] = [])).includes(r.comp)) extra[table.id].push(r.comp);
-      if (r.link && !(state.links[table.id] || {})[r.comp]) (state.links[table.id] = state.links[table.id] || {})[r.comp] = r.link;
+      const kept = extraList(table.id, r.len || 1, true);
+      if (!kept.includes(r.comp)) kept.push(r.comp);
+      if (r.link && !companyLinks(table, r.comp, r.len || 1).length) (state.links[table.id] = state.links[table.id] || {})[(r.len || 1) > 1 ? `${r.comp}@${r.len}` : r.comp] = [r.link];
       applied++;
     });
+    // 값은 그대로(일치)여도 그 칸이 읽힌 상품 페이지가 다르면 주소만 새로 기록한다
+    let linkChanged = false;
+    results.filter(r => r.status === '일치' && r.link).forEach(r => {
+      const cur = list.find(x => x.comp === r.comp && Number(x.t) === r.t && x.opt === r.opt && rowLen(x) === (r.len || 1));
+      if (cur && cur.link !== r.link) { cur.link = r.link; linkChanged = true; }
+    });
+    if (linkChanged) markDirty();
     return applied;
   }
 
@@ -1151,14 +1316,17 @@
       q(`[data-${action}]`).onclick = async () => { try { await extRequest(action); await refresh(); } catch (e) { statusEl.textContent = e.message; } };
     }
     q('[data-apply]').onclick = () => {
-      const targetsToApply = results.filter(r => (r.status === '변경' || r.status === '신규') && r.actual > 0);
+      const toApply = results.filter(r => (r.status === '변경' || r.status === '신규') && r.actual > 0);
       const applied = applyCollected(table, results);
+      // 길이마다 표가 독립이라, 반영된 값은 읽힌 길이의 표에 들어간다 — 지금 보는 길이가 아니면 그 길이로 옮겨 보여 주고 어디에 들어갔는지 알린다.
+      const ui = uiOf(table.categoryId);
+      const lensApplied = [...new Set(toApply.map(r => r.len || 1))].sort((a, b) => a - b);
+      if (applied && lensApplied.length && !lensApplied.includes(ui.len || 1)) { ui.len = lensApplied[0]; ui.t = null; }
       if (applied) { markDirty(); rerender(); }
-      // 반영 뒤 표 머리글에 그 업체가 실제로 보이는지 확인한다(안 보이면 어느 업체인지 알려 준다).
-      const headers = [...document.querySelectorAll(`#hkComparePaneBody-${table.categoryId} thead th`)].map(th => th.innerText.replace(/\s+/g, ' ').trim());
-      const missing = [...new Set(targetsToApply.map(r => r.comp))].filter(name => !headers.some(h => h.startsWith(name)));
-      if (applied && missing.length) toast(`${applied}건을 반영했지만 표에 보이지 않는 업체가 있습니다: ${missing.join(', ')}`, 'error');
-      else toast(applied ? `경쟁사 가격 ${applied}건을 표에 반영했습니다 — [저장]을 눌러 확정하세요.` : '반영할 변경이 없습니다.', applied ? 'success' : 'info');
+      const byComp = {};
+      toApply.forEach(r => { (byComp[r.comp] = byComp[r.comp] || new Set()).add(r.len || 1); });
+      const where = Object.entries(byComp).map(([name, lens]) => `${name} ${[...lens].sort((a, b) => a - b).join('·')}M`).join(', ');
+      toast(applied ? `경쟁사 가격 ${applied}건을 표에 반영했습니다(${where}) — [저장]을 눌러 확정하세요.` : '반영할 변경이 없습니다.', applied ? 'success' : 'info');
       close();
     };
 
@@ -1212,6 +1380,7 @@
       related.forEach(table => {
         if (table.kind === 'unit') {
           const unit = parseUnitScan(scan);
+          if (unit === undefined) return;
           if (unit && !table.lengths.includes(unit.len)) return;
           if (!unit) { unparsedUnit++; return; }
           const key = `${table.id}|${store}|${unit.t}|${unit.opt}|${unit.len}`;
