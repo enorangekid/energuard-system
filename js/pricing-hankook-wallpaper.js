@@ -164,8 +164,10 @@ function _hkWallpaperAccordionHtml(group, groupIndex) {
 }
 
 function renderHkWallpaperPane() {
+  // 경쟁사 가격 비교 구역(2026-10-14) — js/pricing-hankook-compare.js. 카테고리 맨 위, 기본은 접힌 상태.
+  const compareSection = typeof window.hkCompareSectionHtml === 'function' ? window.hkCompareSectionHtml('hk_wallpaper') : '';
   return `<div id="hkWallpaperBaseDataSection">
-    <div id="hkIsoAcc-wallpaper_all" class="card pricing-result-card hk-sub-card">
+    ${compareSection}<div id="hkIsoAcc-wallpaper_all" class="card pricing-result-card hk-sub-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">한국단열 단열벽지(하우스앤네이처) 기준 판매가<span class="pricing-spec-badge">${HK_WALLPAPER_PRODUCTS.length}개 · 1M/2.3M/10M/20M(롤)/2.3M×10장(판상형)</span></div>
       </div>

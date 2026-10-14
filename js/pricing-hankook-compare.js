@@ -64,6 +64,54 @@
       ],
       codeOf: (t, opt, len = 1) => `BL_${t}_${len}_${opt}`,
     },
+    {
+      // 단열벽지(2026-10-14) — 길이 2.3M·10M·20M. 경쟁사는 두께·등급 구분 없이 길이마다 가격 하나(무늬만 다름)라서, 업체·길이별 판매 중 최저가를
+      // 대표값으로 잡아 한국단열 4종(고급형1·고급형2·이중화이트·실크형, 전부 5T) 줄에 같이 넣는다(shared: true). 무늬로 상품을 짝짓지 않는다.
+      // 경쟁사는 보통 2.5M를 팔고 우리만 2.3M라서 경쟁사 2.5M는 2.3M 칸으로 본다(lengthAlias). 한국단열 줄 코드 = WP_{상품}_5_{길이코드}.
+      id: 'wp_roll', kind: 'unit', shared: true, categoryId: 'hk_wallpaper', unitLabel: 'M',
+      title: '단열벽지 경쟁사 가격 비교표',
+      oursLabel: '한국단열',
+      lengths: [2.3, 10, 20],
+      lengthAlias: { 2.5: 2.3 },
+      lengthNote: { 2.3: '경쟁사 2.5M' },
+      keyword: /단열\s*벽지|접착식\s*벽지|폼블럭/i,
+      thicknesses: [5],
+      options: [
+        { key: 'P1', label: '고급형1' }, { key: 'P2', label: '고급형2' },
+        { key: 'DW', label: '이중화이트' }, { key: 'SK', label: '실크형' },
+      ],
+      codeOf: (t, opt, len = 10) => `WP_${opt}_${t}_${len === 2.3 ? '23' : len}`,
+    },
+    {
+      // 기타단열재 — 난방필름단열재(우리 '필름난방보온재 5T 가교', HF_5_{1|25|50}). 경쟁사 옵션 형식을 아직 못 봐서 단열벽지와 같은 방식(업체·길이별
+      // 판매 중 최저가를 대표값으로, 5T가 아니면 제외)으로 시작한다 — 첫 수집 결과(옵션 해석 불가 등)를 보고 다듬는다.
+      id: 'etc_film', chip: '난방필름', kind: 'unit', shared: true, categoryId: 'hk_etc', unitLabel: 'M',
+      title: '난방필름단열재 경쟁사 가격 비교표',
+      oursLabel: '한국단열',
+      lengths: [1, 25, 50],
+      lengthPick: 'max', // 폭×길이 표기("폭1.2M x 50M")나 "50M(폭1M)"에서 폭 대신 길이를 고르려고 가장 큰 값을 쓴다
+      nameLengthOnlyIfNoLabel: true, // 옵션에 길이가 없으면 건너뜀(구구난방의 전선몰딩·연선 같은 부자재가 1M로 잡힌 문제)
+      thicknessAlias: { 4: 5 }, // 사용자 확인(2026-10-14): 와우비전 '4T 25M(이지웜/비점착)'은 4T로 적혀 있지만 사실상 5T
+      skipLabel: /테이프|부자재|스프레이|본드|벽지|열반사|아이소핑크|스티로폼|동박/,
+      keyword: /난방|필름|발열|열선/i,
+      thicknesses: [5],
+      options: [{ key: 'F', label: '필름난방보온재(5T 가교)' }],
+      codeOf: (t, opt, len = 1) => `HF_${t}_${len}`,
+    },
+    {
+      // 캠핑단열재(우리 '캠핑용단열재 5T 가교', CP_5_1) — 1M만 있다.
+      id: 'etc_camp', chip: '캠핑단열재', kind: 'unit', shared: true, categoryId: 'hk_etc', unitLabel: 'M',
+      title: '캠핑단열재 경쟁사 가격 비교표',
+      oursLabel: '한국단열',
+      lengths: [1],
+      lengthPick: 'max',
+      nameLengthOnlyIfNoLabel: true,
+      skipLabel: /테이프|부자재|스프레이|본드|벽지|열반사|아이소핑크|스티로폼|동박/,
+      keyword: /캠핑|차박|텐트|매트/i,
+      thicknesses: [5],
+      options: [{ key: 'C', label: '캠핑용단열재(5T 가교)' }],
+      codeOf: (t, opt, len = 1) => `CP_${t}_${len}`,
+    },
   ];
 
   /* DB에 저장된 값이 아직 없을 때 채워 두는 예전 비교표 값 — [업체, 두께, 규격, 장수, 판매가, 배송비, 배송기준, 확인일].
@@ -123,7 +171,9 @@
     },
   };
 
-  const state = { rows: {}, loaded: false, loading: false, dirty: false, saving: false, savedAt: null, note: '', noteKind: '', nextId: 1, links: seedLinks(), shipping: JSON.parse(JSON.stringify(SEED_SHIPPING)) };
+  // focus = 주목할 업체(표마다 이름 목록) — [편집]에서 ★로 정한다. 가격을 맞출 기준이 되는 업체라 열을 강조하고 '그 업체 대비' 차이를 따로 보여 준다.
+  const state = { rows: {}, loaded: false, loading: false, dirty: false, saving: false, savedAt: null, note: '', noteKind: '', nextId: 1, links: seedLinks(), shipping: JSON.parse(JSON.stringify(SEED_SHIPPING)), focus: {} };
+  const focusOf = table => (state.focus[table.id] || []);
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const num = value => {
@@ -198,6 +248,8 @@
   /* 길이(M) — 줄에 len이 없으면 1M(처음 1M만 만들 때 저장된 줄). */
   const rowLen = r => Number(r.len) || 1;
   const shipKey = (name, len) => (Number(len) > 1 ? `${name}@${len}` : name);
+  /* 길이 표시 — 경쟁사와 길이 표기가 다른 칸(단열벽지 2.3M = 경쟁사 2.5M)은 괄호로 알려 준다. */
+  const lenText = (table, len) => `${len}M${table.lengthNote && table.lengthNote[len] ? ` (${table.lengthNote[len]})` : ''}`;
 
   /* 열반사(unit) 한국단열 줄 — 단가표의 (두께, 옵션, 길이) 실판매가. 우리가 안 파는 조합(13T 일반형, 13T 25M 등)은 price가 null이다.
      롤 원품 코드(…_R, 예: BL_6_25_SN_R)가 있으면 그 롤을 먼저 쓴다 — 경쟁사의 "1롤"과 맞는 건 이쪽이다. */
@@ -427,6 +479,14 @@
     return `<span class="pricing-rate-badge ${gap > 0 ? 'low' : 'good'}">${gap > 0 ? '+' : ''}${gap.toLocaleString('ko-KR')} ${gap > 0 ? '불리' : '유리'}</span>`;
   }
 
+  /* 주목 업체 대비 — 우리 값이 그 업체보다 비싸면(+) 불리(빨강), 싸면(−) 유리(초록). 비교할 값이 없으면 '—'. */
+  function vsRefBadge(oursValue, ref) {
+    if (oursValue == null || ref == null) return '<span style="color:#cbd5e1;">—</span>';
+    const gap = Math.round(oursValue - ref);
+    if (gap === 0) return '<span class="pricing-rate-badge mid">같음</span>';
+    return `<span class="pricing-rate-badge ${gap > 0 ? 'low' : 'good'}">${gap > 0 ? '+' : ''}${gap.toLocaleString('ko-KR')} ${gap > 0 ? '불리' : '유리'}</span>`;
+  }
+
   function shipCellHtml(table, key) {
     const v = (state.shipping[table.id] || {})[key] || {};
     if (!editingOn(table)) {
@@ -450,13 +510,19 @@
     const rows = state.rows[table.id] || [];
     const len = uiOf(table.categoryId).len || 1; // 지금 고른 길이(M)
     // 그 길이에서 파는 상품이 없는 업체(예: 1M에만 있는 업체)는 이 길이 표에서 열을 뺀다. [편집] 중에는 업체를 관리할 수 있게 모두 보인다.
+    const focusNames = focusOf(table);
+    // 주목 업체는 맨 왼쪽에 먼저 둔다(나머지 순서는 그대로)
     const comps = matrixComps[table.id] = matrixCompsOf(table, len)
-      .filter(name => editingOn(table) || rows.some(r => r.comp === name && rowLen(r) === len && num(r.price)));
+      .filter(name => editingOn(table) || rows.some(r => r.comp === name && rowLen(r) === len && num(r.price)))
+      .sort((a, b) => (focusNames.includes(b) ? 1 : 0) - (focusNames.includes(a) ? 1 : 0));
+    const focusShown = comps.filter(name => focusNames.includes(name)); // 이 길이 표에 보이는 주목 업체 — '그 업체 대비' 열을 따로 둔다
     const thicknesses = [...new Set([...table.thicknesses, ...rows.map(r => Number(r.t))])].sort((a, b) => a - b);
     const withShip = withShipOn(table);
-    const compW = Math.floor(48 / Math.max(comps.length, 1));
+    const FOCUS_W = 11; // '주목 업체 대비' 열 폭(%)
+    const compW = Math.floor((51 - FOCUS_W * focusShown.length) / Math.max(comps.length, 1));
     const C = 'text-align:center;'; // 숫자·머리글을 모두 가운데 맞춤 — 머리글과 숫자가 어긋나 보이지 않게
-    const head = `<colgroup><col style="width:7%"><col style="width:12%">${comps.map(() => `<col style="width:${compW}%">`).join('')}<col style="width:18%"><col style="width:${100 - 7 - 12 - compW * comps.length - 18}%"></colgroup>
+    const FOCUS_BG = '#fff7e0', FOCUS_HEAD = '#b45309';
+    const head = `<colgroup><col style="width:7%"><col style="width:12%">${comps.map(() => `<col style="width:${compW}%">`).join('')}<col style="width:16%"><col style="width:${100 - 7 - 12 - compW * comps.length - 16 - FOCUS_W * focusShown.length}%">${focusShown.map(() => `<col style="width:${FOCUS_W}%">`).join('')}</colgroup>
       <thead><tr><th>두께</th><th>제품 옵션</th>
         ${comps.map((name, ci) => {
           const urls = companyLinks(table, name, len);
@@ -467,16 +533,23 @@
               : '');
           const linkEdit = COMPANY_EDITABLE && editingOn(table) ? ` <span role="button" tabindex="0" title="${esc(name)} ${len}M 비교 상품 주소 편집" onclick="hkCmpEditLinks('${table.id}',${ci})" style="margin-left:6px;cursor:pointer;color:#a5b4fc;"><i class="fa-solid fa-pen"></i></span>` : '';
           const del = COMPANY_EDITABLE && editingOn(table) ? ` <span role="button" tabindex="0" title="${esc(name)} 열 삭제" onclick="hkCmpDelComp('${table.id}',${ci})" style="margin-left:8px;cursor:pointer;color:#94a3b8;"><i class="fa-solid fa-xmark"></i></span>` : '';
-          return `<th>${esc(name)}${icon}${linkEdit}${del}</th>`;
+          const on = focusNames.includes(name);
+          // 주목 업체 ★ — 편집 중에는 눌러서 켜고 끄고, 평소에는 켜진 것만 표시한다
+          const star = editingOn(table)
+            ? ` <span role="button" tabindex="0" title="${on ? '주목 업체 해제' : '주목 업체로 설정(열을 강조하고 이 업체 대비 차이를 따로 보여 줍니다)'}" onclick="hkCmpToggleFocus('${table.id}',${ci})" style="margin-left:6px;cursor:pointer;color:${on ? '#fcd34d' : '#a5b4fc'};"><i class="fa-${on ? 'solid' : 'regular'} fa-star"></i></span>`
+            : (on ? ' <i class="fa-solid fa-star" style="color:#fcd34d;margin-left:4px;"></i>' : '');
+          return `<th${on ? ` style="background:${FOCUS_HEAD};"` : ''}>${esc(name)}${star}${icon}${linkEdit}${del}</th>`;
         }).join('')}
-        <th style="background:#4f46e5;">한국단열(빌트론)<br>${len}M ${withShip ? '판매가+배송비' : '판매가'}</th><th>최저가 대비</th></tr></thead>`;
+        <th style="background:#4f46e5;">${esc(table.oursLabel || '한국단열(빌트론)')}<br>${len}M ${withShip ? '판매가+배송비' : '판매가'}</th><th>최저가 대비</th>
+        ${focusShown.map(name => `<th style="background:${FOCUS_HEAD};">★ ${esc(name)}<br>대비</th>`).join('')}</tr></thead>`;
     // 배송비 줄 — 업체마다 배송비와 N개마다를 직접 입력한다(확장으로 수집되지 않는다).
     const shipBg = 'background:#fffbeb;border-bottom:2px solid #cbd5e1;';
     const shipRow = `<tr>
       <td colspan="2" style="${C}font-weight:700;color:#334155;height:50px;${shipBg}">배송비 <span style="font-size:11px;font-weight:500;color:#94a3b8;">원 / N개마다</span></td>
-      ${comps.map(name => `<td style="${shipBg}border-left:1px solid #eef2f7;">${shipCellHtml(table, shipKey(name, len))}</td>`).join('')}
+      ${comps.map(name => `<td style="border-left:1px solid #eef2f7;${shipBg}${focusNames.includes(name) ? `background:${FOCUS_BG};` : ''}">${shipCellHtml(table, shipKey(name, len))}</td>`).join('')}
       <td style="${shipBg}border-left:1px solid #eef2f7;">${shipCellHtml(table, shipKey(OURS_SHIP_KEY, len))}</td>
       <td style="${shipBg}"></td>
+      ${focusShown.map(() => `<td style="${shipBg}"></td>`).join('')}
     </tr>`;
     // 한국단열이 판매하지 않는 두께·옵션(예: 13T 일반형)은 비교 대상이 아니라 줄을 만들지 않는다(사용자 지시 2026-10-14).
     const soldOptions = t => table.options.filter(opt => unitOurs(table, t, opt.key, len).price != null);
@@ -489,14 +562,14 @@
         const price = row && num(row.price) ? num(row.price) : '';
         const shown = price === '' ? '' : effValue(table, shipKey(name, len), price);
         const per = shipPerUnit(table, shipKey(name, len));
-        const tip = row ? `${row.checked ? `확인일 ${row.checked}` : '확인일 기록 없음'}${row.link ? ' · 링크 있음' : ''}${withShip && per != null ? ` · 판매가 ${Number(price).toLocaleString('ko-KR')} + 배송비 ${Math.round(per).toLocaleString('ko-KR')}` : ''}` : '';
+        const tip = row ? `${row.checked ? `확인일 ${row.checked}` : '확인일 기록 없음'}${row.link ? ' · 링크 있음' : ''}${table.shared ? ` · 판매 중 최저가${num(row.hi) > num(row.price) ? `(최고 ${Number(row.hi).toLocaleString('ko-KR')})` : ''}` : ''}${withShip && per != null ? ` · 판매가 ${Number(price).toLocaleString('ko-KR')} + 배송비 ${Math.round(per).toLocaleString('ko-KR')}` : ''}` : '';
         if (!EDITABLE) {
           const valueHtml = shown === '' ? '<span style="color:#d5dbe3;font-weight:400;">—</span>' : Math.round(shown).toLocaleString('ko-KR');
           // 이 가격이 나온 상품 페이지가 기록돼 있으면 눌러서 연다(길이·두께마다 상품이 다른 업체도 칸마다 맞는 페이지)
           const cellInner = shown !== '' && row && row.link
             ? `<a href="${esc(row.link)}" target="_blank" rel="noopener" title="이 가격이 나온 상품 페이지 열기" style="font-size:13px;font-weight:600;color:#334155;text-decoration:none;border-bottom:1px dotted #94a3b8;">${valueHtml}</a>`
             : `<span style="font-size:13px;font-weight:600;color:#334155;">${valueHtml}</span>`;
-          return `<td style="border-left:1px solid #eef2f7;${C}" title="${esc(tip)}">${cellInner}</td>`;
+          return `<td style="border-left:1px solid #eef2f7;${C}${focusNames.includes(name) ? `background:${FOCUS_BG};` : ''}" title="${esc(tip)}">${cellInner}</td>`;
         }
         return `<td style="border-left:1px solid #eef2f7;"><input type="text" inputmode="numeric" class="pricing-input-field" data-hkcm="${t}|${opt.key}|${ci}" title="${esc(tip)}"
             style="width:100%;height:26px;padding:0 6px;font-size:12px;text-align:center;" value="${price === '' ? '' : Number(price).toLocaleString('ko-KR')}" placeholder=""
@@ -508,6 +581,11 @@
         ${cells}
         <td style="background:#eef2ff;${C}font-size:13px;font-weight:600;color:#334155;border-left:1px solid #e2e8f0;" title="${ours.price == null ? '한국단열 판매 안 함' : esc(ours.code)}">${oursShown == null ? '<span style="font-size:11px;font-weight:500;">판매 안 함</span>' : Math.round(oursShown).toLocaleString('ko-KR')}</td>
         <td id="hkcm-${t}-${opt.key}-diff" style="${C}">${vsMinBadge(oursShown, min)}</td>
+        ${focusShown.map(name => {
+          const r = rows.find(x => x.comp === name && Number(x.t) === t && x.opt === opt.key && rowLen(x) === len);
+          const ref = r && num(r.price) ? effValue(table, shipKey(name, len), num(r.price)) : null;
+          return `<td style="${C}background:${FOCUS_BG};">${vsRefBadge(oursShown, ref)}</td>`;
+        }).join('')}
       </tr>`;
     }).join(''), gi)).join('');
     const compactBody = (shipRow + body).replace(/<td([^>]*)>/g, (m, attrs) => attrs.includes('style="')
@@ -516,7 +594,7 @@
     const hint = viewOnly() ? '' : (EDITABLE ? '칸을 비우면 그 업체 가격이 지워집니다' : '가격은 확장 수집값을 [수집값 불러오기]로 반영하고, 배송비는 직접 입력합니다');
     return `<div style="margin-top:18px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-        <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} – ${len}M 기준 <span style="font-size:11px;font-weight:500;color:#94a3b8;">${hint}</span></div>
+        <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} – ${esc(lenText(table, len))} 기준 <span style="font-size:11px;font-weight:500;color:#94a3b8;">${hint}</span></div>
         <div style="display:flex;gap:8px;">
           ${viewOnly() ? '' : `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpCollect('${table.id}')" title="등록된 경쟁사 상품 주소를 크롬 확장이 열어 옵션별 판매가를 읽어 옵니다(통합 확장 0.32.5 이상). 길이는 모두 한 번에 읽습니다.">
             <i class="fa-solid fa-people-arrows"></i> 경쟁사 가격 확인</button>`}
@@ -528,7 +606,7 @@
         </div>
       </div>
       <div class="pricing-table-scroll" style="border:1px solid #e2e8f0;border-radius:10px;">
-        <table class="pricing-table" style="min-width:${540 + comps.length * 150}px;">${head.replace(/<(td|th)([^>]*)>/g, (m, tag, attrs) => (attrs.includes('style="') ? `<${tag}${attrs.replace('style="', 'style="padding:10px 6px;')}>` : `<${tag}${attrs} style="padding:10px 6px;">`))}<tbody>${compactBody}</tbody></table>
+        <table class="pricing-table" style="min-width:${540 + comps.length * 150 + focusShown.length * 130}px;">${head.replace(/<(td|th)([^>]*)>/g, (m, tag, attrs) => (attrs.includes('style="') ? `<${tag}${attrs.replace('style="', 'style="padding:10px 6px;')}>` : `<${tag}${attrs} style="padding:10px 6px;">`))}<tbody>${compactBody}</tbody></table>
       </div>
     </div>`;
   }
@@ -536,6 +614,19 @@
   window.hkCmpToggleEdit = function (cat) {
     const ui = uiOf(cat);
     ui.editing = !ui.editing;
+    rerender();
+  };
+
+  /* 주목 업체 설정·해제 — 편집 중 업체 머리글의 ★. 표 전체(모든 길이)에 적용된다. */
+  window.hkCmpToggleFocus = function (tableId, ci) {
+    if (viewOnly()) return;
+    const table = tableOf(tableId);
+    const name = (matrixComps[tableId] || [])[ci];
+    if (!table || !name) return;
+    const list = state.focus[tableId] = state.focus[tableId] || [];
+    const at = list.indexOf(name);
+    if (at >= 0) list.splice(at, 1); else list.push(name);
+    markDirty();
     rerender();
   };
 
@@ -688,7 +779,10 @@
   const uiByCat = {}; // 카테고리마다 고른 표·두께·펼침 상태
   function uiOf(cat) {
     // 기본은 접힌 상태 — 단가표를 열 때 원가·판매가 표가 먼저 보이게 한다(사용자 지시 2026-10-14).
-    if (!uiByCat[cat]) uiByCat[cat] = { tableId: (TABLES.find(t => t.categoryId === cat) || {}).id, t: null, len: 1, open: false };
+    if (!uiByCat[cat]) {
+      const first = TABLES.find(t => t.categoryId === cat) || {};
+      uiByCat[cat] = { tableId: first.id, t: null, len: (first.lengths && first.lengths[0]) || 1, open: false };
+    }
     return uiByCat[cat];
   }
 
@@ -738,9 +832,18 @@
 
   /* 막대 색 — 단가표 기본 색(인디고 #4f46e5 = 우리, 슬레이트 = 경쟁사)에 맞춘다. */
   const BAR = { track: '#f1f5f9', compLow: '#94a3b8', compRange: '#cbd5e1', ours: '#4f46e5' };
+  const FOCUS_TICK = '#d97706'; // 주목 업체 눈금(막대 위)
 
-  function barHtml(group, scale) {
+  function barHtml(group, scale, focusNames = []) {
     const pct = v => `${Math.max(0, Math.min(100, v / scale * 100)).toFixed(2)}%`;
+    // 주목 업체 — 경쟁사 막대 위에 호박색 눈금을 세우고, 아래 줄에 그 업체 가격과 우리와의 차이를 적는다
+    const focus = group.comps.filter(c => focusNames.includes(c.comp) && c.value != null);
+    const focusTicks = focus.map(c => `<div title="★ ${esc(c.comp)} ${fmt(c.value)}원" style="position:absolute;left:calc(${pct(c.value)} - 2px);top:0;bottom:0;width:4px;background:${FOCUS_TICK};"></div>`).join('');
+    const focusText = focus.map(c => {
+      const g = group.ours != null ? Math.round(group.ours - c.value) : null;
+      const gh = g == null ? '' : g === 0 ? ' · 같음' : ` · 우리 <b style="color:${g > 0 ? '#dc2626' : '#16a34a'};">${g > 0 ? '+' : ''}${g.toLocaleString('ko-KR')}원 ${g > 0 ? '불리' : '유리'}</b>`;
+      return `<span style="color:#b45309;font-weight:600;"><i class="fa-solid fa-star" style="font-size:10px;"></i> ${esc(c.comp)} ${fmt(c.value)}원${gh}</span>`;
+    }).join(' &nbsp; ');
     const values = group.comps.map(c => c.value);
     const min = values.length ? Math.min(...values) : null, max = values.length ? Math.max(...values) : null;
     const minComp = min == null ? null : group.comps.find(c => c.value === min).comp;
@@ -756,7 +859,7 @@
       </div>
       <div style="position:relative;height:10px;margin-top:7px;background:${BAR.track};border-radius:6px;overflow:hidden;">
         ${min == null ? '' : `<div style="position:absolute;left:0;top:0;bottom:0;width:${pct(min)};background:${BAR.compLow};"></div>
-        <div style="position:absolute;left:${pct(min)};top:0;bottom:0;width:${pct(max - min)};background:${BAR.compRange};"></div>`}
+        <div style="position:absolute;left:${pct(min)};top:0;bottom:0;width:${pct(max - min)};background:${BAR.compRange};"></div>`}${focusTicks}
       </div>
       <div style="height:6px;margin-top:3px;background:${BAR.track};border-radius:6px;overflow:hidden;">
         ${group.ours == null ? '' : `<div style="height:100%;width:${pct(group.ours)};background:${BAR.ours};"></div>`}
@@ -764,6 +867,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:#64748b;">
         <span>${range}</span>${gapHtml}
       </div>
+      ${focusText ? `<div style="margin-top:4px;font-size:12px;">${focusText}</div>` : ''}
     </div>`;
   }
 
@@ -787,22 +891,23 @@
     let tabs = '', lenTabs = '', shown = whole.groups, tNow = null;
     const len = ui.len || 1;
     if (table.kind === 'unit') {
-      lenTabs = subtabBar(table.lengths.map(l => ({ key: l, label: `${l}M` })), len, key => `hkCmpPickLen('${cat}',${key})`);
+      lenTabs = subtabBar(table.lengths.map(l => ({ key: l, label: `${l}M`, sub: table.lengthNote && table.lengthNote[l] ? table.lengthNote[l] : '' })), len, key => `hkCmpPickLen('${cat}',${key})`);
       tNow = whole.thicknesses.includes(ui.t) ? ui.t : whole.thicknesses[0];
-      tabs = subtabBar(whole.thicknesses.map(t => ({ key: t, label: `${t}T` })), tNow, key => `hkCmpPickT('${cat}',${key})`);
+      // 두께가 하나뿐인 표(단열벽지 5T)는 두께 탭이 필요 없다
+      tabs = whole.thicknesses.length > 1 ? subtabBar(whole.thicknesses.map(t => ({ key: t, label: `${t}T` })), tNow, key => `hkCmpPickT('${cat}',${key})`) : '';
       shown = whole.groups.filter(g => g.t === tNow);
     }
     const values = shown.flatMap(g => [g.ours, ...g.comps.map(c => c.value)]).filter(v => v != null);
     const scale = values.length ? Math.max(...values) * 1.02 : 1;
     const swatch = color => `<i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};margin-right:4px;"></i>`;
     const legend = `<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#64748b;margin-top:10px;">
-      <span>${swatch(BAR.compLow)}경쟁사 최저가까지</span><span>${swatch(BAR.compRange)}최저~최고 구간</span>
-      <span>${swatch(BAR.ours)}한국단열 ${table.kind === 'unit' ? `${len}M ${uiOf(cat).withShip ? '판매가+배송비' : '판매가'}` : '장당 실구매가'}</span></div>`;
+      <span>${swatch(BAR.compLow)}경쟁사 최저가까지</span><span>${swatch(BAR.compRange)}최저~최고 구간</span>${focusOf(table).length ? `<span>${swatch(FOCUS_TICK)}★ 주목 업체(${esc(focusOf(table).join(', '))})</span>` : ''}
+      <span>${swatch(BAR.ours)}${esc(table.oursLabel || '한국단열')} ${table.kind === 'unit' ? `${len}M ${uiOf(cat).withShip ? '판매가+배송비' : '판매가'}` : '장당 실구매가'}</span></div>`;
     return `${chips}${lenTabs}${tabs}
       <div style="padding:14px 22px 4px;">
         <div style="font-size:13px;color:#334155;font-weight:500;">${esc(analysisSummary(table))}</div>
         ${legend}
-        <div style="margin-top:6px;">${shown.map(g => barHtml(g, scale)).join('')}</div>
+        <div style="margin-top:6px;">${shown.map(g => barHtml(g, scale, focusOf(table))).join('')}</div>
       </div>`;
   }
 
@@ -816,6 +921,9 @@
     const ui = uiOf(cat);
     ui.tableId = id;
     ui.t = null;
+    // 표마다 길이 목록이 달라(난방필름 1·25·50M, 캠핑 1M) 고른 길이가 새 표에 없으면 그 표의 첫 길이로 옮긴다
+    const next = tableOf(id);
+    if (next && next.lengths && !next.lengths.includes(ui.len)) ui.len = next.lengths[0];
     renderAnalysis(cat);
     const body = document.getElementById(`hkComparePaneBody-${cat}`);
     if (body) body.innerHTML = bodyHtml(cat);
@@ -909,7 +1017,7 @@
           } else {
             // 나중에 새로 생긴 비교표(저장본에 아직 없음)는 그 표의 시드 값을 채워 둔다.
             state.rows[table.id] = seedTableRows(table);
-            seededTables.push(table.title);
+            if (state.rows[table.id].length) seededTables.push(table.title); // 채울 예전 값이 없는 새 표(단열벽지)는 안내하지 않는다
           }
         });
         const savedLinks = saved.value.links;
@@ -937,6 +1045,10 @@
         const savedShipping = saved.value.shipping;
         if (savedShipping && typeof savedShipping === 'object') {
           TABLES.forEach(table => { if (savedShipping[table.id]) state.shipping[table.id] = { ...(state.shipping[table.id] || {}), ...savedShipping[table.id] }; });
+        }
+        const savedFocus = saved.value.focus;
+        if (savedFocus && typeof savedFocus === 'object') {
+          TABLES.forEach(table => { if (Array.isArray(savedFocus[table.id])) state.focus[table.id] = savedFocus[table.id].map(String); });
         }
         state.savedAt = saved.updated_at ? new Date(saved.updated_at) : null;
         state.dirty = seededTables.length > 0;
@@ -994,7 +1106,13 @@
       companies[table.id] = byLen;
     });
     const now = new Date().toISOString();
-    const { error } = await c.from('hk_settings').upsert({ key: SETTING_KEY, value: { version: 1, rows, links, shipping, companies }, updated_at: now }, { onConflict: 'key' });
+    const focus = {};
+    TABLES.forEach(table => {
+      const names = new Set(matrixCompsAll(table));
+      const list = focusOf(table).filter(n => names.has(n));
+      if (list.length) focus[table.id] = list;
+    });
+    const { error } = await c.from('hk_settings').upsert({ key: SETTING_KEY, value: { version: 1, rows, links, shipping, companies, focus }, updated_at: now }, { onConflict: 'key' });
     state.saving = false;
     if (error) { toast(`저장 실패: ${error.message || error}`, 'error'); setStatus(); return; }
     state.dirty = false; state.savedAt = new Date(now); state.note = ''; state.noteKind = ''; state.noteCat = null;
@@ -1103,6 +1221,47 @@
     return { t, len: length, opt: grade + (adhesive ? 'A' : 'N') };
   }
 
+  /* 단열벽지 옵션 해석 — 길이만 읽으면 된다(경쟁사 옵션은 무늬뿐이고 두께·등급·접착 구분이 없다). 반환:
+       undefined = 이 표의 상품이 아님(폼블럭·부자재·다른 두께 등 → 조용히 건너뜀)
+       null      = 길이를 못 읽음('옵션 해석 불가')
+       { t, len } = 표의 길이(경쟁사 2.5M는 2.3M로 옮김).
+     · 제외 단어는 옵션 이름에서만 찾는다 — 상품명에는 "…곰팡이폼블럭…"처럼 단열벽지 상품에도 폼블럭이 같이 적혀 있다.
+     · 두께가 적혀 있고 표의 두께(5T)가 아니면 다른 제품이다(은동이샵의 1mm 크레파펠·8mm 블럭아이). 안 적힌 업체는 그대로 통과.
+     · 길이는 옵션 이름 맨 뒤쪽 'N M'(폭×길이라 "1Mx10M"·"50cmX10M"은 뒤쪽), 없으면 상품명의 첫 'N M'. cm·mm·소수점(2.5M)은 따로 처리한다.
+     · 둘 다 없으면 호출 쪽이 그 상품 주소가 등록된 길이로 보강한다(fallbackLen). */
+  function parseWallpaperScan(scan, table, ctx = {}) {
+    const label = String(scan.option_label || ''), name = String(scan.product_name || '');
+    if ((table.skipLabel || /폼블럭|스프레이|본드|애니핀|부자재|동박|열반사|아이소핑크|스티로폼/).test(label)) return undefined;
+    const tableT = (table.thicknesses || [5])[0];
+    let thickness = null;
+    for (const text of [label, name]) {
+      const m = text.match(/두께\s*(\d+(?:\.\d+)?)\s*(?:mm|㎜)/i) || text.match(/(\d+(?:\.\d+)?)\s*(?:mm|㎜)(?![a-zA-Z])/i) || text.match(/(?:^|[^\d.A-Za-z])(\d{1,2})\s*T\b/);
+      if (m) { thickness = Number(m[1]); break; }
+    }
+    // 표기만 다르고 실제로는 같은 두께로 보는 경우(사용자 확인: 와우비전 '4T'는 사실상 5T) — table.thicknessAlias {표기: 표 두께}
+    let aliased = false;
+    if (thickness != null && thickness !== tableT) {
+      if (table.thicknessAlias && table.thicknessAlias[thickness] === tableT) aliased = true;
+      else return undefined;
+    }
+    const lengths = text => [...text.matchAll(/(\d+(?:\.\d+)?)\s*[mM](?![a-zA-Z])/g)].map(m => Number(m[1]));
+    const inLabel = lengths(label), inName = lengths(name);
+    // 길이를 옵션 이름에서 고르는 방식: 기본은 맨 뒤쪽 값(폭×길이), table.lengthPick === 'max'는 가장 큰 값(폭이 뒤에 오는 표기 대비)
+    const pickIn = list => (table.lengthPick === 'max' ? Math.max(...list) : list[list.length - 1]);
+    // 옵션 이름에 길이가 없을 때 상품명의 길이를 빌려 쓰는 규칙(단열벽지 업체 대부분 — 옵션이 무늬뿐)은 부자재가 섞인 페이지에서 위험하다
+    // (구구난방: 상품명 "…1m세트" 안의 옵션 "전선몰딩 1,000원"이 1M 상품으로 잡혔다). table.nameLengthOnlyIfNoLabel 표는 옵션 이름이 있는데
+    // 길이가 없으면 다른 물건으로 보고 건너뛰고, 옵션이 아예 없는 단일 상품 페이지일 때만 상품명 길이를 쓴다.
+    // 단, 그 페이지에 길이가 적힌 옵션이 하나도 없으면(옵션이 색상·디자인뿐인 상품: 캠핑가오리 '디자인(색상) 랜덤', 리오캠핑 '그레이색 단열재')
+    // 전부 같은 상품의 변형이라 상품명 길이(없으면 등록한 길이)를 쓴다 — 길이 있는 옵션이 같이 있을 때만 길이 없는 옵션을 다른 물건으로 본다.
+    const noOption = !label.trim() || /옵션\s*없음/.test(label);
+    if (table.nameLengthOnlyIfNoLabel && !inLabel.length && !noOption && ctx.pageHasLabelLength) return undefined;
+    const raw = inLabel.length ? pickIn(inLabel) : (inName.length ? inName[0] : null);
+    if (raw == null) return null;
+    const len = (table.lengthAlias && table.lengthAlias[raw]) || raw;
+    if (!table.lengths.includes(len)) return undefined; // 우리가 안 파는 길이(5M·9.5M·19.8M·30M 등)는 대상이 아니다
+    return { t: tableT, len, aliased };
+  }
+
   /* ─── 경쟁사 가격 확인(크롬 확장) ───
      에너가드 '경쟁사 가격 확인'과 같은 흐름: 단가표 안 버튼 → 확장이 업체별 상품 주소를 백그라운드 탭으로 하나씩 열어 옵션·가격을 읽음 →
      결과 창에서 이전 값과 비교 → [변경 적용]. 확장은 옵션을 있는 그대로 돌려주고(kind:'compscan'), 일반/고급·접착·1M 짝짓기는 여기(parseUnitScan)서 한다. */
@@ -1159,6 +1318,10 @@
     const seen = new Set();
     const okComps = new Set();
     const failedComps = new Set();
+    const sharedGroups = new Map(); // 단열벽지: '업체|길이' → { comp, t, len, entries:[{price, soldOut, link}] }
+    const unreadable = new Set();
+    // 옵션 이름에 길이가 적힌 옵션이 있는 상품 페이지(주소) — 길이 없는 옵션을 다른 물건으로 볼지 정할 때 쓴다(parseWallpaperScan)
+    const pagesWithLabelLength = new Set(rawRows.filter(raw => /(\d+(?:\.\d+)?)\s*[mM](?![a-zA-Z])/.test(String(raw.label || ''))).map(raw => raw.link));
     rawRows.forEach(raw => {
       if (raw.status === '수집 실패') {
         failedComps.add(raw.name);
@@ -1166,6 +1329,27 @@
         return;
       }
       okComps.add(raw.name);
+      if (table.shared) {
+        // 단열벽지 — 업체·길이마다 판매 중 최저가 하나를 대표값으로 쓴다(아래 sharedGroups 정리에서 결과 한 줄로 만든다).
+        let parsed = parseWallpaperScan({ option_label: raw.label, product_name: raw.productName }, table, { pageHasLabelLength: pagesWithLabelLength.has(raw.link) });
+        if (parsed === undefined) return;
+        if (parsed === null) {
+          // 옵션에도 상품명에도 길이가 없으면, 이 주소가 등록된 길이로 본다(한 길이에만 등록돼 있을 때)
+          const lens = table.lengths.filter(l => asList((state.links[table.id] || {})[l > 1 ? `${raw.name}@${l}` : raw.name]).includes(raw.link));
+          if (lens.length !== 1) {
+            const dupKey = `${raw.name}|${raw.link}|해석불가`;
+            if (!unreadable.has(dupKey)) { unreadable.add(dupKey); results.push({ comp: raw.name, status: '옵션 해석 불가', label: raw.label, link: raw.link }); }
+            return;
+          }
+          parsed = { t: table.thicknesses[0], len: lens[0] };
+        }
+        if (!table.options.some(o => unitOurs(table, parsed.t, o.key, parsed.len).price != null)) return;
+        const gKey = `${raw.name}|${parsed.len}`;
+        const g = sharedGroups.get(gKey) || { comp: raw.name, t: parsed.t, len: parsed.len, entries: [] };
+        g.entries.push({ price: raw.finalPrice, soldOut: !!raw.soldOut, link: raw.link, aliased: !!parsed.aliased });
+        sharedGroups.set(gKey, g);
+        return;
+      }
       const unit = parseUnitScan({ option_label: raw.label, product_name: raw.productName });
       if (unit === undefined) return; // 벽지·동박 등 다른 제품
       if (unit && !table.lengths.includes(unit.len)) return; // 표에 없는 길이(15M 등)는 대상이 아니다
@@ -1188,13 +1372,47 @@
       else status = '변경';
       pushCell(keyOf(raw.name, unit.t, unit.opt, unit.len), { comp: raw.name, t: unit.t, len: unit.len, opt: unit.opt, optLabel: optLabel(unit.opt, unit.len), label: raw.label, before, actual, diff: before != null && actual > 0 ? actual - before : null, status, link: raw.link });
     });
+    // 단열벽지: 업체·길이마다 판매 중 최저가 하나를 결과 한 줄로 만든다(품절은 판매 중인 값이 없을 때만 '품절').
+    const optKeys = table.options.map(o => o.key);
+    sharedGroups.forEach(g => {
+      // 표기가 다른 두께(4T → 5T로 봄)는 정확히 같은 두께 옵션이 하나라도 판매 중이면 그쪽만 쓴다
+      const liveAll = g.entries.filter(e => !e.soldOut && e.price > 0);
+      const exact = liveAll.filter(e => !e.aliased);
+      const live = exact.length ? exact : liveAll;
+      const usedAlias = live.length > 0 && live.every(e => e.aliased);
+      optKeys.forEach(k => seen.add(keyOf(g.comp, g.t, k, g.len)));
+      const actual = live.length ? Math.min(...live.map(e => e.price)) : null;
+      const high = live.length ? Math.max(...live.map(e => e.price)) : null;
+      const link = (live.find(e => e.price === actual) || g.entries[0]).link;
+      const base = { comp: g.comp, t: g.t, len: g.len, opt: '*', optLabel: `${g.len}M 한국단열 전 상품 공통`, label: live.length ? `판매 중 ${live.length}개의 최저가` : '', link };
+      if (!registered(g.comp, g.len)) { results.push({ ...base, before: null, actual, diff: null, status: '등록 안 된 길이' }); return; }
+      const cur = current.find(x => x.comp === g.comp && Number(x.t) === g.t && rowLen(x) === g.len && num(x.price));
+      const before = cur ? num(cur.price) : null;
+      let status;
+      if (!live.length) status = g.entries.some(e => e.soldOut) ? '품절' : '가격 확인 불가';
+      else if (before == null) status = '신규';
+      else if (before === actual) status = '일치';
+      else status = '변경';
+      const notes = [high > actual ? `최고 ${high.toLocaleString('ko-KR')}` : '', usedAlias ? `${Object.keys(table.thicknessAlias || {})[0] || ''}T를 ${g.t}T로 봄` : ''].filter(Boolean);
+      results.push({ ...base, before, actual, hi: high > actual ? high : null, note: notes.join(' · '),
+        diff: before != null && actual > 0 ? actual - before : null, status });
+    });
     // 수집은 됐는데 표에 있던 옵션이 스토어에서 안 보이는 경우(판매 중지·옵션 삭제 가능성).
     // 수집이 끝난 뒤에만 판정한다 — 진행 중에는 한 업체의 다른 상품 페이지를 아직 안 읽었을 뿐이라 거짓으로 '안 보임'이 떴다 사라졌다.
     const finished = !!scanState && !scanState.running && scanState.done >= scanState.total;
+    const missingShared = new Set();
     (finished ? current : []).forEach(x => {
       if (!okComps.has(x.comp) || failedComps.has(x.comp) || !num(x.price)) return;
       if (seen.has(keyOf(x.comp, Number(x.t), x.opt, rowLen(x)))) return;
       if (unitOurs(table, Number(x.t), x.opt, rowLen(x)).price == null) return;
+      if (table.shared) {
+        // 공통 대표값은 업체·길이마다 한 줄만 보여 준다
+        const mk = `${x.comp}|${rowLen(x)}`;
+        if (missingShared.has(mk)) return;
+        missingShared.add(mk);
+        results.push({ comp: x.comp, t: Number(x.t), len: rowLen(x), opt: '*', optLabel: `${rowLen(x)}M 한국단열 전 상품 공통`, before: num(x.price), actual: null, diff: null, status: '스토어에서 안 보임', link: x.link || '' });
+        return;
+      }
       results.push({ comp: x.comp, t: Number(x.t), len: rowLen(x), opt: x.opt, optLabel: optLabel(x.opt, rowLen(x)), before: num(x.price), actual: null, diff: null, status: '스토어에서 안 보임', link: x.link || '' });
     });
     return results;
@@ -1210,20 +1428,24 @@
   function applyCollected(table, results) {
     const list = state.rows[table.id] = state.rows[table.id] || [];
     let applied = 0;
-    results.filter(r => (r.status === '변경' || r.status === '신규') && r.actual > 0).forEach(r => {
+    // 단열벽지의 공통 대표값(opt '*')은 한국단열 상품 4종 줄에 같은 값으로 풀어 넣는다(건수는 결과 한 줄 = 1건).
+    const flat = results.flatMap(r => (r.opt === '*' ? table.options.map((o, i) => ({ ...r, opt: o.key, _first: i === 0 })) : [{ ...r, _first: true }]));
+    flat.filter(r => (r.status === '변경' || r.status === '신규') && r.actual > 0).forEach(r => {
       const cur = list.find(x => x.comp === r.comp && Number(x.t) === r.t && x.opt === r.opt && rowLen(x) === (r.len || 1));
-      if (cur) { cur.price = r.actual; cur.checked = today(); if (r.link) cur.link = r.link; }
-      else list.push({ id: state.nextId++, comp: r.comp, t: r.t, opt: r.opt, len: r.len || 1, price: r.actual, link: r.link || '', checked: today() });
+      if (cur) { cur.price = r.actual; cur.checked = today(); if (r.link) cur.link = r.link; if (r.hi) cur.hi = r.hi; else delete cur.hi; }
+      else list.push({ id: state.nextId++, comp: r.comp, t: r.t, opt: r.opt, len: r.len || 1, price: r.actual, ...(r.hi ? { hi: r.hi } : {}), link: r.link || '', checked: today() });
       const kept = extraList(table.id, r.len || 1, true);
       if (!kept.includes(r.comp)) kept.push(r.comp);
       if (r.link && !companyLinks(table, r.comp, r.len || 1).length) (state.links[table.id] = state.links[table.id] || {})[(r.len || 1) > 1 ? `${r.comp}@${r.len}` : r.comp] = [r.link];
-      applied++;
+      if (r._first) applied++;
     });
-    // 값은 그대로(일치)여도 그 칸이 읽힌 상품 페이지가 다르면 주소만 새로 기록한다
+    // 값은 그대로(일치)여도 그 칸이 읽힌 상품 페이지가 다르거나 최고가(hi)가 바뀌었으면 기록만 새로 한다
     let linkChanged = false;
-    results.filter(r => r.status === '일치' && r.link).forEach(r => {
+    flat.filter(r => r.status === '일치').forEach(r => {
       const cur = list.find(x => x.comp === r.comp && Number(x.t) === r.t && x.opt === r.opt && rowLen(x) === (r.len || 1));
-      if (cur && cur.link !== r.link) { cur.link = r.link; linkChanged = true; }
+      if (!cur) return;
+      if (r.link && cur.link !== r.link) { cur.link = r.link; linkChanged = true; }
+      if (table.shared && (cur.hi || null) !== (r.hi || null)) { if (r.hi) cur.hi = r.hi; else delete cur.hi; linkChanged = true; }
     });
     if (linkChanged) markDirty();
     return applied;

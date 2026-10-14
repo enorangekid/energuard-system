@@ -204,8 +204,10 @@ function _hkEtcBomCard(lineKey) {
 // 원가 설정 카드·원가 칸은 일단 화면에 안 보여준다(사용자 확인 2026-09-23) — 함수는 남겨뒀다가
 // 나중에 다시 켤 수 있게 해뒀다(_hkEtcBomCard, HK_ETC_BOM, _hkEtcProductCost 등은 그대로 있음).
 function renderHkEtcPane() {
+  // 경쟁사 가격 비교 구역(2026-10-14) — 난방필름단열재·캠핑단열재. js/pricing-hankook-compare.js, 카테고리 맨 위·기본 접힘.
+  const compareSection = typeof window.hkCompareSectionHtml === 'function' ? window.hkCompareSectionHtml('hk_etc') : '';
   return `<div id="hkEtcBaseDataSection">
-    <div id="hkIsoAcc-etc_all" class="card pricing-result-card hk-sub-card">
+    ${compareSection}<div id="hkIsoAcc-etc_all" class="card pricing-result-card hk-sub-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">한국단열 기타단열재 기준 판매가<span class="pricing-spec-badge">${HK_ETC_PRODUCTS.length}개</span></div>
       </div>
