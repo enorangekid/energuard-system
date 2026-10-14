@@ -332,8 +332,8 @@ window.setHkPricingTab = function(tabId, el) {
     const suppPane = document.getElementById('pricing-tab-hk_supp');
     if (suppPane) suppPane.innerHTML = renderHkSupplementPane();
   }
-  // 경쟁사 가격 탭은 한국단열 판매가를 열 때마다 다시 읽어 와서 방금 고친 값이 바로 비교에 반영되게 한다.
-  if (tabId === 'hk_compare' && typeof window.hkCompareOnOpen === 'function') window.hkCompareOnOpen();
+  // 아이소핑크·열반사단열재 맨 위 경쟁사 가격 구역은 탭을 열 때마다 한국단열 판매가를 다시 읽어 와서 방금 고친 값이 바로 비교에 반영되게 한다.
+  if (typeof window.hkCompareOnOpen === 'function') window.hkCompareOnOpen();
   // 카테고리 탭을 고르면 "카테고리 모드" — 기준단가(1·2단계)는 보이고
   // 채널의 3단계 실제 등록 상품 표는 숨긴다. 채널 탭 쪽은 선택 표시를 지워서
   // 지금 보고 있는 화면과 맞지 않는 버튼이 같이 눌려 보이지 않게 한다.
@@ -383,8 +383,6 @@ function renderHkCategoryPane(tabId) {
   if (tabId === 'hk_window' && typeof renderHkWindowPane === 'function') return renderHkWindowPane();
   // 추가상품은 단가표에서 가격이 계산되는 목록이라(저장값 없음) 전용 파일에서 렌더한다.
   if (tabId === 'hk_supp' && typeof renderHkSupplementPane === 'function') return renderHkSupplementPane();
-  // 경쟁사 가격 비교(js/pricing-hankook-compare.js) — 그 파일을 불러온 화면에서만 탭이 생긴다.
-  if (tabId === 'hk_compare' && typeof renderHkComparePane === 'function') return renderHkComparePane();
 
   // 카테고리가 채워지면 여기에 전용 렌더 함수를 추가하면 됨 (renderHkIsopinkPane와 같은 패턴).
 
@@ -3470,8 +3468,10 @@ function renderHkIsopinkPane() {
     </div>`
   ).join('');
 
+  // 맨 위: 경쟁사 가격 · 가격 경쟁력 구역(js/pricing-hankook-compare.js를 불러온 화면에서만 나온다).
+  const compareSection = typeof window.hkCompareSectionHtml === 'function' ? window.hkCompareSectionHtml('hk_isopink') : '';
   return `<div id="hkIsoBaseDataSection">
-    ${marginCard}<div class="card pricing-result-card">
+    ${compareSection}${marginCard}<div class="card pricing-result-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">한국단열 아이소핑크 기준 판매가<span class="pricing-spec-badge">원가·배송 통합</span></div>
       </div>

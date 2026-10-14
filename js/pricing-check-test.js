@@ -101,7 +101,7 @@
       const state=snapshot;
       // kind==='competitor'면 경쟁사 가격 확인 창이 돌려놓은 상태다 — 워커 큐(chrome.storage)가
       // 공유라 두 도구를 동시에 못 돌리므로, 이 창엔 "이력 없음"으로 보여준다(2026-09-15).
-      if(!state || state.kind==='competitor' || state.kind==='hkd'){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();return;}
+      if(!state || state.kind==='competitor' || state.kind==='compscan' || state.kind==='hkd'){status.textContent='검사 이력이 없습니다.';statusBar.classList.remove('running','error');summary.replaceChildren();return;}
       const counts={};for(const row of state.rows)counts[row.status]=(counts[row.status]||0)+1;
       // 목록 단계가 몇 페이지까지 갔는지 · 연속으로 몇 페이지 못 맞혔는지 보여준다 —
       // 특정 상품군이 목록에서 안 잡히고 계속 상세로 새는 게 페이지네이션이 안 가서인지

@@ -406,8 +406,12 @@ function renderHkReflectivePane() {
   // 롤형 원가 칸(표)은 다시 보여주지만(마스터 원가×길이 계산, 단열벽지와 같은 기준) 편집 카드는
   // 안 켠다(사용자 확인 2026-09-23 — 단열벽지처럼 원가표 없이 그냥 계산된 값만 보여주는 쪽으로).
   // _hkReflectiveRollCostCard()는 안 쓰지만 남겨둔다.
+  // 판상형 원가 설정 카드(_hkReflectiveBomCard)도 같은 이유로 화면에서 뺀다(사용자 지시 2026-10-14) — 재료 단가(HK_REFLECTIVE_BOM)는
+  // 상수·DB 값 그대로 계산에 쓰이고 화면 입력칸만 없다. 다시 켜려면 아래 줄 앞에 ${_hkReflectiveBomCard()}를 붙인다.
+  // 맨 위: 경쟁사 가격 · 가격 경쟁력 구역(js/pricing-hankook-compare.js를 불러온 화면에서만 나온다).
+  const compareSection = typeof window.hkCompareSectionHtml === 'function' ? window.hkCompareSectionHtml('hk_reflective') : '';
   return `<div id="hkReflectiveBaseDataSection">
-    ${_hkReflectiveBomCard()}<div id="hkIsoAcc-reflective_all" class="card pricing-result-card hk-sub-card">
+    ${compareSection}<div id="hkIsoAcc-reflective_all" class="card pricing-result-card hk-sub-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">한국단열 열반사단열재(빌트론) 기준 판매가<span class="pricing-spec-badge">${HK_REFLECTIVE_PRODUCTS.length}개 · 2단계 배송 정책 없음</span></div>
       </div>
