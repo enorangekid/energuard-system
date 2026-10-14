@@ -18,7 +18,8 @@
 ═══════════════════════════════════════ */
 (function () {
   if (typeof HK_CATEGORIES === 'undefined') return;
-  // 이 파일을 불러온 화면(단가표)에서만 각 카테고리(아이소핑크·열반사단열재) 맨 위에 경쟁사 가격 구역이 생긴다 — 보기 전용 화면에는 안 나타난다.
+  // 이 파일을 불러온 화면(단가표, 단가표 보기 전용 pricing-view.html)에서 각 카테고리(아이소핑크·열반사단열재) 맨 위에 경쟁사 가격 구역이 생긴다.
+  // 보기 전용에서는 viewOnly()로 수집·편집·저장 버튼을 빼고 보기만 하게 한다.
 
   const SETTING_KEY = 'competitor_compare';
   // 사용자 결정(2026-10-14): 경쟁사 가격은 화면에서 직접 고치지 않고 확장 수집값을 [수집값 불러오기]로만 반영한다.
@@ -135,6 +136,9 @@
   const toast = (message, type) => { if (typeof showToast === 'function') showToast(message, type); else console.warn('[경쟁사 가격]', message); };
   const today = () => new Date().toISOString().slice(0, 10);
   const tableOf = id => TABLES.find(t => t.id === id);
+  // 보기 전용(pricing-view.html — 로그인 없이 링크로 보는 화면, 관리자가 아닌 사용자)에서는 보기·탭 전환·배송비 포함 토글만 되고
+  // 수집·편집·업체 추가/삭제·저장 버튼은 나오지 않으며 해당 함수도 실행되지 않는다(익명 키로 저장하지 못하게 이중으로 막음).
+  const viewOnly = () => !(window.currentUser && window.currentUser.role === 'admin');
 
   /* "900x1800"·"900 x 1800"·"900×1800" 같은 규격 글자의 면적(㎟). 읽히지 않으면 null. */
   function areaOf(text) {
@@ -400,7 +404,7 @@
   function withShipOn(table) { return !!uiOf(table.categoryId).withShip; }
 
   /* 편집 모드 — [편집]을 눌러야 배송비 입력과 업체 추가·삭제가 가능하다(사용자 지시 2026-10-14). 꺼져 있으면 값만 보인다. */
-  function editingOn(table) { return !!uiOf(table.categoryId).editing; }
+  function editingOn(table) { return !viewOnly() && !!uiOf(table.categoryId).editing; }
 
   /* 비교에 쓰는 1M 값 — [배송비 포함 비교]가 꺼져 있으면 판매가 그대로, 켜져 있으면 판매가 + 배송비/N개(입력이 있을 때). */
   function effValue(table, key, price) {
@@ -509,18 +513,18 @@
     const compactBody = (shipRow + body).replace(/<td([^>]*)>/g, (m, attrs) => attrs.includes('style="')
       ? `<td${attrs.replace('style="', 'style="padding:11px 6px;background:#fff;')}>`
       : `<td${attrs} style="padding:11px 6px;background:#fff;">`);
-    const hint = EDITABLE ? '칸을 비우면 그 업체 가격이 지워집니다' : '가격은 확장 수집값을 [수집값 불러오기]로 반영하고, 배송비는 직접 입력합니다';
+    const hint = viewOnly() ? '' : (EDITABLE ? '칸을 비우면 그 업체 가격이 지워집니다' : '가격은 확장 수집값을 [수집값 불러오기]로 반영하고, 배송비는 직접 입력합니다');
     return `<div style="margin-top:18px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
         <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} – ${len}M 기준 <span style="font-size:11px;font-weight:500;color:#94a3b8;">${hint}</span></div>
         <div style="display:flex;gap:8px;">
-          <button type="button" class="pricing-margin-edit-btn" onclick="hkCmpCollect('${table.id}')" title="등록된 경쟁사 상품 주소를 크롬 확장이 열어 옵션별 판매가를 읽어 옵니다(통합 확장 0.32.5 이상). 길이는 모두 한 번에 읽습니다.">
-            <i class="fa-solid fa-people-arrows"></i> 경쟁사 가격 확인</button>
+          ${viewOnly() ? '' : `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpCollect('${table.id}')" title="등록된 경쟁사 상품 주소를 크롬 확장이 열어 옵션별 판매가를 읽어 옵니다(통합 확장 0.32.5 이상). 길이는 모두 한 번에 읽습니다.">
+            <i class="fa-solid fa-people-arrows"></i> 경쟁사 가격 확인</button>`}
           ${COMPANY_EDITABLE && editingOn(table) ? `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpAddComp('${table.id}')"><i class="fa-solid fa-plus"></i> 경쟁사 추가</button>` : ''}
-          ${COMPANY_EDITABLE ? `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpToggleEdit('${table.categoryId}')" title="${editingOn(table) ? '편집을 끝냅니다' : '배송비 입력, 경쟁사 추가·삭제를 할 수 있습니다'}"><i class="fa-solid fa-${editingOn(table) ? 'check' : 'pen'}"></i> ${editingOn(table) ? '편집 완료' : '편집'}</button>` : ''}
-          <button type="button" class="pricing-margin-edit-btn" onclick="hkCmpToggleShip('${table.categoryId}')" title="켜면 같은 길이끼리 판매가 + 배송비 ÷ N개로 비교합니다(분석 막대도 같은 기준)">
+          ${COMPANY_EDITABLE && !viewOnly() ? `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpToggleEdit('${table.categoryId}')" title="${editingOn(table) ? '편집을 끝냅니다' : '배송비 입력, 경쟁사 추가·삭제를 할 수 있습니다'}"><i class="fa-solid fa-${editingOn(table) ? 'check' : 'pen'}"></i> ${editingOn(table) ? '편집 완료' : '편집'}</button>` : ''}
+          <button type="button" class="pricing-margin-edit-btn hk-cmp-view-ok" onclick="hkCmpToggleShip('${table.categoryId}')" title="켜면 같은 길이끼리 판매가 + 배송비 ÷ N개로 비교합니다(분석 막대도 같은 기준)">
             <i class="fa-solid fa-truck-fast"></i> 배송비 포함 비교: ${withShip ? '켜짐' : '꺼짐'}</button>
-          <button type="button" class="pricing-margin-edit-btn" onclick="hkCmpSave()"><i class="fa-solid fa-floppy-disk"></i> 저장</button>
+          ${viewOnly() ? '' : '<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpSave()"><i class="fa-solid fa-floppy-disk"></i> 저장</button>'}
         </div>
       </div>
       <div class="pricing-table-scroll" style="border:1px solid #e2e8f0;border-radius:10px;">
@@ -856,7 +860,7 @@
       <div class="pricing-result-header"${ui.open ? '' : ' style="border-radius:12px;border-bottom:0;"'}>
         <div class="pricing-result-title">${esc(label)} 경쟁사 가격 · 가격 경쟁력<span class="pricing-spec-badge">한국단열 스마트스토어 기준</span>${!ui.open && state.dirty ? '<span class="pricing-result-hint" style="color:#d97706;font-weight:600;">저장하지 않은 변경이 있습니다</span>' : ''}</div>
         <div style="display:flex;align-items:center;gap:8px;">
-          ${ui.open && TABLES.some(t => t.categoryId === cat && t.kind !== 'unit') ? `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpImportScans('${cat}')" title="확장으로 수집한 경쟁사 옵션 가격(competitor_price_scans)을 업체명·두께·규격으로 짝지어 판매가를 채웁니다. 표에 이미 있는 업체만 반영하고, 배송비·배송기준은 직접 입력합니다.">
+          ${!viewOnly() && ui.open && TABLES.some(t => t.categoryId === cat && t.kind !== 'unit') ? `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpImportScans('${cat}')" title="확장으로 수집한 경쟁사 옵션 가격(competitor_price_scans)을 업체명·두께·규격으로 짝지어 판매가를 채웁니다. 표에 이미 있는 업체만 반영하고, 배송비·배송기준은 직접 입력합니다.">
             <i class="fa-solid fa-cloud-arrow-down"></i> 수집값 불러오기</button>` : ''}
           <button type="button" class="hk-iso-accordion-toggle" onclick="hkCmpToggle('${cat}')" title="펼치기 / 접기" aria-label="경쟁사 가격 구역 펼치기 또는 접기"><i class="fa-solid fa-chevron-down hk-iso-accordion-chevron"${ui.open ? ' style="transform:rotate(180deg);color:#4f46e5;"' : ''}></i></button>
         </div>
@@ -948,12 +952,15 @@
       state.note = `저장된 값을 불러오지 못해 예전 비교표 값을 보여 줍니다 (${e.message})`;
       state.noteKind = 'error';
     }
+    // 보기 전용에는 [저장]이 없으니 '저장하지 않은 변경'·'[저장]을 눌러 확정' 안내는 내지 않는다(불러오기 오류 안내만 남김).
+    if (viewOnly()) { state.dirty = false; if (state.noteKind !== 'error') state.note = ''; }
     state.loaded = true;
     state.loading = false;
     rerender();
   }
 
   window.hkCmpSave = async function () {
+    if (viewOnly()) return;
     const c = client();
     if (!c) { toast('Supabase에 연결되지 않았습니다', 'error'); return; }
     state.saving = true; setStatus();
@@ -1223,6 +1230,7 @@
   }
 
   window.hkCmpCollect = async function (tableId) {
+    if (viewOnly()) return;
     const table = tableOf(tableId);
     if (!table || table.kind !== 'unit') return;
     const targets = collectTargets(table);
@@ -1344,6 +1352,7 @@
   };
 
   window.hkCmpImportScans = async function (cat) {
+    if (viewOnly()) return;
     const c = client();
     if (!c) { toast('Supabase에 연결되지 않았습니다', 'error'); return; }
     const { data, error } = await c.from('competitor_price_scans')

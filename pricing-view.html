@@ -106,6 +106,8 @@
   .hk-win-reflect-all,
   [onclick^="revertHk"],
   #hkDbLiveBadge.warn { display:none !important; }
+  /* 경쟁사 가격 구역의 [배송비 포함 비교]는 .pricing-margin-edit-btn 모양을 쓰지만 보기용 토글이라 위 숨김에서 뺀다(2026-10-14). */
+  .pricing-margin-edit-btn.hk-cmp-view-ok { display:inline-flex !important; }
 </style>
 </head>
 <body>
@@ -307,6 +309,8 @@
 <script src="js/pricing-hankook-esm-auction.js"></script>
 <script src="js/pricing-hankook-supplement.js"></script>
 <script src="js/pricing-hankook-db.js"></script>
+<!-- 경쟁사 가격 비교(2026-10-14) — 아이소핑크·열반사 카테고리 맨 위 구역. 이 페이지는 로그인이 없어 보기만 된다(수집·편집·저장 버튼 없음). -->
+<script src="js/pricing-hankook-compare.js"></script>
 <script>
   // pricing.js가 자기 DOMContentLoaded 리스너(initPricingTabs)를 이미 등록해둔 뒤에
   // 이 스크립트가 실행되므로, 여기서 등록하는 리스너는 항상 그 다음에 실행된다
@@ -350,6 +354,8 @@
       'toggleHkIsoShippingSection', 'hkDbToggleHistory', 'hkDbRestoreHistory',
       // 몰별 적용(채널) 화면의 보기용 — 분류 필터, 접기·펴기, 상품코드 복사. 판매상태·기준 옵션·메모·수동가는 입력칸 잠금으로 막는다.
       'setHkChannelCategory', 'hkToggleChannelKind', 'hkToggleChannelGroup', 'hkToggleChannelSection', 'hkCopyChannelKindCodes', 'hkCopyProductCode',
+      // 경쟁사 가격 비교 구역 — 접기·펴기, 비교표·두께·길이 고르기, 배송비 포함 비교, 상품 주소 목록 보기만(수집·편집·저장은 막힘).
+      'hkCmpToggle', 'hkCmpPickTable', 'hkCmpPickT', 'hkCmpPickLen', 'hkCmpToggleShip', 'hkCmpShowLinks',
     ]);
     function lockHkInputs() {
       document.querySelectorAll('#hkPricingBodyWrap input, #hkPricingBodyWrap select, #hkPricingBodyWrap textarea').forEach((el) => {

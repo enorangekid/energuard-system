@@ -359,6 +359,17 @@
   border-radius: 0 0 var(--radius) var(--radius);
 }
 
+/* 단가표 머리글 고정(2026-10-14, 사용자 요청) — 표가 가로 스크롤 래퍼(overflow-x:auto) 안에 있으면 sticky의 기준이
+   페이지가 아니라 이 래퍼가 돼서, 페이지를 내려도 머리글이 안 따라온다. 그래서 표 영역에 최대 높이를 주고
+   내부 세로 스크롤을 만들어 그 안에서 머리글을 고정한다(표가 짧으면 스크롤 없이 그대로). 몰별 표의 틀 고정 열(.hk-freeze)은
+   z-index 4로 머리글보다 위에 남는다(아래 선택자 우선순위가 일부러 낮음). */
+.pricing-table-scroll:has(> table) {
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+}
+/* 머리글이 2단(행 병합: 아이소핑크 등)인 표가 있어 셀(th)이 아니라 thead 전체를 고정한다 — th마다 top:0을 주면 둘째 줄이 첫 줄 위에 겹친다 */
+.pricing-table-scroll > table > thead { position: sticky; top: 0; z-index: 3; }
+
 /* 단가 결과 테이블 */
 .pricing-table {
   width: 100%; border-collapse: separate; border-spacing: 0;
