@@ -800,18 +800,13 @@ function _hkIsoAccordionSectionHtml(acc, isOpen) {
         <p>${acc.label}</p>
         <span>구조 연결 전</span>
       </div>`;
-  // 경쟁사 비교(js/pricing-hankook-compare.js) — 비교표가 있는 규격만 머리줄에 [경쟁사 비교] 단추가 생기고, 누르면 이 단가표 자리가 경쟁사 화면으로 바뀐다.
-  const cmpButton = typeof window.hkCompareAccButtonHtml === 'function' ? window.hkCompareAccButtonHtml(acc.id) : '';
-  const cmpPanel = typeof window.hkCompareAccPanelHtml === 'function' ? window.hkCompareAccPanelHtml(acc.id) : '';
-  const cmpView = typeof window.hkCompareAccView === 'function' ? window.hkCompareAccView(acc.id) : 'calc';
-  return `<div class="hk-iso-accordion${isOpen || cmpView === 'compare' ? ' open' : ''}" id="hkIsoAcc-${acc.id}" data-cmp-view="${cmpView}">
+  return `<div class="hk-iso-accordion${isOpen ? ' open' : ''}" id="hkIsoAcc-${acc.id}">
     <div class="hk-iso-accordion-head">
       <span class="hk-iso-accordion-title">${acc.label}${acc.sub ? `<span class="hk-iso-accordion-sub">${acc.sub}</span>` : ''}</span>
       <span class="hk-iso-accordion-count">기준단가 ${count}개</span>
-      ${cmpButton}
       <button type="button" class="hk-iso-accordion-toggle" onclick="toggleHkIsoAccordion('${acc.id}')" title="펼치기 / 접기" aria-label="${acc.label} 펼치기 또는 접기"><i class="fa-solid fa-chevron-down hk-iso-accordion-chevron"></i></button>
     </div>
-    <div class="hk-iso-accordion-body"><div class="hk-cmp-acc-calc">${bodyHtml}</div>${cmpPanel}</div>
+    <div class="hk-iso-accordion-body">${bodyHtml}</div>
   </div>`;
 }
 
@@ -3475,11 +3470,15 @@ function renderHkIsopinkPane() {
 
   // 맨 위: 경쟁사 가격 · 가격 경쟁력 구역(js/pricing-hankook-compare.js를 불러온 화면에서만 나온다).
   const compareSection = typeof window.hkCompareSectionHtml === 'function' ? window.hkCompareSectionHtml('hk_isopink') : '';
+  // 경쟁사 비교(js/pricing-hankook-compare.js) — 카드 제목 옆 [경쟁사 비교] 단추, 누르면 이 카드의 단가표 전체가 경쟁사 화면으로 바뀐다.
+  const cmp = typeof window.hkCompareCardParts === 'function' ? window.hkCompareCardParts('hk_isopink') : { btn: '', panel: '', view: 'calc' };
   return `<div id="hkIsoBaseDataSection">
-    ${compareSection}${marginCard}<div class="card pricing-result-card">
+    ${compareSection}${marginCard}<div data-cmp-view="${cmp.view}" class="card pricing-result-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">한국단열 아이소핑크 기준 판매가<span class="pricing-spec-badge">원가·배송 통합</span></div>
+        ${cmp.btn}
       </div>
+      ${cmp.panel}
       <div class="bead-subtab-bar" id="hkIsoSuperTabBar">${superTabs}</div>
       ${superPanes}
     </div>

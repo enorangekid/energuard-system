@@ -1036,9 +1036,9 @@
     renderAnalysis(cat);
     const body = document.getElementById(`hkComparePaneBody-${cat}`);
     if (body) body.innerHTML = bodyHtml(cat);
-    if (document.querySelector('.hk-cmp-acc-panel')) rerender();
+    if (document.querySelector('.hk-cmp-card-panel')) rerender();
   };
-  window.hkCmpPickT = function (cat, t) { uiOf(cat).t = Number(t); renderAnalysis(cat); if (document.querySelector('.hk-cmp-acc-panel')) rerender(); };
+  window.hkCmpPickT = function (cat, t) { uiOf(cat).t = Number(t); renderAnalysis(cat); if (document.querySelector('.hk-cmp-card-panel')) rerender(); };
   // 길이를 바꾸면 분석과 아래 비교표가 같은 길이로 같이 바뀐다.
   window.hkCmpPickLen = function (cat, len) {
     const ui = uiOf(cat);
@@ -1047,7 +1047,7 @@
     renderAnalysis(cat);
     const body = document.getElementById(`hkComparePaneBody-${cat}`);
     if (body) body.innerHTML = bodyHtml(cat);
-    if (document.querySelector('.hk-cmp-acc-panel')) rerender();
+    if (document.querySelector('.hk-cmp-card-panel')) rerender();
   };
   window.hkCmpToggle = function (cat) { const ui = uiOf(cat); ui.open = !ui.open; rerender(); };
 
@@ -1322,43 +1322,49 @@
     return viewBarHtml(cat) + (uiOf(cat).view === 'compare' ? sectionInner(cat) : '');
   }
 
-  /* ─── 단가표(아코디언) 머리줄 버튼 — 눌러서 그 단가표 자리만 경쟁사 비교로 바꾼다(사용자 제안 2026-10-15) ───
-     아이소핑크 단가표 아코디언 중 비교표가 있는 규격만: 600x900 일반 → 600×900 표, 900x1800 단품·묶음 → 900×1800 표.
-     경쟁사 화면은 가격표(매트릭스)가 먼저, 경쟁력 그래프는 그 아래다. 고른 보기는 아코디언마다 브라우저에 기억한다. */
-  const ACC_TABLE = {
-    iso_600x900: 'iso_600_900', iso_900x1800_single: 'iso_900_1800', iso_900x1800_bundle: 'iso_900_1800',
-    // 스티로폼 1종 3호 = 스티로폼(St_) 표, 2종 2호 = 네오폴(Neo_) 표(접착식·고티·1200x2400 등은 비교표 없음)
-    bead1_600x900: 'st_600_900', bead1_600x900_bundle: 'st_600_900', bead1_900x1800: 'st_900_1800',
-    bead2_600x900: 'neo_600_900', bead2_900x1800: 'neo_900_1800',
-  };
-  // 열반사·단열벽지는 표 하나가 카테고리 전체라 첫 그룹 아코디언에만 단추를 둔다. 기타단열재는 상품군(필름난방·캠핑)마다 표가 따로다.
-  function accTableId(accId) {
-    if (ACC_TABLE[accId]) return ACC_TABLE[accId];
-    const fixed = { reflective_g0: 'refl_1m', wallpaper_g0: 'wp_roll', etc_g0: 'etc_film', etc_g1: 'etc_camp' };
-    return fixed[accId] || null;
-  }
-  const ACC_CATS = ['hk_isopink', 'hk_bead', 'hk_reflective', 'hk_wallpaper', 'hk_etc']; // 맨 위 비교 구역을 빼고 아코디언 버튼만 쓰는 카테고리
-  // 보기(단가 계산 / 경쟁사 비교)는 이 화면을 보는 동안만 기억한다 — 페이지를 새로 열면 항상 단가 계산으로 시작한다(저장하지 않음).
-  const accMem = {};
-  try { Object.keys(localStorage).filter(k => k.startsWith('hkCmpAccView:')).forEach(k => localStorage.removeItem(k)); } catch { /* 이전 버전이 남긴 값 정리 */ }
-  function accView(accId) { return accMem[accId] || 'calc'; }
-  const accBtnInner = v => (v === 'compare'
+  /* ─── 카드 제목 옆 [경쟁사 비교] 단추 — 누르면 그 카테고리 '기준 판매가' 카드의 단가표 전체(상위 탭·아코디언)가 경쟁사 화면으로 바뀐다 ───
+     경쟁사 화면 = 표 고르기 칩(규격·상품군, 상위 탭 자리) → 가격표(매트릭스) → 경쟁력 그래프. 한 번 더 누르면 단가 계산으로 돌아온다.
+     고른 보기·표는 이 화면을 보는 동안만 기억한다(저장 안 함 — 페이지를 새로 열면 항상 단가 계산). */
+  const CARD_CATS = ['hk_isopink', 'hk_bead', 'hk_reflective', 'hk_wallpaper', 'hk_etc']; // 맨 위 비교 구역을 빼고 카드 단추만 쓰는 카테고리
+  const cardMem = {};
+  const cardTable = {}; // 카테고리마다 비교 화면에서 고른 표(없으면 칩의 첫 번째)
+  try {
+    Object.keys(localStorage).filter(k => k.startsWith('hkCmpAccView:')).forEach(k => localStorage.removeItem(k)); // 이전 버전이 남긴 값 정리
+  } catch { /* 저장소를 못 쓰면 그대로 */ }
+  const cardView = cat => cardMem[cat] || 'calc';
+  const cardBtnInner = v => (v === 'compare'
     ? '<i class="fa-solid fa-calculator"></i> 단가 계산'
     : '<i class="fa-solid fa-people-arrows"></i> 경쟁사 비교');
+  const tableLabel = t => t.chip || String(t.size || '').replace('x', '×') || t.title.replace(/^.*경쟁사 가격 비교표 – /, '');
 
-  window.hkCompareAccParts = accId => ({
-    btn: window.hkCompareAccButtonHtml(accId), panel: window.hkCompareAccPanelHtml(accId), view: window.hkCompareAccView(accId),
-  });
-  window.hkCompareAccView = accId => (accTableId(accId) && tableOf(accTableId(accId)) ? accView(accId) : 'calc');
-  window.hkCompareAccButtonHtml = function (accId) {
-    if (!accTableId(accId) || !tableOf(accTableId(accId))) return '';
-    return `<button type="button" class="hk-cmp-acc-btn" data-acc="${accId}" onclick="hkCmpAccToggle('${accId}')" title="이 단가표 자리에 경쟁사 가격 비교를 보여 주고, 다시 누르면 단가 계산으로 돌아옵니다">${accBtnInner(accView(accId))}</button>`;
-  };
-  window.hkCompareAccPanelHtml = function (accId) {
-    const tid = accTableId(accId);
-    const table = tid && tableOf(tid);
-    if (!table) return '';
-    return `<div class="hk-cmp-acc-panel" data-acc="${accId}" data-table="${tid}">${accView(accId) === 'compare' ? accPanelInner(table) : ''}</div>`;
+  /* 비교 화면의 표 칩(상위 탭 자리) + 고른 표의 가격표·그래프 */
+  function cardPanelInner(cat) {
+    // 칩 순서 — 계열(스티로폼→네오폴)은 정의 순서 그대로, 같은 계열 안에서는 작은 규격(600×900)부터. 단가 계산 화면의 순서와 같다.
+    const seriesOrder = [];
+    const seriesOf = t => { const k = t.id.split('_')[0]; if (!seriesOrder.includes(k)) seriesOrder.push(k); return seriesOrder.indexOf(k); };
+    const areaOf = t => (String(t.size || '').split('x').map(Number).reduce((a, b) => a * b, 1) || 0);
+    const catTables = TABLES.filter(t => t.categoryId === cat);
+    catTables.forEach(seriesOf);
+    catTables.sort((a, b) => seriesOf(a) - seriesOf(b) || areaOf(a) - areaOf(b));
+    if (!catTables.length) return '';
+    const ui = uiOf(cat);
+    const table = catTables.find(t => t.id === cardTable[cat]) || catTables[0];
+    const chips = catTables.length > 1
+      // 단가 계산 화면의 상위 탭과 같은 높이(두 줄)가 되도록 작은 설명 줄을 같이 둔다
+      ? subtabBar(catTables.map(t => ({ key: t.id, label: tableLabel(t), sub: t.kind === 'unit' ? (ui.withShip ? '판매가+배송비' : '판매가') : '장당 실구매가' })),
+        table.id, key => `hkCmpCardPick('${cat}','${key}')`)
+      : '';
+    return `${chips}<div class="hk-cmp-card-body">${accPanelInner(table)}</div>`;
+  }
+
+  window.hkCompareCardParts = function (cat) {
+    if (!CARD_CATS.includes(cat) || !TABLES.some(t => t.categoryId === cat)) return { btn: '', panel: '', view: 'calc' };
+    const view = cardView(cat);
+    return {
+      view,
+      btn: `<button type="button" class="hk-cmp-card-btn" data-cat="${cat}" onclick="hkCmpCardToggle('${cat}')" title="이 단가표 전체를 경쟁사 가격 비교 화면으로 바꾸고, 다시 누르면 단가 계산으로 돌아옵니다">${cardBtnInner(view)}</button>`,
+      panel: `<div class="hk-cmp-card-panel" data-cat="${cat}">${view === 'compare' ? cardPanelInner(cat) : ''}</div>`,
+    };
   };
 
   /* 경쟁력 그래프(막대) — 선택한 표 하나만. 맨 위 구역의 분석과 같은 막대·요약이다. */
@@ -1414,20 +1420,8 @@
     if (!state.loaded) return '<div style="padding:16px 0;color:#94a3b8;font-size:13px;">경쟁사 가격을 불러오는 중입니다…</div>';
     const noteHtml = state.note
       ? `<span style="color:${state.noteKind === 'error' ? '#dc2626' : '#64748b'};">${esc(state.note)}</span>` : '';
-    if (table.kind === 'unit') {
-      const parts = unitAnalysisParts(table);
+    if (table.kind !== 'unit') {
       return `<div>
-        ${noteHtml ? `<div class="pricing-result-hint" style="margin-top:2px;">${noteHtml}</div>` : ''}
-        ${parts.lenTabs}
-        ${unitTableHtml(table, `hkCmpCompanyNames-${table.id}`, { inlineStatus: true })}
-        <div style="margin-top:26px;padding-top:16px;border-top:1px solid #e2e8f0;">
-          <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} · 경쟁력 그래프</div>
-          ${parts.tabs}
-          ${parts.bars}
-        </div>
-      </div>`;
-    }
-    return `<div>
       ${noteHtml ? `<div class="pricing-result-hint" style="margin-top:2px;">${noteHtml}</div>` : ''}
       ${sheetMatrixHtml(table, `hkCmpCompanyNames-${table.id}`, { inlineStatus: true })}
       <div style="margin-top:26px;padding-top:16px;border-top:1px solid #e2e8f0;">
@@ -1435,32 +1429,41 @@
         ${barsOnlyHtml(table)}
       </div>
     </div>`;
+    }
+    return accUnitPanel(table, noteHtml);
   }
 
-  window.hkCmpAccToggle = function (accId) {
-    if (!accTableId(accId)) return;
-    const next = accView(accId) === 'compare' ? 'calc' : 'compare';
-    const setView = (id, v) => {
-      accMem[id] = v;
-      const el = document.getElementById(`hkIsoAcc-${id}`);
-      if (!el) return;
-      el.dataset.cmpView = v;
-      const b = el.querySelector('.hk-cmp-acc-btn');
-      if (b) b.innerHTML = accBtnInner(v);
-    };
-    // 비교 화면은 한 번에 하나만 — 다른 아코디언의 비교 보기는 단가 계산으로 돌리고, 이 아코디언만 남긴다(나머지 아코디언은 CSS로 숨김).
-    if (next === 'compare') [...document.querySelectorAll('.hk-cmp-acc-btn')].map(b => b.dataset.acc).filter(id => id && id !== accId).forEach(id => setView(id, 'calc'));
-    setView(accId, next);
-    const acc = document.getElementById(`hkIsoAcc-${accId}`);
-    if (acc && next === 'compare') {
-      acc.classList.add('open'); // 접혀 있어도 비교를 누르면 펼친다
-      acc.scrollIntoView({ block: 'nearest' });
-    }
+  function accUnitPanel(table, noteHtml) {
+    const parts = unitAnalysisParts(table);
+    return `<div>
+      ${noteHtml ? `<div class="pricing-result-hint" style="margin-top:2px;">${noteHtml}</div>` : ''}
+      ${parts.lenTabs}
+      ${unitTableHtml(table, `hkCmpCompanyNames-${table.id}`, { inlineStatus: true })}
+      <div style="margin-top:26px;padding-top:16px;border-top:1px solid #e2e8f0;">
+        <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} · 경쟁력 그래프</div>
+        ${parts.tabs}
+        ${parts.bars}
+      </div>
+    </div>`;
+  }
+
+  window.hkCmpCardToggle = function (cat) {
+    if (!CARD_CATS.includes(cat)) return;
+    cardMem[cat] = cardView(cat) === 'compare' ? 'calc' : 'compare';
+    rerender();
+  };
+  window.hkCmpCardPick = function (cat, tableId) {
+    const ui = uiOf(cat);
+    cardTable[cat] = tableId;
+    ui.tableId = tableId;
+    ui.t = null;
+    const next = tableOf(tableId);
+    if (next && next.lengths && !next.lengths.includes(ui.len)) ui.len = next.lengths[0];
     rerender();
   };
 
   window.hkCompareSectionHtml = function (cat) {
-    if (ACC_CATS.includes(cat)) return '';
+    if (CARD_CATS.includes(cat)) return '';
     if (!TABLES.some(t => t.categoryId === cat)) return '';
     return `<div class="hk-cmp-section" data-cat="${cat}" data-view="${viewOf(cat)}">${sectionBody(cat)}</div>`;
   };
@@ -1470,10 +1473,15 @@
       el.dataset.view = viewOf(el.dataset.cat);
       el.innerHTML = sectionBody(el.dataset.cat);
     });
-    // 단가표 아코디언 안의 경쟁사 화면 — 비교 보기인 아코디언만 다시 그린다
-    document.querySelectorAll('.hk-cmp-acc-panel').forEach(el => {
-      const table = tableOf(el.dataset.table);
-      el.innerHTML = table && accView(el.dataset.acc) === 'compare' ? accPanelInner(table) : '';
+    // 기준 판매가 카드 안의 경쟁사 화면 — 카드의 보기(data-cmp-view)와 단추 글자도 같이 맞춘다
+    document.querySelectorAll('.hk-cmp-card-panel').forEach(el => {
+      const cat = el.dataset.cat;
+      const view = cardView(cat);
+      const card = el.closest('.pricing-result-card');
+      if (card) card.dataset.cmpView = view;
+      const btn = card && card.querySelector('.hk-cmp-card-btn');
+      if (btn) btn.innerHTML = cardBtnInner(view);
+      el.innerHTML = view === 'compare' ? cardPanelInner(cat) : '';
     });
   }
 

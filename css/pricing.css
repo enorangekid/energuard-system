@@ -179,18 +179,17 @@
 }
 .pricing-section-sub { font-size: 13px; font-weight: 400; color: #94a3b8; }
 
-/* 단가표(아코디언) 머리줄 [경쟁사 비교] 단추 — 누르면 그 아코디언의 단가표 자리가 경쟁사 화면으로 바뀐다(2026-10-15). */
-.hk-cmp-acc-btn {
-  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+/* 기준 판매가 카드 제목 옆 [경쟁사 비교] 단추 — 누르면 카드의 단가표 전체(상위 탭·아코디언)가 경쟁사 화면으로 바뀐다(2026-10-15). */
+.hk-cmp-card-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; margin-left: auto;
   border: 1px solid #c7d2fe; border-radius: 8px; background: #eef2ff; color: #4338ca;
   font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
 }
-.hk-cmp-acc-btn:hover { background: #e0e7ff; }
-.hk-cmp-acc-panel { display: none; }
-.hk-iso-accordion[data-cmp-view="compare"] .hk-cmp-acc-panel { display: block; }
-.hk-iso-accordion[data-cmp-view="compare"] .hk-cmp-acc-calc { display: none; }
-/* 경쟁사 비교 화면일 때는 같은 목록의 다른 아코디언(고티·단품·묶음 등 접힌 단가표)은 숨기고 비교 화면만 보여 준다. 단가 계산을 누르면 다시 보인다. */
-.hk-iso-accordion-list:has(> .hk-iso-accordion[data-cmp-view="compare"]) > .hk-iso-accordion:not([data-cmp-view="compare"]) { display: none; }
+.hk-cmp-card-btn:hover { background: #e0e7ff; }
+.hk-cmp-card-panel { display: none; }
+.pricing-result-card[data-cmp-view="compare"] > .hk-cmp-card-panel { display: block; }
+.pricing-result-card[data-cmp-view="compare"] > :not(.pricing-result-header):not(.hk-cmp-card-panel) { display: none !important; }
+.hk-cmp-card-body { padding: 16px 22px 22px; }
 
 /* 단가 계산 ↔ 경쟁사 비교 보기 전환(js/pricing-hankook-compare.js, 2026-10-15) — 경쟁사 비교를 고르면 같은 자리의 단가 계산 화면
    (원가 카드·단가표)을 숨기고 비교 구역만 보여 준다. 보기 전환 줄(.hk-cmp-viewbar)은 두 보기 모두에서 보인다. */

@@ -340,16 +340,13 @@ function _hkReflectiveTableHtml(items) {
 
 function _hkReflectiveAccordionHtml(group, groupIndex) {
   const id = `reflective_g${groupIndex}`;
-  // 경쟁사 비교(js/pricing-hankook-compare.js) — 비교표가 있는 그룹만 머리줄에 [경쟁사 비교] 단추가 생기고, 누르면 이 단가표 자리가 경쟁사 화면으로 바뀐다.
-  const cmp = typeof window.hkCompareAccParts === 'function' ? window.hkCompareAccParts(id) : { btn: '', panel: '', view: 'calc' };
-  return `<div class="hk-iso-accordion${groupIndex === 0 || cmp.view === 'compare' ? ' open' : ''}" id="hkIsoAcc-${id}" data-cmp-view="${cmp.view}">
+  return `<div class="hk-iso-accordion${groupIndex === 0 ? ' open' : ''}" id="hkIsoAcc-${id}">
     <div class="hk-iso-accordion-head">
       <span class="hk-iso-accordion-title">${group.name}</span>
       <span class="hk-iso-accordion-count">상품 ${group.items.length}개</span>
-      ${cmp.btn}
       <button type="button" class="hk-iso-accordion-toggle" onclick="toggleHkIsoAccordion('${id}')" title="펼치기 / 접기" aria-label="${group.name} 펼치기 또는 접기"><i class="fa-solid fa-chevron-down hk-iso-accordion-chevron"></i></button>
     </div>
-    <div class="hk-iso-accordion-body"><div class="hk-cmp-acc-calc">${_hkReflectiveTableHtml(group.items)}</div>${cmp.panel}</div>
+    <div class="hk-iso-accordion-body">${_hkReflectiveTableHtml(group.items)}</div>
   </div>`;
 }
 
@@ -413,11 +410,15 @@ function renderHkReflectivePane() {
   // 상수·DB 값 그대로 계산에 쓰이고 화면 입력칸만 없다. 다시 켜려면 아래 줄 앞에 ${_hkReflectiveBomCard()}를 붙인다.
   // 맨 위: 경쟁사 가격 · 가격 경쟁력 구역(js/pricing-hankook-compare.js를 불러온 화면에서만 나온다).
   const compareSection = typeof window.hkCompareSectionHtml === 'function' ? window.hkCompareSectionHtml('hk_reflective') : '';
+  // 경쟁사 비교(js/pricing-hankook-compare.js) — 카드 제목 옆 [경쟁사 비교] 단추, 누르면 이 카드의 단가표 전체가 경쟁사 화면으로 바뀐다.
+  const cmp = typeof window.hkCompareCardParts === 'function' ? window.hkCompareCardParts('hk_reflective') : { btn: '', panel: '', view: 'calc' };
   return `<div id="hkReflectiveBaseDataSection">
-    ${compareSection}<div id="hkIsoAcc-reflective_all" class="card pricing-result-card hk-sub-card">
+    ${compareSection}<div id="hkIsoAcc-reflective_all" data-cmp-view="${cmp.view}" class="card pricing-result-card hk-sub-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">한국단열 열반사단열재(빌트론) 기준 판매가<span class="pricing-spec-badge">${HK_REFLECTIVE_PRODUCTS.length}개 · 2단계 배송 정책 없음</span></div>
+        ${cmp.btn}
       </div>
+      ${cmp.panel}
       <div class="hk-iso-accordion-list">
         ${_hkReflectiveGroups().map(_hkReflectiveAccordionHtml).join('')}
       </div>

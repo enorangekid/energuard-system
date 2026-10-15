@@ -560,11 +560,15 @@ function renderHkBeadPane() {
 
   // 경쟁사 가격 비교 구역(2026-10-15) — 스티로폼·네오폴 900×1800 / 600×900. js/pricing-hankook-compare.js, 카테고리 맨 위·기본 접힘.
   const compareSection = typeof window.hkCompareSectionHtml === 'function' ? window.hkCompareSectionHtml('hk_bead') : '';
+  // 경쟁사 비교(js/pricing-hankook-compare.js) — 카드 제목 옆 [경쟁사 비교] 단추, 누르면 이 카드의 단가표 전체가 경쟁사 화면으로 바뀐다.
+  const cmp = typeof window.hkCompareCardParts === 'function' ? window.hkCompareCardParts('hk_bead') : { btn: '', panel: '', view: 'calc' };
   return `<div id="hkBeadBaseDataSection">
-    ${compareSection}${_hkBeadCostCard()}<div class="card pricing-result-card">
+    ${compareSection}${_hkBeadCostCard()}<div data-cmp-view="${cmp.view}" class="card pricing-result-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">한국단열 스티로폼 기준 판매가<span class="pricing-spec-badge">원가·배송 통합</span></div>
+        ${cmp.btn}
       </div>
+      ${cmp.panel}
       <div class="bead-subtab-bar" id="hkBeadSuperTabBar">${superTabs}</div>
       ${superPanes}
     </div>
