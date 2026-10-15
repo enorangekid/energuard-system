@@ -191,9 +191,8 @@
 .pricing-result-card[data-cmp-view="compare"] > :not(.pricing-result-header):not(.hk-cmp-card-panel) { display: none !important; }
 .hk-cmp-card-body { padding: 16px 22px 22px; }
 
-/* 단가 계산 ↔ 경쟁사 비교 보기 전환(js/pricing-hankook-compare.js, 2026-10-15) — 경쟁사 비교를 고르면 같은 자리의 단가 계산 화면
-   (원가 카드·단가표)을 숨기고 비교 구역만 보여 준다. 보기 전환 줄(.hk-cmp-viewbar)은 두 보기 모두에서 보인다. */
-*:has(> .hk-cmp-section[data-view="compare"]) > :not(.hk-cmp-section) { display: none !important; }
+/* (제거 2026-10-15) 예전 '단가 계산 | 경쟁사 비교' 상단 보기 전환 줄용 `*:has(> .hk-cmp-section[data-view="compare"]) > …` 규칙 — 지금은
+   그 구역이 없고, 전체 요소를 대상으로 하는 :has()라 큰 화면에서 스타일 계산만 느리게 해서 뺐다. */
 
 /* 원가 카드 접기·펴기(js/pricing-card-collapse.js, 2026-10-15) — 제목을 누르면 표 부분이 접히고 버튼 줄(.pricing-cost-footer)은 남는다. */
 /* 접기 버튼은 다른 아코디언(.hk-iso-accordion-toggle)과 같은 자리·모양 — 오른쪽 끝, 32px, 펼침 상태는 위쪽 화살표(보라), 접힘은 아래쪽(회색) */
