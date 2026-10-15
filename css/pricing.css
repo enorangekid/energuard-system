@@ -179,6 +179,40 @@
 }
 .pricing-section-sub { font-size: 13px; font-weight: 400; color: #94a3b8; }
 
+/* 단가표(아코디언) 머리줄 [경쟁사 비교] 단추 — 누르면 그 아코디언의 단가표 자리가 경쟁사 화면으로 바뀐다(2026-10-15). */
+.hk-cmp-acc-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border: 1px solid #c7d2fe; border-radius: 8px; background: #eef2ff; color: #4338ca;
+  font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.hk-cmp-acc-btn:hover { background: #e0e7ff; }
+.hk-cmp-acc-panel { display: none; }
+.hk-iso-accordion[data-cmp-view="compare"] .hk-cmp-acc-panel { display: block; }
+.hk-iso-accordion[data-cmp-view="compare"] .hk-cmp-acc-calc { display: none; }
+/* 경쟁사 비교 화면일 때는 같은 목록의 다른 아코디언(고티·단품·묶음 등 접힌 단가표)은 숨기고 비교 화면만 보여 준다. 단가 계산을 누르면 다시 보인다. */
+.hk-iso-accordion-list:has(> .hk-iso-accordion[data-cmp-view="compare"]) > .hk-iso-accordion:not([data-cmp-view="compare"]) { display: none; }
+
+/* 단가 계산 ↔ 경쟁사 비교 보기 전환(js/pricing-hankook-compare.js, 2026-10-15) — 경쟁사 비교를 고르면 같은 자리의 단가 계산 화면
+   (원가 카드·단가표)을 숨기고 비교 구역만 보여 준다. 보기 전환 줄(.hk-cmp-viewbar)은 두 보기 모두에서 보인다. */
+*:has(> .hk-cmp-section[data-view="compare"]) > :not(.hk-cmp-section) { display: none !important; }
+
+/* 원가 카드 접기·펴기(js/pricing-card-collapse.js, 2026-10-15) — 제목을 누르면 표 부분이 접히고 버튼 줄(.pricing-cost-footer)은 남는다. */
+/* 접기 버튼은 다른 아코디언(.hk-iso-accordion-toggle)과 같은 자리·모양 — 오른쪽 끝, 32px, 펼침 상태는 위쪽 화살표(보라), 접힘은 아래쪽(회색) */
+.pricing-cost-card.is-collapsible > .pricing-section-title { cursor: pointer; user-select: none; }
+.pricing-cost-card.is-collapsible > .pricing-section-title::after {
+  content: '\f078'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
+  margin-left: auto; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 8px;
+  font-size: 13px; color: #4f46e5; transform: rotate(180deg);
+  transition: transform .15s ease, background .15s ease;
+}
+.pricing-cost-card.is-collapsible > .pricing-section-title:hover::after { background: #eef2ff; }
+.pricing-cost-card.is-collapsible.is-collapsed > .pricing-section-title::after { transform: none; color: #94a3b8; }
+.pricing-cost-card.is-collapsible.is-collapsed > .pricing-section-title:hover::after { color: #4f46e5; }
+.pricing-cost-card.is-collapsed > *:not(.pricing-section-title):not(.pricing-cost-footer) { display: none !important; }
+.pricing-cost-card.is-collapsed > .pricing-section-title { margin-bottom: 14px; padding-bottom: 14px; }
+
 /* 입력 테이블 래퍼 */
 .pricing-input-table-wrap { overflow-x: auto; }
 

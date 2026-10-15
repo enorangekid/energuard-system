@@ -153,13 +153,16 @@ function _hkWallpaperTableHtml(items) {
 
 function _hkWallpaperAccordionHtml(group, groupIndex) {
   const id = `wallpaper_g${groupIndex}`;
-  return `<div class="hk-iso-accordion${groupIndex === 0 ? ' open' : ''}" id="hkIsoAcc-${id}">
+  // 경쟁사 비교(js/pricing-hankook-compare.js) — 비교표가 있는 그룹만 머리줄에 [경쟁사 비교] 단추가 생기고, 누르면 이 단가표 자리가 경쟁사 화면으로 바뀐다.
+  const cmp = typeof window.hkCompareAccParts === 'function' ? window.hkCompareAccParts(id) : { btn: '', panel: '', view: 'calc' };
+  return `<div class="hk-iso-accordion${groupIndex === 0 || cmp.view === 'compare' ? ' open' : ''}" id="hkIsoAcc-${id}" data-cmp-view="${cmp.view}">
     <div class="hk-iso-accordion-head">
       <span class="hk-iso-accordion-title">${group.name}</span>
       <span class="hk-iso-accordion-count">상품 ${group.items.length}개</span>
+      ${cmp.btn}
       <button type="button" class="hk-iso-accordion-toggle" onclick="toggleHkIsoAccordion('${id}')" title="펼치기 / 접기" aria-label="${group.name} 펼치기 또는 접기"><i class="fa-solid fa-chevron-down hk-iso-accordion-chevron"></i></button>
     </div>
-    <div class="hk-iso-accordion-body">${_hkWallpaperTableHtml(group.items)}</div>
+    <div class="hk-iso-accordion-body"><div class="hk-cmp-acc-calc">${_hkWallpaperTableHtml(group.items)}</div>${cmp.panel}</div>
   </div>`;
 }
 

@@ -601,7 +601,7 @@
       <span style="font-size:11px;color:#64748b;">개마다</span></div>`;
   }
 
-  function unitTableHtml(table, listId) {
+  function unitTableHtml(table, listId, opts = {}) {
     const rows = state.rows[table.id] || [];
     const len = uiOf(table.categoryId).len || 1; // 지금 고른 길이(M)
     // 그 길이에서 파는 상품이 없는 업체(예: 1M에만 있는 업체)는 이 길이 표에서 열을 뺀다. [편집] 중에는 업체를 관리할 수 있게 모두 보인다.
@@ -689,7 +689,10 @@
     const hint = viewOnly() ? '' : (EDITABLE ? '칸을 비우면 그 업체 가격이 지워집니다' : '가격은 확장 수집값을 [수집값 불러오기]로 반영하고, 배송비는 직접 입력합니다');
     return `<div style="margin-top:18px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-        <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} – ${esc(lenText(table, len))} 기준 <span style="font-size:11px;font-weight:500;color:#94a3b8;">${hint}</span></div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} – ${esc(lenText(table, len))} 기준 <span style="font-size:11px;font-weight:500;color:#94a3b8;">${hint}</span></div>
+          ${opts.inlineStatus ? `<div class="hk-cmp-status" style="font-size:11px;color:#94a3b8;margin-top:3px;">${statusHtml()}</div>` : ''}
+        </div>
         <div style="display:flex;gap:8px;">
           ${viewOnly() ? '' : `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpCollect('${table.id}')" title="등록된 경쟁사 상품 주소를 크롬 확장이 열어 옵션별 판매가를 읽어 옵니다(통합 확장 0.32.5 이상). 길이는 모두 한 번에 읽습니다.">
             <i class="fa-solid fa-people-arrows"></i> 경쟁사 가격 확인</button>`}
@@ -875,14 +878,22 @@
   /* ─── 가격 경쟁력 분석(막대) — 입력표와 같은 자료에서 만든다. 읽기 전용이다. ───
      sheet 표(아이소핑크)는 두께마다 한 줄(값 = 장당 실구매가), unit 표(열반사)는 두께 탭 안에 제품 옵션마다 한 줄(값 = 1M 판매가). */
   const uiByCat = {}; // 카테고리마다 고른 표·두께·펼침 상태
+  /* 보기 전환 단추(단가 계산 | 경쟁사 비교)를 쓰는 카테고리 — 경쟁사 비교를 누르면 그 카테고리의 단가 계산 화면(원가 카드·단가표)을
+     숨기고 비교 화면만 보여 준다. 나머지 카테고리는 아직 예전처럼 맨 위 접힌 구역이다. 고른 보기는 브라우저에 기억한다. */
+  const VIEW_TOGGLE_CATS = []; // (2026-10-15 상단 전환 줄은 아코디언 머리줄 버튼으로 대체 — 코드는 남겨 둠)
+  const viewKey = cat => `hkCmpView:${cat}`;
   function uiOf(cat) {
     // 기본은 접힌 상태 — 단가표를 열 때 원가·판매가 표가 먼저 보이게 한다(사용자 지시 2026-10-14).
     if (!uiByCat[cat]) {
       const first = TABLES.find(t => t.categoryId === cat) || {};
-      uiByCat[cat] = { tableId: first.id, t: null, len: (first.lengths && first.lengths[0]) || 1, open: false };
+      let view = 'calc';
+      try { if (localStorage.getItem(viewKey(cat)) === 'compare') view = 'compare'; } catch { /* 저장소를 못 쓰면 기본 보기 */ }
+      uiByCat[cat] = { tableId: first.id, t: null, len: (first.lengths && first.lengths[0]) || 1, open: false, view };
     }
     return uiByCat[cat];
   }
+  const usesViewToggle = cat => VIEW_TOGGLE_CATS.includes(cat);
+  const viewOf = cat => (usesViewToggle(cat) ? uiOf(cat).view : 'legacy');
 
   function analysisGroups(table, onlyT) {
     const rows = state.rows[table.id] || [];
@@ -1025,8 +1036,9 @@
     renderAnalysis(cat);
     const body = document.getElementById(`hkComparePaneBody-${cat}`);
     if (body) body.innerHTML = bodyHtml(cat);
+    if (document.querySelector('.hk-cmp-acc-panel')) rerender();
   };
-  window.hkCmpPickT = function (cat, t) { uiOf(cat).t = Number(t); renderAnalysis(cat); };
+  window.hkCmpPickT = function (cat, t) { uiOf(cat).t = Number(t); renderAnalysis(cat); if (document.querySelector('.hk-cmp-acc-panel')) rerender(); };
   // 길이를 바꾸면 분석과 아래 비교표가 같은 길이로 같이 바뀐다.
   window.hkCmpPickLen = function (cat, len) {
     const ui = uiOf(cat);
@@ -1035,6 +1047,7 @@
     renderAnalysis(cat);
     const body = document.getElementById(`hkComparePaneBody-${cat}`);
     if (body) body.innerHTML = bodyHtml(cat);
+    if (document.querySelector('.hk-cmp-acc-panel')) rerender();
   };
   window.hkCmpToggle = function (cat) { const ui = uiOf(cat); ui.open = !ui.open; rerender(); };
 
@@ -1042,7 +1055,7 @@
      (배송비 포함, 규격 환산). 한 업체가 같은 두께에 묶음을 여러 개 팔면 장당 실구매가가 가장 싼 줄을 칸에 보이고 나머지는 마우스를 올리면 보인다.
      배송비는 수집되지 않아 [편집]에서 두께 × 업체로 직접 입력한다(그 업체·두께의 모든 묶음 줄에 같은 값). 저장 형식(옵션별 줄)은 그대로다.
      예전 옵션별 줄 표는 '옵션별 상세'로 접어 둔다. 규격(900×1800 / 600×900)은 위쪽 칩이 표를 고른다. */
-  function sheetMatrixHtml(table, listId) {
+  function sheetMatrixHtml(table, listId, opts = {}) {
     const rows = state.rows[table.id] || [];
     const focusNames = focusOf(table);
     const FOCUS_BG = '#fff7e0', FOCUS_HEAD = '#b45309';
@@ -1202,7 +1215,10 @@
     const hint = viewOnly() ? '' : '칸은 장당 실구매가(배송비 포함)이고, 배송비는 [편집]에서 칸마다 입력합니다';
     return `<div style="margin-top:18px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-        <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} <span style="font-size:11px;font-weight:500;color:#94a3b8;">${hint}</span></div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} <span style="font-size:11px;font-weight:500;color:#94a3b8;">${hint}</span></div>
+          ${opts.inlineStatus ? `<div class="hk-cmp-status" style="font-size:11px;color:#94a3b8;margin-top:3px;">${statusHtml()}</div>` : ''}
+        </div>
         <div style="display:flex;gap:8px;">
           ${viewOnly() ? '' : `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpCollect('${table.id}')" title="등록된 경쟁사 상품 주소를 크롬 확장이 열어 옵션별 판매가를 읽어 옵니다(통합 확장 0.32.5 이상). 옵션 해석은 결과 창에서 고칠 수 있습니다."><i class="fa-solid fa-people-arrows"></i> 경쟁사 가격 확인</button>`}
           ${editing ? `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpAddComp('${table.id}')"><i class="fa-solid fa-plus"></i> 경쟁사 추가</button>` : ''}
@@ -1276,13 +1292,14 @@
     const noteHtml = state.note && (!state.noteCat || state.noteCat === cat)
       ? `<span style="color:${state.noteKind === 'error' ? '#dc2626' : '#64748b'};">${esc(state.note)}</span>` : '';
     const label = (HK_CATEGORIES.find(c => c.id === cat) || {}).label || '';
+    if (usesViewToggle(cat)) ui.open = true;
     return `<div class="card pricing-result-card" style="margin-bottom:24px;">
       <div class="pricing-result-header"${ui.open ? '' : ' style="border-radius:12px;border-bottom:0;"'}>
         <div class="pricing-result-title">${esc(label)} 경쟁사 가격 · 가격 경쟁력<span class="pricing-spec-badge">한국단열 스마트스토어 기준</span>${!ui.open && state.dirty ? '<span class="pricing-result-hint" style="color:#d97706;font-weight:600;">저장하지 않은 변경이 있습니다</span>' : ''}</div>
         <div style="display:flex;align-items:center;gap:8px;">
           ${!viewOnly() && ui.open && TABLES.some(t => t.categoryId === cat && t.kind !== 'unit') ? `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpImportScans('${cat}')" title="확장으로 수집한 경쟁사 옵션 가격(competitor_price_scans)을 업체명·두께·규격으로 짝지어 판매가를 채웁니다. 표에 이미 있는 업체만 반영하고, 배송비·배송기준은 직접 입력합니다.">
             <i class="fa-solid fa-cloud-arrow-down"></i> 수집값 불러오기</button>` : ''}
-          <button type="button" class="hk-iso-accordion-toggle" onclick="hkCmpToggle('${cat}')" title="펼치기 / 접기" aria-label="경쟁사 가격 구역 펼치기 또는 접기"><i class="fa-solid fa-chevron-down hk-iso-accordion-chevron"${ui.open ? ' style="transform:rotate(180deg);color:#4f46e5;"' : ''}></i></button>
+          ${usesViewToggle(cat) ? '' : `<button type="button" class="hk-iso-accordion-toggle" onclick="hkCmpToggle('${cat}')" title="펼치기 / 접기" aria-label="경쟁사 가격 구역 펼치기 또는 접기"><i class="fa-solid fa-chevron-down hk-iso-accordion-chevron"${ui.open ? ' style="transform:rotate(180deg);color:#4f46e5;"' : ''}></i></button>`}
         </div>
       </div>
       ${ui.open ? `
@@ -1294,14 +1311,180 @@
     </div>`;
   }
 
+  function viewBarHtml(cat) {
+    const v = uiOf(cat).view;
+    const btn = (key, icon, label) => `<button type="button" class="bead-subtab${v === key ? ' active' : ''}" onclick="hkCmpSetView('${cat}','${key}')"><i class="fa-solid ${icon}" style="margin-right:6px;"></i>${label}</button>`;
+    return `<div class="bead-subtab-bar hk-cmp-viewbar" style="margin-bottom:16px;">${btn('calc', 'fa-calculator', '단가 계산')}${btn('compare', 'fa-people-arrows', '경쟁사 비교')}</div>`;
+  }
+
+  function sectionBody(cat) {
+    if (!usesViewToggle(cat)) return sectionInner(cat);
+    return viewBarHtml(cat) + (uiOf(cat).view === 'compare' ? sectionInner(cat) : '');
+  }
+
+  /* ─── 단가표(아코디언) 머리줄 버튼 — 눌러서 그 단가표 자리만 경쟁사 비교로 바꾼다(사용자 제안 2026-10-15) ───
+     아이소핑크 단가표 아코디언 중 비교표가 있는 규격만: 600x900 일반 → 600×900 표, 900x1800 단품·묶음 → 900×1800 표.
+     경쟁사 화면은 가격표(매트릭스)가 먼저, 경쟁력 그래프는 그 아래다. 고른 보기는 아코디언마다 브라우저에 기억한다. */
+  const ACC_TABLE = {
+    iso_600x900: 'iso_600_900', iso_900x1800_single: 'iso_900_1800', iso_900x1800_bundle: 'iso_900_1800',
+    // 스티로폼 1종 3호 = 스티로폼(St_) 표, 2종 2호 = 네오폴(Neo_) 표(접착식·고티·1200x2400 등은 비교표 없음)
+    bead1_600x900: 'st_600_900', bead1_600x900_bundle: 'st_600_900', bead1_900x1800: 'st_900_1800',
+    bead2_600x900: 'neo_600_900', bead2_900x1800: 'neo_900_1800',
+  };
+  // 열반사·단열벽지는 표 하나가 카테고리 전체라 첫 그룹 아코디언에만 단추를 둔다. 기타단열재는 상품군(필름난방·캠핑)마다 표가 따로다.
+  function accTableId(accId) {
+    if (ACC_TABLE[accId]) return ACC_TABLE[accId];
+    const fixed = { reflective_g0: 'refl_1m', wallpaper_g0: 'wp_roll', etc_g0: 'etc_film', etc_g1: 'etc_camp' };
+    return fixed[accId] || null;
+  }
+  const ACC_CATS = ['hk_isopink', 'hk_bead', 'hk_reflective', 'hk_wallpaper', 'hk_etc']; // 맨 위 비교 구역을 빼고 아코디언 버튼만 쓰는 카테고리
+  // 보기(단가 계산 / 경쟁사 비교)는 이 화면을 보는 동안만 기억한다 — 페이지를 새로 열면 항상 단가 계산으로 시작한다(저장하지 않음).
+  const accMem = {};
+  try { Object.keys(localStorage).filter(k => k.startsWith('hkCmpAccView:')).forEach(k => localStorage.removeItem(k)); } catch { /* 이전 버전이 남긴 값 정리 */ }
+  function accView(accId) { return accMem[accId] || 'calc'; }
+  const accBtnInner = v => (v === 'compare'
+    ? '<i class="fa-solid fa-calculator"></i> 단가 계산'
+    : '<i class="fa-solid fa-people-arrows"></i> 경쟁사 비교');
+
+  window.hkCompareAccParts = accId => ({
+    btn: window.hkCompareAccButtonHtml(accId), panel: window.hkCompareAccPanelHtml(accId), view: window.hkCompareAccView(accId),
+  });
+  window.hkCompareAccView = accId => (accTableId(accId) && tableOf(accTableId(accId)) ? accView(accId) : 'calc');
+  window.hkCompareAccButtonHtml = function (accId) {
+    if (!accTableId(accId) || !tableOf(accTableId(accId))) return '';
+    return `<button type="button" class="hk-cmp-acc-btn" data-acc="${accId}" onclick="hkCmpAccToggle('${accId}')" title="이 단가표 자리에 경쟁사 가격 비교를 보여 주고, 다시 누르면 단가 계산으로 돌아옵니다">${accBtnInner(accView(accId))}</button>`;
+  };
+  window.hkCompareAccPanelHtml = function (accId) {
+    const tid = accTableId(accId);
+    const table = tid && tableOf(tid);
+    if (!table) return '';
+    return `<div class="hk-cmp-acc-panel" data-acc="${accId}" data-table="${tid}">${accView(accId) === 'compare' ? accPanelInner(table) : ''}</div>`;
+  };
+
+  /* 경쟁력 그래프(막대) — 선택한 표 하나만. 맨 위 구역의 분석과 같은 막대·요약이다. */
+  function barsOnlyHtml(table) {
+    const shown = analysisGroups(table).groups;
+    const values = shown.flatMap(g => [g.ours, ...g.comps.map(c => c.value)]).filter(v => v != null);
+    const scale = values.length ? Math.max(...values) * 1.02 : 1;
+    const swatch = color => `<i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};margin-right:4px;"></i>`;
+    const focus = focusOf(table);
+    const legend = `<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#64748b;margin-top:10px;">
+      <span>${swatch(BAR.compLow)}경쟁사 최저가까지</span><span>${swatch(BAR.compRange)}최저~최고 구간</span>${focus.length ? `<span>${swatch(FOCUS_TICK)}★ 주목 업체(${esc(focus.join(', '))})</span>` : ''}
+      <span>${swatch(BAR.ours)}${esc(table.oursLabel || '한국단열')} 장당 실구매가</span></div>`;
+    return `<div style="margin-top:6px;">
+      <div style="font-size:13px;color:#334155;font-weight:500;">${esc(analysisSummary(table))}</div>
+      ${legend}
+      <div style="margin-top:6px;">${shown.map(g => barHtml(g, scale, focus)).join('')}</div>
+    </div>`;
+  }
+
+  /* unit 표(열반사·단열벽지·기타단열재)의 경쟁력 그래프 — 길이 탭·두께 탭과 막대. 길이는 표마다 다르니 고른 길이가 이 표에 없으면 첫 길이로 옮긴다. */
+  function unitAnalysisParts(table) {
+    const cat = table.categoryId;
+    const ui = uiOf(cat);
+    if (!table.lengths.includes(ui.len)) ui.len = table.lengths[0];
+    const len = ui.len;
+    const whole = analysisGroups(table);
+    whole.thicknesses = whole.thicknesses.filter(t => whole.groups.some(g => g.t === t));
+    const lenTabs = table.lengths.length > 1
+      ? subtabBar(table.lengths.map(l => ({ key: l, label: `${l}M`, sub: table.lengthNote && table.lengthNote[l] ? table.lengthNote[l] : '' })), len, key => `hkCmpPickLen('${cat}',${key})`)
+      : '';
+    const tNow = whole.thicknesses.includes(ui.t) ? ui.t : whole.thicknesses[0];
+    const tabs = whole.thicknesses.length > 1
+      ? subtabBar(whole.thicknesses.map(t => ({ key: t, label: `${t}T` })), tNow, key => `hkCmpPickT('${cat}',${key})`) : '';
+    const shown = whole.groups.filter(g => g.t === tNow);
+    const values = shown.flatMap(g => [g.ours, ...g.comps.map(c => c.value)]).filter(v => v != null);
+    const scale = values.length ? Math.max(...values) * 1.02 : 1;
+    const swatch = color => `<i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};margin-right:4px;"></i>`;
+    const focus = focusOf(table);
+    const legend = `<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#64748b;margin-top:10px;">
+      <span>${swatch(BAR.compLow)}경쟁사 최저가까지</span><span>${swatch(BAR.compRange)}최저~최고 구간</span>${focus.length ? `<span>${swatch(FOCUS_TICK)}★ 주목 업체(${esc(focus.join(', '))})</span>` : ''}
+      <span>${swatch(BAR.ours)}${esc(table.oursLabel || '한국단열')} ${len}M ${ui.withShip ? '판매가+배송비' : '판매가'}</span></div>`;
+    const bars = `<div style="margin-top:6px;">
+      <div style="font-size:13px;color:#334155;font-weight:500;">${esc(analysisSummary(table))}</div>
+      ${legend}
+      <div style="margin-top:6px;">${shown.map(g => barHtml(g, scale, focus)).join('')}</div>
+    </div>`;
+    return { lenTabs, tabs, bars };
+  }
+
+  /* 단가표 자리에 들어가는 경쟁사 화면 — 가격표(매트릭스)가 먼저, 경쟁력 그래프는 그 아래. */
+  function accPanelInner(table) {
+    if (!state.loaded && !state.loading) load();
+    if (!state.loaded) return '<div style="padding:16px 0;color:#94a3b8;font-size:13px;">경쟁사 가격을 불러오는 중입니다…</div>';
+    const noteHtml = state.note
+      ? `<span style="color:${state.noteKind === 'error' ? '#dc2626' : '#64748b'};">${esc(state.note)}</span>` : '';
+    if (table.kind === 'unit') {
+      const parts = unitAnalysisParts(table);
+      return `<div>
+        ${noteHtml ? `<div class="pricing-result-hint" style="margin-top:2px;">${noteHtml}</div>` : ''}
+        ${parts.lenTabs}
+        ${unitTableHtml(table, `hkCmpCompanyNames-${table.id}`, { inlineStatus: true })}
+        <div style="margin-top:26px;padding-top:16px;border-top:1px solid #e2e8f0;">
+          <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} · 경쟁력 그래프</div>
+          ${parts.tabs}
+          ${parts.bars}
+        </div>
+      </div>`;
+    }
+    return `<div>
+      ${noteHtml ? `<div class="pricing-result-hint" style="margin-top:2px;">${noteHtml}</div>` : ''}
+      ${sheetMatrixHtml(table, `hkCmpCompanyNames-${table.id}`, { inlineStatus: true })}
+      <div style="margin-top:26px;padding-top:16px;border-top:1px solid #e2e8f0;">
+        <div style="font-size:14px;font-weight:700;color:#1e293b;">${esc(table.title)} · 경쟁력 그래프</div>
+        ${barsOnlyHtml(table)}
+      </div>
+    </div>`;
+  }
+
+  window.hkCmpAccToggle = function (accId) {
+    if (!accTableId(accId)) return;
+    const next = accView(accId) === 'compare' ? 'calc' : 'compare';
+    const setView = (id, v) => {
+      accMem[id] = v;
+      const el = document.getElementById(`hkIsoAcc-${id}`);
+      if (!el) return;
+      el.dataset.cmpView = v;
+      const b = el.querySelector('.hk-cmp-acc-btn');
+      if (b) b.innerHTML = accBtnInner(v);
+    };
+    // 비교 화면은 한 번에 하나만 — 다른 아코디언의 비교 보기는 단가 계산으로 돌리고, 이 아코디언만 남긴다(나머지 아코디언은 CSS로 숨김).
+    if (next === 'compare') [...document.querySelectorAll('.hk-cmp-acc-btn')].map(b => b.dataset.acc).filter(id => id && id !== accId).forEach(id => setView(id, 'calc'));
+    setView(accId, next);
+    const acc = document.getElementById(`hkIsoAcc-${accId}`);
+    if (acc && next === 'compare') {
+      acc.classList.add('open'); // 접혀 있어도 비교를 누르면 펼친다
+      acc.scrollIntoView({ block: 'nearest' });
+    }
+    rerender();
+  };
+
   window.hkCompareSectionHtml = function (cat) {
+    if (ACC_CATS.includes(cat)) return '';
     if (!TABLES.some(t => t.categoryId === cat)) return '';
-    return `<div class="hk-cmp-section" data-cat="${cat}">${sectionInner(cat)}</div>`;
+    return `<div class="hk-cmp-section" data-cat="${cat}" data-view="${viewOf(cat)}">${sectionBody(cat)}</div>`;
   };
 
   function rerender() {
-    document.querySelectorAll('.hk-cmp-section').forEach(el => { el.innerHTML = sectionInner(el.dataset.cat); });
+    document.querySelectorAll('.hk-cmp-section').forEach(el => {
+      el.dataset.view = viewOf(el.dataset.cat);
+      el.innerHTML = sectionBody(el.dataset.cat);
+    });
+    // 단가표 아코디언 안의 경쟁사 화면 — 비교 보기인 아코디언만 다시 그린다
+    document.querySelectorAll('.hk-cmp-acc-panel').forEach(el => {
+      const table = tableOf(el.dataset.table);
+      el.innerHTML = table && accView(el.dataset.acc) === 'compare' ? accPanelInner(table) : '';
+    });
   }
+
+  window.hkCmpSetView = function (cat, view) {
+    if (!usesViewToggle(cat)) return;
+    const ui = uiOf(cat);
+    ui.view = view === 'compare' ? 'compare' : 'calc';
+    if (ui.view === 'compare') ui.open = true; // 비교 보기에서는 구역을 항상 펼친다
+    try { localStorage.setItem(viewKey(cat), ui.view); } catch { /* 기억 못 해도 이번 화면에서는 동작 */ }
+    rerender();
+  };
 
   function setStatus() {
     document.querySelectorAll('.hk-cmp-status').forEach(el => { el.innerHTML = statusHtml(); });

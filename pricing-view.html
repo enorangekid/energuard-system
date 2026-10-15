@@ -298,6 +298,7 @@
 
 <script src="js/pricing.js"></script>
 <script src="js/pricing-competitor.js"></script>
+<script src="js/pricing-card-collapse.js"></script>
 <script src="js/pricing-hankook.js"></script>
 <script src="js/pricing-hankook-bead.js"></script>
 <script src="js/pricing-hankook-sub.js"></script>
@@ -358,6 +359,8 @@
       'hkCmpToggle', 'hkCmpPickTable', 'hkCmpPickT', 'hkCmpPickLen', 'hkCmpToggleShip', 'hkCmpShowLinks',
       // 아이소핑크 비교표 — 두께별 옵션(묶음) 줄 펼치기·접기
       'hkCmpToggleSheetT', 'hkCmpSheetAll',
+      // 단가 계산 ↔ 경쟁사 비교 보기 전환
+      'hkCmpSetView', 'hkCmpAccToggle',
     ]);
     function lockHkInputs() {
       document.querySelectorAll('#hkPricingBodyWrap input, #hkPricingBodyWrap select, #hkPricingBodyWrap textarea').forEach((el) => {
