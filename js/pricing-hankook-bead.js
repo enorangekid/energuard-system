@@ -558,8 +558,10 @@ function renderHkBeadPane() {
     </div>`
   ).join('');
 
+  // 경쟁사 가격 비교 구역(2026-10-15) — 스티로폼·네오폴 900×1800 / 600×900. js/pricing-hankook-compare.js, 카테고리 맨 위·기본 접힘.
+  const compareSection = typeof window.hkCompareSectionHtml === 'function' ? window.hkCompareSectionHtml('hk_bead') : '';
   return `<div id="hkBeadBaseDataSection">
-    ${_hkBeadCostCard()}<div class="card pricing-result-card">
+    ${compareSection}${_hkBeadCostCard()}<div class="card pricing-result-card">
       <div class="pricing-result-header">
         <div class="pricing-result-title">한국단열 스티로폼 기준 판매가<span class="pricing-spec-badge">원가·배송 통합</span></div>
       </div>
