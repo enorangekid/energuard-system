@@ -243,7 +243,7 @@
   };
 
   // focus = 주목할 업체(표마다 이름 목록) — [편집]에서 ★로 정한다. 가격을 맞출 기준이 되는 업체라 열을 강조하고 '그 업체 대비' 차이를 따로 보여 준다.
-  const state = { rows: {}, loaded: false, loading: false, dirty: false, saving: false, savedAt: null, note: '', noteKind: '', nextId: 1, links: seedLinks(), shipping: JSON.parse(JSON.stringify(SEED_SHIPPING)), focus: {}, optionMap: {}, exclude: {}, recoSale: {} };
+  const state = { rows: {}, loaded: false, loading: false, dirty: false, saving: false, savedAt: null, note: '', noteKind: '', nextId: 1, links: seedLinks(), shipping: JSON.parse(JSON.stringify(SEED_SHIPPING)), focus: {}, optionMap: {}, exclude: {} };
   const focusOf = table => (state.focus[table.id] || []);
   /* 제외한 옵션 — (업체, 두께, 묶음 장수)를 표에서 빼고 수집·수집값 불러오기에서도 거른다(같은 업체가 한 두께에 상품을 둘 파는데
      하나만 비교하고 싶을 때, 예: 단열코리아 600×900 100T 2장 묶음). state.exclude[표id] = ['업체|두께|장수', …]. */
@@ -325,7 +325,7 @@
       price = Number(price);
       if (!Number.isFinite(price) || price <= 0) return;
       const { ship, every } = shippingInfo(code);
-      out.push({ code, sheets, price, ship, every, per: (price + ship / (every || 1)) / sheets });
+      out.push({ code, sheets, price, ship, every, per: (price + perItemShip(ship, every)) / sheets });
     }));
     return out;
   }
@@ -390,16 +390,15 @@
     const opts = ourOptionsOf(table, Number(t));
     if (opts.length) return Math.min(...opts.map(o => o.per));
     const o = oursOf(table, def);
-    return o.price == null ? null : (o.price + o.ship / (o.every || 1)) / o.sheets;
+    return o.price == null ? null : (o.price + perItemShip(o.ship, o.every)) / o.sheets;
   }
 
   /* 비교용 배송 기준 — 5개를 샀을 때의 개당 총액으로 맞춘다(사용자 결정 2026-10-15, 우리 상품의 5개마다와 같은 기준).
      개당 배송비 = 배송비 × ceil(5 ÷ N) ÷ 5 — 10개마다는 1번(÷5), 3개마다는 2번(×2÷5), 1개마다는 5번(개당 그대로).
      아래 everyForCompare는 이 식을 '배송비 ÷ everyForCompare'로 쓰도록 바꾼 값이다. 입력·표시는 업체가 적은 그대로. */
   const COMPARE_EVERY = 5;
-  /* [최저가로/추천가로 적용] 단추 — 바로 DB에 저장되는 기능이라 비교 기준(5개 기준 총액)이 확정·검증될 때까지 꺼 둔다. 켜려면 true. */
-  const ENABLE_APPLY = false;
   const everyForCompare = r => { const n = num(r.every) || 1; return COMPARE_EVERY / Math.ceil(COMPARE_EVERY / n); };
+  const perItemShip = (ship, every) => (Number(ship) || 0) * Math.ceil(COMPARE_EVERY / (Number(every) || 1)) / COMPARE_EVERY; // 한국단열 쪽 계산용(같은 규칙)
 
   function derive(table, row) {
     const price = num(row.price), sheets = num(row.sheets);
@@ -513,7 +512,7 @@
       const ours = oursByT.get(t);
       const list = rows.filter(r => Number(r.t) === t);
       const group = 1 + list.length;
-      const oursPer = ours && ours.price != null ? (ours.price + ours.ship / (ours.every || 1)) / ours.sheets : null;
+      const oursPer = ours && ours.price != null ? (ours.price + perItemShip(ours.ship, ours.every)) / ours.sheets : null;
       const oursRow = ours
         ? `<tr>
             <td rowspan="${group}" style="text-align:center;font-weight:700;color:#4f46e5;vertical-align:top;">${t}T<div style="margin-top:6px;">${addButton(table.id, t, '', `${t}T 경쟁사 줄 추가`)}</div></td>
@@ -525,7 +524,7 @@
             <td style="background:#eef2ff;">${ours.ship ? fmt(ours.ship) : '무료'}</td>
             <td style="background:#eef2ff;">${ours.ship ? ours.every : '—'}</td>
             <td style="background:#eef2ff;">${fmt(ours.price == null ? null : ours.price / ours.sheets)}</td>
-            <td style="background:#eef2ff;">${ours.ship ? fmt(ours.ship / ours.every) : '—'}</td>
+            <td style="background:#eef2ff;">${ours.ship ? fmt(perItemShip(ours.ship, ours.every)) : '—'}</td>
             <td style="background:#eef2ff;">${fmt(oursPer)}</td>
             <td style="background:#eef2ff;">${fmt(oursPer)}</td>
             <td style="background:#eef2ff;text-align:center;">기준</td>
@@ -578,7 +577,7 @@
   function shipPerUnit(table, key) {
     const v = (state.shipping[table.id] || {})[key] || {};
     const fee = num(v.fee);
-    return fee == null ? null : fee / (num(v.every) || 1);
+    return fee == null ? null : perItemShip(fee, v.every); // 5개를 샀을 때의 개당 배송비(아이소·스티로폼과 같은 기준)
   }
 
   function withShipOn(table) { return !!uiOf(table.categoryId).withShip; }
@@ -634,6 +633,23 @@
       <span style="font-size:11px;color:#64748b;">개마다</span></div>`;
   }
 
+  const fmtWon = v => Number(v).toLocaleString('ko-KR');
+  /* 길이형 표 칸 아래의 작은 글씨 — 아이소·스티로폼 비교표처럼 판매가와 배송 조건(5개 기준 환산)을 보여 준다. */
+  function unitCellSub(table, key, price) {
+    if (!withShipOn(table) || price == null) return '';
+    const v = (state.shipping[table.id] || {})[key] || {};
+    const fee = num(v.fee), every = num(v.every) || 1;
+    const line = text => `<span style="display:block;font-size:10px;margin-top:2px;${text.style}">${text.html}</span>`;
+    let ship;
+    if (fee == null) ship = line({ style: 'color:#fca5a5;', html: '배송비 입력 필요' });
+    else if (fee === 0) ship = line({ style: 'font-weight:600;color:#15803d;', html: '무료배송' });
+    else {
+      const per = perItemShip(fee, every);
+      ship = line({ style: 'color:#64748b;', html: `배송 ${fmtWon(fee)}${every > 1 ? ` / ${every}개마다` : ' / 주문당'}${every > 1 && every !== COMPARE_EVERY ? `<span style="color:#94a3b8;"> → 5개 기준 ${fmtWon(Math.round(per))}</span>` : ''}` });
+    }
+    return `${line({ style: 'color:#94a3b8;', html: `판매가 ${fmtWon(price)}` })}${ship}`;
+  }
+
   function unitTableHtml(table, listId, opts = {}) {
     const rows = state.rows[table.id] || [];
     const len = uiOf(table.categoryId).len || 1; // 지금 고른 길이(M)
@@ -650,7 +666,8 @@
     const compW = Math.floor((51 - FOCUS_W * focusShown.length) / Math.max(comps.length, 1));
     const C = 'text-align:center;'; // 숫자·머리글을 모두 가운데 맞춤 — 머리글과 숫자가 어긋나 보이지 않게
     const FOCUS_BG = '#fff7e0', FOCUS_HEAD = '#b45309';
-    const head = `<colgroup><col style="width:7%"><col style="width:12%">${comps.map(() => `<col style="width:${compW}%">`).join('')}<col style="width:16%"><col style="width:${100 - 7 - 12 - compW * comps.length - 16 - FOCUS_W * focusShown.length}%">${focusShown.map(() => `<col style="width:${FOCUS_W}%">`).join('')}</colgroup>
+    const colW = ((100 - 7 - 12) / (comps.length + 2 + focusShown.length)).toFixed(2); // 업체 N + 한국단열·최저가 대비 2 + 주목 업체 대비
+    const head = `<colgroup><col style="width:7%"><col style="width:12%">${Array.from({ length: comps.length + 2 + focusShown.length }, () => `<col style="width:${colW}%">`).join('')}</colgroup>
       <thead><tr><th>두께</th><th>제품 옵션</th>
         ${comps.map((name, ci) => {
           const urls = companyLinks(table, name, len);
@@ -698,7 +715,7 @@
           const cellInner = shown !== ''
             ? cellLink(table, name, ci, row, `<span style="font-size:13px;font-weight:600;color:#334155;border-bottom:1px dotted #94a3b8;">${valueHtml}</span>`, len)
             : `<span style="font-size:13px;font-weight:600;color:#334155;">${valueHtml}</span>`;
-          return `<td style="border-left:1px solid #eef2f7;${C}${focusNames.includes(name) ? `background:${FOCUS_BG};` : ''}" title="${esc(tip)}">${cellInner}</td>`;
+          return `<td style="border-left:1px solid #eef2f7;${C}${focusNames.includes(name) ? `background:${FOCUS_BG};` : ''}" title="${esc(tip)}">${cellInner}${shown !== '' ? unitCellSub(table, shipKey(name, len), price) : ''}</td>`;
         }
         return `<td style="border-left:1px solid #eef2f7;"><input type="text" inputmode="numeric" class="pricing-input-field" data-hkcm="${t}|${opt.key}|${ci}" title="${esc(tip)}"
             style="width:100%;height:26px;padding:0 6px;font-size:12px;text-align:center;" value="${price === '' ? '' : Number(price).toLocaleString('ko-KR')}" placeholder=""
@@ -708,7 +725,7 @@
         ${oi === 0 ? `<td rowspan="${list.length}" style="${C}font-weight:700;color:#4f46e5;vertical-align:middle;border-right:1px solid #e2e8f0;">${t}T</td>` : ''}
         <td style="${C}font-weight:600;color:#334155;border-right:1px solid #e2e8f0;">${esc(opt.label)}</td>
         ${cells}
-        <td style="background:#eef2ff;${C}font-size:13px;font-weight:600;color:#334155;border-left:1px solid #e2e8f0;" title="${ours.price == null ? '한국단열 판매 안 함' : esc(ours.code)}">${oursShown == null ? '<span style="font-size:11px;font-weight:500;">판매 안 함</span>' : Math.round(oursShown).toLocaleString('ko-KR')}</td>
+        <td style="background:#eef2ff;${C}font-size:13px;font-weight:600;color:#334155;border-left:1px solid #e2e8f0;" title="${ours.price == null ? '한국단열 판매 안 함' : esc(ours.code)}">${oursShown == null ? '<span style="font-size:11px;font-weight:500;">판매 안 함</span>' : `${Math.round(oursShown).toLocaleString('ko-KR')}${unitCellSub(table, shipKey(OURS_SHIP_KEY, len), ours.price)}`}</td>
         <td id="hkcm-${t}-${opt.key}-diff" style="${C}">${vsMinBadge(oursShown, min)}</td>
         ${focusShown.map(name => {
           const r = rows.find(x => x.comp === name && Number(x.t) === t && x.opt === opt.key && rowLen(x) === len);
@@ -720,7 +737,7 @@
     const compactBody = (shipRow + body).replace(/<td([^>]*)>/g, (m, attrs) => attrs.includes('style="')
       ? `<td${attrs.replace('style="', 'style="padding:11px 6px;background:#fff;')}>`
       : `<td${attrs} style="padding:11px 6px;background:#fff;">`);
-    const hint = viewOnly() ? '' : (EDITABLE ? '칸을 비우면 그 업체 가격이 지워집니다' : '가격은 확장 수집값을 [수집값 불러오기]로 반영하고, 배송비는 직접 입력합니다');
+    const hint = viewOnly() ? '' : (EDITABLE ? '칸을 비우면 그 업체 가격이 지워집니다' : '가격은 확장 수집값을 [수집값 불러오기]로 반영하고, 배송비는 직접 입력합니다. 칸은 판매가 + 5개를 샀을 때의 개당 배송비입니다');
     return `<div style="margin-top:18px;">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
         <div>
@@ -732,7 +749,7 @@
             <i class="fa-solid fa-people-arrows"></i> 경쟁사 가격 확인</button>`}
           ${COMPANY_EDITABLE && editingOn(table) ? `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpAddComp('${table.id}')"><i class="fa-solid fa-plus"></i> 경쟁사 추가</button>` : ''}
           ${COMPANY_EDITABLE && !viewOnly() ? `<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpToggleEdit('${table.categoryId}')" title="${editingOn(table) ? '편집을 끝냅니다' : '배송비 입력, 경쟁사 추가·삭제를 할 수 있습니다'}"><i class="fa-solid fa-${editingOn(table) ? 'check' : 'pen'}"></i> ${editingOn(table) ? '편집 완료' : '편집'}</button>` : ''}
-          <button type="button" class="pricing-margin-edit-btn hk-cmp-view-ok" onclick="hkCmpToggleShip('${table.categoryId}')" title="켜면 같은 길이끼리 판매가 + 배송비 ÷ N개로 비교합니다(분석 막대도 같은 기준)">
+          <button type="button" class="pricing-margin-edit-btn hk-cmp-view-ok" onclick="hkCmpToggleShip('${table.categoryId}')" title="켜면 같은 길이끼리 판매가 + 5개를 샀을 때의 개당 배송비로 비교합니다(분석 막대도 같은 기준). 배송비를 아직 적지 않은 업체는 판매가만 비교합니다">
             <i class="fa-solid fa-truck-fast"></i> 배송비 포함 비교: ${withShip ? '켜짐' : '꺼짐'}</button>
           ${viewOnly() ? '' : '<button type="button" class="pricing-margin-edit-btn" onclick="hkCmpSave()"><i class="fa-solid fa-floppy-disk"></i> 저장</button>'}
         </div>
@@ -922,7 +939,7 @@
       const first = TABLES.find(t => t.categoryId === cat) || {};
       let view = 'calc';
       try { if (localStorage.getItem(viewKey(cat)) === 'compare') view = 'compare'; } catch { /* 저장소를 못 쓰면 기본 보기 */ }
-      uiByCat[cat] = { tableId: first.id, t: null, len: (first.lengths && first.lengths[0]) || 1, open: false, view };
+      uiByCat[cat] = { tableId: first.id, t: null, len: (first.lengths && first.lengths[0]) || 1, open: false, view, withShip: true };
     }
     return uiByCat[cat];
   }
@@ -1104,7 +1121,6 @@
     const oursByT = new Map(table.ours.slice().reverse().map(def => [def[0], oursOf(table, def)]));
     const thicknesses = [...new Set([...oursByT.keys(), ...rows.map(r => Number(r.t))])].sort((a, b) => a - b);
     const FOCUS_W = 11;
-    const compW = Math.max(5, Math.floor((36 - FOCUS_W * focusShown.length) / Math.max(comps.length, 1))); // '경쟁 최저'(10%)·'추천가'(13%) 두 열이 더 있다
 
     // (업체, 두께)의 후보 줄 → 장당 실구매가가 가장 싼 줄과 상세 설명
     const cellOf = (name, t) => {
@@ -1121,7 +1137,8 @@
       return { best, fallback, tip };
     };
 
-    const head = `<colgroup><col style="width:7%">${comps.map(() => `<col style="width:${compW}%">`).join('')}<col style="width:16%"><col style="width:10%"><col style="width:${Math.max(8, 100 - 7 - compW * comps.length - 16 - 10 - 13 - FOCUS_W * focusShown.length)}%">${focusShown.map(() => `<col style="width:${FOCUS_W}%">`).join('')}<col style="width:13%"></colgroup>
+    const colW = ((100 - 7) / (comps.length + 2 + focusShown.length)).toFixed(2); // 업체 N + 한국단열·최저가 대비 2 + 주목 업체 대비
+    const head = `<colgroup><col style="width:7%">${Array.from({ length: comps.length + 2 + focusShown.length }, () => `<col style="width:${colW}%">`).join('')}</colgroup>
       <thead><tr><th>두께</th>
         ${comps.map((name, ci) => {
           const on = focusNames.includes(name);
@@ -1138,8 +1155,8 @@
           const del = editing ? ` <span role="button" tabindex="0" title="${esc(name)} 열 삭제" onclick="hkCmpDelComp('${table.id}',${ci})" style="margin-left:8px;cursor:pointer;color:#94a3b8;"><i class="fa-solid fa-xmark"></i></span>` : '';
           return `<th${on ? ` style="background:${FOCUS_HEAD};"` : ''}>${esc(name)}${star}${icon}${linkEdit}${del}</th>`;
         }).join('')}
-        <th style="background:#4f46e5;">한국단열<br>장당 실구매가</th><th>경쟁 최저<br>우리 판매가 기준</th><th>최저가 대비</th>
-        ${focusShown.map(name => `<th style="background:${FOCUS_HEAD};">★ ${esc(name)}<br>대비</th>`).join('')}<th style="background:#0f766e;">추천가<br>우리 판매가 기준</th></tr></thead>`;
+        <th style="background:#4f46e5;">한국단열<br>장당 실구매가</th><th>최저가 대비</th>
+        ${focusShown.map(name => `<th style="background:${FOCUS_HEAD};">★ ${esc(name)}<br>대비</th>`).join('')}</tr></thead>`;
 
     // 두께 줄을 누르면 그 두께의 옵션(묶음) 줄이 펼쳐진다 — 최종 줄의 값이 어떤 옵션에서 나왔는지(✓) 한눈에 보이게 한다.
     const sheetOpen = uiOf(table.categoryId).sheetOpen = uiOf(table.categoryId).sheetOpen || {};
@@ -1175,8 +1192,6 @@
     };
     // 한국단열 배송비는 단가표(몰별 상품·2단계 배송 블록)의 값을 그대로 받아 와 계산에 쓰고, 칸에는 읽기 전용으로 보여 준다.
     // 한국단열 배송비를 고치려면 단가표 쪽에서 고친다 — 이 표에서 입력하는 배송비는 경쟁사 칸뿐이다.
-    // 판매가(스토어에 올리는 가격) 환산 — 장당 실구매가 R을 그 옵션(o)의 판매가로: R × 장수 − 묶음당 배송비, 100원 단위 내림.
-    const saleFor = (o, R) => (o && R != null ? Math.floor((R * o.sheets - (Number(o.ship) || 0) / (Number(o.every) || 1)) / 100) * 100 : null);
     const won = v => `${Number(v).toLocaleString('ko-KR')}`;
     const oursShipHtml = o => {
       if (!o) return '';
@@ -1187,7 +1202,7 @@
       const ours = oursByT.get(t);
       const oursOpts = ourOptionsOf(table, t);
       const bestOurs = oursOpts.length ? oursOpts.reduce((a, b) => (b.per < a.per ? b : a)) : null;
-      const defPer = ours && ours.price != null ? (ours.price + ours.ship / (ours.every || 1)) / ours.sheets : null;
+      const defPer = ours && ours.price != null ? (ours.price + perItemShip(ours.ship, ours.every)) / ours.sheets : null;
       const oursPer = bestOurs ? bestOurs.per : defPer;
       const cells = comps.map(name => ({ name, c: cellOf(name, t) }));
       const reals = cells.map(x => x.c && x.c.best ? x.c.best.d.real : null).filter(v => v != null);
@@ -1211,38 +1226,12 @@
         const ref = c && c.best ? c.best.d.real : null;
         return `<td style="${C}background:${FOCUS_BG};">${vsRefBadge(oursPer, ref)}</td>`;
       }).join('');
-      // 경쟁 최저·추천가 — 우리 판매가(스토어에 올리는 묶음 판매가, 배송비 별도) 기준으로 크게 보인다. 경쟁 최저 = 그 두께 경쟁사 중 가장 싼
-      // 장당 실구매가를 우리 옵션(한국단열 칸에 보이는 묶음)의 판매가로 환산한 값(100원 단위 내림). 추천가 = 사용자가 정한 우리 판매가(규칙 없음).
-      const minName = min != null ? ((cells.find(x => x.c && x.c.best && x.c.best.d.real === min) || {}).name || '') : '';
-      const oursOpt = bestOurs || (ours && ours.price != null ? ours : null); // 한국단열 칸에 보이는 옵션 — 적용 대상
-      const perOfSale = v => (oursOpt && v != null ? (v + (Number(oursOpt.ship) || 0) / (Number(oursOpt.every) || 1)) / oursOpt.sheets : null);
-      const minSale = oursOpt && min != null ? saleFor(oursOpt, min) : null;
-      const recoSale = num((state.recoSale[table.id] || {})[t]);
-      const curSale = oursOpt && oursOpt.price != null ? Number(oursOpt.price) : null;
-      const gapText = (v, base) => (v != null && base != null && v !== base ? `<span style="display:block;font-size:10px;color:${v > base ? '#dc2626' : '#16a34a'};">현재 판매가 ${won(base)} 대비 ${v > base ? '+' : ''}${(v - base).toLocaleString('ko-KR')}</span>` : (v != null && base != null ? '<span style="display:block;font-size:10px;color:#94a3b8;">현재 판매가와 같음</span>' : ''));
-      const canApply = ENABLE_APPLY && !viewOnly() && !!oursOpt;
-      const applyBtn = (kind, enabled) => (canApply && enabled
-        ? `<button type="button" class="pricing-margin-edit-btn" style="height:24px;padding:0 8px;font-size:11px;margin-top:4px;" onclick="hkCmpApplyPrice('${table.id}',${t},'${kind}')" title="이 판매가로 단가표 실판매가를 바꾸고 바로 DB에 저장합니다">${kind === 'min' ? '최저가로' : '추천가로'} 적용</button>` : '');
-      const minTd = `<td style="${C}border-left:1px solid #e2e8f0;">${
-        min == null ? '<span style="color:#d5dbe3;">—</span>'
-          : (minSale != null
-            ? `<span style="font-size:14px;font-weight:700;color:#334155;">${won(minSale)}</span>${gapText(minSale, curSale)}<span style="display:block;font-size:10px;color:#94a3b8;">장당 ${Math.round(min).toLocaleString('ko-KR')}${minName ? ` · ${esc(minName)}` : ''}</span>${applyBtn('min', true)}`
-            : `<span style="font-size:13px;font-weight:700;color:#94a3b8;">${Math.round(min).toLocaleString('ko-KR')}</span><span style="display:block;font-size:10px;color:#94a3b8;">장당 · 한국단열 판매 안 함${minName ? ` · ${esc(minName)}` : ''}</span>`)
-      }</td>`;
-      const recoPer = recoSale != null ? perOfSale(recoSale) : null;
-      const recoTd = `<td style="${C}border-left:1px solid #e2e8f0;background:#f0fdfa;">${
-        editing && !viewOnly()
-          ? `<input type="text" inputmode="numeric" class="pricing-input-field" style="width:78px;height:26px;padding:0 4px;font-size:12px;text-align:center;" value="${recoSale != null ? recoSale.toLocaleString('ko-KR') : ''}" placeholder="판매가" onchange="hkCmpEditReco('${table.id}',${t},this)">`
-          : (recoSale != null ? `<span style="font-size:14px;font-weight:700;color:#0f766e;">${won(recoSale)}</span>` : '<span style="color:#d5dbe3;">—</span>')
-      }${recoSale != null ? gapText(recoSale, curSale) : ''}${recoPer != null ? `<span style="display:block;font-size:10px;color:#94a3b8;">장당 ${Math.round(recoPer).toLocaleString('ko-KR')}</span>` : ''}${applyBtn('reco', recoSale != null)}</td>`;
       const finalRow = `<tr>
         <td style="${C}font-weight:700;color:#4f46e5;border-right:1px solid #e2e8f0;"><span role="button" tabindex="0" onclick="hkCmpToggleSheetT('${table.id}',${t})" title="${expanded ? '옵션 줄 접기' : '옵션(묶음) 구성 펼치기'}" style="cursor:pointer;"><i class="fa-solid fa-chevron-${expanded ? 'down' : 'right'}" style="font-size:10px;color:#94a3b8;margin-right:4px;"></i>${t}T</span>${ours ? `<span style="display:block;font-size:10px;font-weight:500;color:#94a3b8;">${esc(table.size)}×${ours.sheets}장</span>` : ''}</td>
         ${tds}
         <td style="background:#eef2ff;${C}font-size:13px;font-weight:700;color:#334155;border-left:1px solid #e2e8f0;" title="${bestOurs ? esc(bestOurs.code) : (ours ? esc(ours.code) : '')}">${oursPer == null ? '<span style="font-size:11px;font-weight:500;">판매 안 함</span>' : `${Math.round(oursPer).toLocaleString('ko-KR')}${oursShipHtml(bestOurs || (ours && ours.price != null ? ours : null))}${(bestOurs || (ours && ours.price != null ? ours : null)) ? `<span style="display:block;font-size:10px;color:#475569;">판매가 ${won((bestOurs || ours).price)}</span>` : ''}`}</td>
-        ${minTd}
         <td style="${C}">${vsMinBadge(oursPer, min)}</td>
         ${focusTds}
-        ${recoTd}
       </tr>`;
       let optRows = '';
       if (expanded) {
@@ -1273,15 +1262,14 @@
           }).join('');
           const myOpts = oursOpts.filter(o => o.sheets === s);
           const oursCell = myOpts.length
-            ? `<td style="${OPT_BG}${C}border-left:1px solid #e2e8f0;">${myOpts.map(o => `<div style="font-size:11px;color:#64748b;line-height:1.45;" title="${esc(o.code)}">${o.price.toLocaleString('ko-KR')}${o.ship ? ` + 배송 ${Math.round(o.ship / (o.every || 1)).toLocaleString('ko-KR')}` : ' · 무료배송'}</div><div style="font-size:13px;">→ <b style="color:#334155;">${Math.round(o.per).toLocaleString('ko-KR')}</b>${bestOurs === o ? '<span style="color:#16a34a;font-weight:700;"> ✓</span>' : ''}</div>`).join('<div style="height:4px;"></div>')}</td>`
+            ? `<td style="${OPT_BG}${C}border-left:1px solid #e2e8f0;">${myOpts.map(o => `<div style="font-size:11px;color:#64748b;line-height:1.45;" title="${esc(o.code)}">${o.price.toLocaleString('ko-KR')}${o.ship ? ` + 배송 ${Math.round(perItemShip(o.ship, o.every)).toLocaleString('ko-KR')}` : ' · 무료배송'}</div><div style="font-size:13px;">→ <b style="color:#334155;">${Math.round(o.per).toLocaleString('ko-KR')}</b>${bestOurs === o ? '<span style="color:#16a34a;font-weight:700;"> ✓</span>' : ''}</div>`).join('<div style="height:4px;"></div>')}</td>`
             : `<td style="${OPT_BG}${C}border-left:1px solid #e2e8f0;"><span style="color:#e2e8f0;">—</span></td>`;
           return `<tr>
             <td style="${C}font-size:12px;color:#64748b;${OPT_BG}border-right:1px solid #e2e8f0;">${s}장 묶음</td>
             ${optCells}
             ${oursCell}
-            <td style="${OPT_BG}"></td><td style="${OPT_BG}"></td>
-            ${focusShown.map(() => `<td style="${OPT_BG}"></td>`).join('')}
             <td style="${OPT_BG}"></td>
+            ${focusShown.map(() => `<td style="${OPT_BG}"></td>`).join('')}
           </tr>`;
         }).join('');
       }
@@ -1308,7 +1296,7 @@
         </div>
       </div>
       <div class="pricing-table-scroll" style="border:1px solid #e2e8f0;border-radius:10px;">
-        <table class="pricing-table" style="min-width:${360 + 260 + comps.length * 130 + focusShown.length * 130}px;">${head.replace(/<(td|th)([^>]*)>/g, (m, tag, attrs) => (attrs.includes('style="') ? `<${tag}${attrs.replace('style="', 'style="padding:10px 6px;')}>` : `<${tag}${attrs} style="padding:10px 6px;">`))}<tbody>${compactBody}</tbody></table>
+        <table class="pricing-table" style="min-width:${360 + comps.length * 130 + focusShown.length * 130}px;">${head.replace(/<(td|th)([^>]*)>/g, (m, tag, attrs) => (attrs.includes('style="') ? `<${tag}${attrs.replace('style="', 'style="padding:10px 6px;')}>` : `<${tag}${attrs} style="padding:10px 6px;">`))}<tbody>${compactBody}</tbody></table>
       </div>
       ${excludedListHtml(table)}
       <details style="margin-top:16px;"><summary style="cursor:pointer;font-size:13px;font-weight:600;color:#64748b;">옵션별 상세 (업체 · 두께 · 규격 · 묶음별 원본 줄)</summary>${tableHtml(table, listId)}</details>
@@ -1344,90 +1332,6 @@
     if (viewOnly()) return;
     state.exclude[tableId] = (state.exclude[tableId] || []).filter(k => k !== key);
     markDirty();
-    rerender();
-  };
-
-  /* 추천가 입력 — 우리 판매가(묶음 최종 판매가, 한국단열 칸에 보이는 옵션 기준). 비우면 지운다. 규칙으로 자동 계산하지 않고 사용자가 정한다. */
-  window.hkCmpEditReco = function (tableId, t, input) {
-    if (viewOnly()) return;
-    const table = tableOf(tableId);
-    if (!table) return;
-    const map = state.recoSale[tableId] = state.recoSale[tableId] || {};
-    const n = num(input.value);
-    if (n == null) delete map[t]; else map[t] = n;
-    markDirty();
-    rerender();
-  };
-
-  /* 가격 적용 — kind 'min'(경쟁 최저) 또는 'reco'(추천가)의 장당 실구매가에 맞춰, 한국단열 칸에 보이는 옵션(실구매가가 가장 싼 묶음)의
-     판매가를 바꾸고 **바로 DB에 저장**한다(사용자 요청 2026-10-15 '최저가 또는 추천가로 바로 DB에 적용').
-     판매가 = 가격 × 장수 − 묶음당 배송비, 100원 단위 내림(그 가격을 넘지 않게). 단가표 행의 값은 '기준 실판매가'이고 코드별 최종 판매가는
-     거기에 배송비 플러스 금액이 더해진 값이라(_hkIsoBlockRowFinalPrice) 그 차이를 빼서 넣는다. 저장은 단가표의 [저장](hkDbSave)과
-     같다 — 이 화면에 있던 다른 저장 전 변경도 함께 저장되고 이력(단가 기준 년월)에 남는다. */
-  window.hkCmpApplyPrice = async function (tableId, t, kind) {
-    if (viewOnly()) return;
-    const table = tableOf(tableId);
-    if (!table) return;
-    t = Number(t);
-    const opts = ourOptionsOf(table, t);
-    const def = (table.ours || []).find(d => d[0] === t);
-    const base = def ? oursOf(table, def) : null;
-    const o = opts.length ? opts.reduce((a, b) => (b.per < a.per ? b : a)) : (base && base.price != null ? base : null);
-    if (!o) { toast(`${t}T는 한국단열이 파는 옵션이 없어 적용할 수 없습니다.`, 'error'); return; }
-    // 목표 = 우리 판매가(묶음 최종 판매가). 추천가는 입력한 판매가 그대로, 경쟁 최저는 최저 장당 실구매가를 이 옵션의 판매가로 환산(100원 단위 내림).
-    let targetFinal = null, target = null;
-    if (kind === 'reco') {
-      targetFinal = num((state.recoSale[tableId] || {})[t]);
-      if (targetFinal != null) target = (targetFinal + (Number(o.ship) || 0) / (Number(o.every) || 1)) / o.sheets;
-    } else {
-      const vals = (state.rows[tableId] || []).filter(r => Number(r.t) === t && num(r.price)).map(r => derive(table, r)).filter(d => d && d.real != null).map(d => d.real);
-      target = vals.length ? Math.min(...vals) : null;
-      if (target != null) targetFinal = Math.floor((target * o.sheets - (Number(o.ship) || 0) / (Number(o.every) || 1)) / 100) * 100;
-    }
-    if (targetFinal == null) { toast(kind === 'reco' ? '추천가가 비어 있습니다.' : '이 두께는 비교할 경쟁사 가격이 없습니다.', 'error'); return; }
-    if (!(targetFinal > 0)) { toast('판매가가 0원 이하라 적용할 수 없습니다.', 'error'); return; }
-    let code = o.code;
-    if (typeof window.hkBeadNormalizeCode === 'function') code = window.hkBeadNormalizeCode(code);
-    if (typeof HK_ISO_SHIPPING_BLOCKS === 'undefined' || typeof HK_ISO_CONNECTED_DRAFTS === 'undefined') { toast('단가표 계산 정보를 찾지 못했습니다.', 'error'); return; }
-    let hit = null;
-    for (const block of HK_ISO_SHIPPING_BLOCKS) {
-      const sourceRows = (HK_ISO_CONNECTED_DRAFTS[block.sourceAccordion] || {}).rows || [];
-      let thickness = null;
-      for (let i = 0; i < sourceRows.length && !hit; i++) {
-        const row = sourceRows[i];
-        const m = row.name.match(/(\d+)T/);
-        if (m) thickness = Number(m[1]);
-        const ship = block.rows[i] || {};
-        const rowCode = ship.codeOverride || _hkIsoDraftProductCode(row.saleSize, thickness, block.isAdhesive, block.codePrefix);
-        if (rowCode === code) hit = { block, ship, index: i };
-      }
-      if (hit) break;
-    }
-    if (!hit) { toast(`단가표에서 ${o.code} 행을 찾지 못했습니다.`, 'error'); return; }
-    if (hit.block.schema === 'free90') { toast(`${o.code}은 무료배송·10% 네고 계산식이라 단가표에서 직접 입력해 주세요.`, 'error'); return; }
-    const inputs = document.querySelectorAll(`#hkIsoAcc-${hit.block.sourceAccordion} .hk-iso-final-price-input`);
-    const input = inputs[hit.index];
-    if (!input) { toast('단가표 입력칸이 아직 화면에 없습니다. 단가표 탭을 한 번 열어 주세요.', 'error'); return; }
-    const cur = _hkIsoDraftParseNumber(input.value);
-    const curFinal = _hkIsoBlockRowFinalPrice(hit.block, hit.ship, cur);
-    const nextBase = targetFinal - (curFinal - cur);
-    if (!(nextBase > 0)) { toast('계산한 기준 실판매가가 0원 이하라 적용할 수 없습니다.', 'error'); return; }
-    if (nextBase === cur) { toast('이미 같은 판매가입니다.', 'info'); return; }
-    const f = v => Number(v).toLocaleString('ko-KR');
-    const label = kind === 'reco' ? '추천가' : '경쟁 최저가';
-    const msg = `${table.title.replace(/ 경쟁사 가격 비교표.*/, '')} ${table.size} ${t}T (${o.code})\n`
-      + `${label} ${f(targetFinal)}원 (장당 실구매가 ${f(Math.round(target))} · 현재 장당 ${f(Math.round(o.per))})\n\n`
-      + `판매가(최종) ${f(curFinal)} → ${f(targetFinal)}\n`
-      + `단가표 실판매가 ${f(cur)} → ${f(nextBase)}\n\n`
-      + '확인하면 단가표에 반영하고 바로 DB에 저장합니다(단가표의 [저장]과 같습니다. 저장 전 다른 변경이 있으면 함께 저장됩니다). 적용할까요?';
-    if (!window.confirm(msg)) return;
-    input.value = f(nextBase);
-    if (typeof window.recalcHkIsoDraftRow === 'function') window.recalcHkIsoDraftRow(input);
-    if (typeof window.updateHkIsoPriceHistory === 'function') window.updateHkIsoPriceHistory(input);
-    if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
-    const rate = (input.closest('tr') || document).querySelector('.hk-iso-draft-rate');
-    if (typeof window.hkDbSave === 'function') await window.hkDbSave();
-    toast(`${t}T 판매가를 ${f(targetFinal)}원(${label})으로 적용했습니다${rate ? ` · 순수마진율 ${rate.textContent.trim()}` : ''}.`, 'success');
     rerender();
   };
 
@@ -1660,6 +1564,191 @@
     rerender();
   };
 
+  /* ─── 경쟁사 비교 엑셀용 데이터(2026-10-16) — js/pricing-hankook-excel.js의 [경쟁사 비교 엑셀]이 파일로 만든다 ───
+     화면 표와 같은 값(5개를 샀을 때의 개당 배송비 기준)을 비교표마다 시트 줄(blocks)로 돌려준다. 링크는 주소 글자 그대로.
+     cells의 항목: 글자/숫자, 또는 { v, z, diff } (z = 숫자 서식, diff = 부호에 따라 빨강/파랑). head 줄의 spans는 병합할 열 범위. */
+  window.hkCompareExportSheets = async function () {
+    if (!state.loaded) {
+      if (!state.loading) await load();
+      for (let i = 0; i < 100 && !state.loaded; i++) await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    const won = v => (v == null || v === '' ? '' : { v: Number(v), z: '#,##0' });
+    const diff = v => (v == null || v === '' ? '' : { v: Math.round(v), z: '+#,##0;-#,##0;0', diff: true });
+    const shipDesc = (fee, every) => {
+      if (fee == null) return '배송비 미입력';
+      if (Number(fee) === 0) return '무료배송';
+      const n = Number(every) || 1;
+      return `${fmtWon(fee)} / ${n > 1 ? `${n}개마다` : '주문당'}${n > 1 && n !== COMPARE_EVERY ? ` → 5개 기준 ${fmtWon(Math.round(perItemShip(fee, n)))}` : ''}`;
+    };
+    const sheetNameOf = table => {
+      const base = table.chip || `${(HK_CATEGORIES.find(c => c.id === table.categoryId) || {}).label || ''} ${String(table.size || '').replace('x', '×')}`.trim();
+      return base.replace(/[\\/?*[\]:]/g, ' ').slice(0, 28);
+    };
+    const sheets = [];
+    const usedNames = new Set();
+    const uniqueName = name => { let n = name, i = 2; while (usedNames.has(n)) n = `${name.slice(0, 26)} ${i++}`; usedNames.add(n); return n; };
+
+    const perTable = []; // 표마다 만든 줄 — 같은 카테고리(아이소핑크·스티로폼·기타단열재)는 아래에서 시트 하나로 모은다
+    const catOrder = [];
+    TABLES.forEach(t => { if (!catOrder.includes(t.categoryId)) catOrder.push(t.categoryId); });
+    const seriesOrder = [];
+    const seriesIdx = t => { const k = t.id.split('_')[0]; if (!seriesOrder.includes(k)) seriesOrder.push(k); return seriesOrder.indexOf(k); };
+    const areaOf2 = t => (String(t.size || '').split('x').map(Number).reduce((a, b) => a * b, 1) || 0);
+    TABLES.forEach(seriesIdx);
+    const ordered = TABLES.slice().sort((a, b) => catOrder.indexOf(a.categoryId) - catOrder.indexOf(b.categoryId) || seriesIdx(a) - seriesIdx(b) || areaOf2(a) - areaOf2(b));
+    ordered.forEach(table => {
+      const rows = state.rows[table.id] || [];
+      const focusNames = focusOf(table);
+      const blocks = [];
+
+      if (table.kind === 'sheet') {
+        const seen = [];
+        rows.forEach(r => { if (r.comp && !seen.includes(r.comp)) seen.push(r.comp); });
+        extraList(table.id, 1).forEach(n => { if (!seen.includes(n)) seen.push(n); });
+        const comps = seen.sort((a, b) => (focusNames.includes(b) ? 1 : 0) - (focusNames.includes(a) ? 1 : 0));
+        const focusShown = comps.filter(n => focusNames.includes(n));
+        const oursByT = new Map(table.ours.slice().reverse().map(def => [def[0], oursOf(table, def)]));
+        const thicknesses = [...new Set([...oursByT.keys(), ...rows.map(r => Number(r.t))])].sort((a, b) => a - b);
+        const bestOf = (name, t) => {
+          const list = rows.filter(r => r.comp === name && Number(r.t) === t && num(r.price));
+          if (!list.length) return null;
+          const info = list.map(r => ({ r, d: derive(table, r) }));
+          const withReal = info.filter(x => x.d && x.d.real != null);
+          const best = withReal.length ? withReal.reduce((a, b) => (b.d.real < a.d.real ? b : a)) : null;
+          const fallback = best ? null : info.filter(x => x.d).reduce((a, b) => (!a || b.d.perSheet < a.d.perSheet ? b : a), null);
+          return { best, fallback };
+        };
+        const group = ['', '한국단열', '', '', '', '경쟁 최저', '', '최저가 대비', ...focusShown.map(n => `★ ${n} 대비`), ...comps.flatMap(n => [n, '', '', ''])];
+        const spans = [[1, 4], [5, 6], ...comps.map((_, i) => { const c0 = 8 + focusShown.length + i * 4; return [c0, c0 + 3]; })];
+        const fields = ['두께', '규격 × 장수', '장당 실구매가', '판매가', '배송', '장당 실구매가', '업체', '(우리 − 최저)', ...focusShown.map(() => '(우리 − ★)'),
+          ...comps.flatMap(() => ['장당 실구매가', '묶음', '판매가', '배송'])];
+        blocks.push({ kind: 'head', cells: group, spans });
+        blocks.push({ kind: 'head', cells: fields });
+        thicknesses.forEach((t, gi) => {
+          const ours = oursByT.get(t);
+          const oursOpts = ourOptionsOf(table, t);
+          const bestOurs = oursOpts.length ? oursOpts.reduce((a, b) => (b.per < a.per ? b : a)) : null;
+          const oursOpt = bestOurs || (ours && ours.price != null ? ours : null);
+          const defPer = ours && ours.price != null ? (ours.price + perItemShip(ours.ship, ours.every)) / ours.sheets : null;
+          const oursPer = bestOurs ? bestOurs.per : defPer;
+          const cells = comps.map(name => ({ name, c: bestOf(name, t) }));
+          const reals = cells.map(x => (x.c && x.c.best ? x.c.best.d.real : null)).filter(v => v != null);
+          const min = reals.length ? Math.min(...reals) : null;
+          const minName = min != null ? ((cells.find(x => x.c && x.c.best && x.c.best.d.real === min) || {}).name || '') : '';
+          const row = [
+            `${t}T`,
+            oursOpt ? `${table.size}×${oursOpt.sheets}장` : '',
+            oursPer != null ? won(Math.round(oursPer)) : '판매 안 함',
+            oursOpt ? won(oursOpt.price) : '',
+            oursOpt ? shipDesc(oursOpt.ship, oursOpt.every) : '',
+            min != null ? won(Math.round(min)) : '',
+            minName,
+            oursPer != null && min != null ? diff(oursPer - min) : '',
+            ...focusShown.map(name => {
+              const c = bestOf(name, t);
+              const ref = c && c.best ? c.best.d.real : null;
+              return oursPer != null && ref != null ? diff(oursPer - ref) : '';
+            }),
+          ];
+          cells.forEach(({ c }) => {
+            if (c && c.best) { const { r, d } = c.best; row.push(won(Math.round(d.real)), num(r.sheets) || 1, won(num(r.price)), shipDesc(num(r.ship), num(r.every))); }
+            else if (c && c.fallback) { const { r, d } = c.fallback; row.push('', num(r.sheets) || 1, won(num(r.price)), '배송비 미입력'); }
+            else row.push('', '', '', '');
+          });
+          blocks.push({ kind: 'data', cells: row, band: gi % 2 });
+        });
+      } else {
+        // 길이형(열반사·단열벽지·기타) — 길이마다 구간을 나눈다
+        table.lengths.forEach(len => {
+          const comps = matrixCompsOf(table, len)
+            .filter(name => rows.some(r => r.comp === name && rowLen(r) === len && num(r.price)))
+            .sort((a, b) => (focusNames.includes(b) ? 1 : 0) - (focusNames.includes(a) ? 1 : 0));
+          const focusShown = comps.filter(n => focusNames.includes(n));
+          const thicknesses = [...new Set([...table.thicknesses, ...rows.map(r => Number(r.t))])].sort((a, b) => a - b);
+          const sold = t => table.options.filter(opt => unitOurs(table, t, opt.key, len).price != null);
+          const lines = [];
+          thicknesses.forEach(t => sold(t).forEach(opt => lines.push({ t, opt })));
+          if (!lines.length) return;
+          const oursShipPer = shipPerUnit(table, shipKey(OURS_SHIP_KEY, len));
+          const totalOf = (key, price) => { const per = shipPerUnit(table, key); return price + (per == null ? 0 : per); };
+          blocks.push({ kind: 'group', cells: [`${lenText(table, len)} 기준`] });
+          const group = ['', '', table.oursLabel || '한국단열', '', '', '경쟁 최저', '', '최저가 대비', ...focusShown.map(n => `★ ${n} 대비`), ...comps.flatMap(n => [n, '', ''])];
+          const spans = [[2, 4], [5, 6], ...comps.map((_, i) => { const c0 = 8 + focusShown.length + i * 3; return [c0, c0 + 2]; })];
+          const fields = ['두께', '제품 옵션', '판매가', '개당 배송', '합계', '합계', '업체', '(우리 − 최저)', ...focusShown.map(() => '(우리 − ★)'),
+            ...comps.flatMap(() => ['판매가', '개당 배송', '합계'])];
+          blocks.push({ kind: 'head', cells: group, spans });
+          blocks.push({ kind: 'head', cells: fields });
+          lines.forEach(({ t, opt }, li) => {
+            const ours = unitOurs(table, t, opt.key, len);
+            const oursTotal = ours.price + (oursShipPer == null ? 0 : oursShipPer);
+            const priced = comps.map(name => {
+              const r = rows.find(x => x.comp === name && Number(x.t) === t && x.opt === opt.key && rowLen(x) === len && num(x.price));
+              return r ? { name, price: num(r.price), per: shipPerUnit(table, shipKey(name, len)), total: totalOf(shipKey(name, len), num(r.price)) } : { name, price: null };
+            });
+            const totals = priced.filter(x => x.price != null).map(x => x.total);
+            const min = totals.length ? Math.min(...totals) : null;
+            const minName = min != null ? (priced.find(x => x.price != null && x.total === min) || {}).name || '' : '';
+            const row = [
+              `${t}T`, opt.label, won(ours.price), oursShipPer == null ? '' : won(Math.round(oursShipPer)), won(Math.round(oursTotal)),
+              min != null ? won(Math.round(min)) : '', minName,
+              min != null ? diff(oursTotal - min) : '',
+              ...focusShown.map(name => { const x = priced.find(p => p.name === name); return x && x.price != null ? diff(oursTotal - x.total) : ''; }),
+            ];
+            priced.forEach(x => {
+              if (x.price == null) row.push('', '', '');
+              else row.push(won(x.price), x.per == null ? '배송비 미입력' : won(Math.round(x.per)), won(Math.round(x.total)));
+            });
+            blocks.push({ kind: 'data', cells: row, band: li % 2 });
+          });
+        });
+      }
+      if (!blocks.length) return;
+      perTable.push({ table, blocks });
+    });
+
+    // 카테고리별 시트 — 표가 여러 개인 카테고리(아이소핑크 2, 스티로폼·네오폴 4, 기타단열재 2)는 시트 하나에 구분 줄로 이어 붙인다
+    const note = '배송비는 5개를 샀을 때의 개당 값으로 환산해 판매가에 더한 값입니다(한국단열·경쟁사 모두).';
+    const sheetLabel = { hk_isopink: '아이소핑크', hk_bead: '스티로폼', hk_etc: '기타단열재' };
+    catOrder.forEach(catId => {
+      const items = perTable.filter(x => x.table.categoryId === catId);
+      if (!items.length) return;
+      if (items.length === 1) {
+        const t = items[0].table;
+        const single = { hk_reflective: '열반사', hk_wallpaper: '단열벽지' }[catId];
+        sheets.push({ name: uniqueName(single || sheetNameOf(t)), title: t.title, sub: note, blocks: items[0].blocks });
+        return;
+      }
+      const label = sheetLabel[catId] || ((HK_CATEGORIES.find(c => c.id === catId) || {}).label || catId);
+      const blocks = [];
+      items.forEach((item, index) => {
+        if (index) blocks.push({ kind: 'blank', cells: [''] });
+        const t = item.table;
+        const part = t.chip || `${label} ${String(t.size || '').replace('x', '×')}`;
+        blocks.push({ kind: 'group', cells: [part] });
+        item.blocks.forEach(b => blocks.push(b));
+      });
+      sheets.push({ name: uniqueName(label), title: `${label} 경쟁사 가격 비교`, sub: note, blocks });
+    });
+
+    // 경쟁사 원본 줄 — 표마다 따로 읽기 불편한 값을 한 표로(링크는 주소 글자 그대로)
+    const detail = [{ kind: 'head', cells: ['비교표', '업체', '두께', '규격·옵션', '길이(M)', '묶음(장)', '판매가', '배송비', '배송 기준(개)', '5개 기준 개당 배송비', '확인일', '링크'] }];
+    TABLES.forEach(table => {
+      (state.rows[table.id] || []).filter(r => r.comp && num(r.price)).forEach(r => {
+        const sheetKind = table.kind === 'sheet';
+        const optLabel = sheetKind ? (r.spec || table.size) : ((table.options.find(o => o.key === r.opt) || {}).label || r.opt || '');
+        const ship = num(r.ship), every = num(r.every);
+        detail.push({ kind: 'data', band: 0, cells: [
+          table.title.replace(/ 경쟁사 가격 비교표.*/, '') + (sheetKind ? ` ${String(table.size || '').replace('x', '×')}` : ''),
+          r.comp, `${r.t}T`, optLabel, sheetKind ? '' : rowLen(r), sheetKind ? (num(r.sheets) || 1) : '',
+          won(num(r.price)), ship == null ? '' : won(ship), every == null ? '' : every,
+          ship == null ? '' : won(Math.round(perItemShip(ship, every))), r.checked || '', r.link || '',
+        ] });
+      });
+    });
+    if (detail.length > 1) sheets.push({ name: uniqueName('경쟁사 원본'), title: '경쟁사 가격 원본 줄', sub: '표마다 입력·수집된 줄을 그대로 모았습니다. 링크는 주소 글자입니다(복사해서 브라우저에 붙여 넣기).', blocks: detail });
+    return { sheets, savedAt: state.savedAt || null };
+  };
+
   window.hkCompareSectionHtml = function (cat) {
     if (CARD_CATS.includes(cat)) return '';
     if (!TABLES.some(t => t.categoryId === cat)) return '';
@@ -1762,10 +1851,6 @@
         if (savedMap && typeof savedMap === 'object') {
           TABLES.forEach(table => { if (savedMap[table.id] && typeof savedMap[table.id] === 'object') state.optionMap[table.id] = savedMap[table.id]; });
         }
-        const savedReco = saved.value.recoSale;
-        if (savedReco && typeof savedReco === 'object') {
-          TABLES.forEach(table => { if (savedReco[table.id] && typeof savedReco[table.id] === 'object') state.recoSale[table.id] = savedReco[table.id]; });
-        }
         const savedExclude = saved.value.exclude;
         if (savedExclude && typeof savedExclude === 'object') {
           TABLES.forEach(table => { if (Array.isArray(savedExclude[table.id])) state.exclude[table.id] = savedExclude[table.id].map(String); });
@@ -1830,7 +1915,7 @@
       const list = focusOf(table).filter(n => names.has(n));
       if (list.length) focus[table.id] = list;
     });
-    const { error } = await c.from('hk_settings').upsert({ key: SETTING_KEY, value: { version: 1, rows, links, shipping, companies, focus, optionMap: Object.fromEntries(TABLES.filter(t => state.optionMap[t.id] && Object.keys(state.optionMap[t.id]).length).map(t => [t.id, state.optionMap[t.id]])), exclude: Object.fromEntries(TABLES.filter(t => (state.exclude[t.id] || []).length).map(t => [t.id, state.exclude[t.id]])), recoSale: Object.fromEntries(TABLES.filter(t => Object.keys(state.recoSale[t.id] || {}).length).map(t => [t.id, state.recoSale[t.id]])) }, updated_at: now }, { onConflict: 'key' });
+    const { error } = await c.from('hk_settings').upsert({ key: SETTING_KEY, value: { version: 1, rows, links, shipping, companies, focus, optionMap: Object.fromEntries(TABLES.filter(t => state.optionMap[t.id] && Object.keys(state.optionMap[t.id]).length).map(t => [t.id, state.optionMap[t.id]])), exclude: Object.fromEntries(TABLES.filter(t => (state.exclude[t.id] || []).length).map(t => [t.id, state.exclude[t.id]])) }, updated_at: now }, { onConflict: 'key' });
     state.saving = false;
     if (error) { toast(`저장 실패: ${error.message || error}`, 'error'); setStatus(); return; }
     state.dirty = false; state.savedAt = new Date(now); state.note = ''; state.noteKind = ''; state.noteCat = null;
@@ -1850,7 +1935,7 @@
     }
     const ours = table.ours.find(def => def[0] === Number(row.t));
     const o = ours ? oursOf(table, ours) : null;
-    const oursReal = o && o.price != null ? (o.price + o.ship / (o.every || 1)) / o.sheets : null;
+    const oursReal = o && o.price != null ? (o.price + perItemShip(o.ship, o.every)) / o.sheets : null;
     const d = derive(table, row);
     const set = (suffix, html) => { const el = document.getElementById(`hkc-${row.id}-${suffix}`); if (el) el.innerHTML = html; };
     set('per', fmt(d?.perSheet));

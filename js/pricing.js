@@ -2751,18 +2751,39 @@ window.setPricingTab = function(tabId, el) {
    엑셀 저장 — 모든 탭 전체 데이터
    SheetJS(XLSX) CDN 사용
 ═══════════════════════════════════════ */
-window.exportPricingExcel = function() {
-  if (typeof XLSX === 'undefined') {
+/* 서식(색·테두리·숫자 표시형식·틀 고정)은 SheetJS 무료판이 못 써서 같은 사용법의 xlsx-js-style을 따로 불러온다.
+   전역 XLSX(다른 엑셀 저장 기능이 쓰는 것)는 그대로 두고, 불러오지 못하면 예전처럼 서식 없이 저장한다. */
+const _XLSX_STYLE_URL = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+function _loadStyledXlsx() {
+  return new Promise(resolve => {
+    if (window.__XLSX_STYLE) { resolve(window.__XLSX_STYLE); return; }
+    const original = window.XLSX;
+    const script = document.createElement('script');
+    script.src = _XLSX_STYLE_URL;
+    script.onload = () => {
+      window.__XLSX_STYLE = window.XLSX;
+      if (original) window.XLSX = original;
+      resolve(window.__XLSX_STYLE || original || null);
+    };
+    script.onerror = () => resolve(null);
+    document.head.appendChild(script);
+  });
+}
+
+window.exportPricingExcel = async function() {
+  const styled = await _loadStyledXlsx();
+  if (!styled && typeof XLSX === 'undefined') {
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
     s.onload = () => _doExport();
     document.head.appendChild(s);
-  } else {
-    _doExport();
+    return;
   }
+  _doExport();
 };
 
 async function _doExport() {
+  const XLSX = window.__XLSX_STYLE || window.XLSX; // 이 함수 안의 모든 XLSX 호출은 서식을 쓸 수 있는 판을 쓴다
   /* 엑셀 저장 전 모든 탭/등급 경쟁사 데이터 병렬 로드 */
   if (typeof loadCompPrices === 'function') {
     const loadTasks = [
@@ -2854,7 +2875,7 @@ async function _doExport() {
       });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    _styleSheet(ws, rows.length);
+    _styleSheet(ws, rows.length, XLSX);
     XLSX.utils.book_append_sheet(wb, ws, '아이소핑크');
   })();
 
@@ -2888,7 +2909,7 @@ async function _doExport() {
       });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    _styleSheet(ws, rows.length);
+    _styleSheet(ws, rows.length, XLSX);
     XLSX.utils.book_append_sheet(wb, ws, '비드법단열재');
   })();
 
@@ -2922,7 +2943,7 @@ async function _doExport() {
       });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    _styleSheet(ws, rows.length);
+    _styleSheet(ws, rows.length, XLSX);
     XLSX.utils.book_append_sheet(wb, ws, '경질우레탄');
   })();
 
@@ -2954,7 +2975,7 @@ async function _doExport() {
       });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    _styleSheet(ws, rows.length);
+    _styleSheet(ws, rows.length, XLSX);
     XLSX.utils.book_append_sheet(wb, ws, 'PF보드');
   })();
 
@@ -2988,7 +3009,7 @@ async function _doExport() {
       });
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    _styleSheet(ws, rows.length);
+    _styleSheet(ws, rows.length, XLSX);
     XLSX.utils.book_append_sheet(wb, ws, '불연단열재');
   })();
 
@@ -3032,27 +3053,114 @@ function _compCells(tabId, gradeId, t, ourPrice) {
    - 4행: 헤더 (배경+굵게+가운데)
    - 데이터행: 숫자 천단위, 마진율 %, 차이 양수빨강/음수파랑, 링크 파란색
 */
-function _styleSheet(ws, totalRows) {
-  // 열 너비만 설정 (값만 저장, 서식은 추후 적용)
+function _styleSheet(ws, totalRows, XL) {
+  const LAST_COL = 21;         // 13개 값 열 + 경쟁사 3 × (단가·차이·링크)
+  const HEADER_ROW = 3;        // 0부터: 제목(0) · 기준월(1) · 경쟁사 묶음(2) · 머리글(3) · 데이터(4~)
+  const FONT = '맑은 고딕';
+  const thin = c => ({ style: 'thin', color: { rgb: c } });
+  const borderAll = c => ({ top: thin(c), bottom: thin(c), left: thin(c), right: thin(c) });
+
   ws['!cols'] = [
-    { wch: 28 }, // 품명
-    { wch: 8  }, // 두께
-    { wch: 12 }, // m²당원가
-    { wch: 10 }, // 장당마진
-    { wch: 12 }, // m²당판매가
-    { wch: 14 }, // 장당원가
-    { wch: 14 }, // 장당판매가
-    { wch: 14 }, // 최종판매가
-    { wch: 12 }, // 마진금액
-    { wch: 10 }, // 부가세
-    { wch: 10 }, // 수수료
-    { wch: 12 }, // 순수마진
-    { wch: 8  }, // 마진율
-    // 경쟁사 3개 × (단가/차이/링크)
-    { wch: 12 }, { wch: 10 }, { wch: 40 },
-    { wch: 12 }, { wch: 10 }, { wch: 40 },
-    { wch: 12 }, { wch: 10 }, { wch: 40 },
+    { wch: 30 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+    { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 9 },
+    { wch: 12 }, { wch: 10 }, { wch: 40 }, { wch: 12 }, { wch: 10 }, { wch: 40 }, { wch: 12 }, { wch: 10 }, { wch: 40 },
   ];
+  if (!XL || !XL.utils || !XL.utils.encode_cell) return;
+
+  const at = (r, c) => XL.utils.encode_cell({ r, c });
+  const cellOf = (r, c) => ws[at(r, c)];
+  const put = (r, c, value, style, extra) => {
+    ws[at(r, c)] = Object.assign({ t: typeof value === 'number' ? 'n' : 's', v: value, s: style }, extra || {});
+  };
+
+  // 병합: 제목·기준월은 전체 폭, 값 열 묶음과 경쟁사 묶음은 3개 열씩
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: LAST_COL } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: LAST_COL } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 12 } },
+    { s: { r: 2, c: 13 }, e: { r: 2, c: 15 } },
+    { s: { r: 2, c: 16 }, e: { r: 2, c: 18 } },
+    { s: { r: 2, c: 19 }, e: { r: 2, c: 21 } },
+  ];
+
+  // 제목·기준월
+  const title = cellOf(0, 0), sub = cellOf(1, 0);
+  put(0, 0, title ? String(title.v) : '', { font: { name: FONT, sz: 16, bold: true, color: { rgb: '1E293B' } }, alignment: { horizontal: 'left', vertical: 'center' } });
+  put(1, 0, sub ? String(sub.v) : '', { font: { name: FONT, sz: 10, color: { rgb: '64748B' } }, alignment: { horizontal: 'left', vertical: 'center' } });
+
+  // 경쟁사 묶음 줄(원래 빈 줄) — 업체 이름을 단가·차이·링크 위에 묶어 보여 준다
+  const groupStyle = fill => ({ font: { name: FONT, sz: 10, bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: fill } }, alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll('94A3B8') });
+  put(2, 0, '단가 계산', groupStyle('334155'));
+  for (let c = 1; c <= 12; c++) put(2, c, '', groupStyle('334155'));
+  [13, 16, 19].forEach(c0 => {
+    const head = cellOf(HEADER_ROW, c0);
+    const name = head ? String(head.v).replace(/\s*단가\s*$/, '') : '';
+    put(2, c0, name, groupStyle('4F46E5'));
+    put(2, c0 + 1, '', groupStyle('4F46E5'));
+    put(2, c0 + 2, '', groupStyle('4F46E5'));
+  });
+
+  // 머리글 줄
+  for (let c = 0; c <= LAST_COL; c++) {
+    const cell = cellOf(HEADER_ROW, c);
+    const value = cell ? cell.v : '';
+    const isComp = c >= 13;
+    put(HEADER_ROW, c, value, {
+      font: { name: FONT, sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { patternType: 'solid', fgColor: { rgb: isComp ? '6366F1' : '1E293B' } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: borderAll('94A3B8'),
+    });
+  }
+
+  // 데이터 줄 — 등급이 바뀌면 굵은 위쪽 선과 연한 배경으로 구분한다
+  let prevName = null, band = 0;
+  for (let r = HEADER_ROW + 1; r < totalRows; r++) {
+    const nameCell = cellOf(r, 0);
+    const name = nameCell ? String(nameCell.v) : '';
+    const newGroup = name !== prevName;
+    if (newGroup && prevName !== null) band = 1 - band;
+    prevName = name;
+    const bg = band ? 'F8FAFC' : 'FFFFFF';
+    for (let c = 0; c <= LAST_COL; c++) {
+      const cell = cellOf(r, c) || { t: 's', v: '' };
+      let v = cell.v;
+      const isNum = cell.t === 'n' && typeof v === 'number';
+      const border = borderAll('E2E8F0');
+      if (newGroup && r > HEADER_ROW + 1) border.top = { style: 'medium', color: { rgb: '94A3B8' } };
+      const style = {
+        font: { name: FONT, sz: 10, color: { rgb: '1E293B' } },
+        fill: { patternType: 'solid', fgColor: { rgb: bg } },
+        alignment: { horizontal: c === 0 ? 'left' : (c === 1 ? 'center' : 'right'), vertical: 'center' },
+        border,
+      };
+      const next = { t: cell.t, v };
+      const isLinkCol = c >= 13 && (c - 13) % 3 === 2;
+      const isDiffCol = c >= 13 && (c - 13) % 3 === 1;
+      if (c === 0) { style.font.bold = newGroup; }
+      if (!isNum && (v === '-' || v == null)) { next.t = 's'; next.v = ''; }       // 값이 없는 칸은 '-' 글자 대신 비워 둔다
+      if (isNum) {
+        next.z = c === 12 ? '0"%"' : (isDiffCol ? '+#,##0;-#,##0;0' : '#,##0');
+        if (c === 7) { style.font.bold = true; style.fill = { patternType: 'solid', fgColor: { rgb: 'EEF2FF' } }; } // 최종판매가 강조
+        if (isDiffCol) style.font.color = { rgb: v > 0 ? 'DC2626' : (v < 0 ? '2563EB' : '64748B') }; // 우리가 비싸면 빨강, 싸면 파랑
+        if (c === 12 && v < 0) style.font.color = { rgb: 'DC2626' };
+      }
+      if (c === 1 && isNum) next.z = '0';
+      if (isLinkCol && typeof v === 'string') {
+        // 링크는 클릭 가능한 하이퍼링크로 만들지 않고 주소 글자 그대로 둔다 — 엑셀이 네이버 주소를 못 열어 오류가 나서(2026-10-16),
+        // 주소를 복사해 브라우저에 붙여 넣어 보도록 한다.
+        next.v = v.trim();
+        style.font = { name: FONT, sz: 9, color: { rgb: '64748B' } };
+        style.alignment = { horizontal: 'left', vertical: 'center' };
+      }
+      next.s = style;
+      ws[at(r, c)] = next;
+    }
+  }
+
+  // 행 높이·필터 (틀 고정은 이 라이브러리가 지원하지 않아 넣지 않았다)
+  ws['!rows'] = [{ hpt: 28 }, { hpt: 18 }, { hpt: 20 }, { hpt: 34 }];
+  ws['!autofilter'] = { ref: `A${HEADER_ROW + 1}:${XL.utils.encode_col(LAST_COL)}${Math.max(totalRows, HEADER_ROW + 2)}` };
 }
 
 /* ═══════════════════════════════════════

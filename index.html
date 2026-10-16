@@ -1141,6 +1141,12 @@
               <button type="button" class="btn-server" id="hkDbSaveBtn" onclick="hkDbSave()" style="background:#4f46e5;">
                 <i class="fa-solid fa-cloud-arrow-up"></i> 단가표 저장
               </button>
+              <button type="button" class="btn-server" id="hkExcelBtn" onclick="exportHkPricingExcel()" style="background:#4338ca;">
+                <i class="fa-solid fa-file-excel"></i> 단가표 엑셀
+              </button>
+              <button type="button" class="btn-server" id="hkCompareExcelBtn" onclick="exportHkCompareExcel()" style="background:#3730a3;">
+                <i class="fa-solid fa-people-arrows"></i> 경쟁사 비교 엑셀
+              </button>
             </div>
             <!-- 앱가격 전용 — "앱에 저장" 버튼을 카드 안 제목줄에서 헤드 우측으로 이동(2026-08-18) -->
             <div class="pricing-header-right" id="pricingAppHeaderRight" style="display:none;">
@@ -1822,6 +1828,7 @@
 <script src="js/pricing-hankook-search.js"></script>
 <script src="js/pricing-hankook-moeum.js"></script>
 <script src="js/pricing-hankook-compare.js"></script>
+<script src="js/pricing-hankook-excel.js"></script>
 <script src="js/pricing-hankook-coupang-excel.js"></script>
 <script src="js/pricing-hankook-11st-excel.js"></script>
 <script src="js/dashboard.js?v=20260820-authfix2"></script>

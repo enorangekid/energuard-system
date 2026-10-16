@@ -194,6 +194,12 @@
               </div>
             </div>
           </div>
+          <button type="button" class="btn-server" id="hkExcelBtn" onclick="exportHkPricingExcel()" style="background:#4338ca;">
+            <i class="fa-solid fa-file-excel"></i> 단가표 엑셀
+          </button>
+          <button type="button" class="btn-server" id="hkCompareExcelBtn" onclick="exportHkCompareExcel()" style="background:#3730a3;">
+            <i class="fa-solid fa-people-arrows"></i> 경쟁사 비교 엑셀
+          </button>
         </div>
       </h3>
     </div>
@@ -312,6 +318,7 @@
 <script src="js/pricing-hankook-db.js"></script>
 <!-- 경쟁사 가격 비교(2026-10-14) — 아이소핑크·열반사 카테고리 맨 위 구역. 이 페이지는 로그인이 없어 보기만 된다(수집·편집·저장 버튼 없음). -->
 <script src="js/pricing-hankook-compare.js"></script>
+<script src="js/pricing-hankook-excel.js"></script>
 <script>
   // pricing.js가 자기 DOMContentLoaded 리스너(initPricingTabs)를 이미 등록해둔 뒤에
   // 이 스크립트가 실행되므로, 여기서 등록하는 리스너는 항상 그 다음에 실행된다
@@ -361,6 +368,8 @@
       'hkCmpToggleSheetT', 'hkCmpSheetAll',
       // 단가 계산 ↔ 경쟁사 비교 보기 전환
       'hkCmpSetView', 'hkCmpCardToggle', 'hkCmpCardPick',
+      // 단가표 엑셀 저장(한국단열) — 화면 표를 읽어 파일로 저장하기만 한다
+      'exportHkPricingExcel', 'exportHkCompareExcel',
     ]);
     function lockHkInputs() {
       document.querySelectorAll('#hkPricingBodyWrap input, #hkPricingBodyWrap select, #hkPricingBodyWrap textarea').forEach((el) => {
