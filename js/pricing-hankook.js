@@ -25,6 +25,7 @@ const HK_CATEGORIES = [
   { id: 'hk_etc',        label: '기타단열재' },
   { id: 'hk_sub',        label: '부자재' },
   { id: 'hk_supp',       label: '추가상품' },
+  { id: 'hk_coupon',     label: '쿠폰' },   // 네이버 쿠폰 목록(읽기 전용 기록, js/pricing-hankook-coupon.js)
 ];
 
 // 판매 채널 — 특정 카테고리에 속하지 않는 전사 상품 보기다. 한 채널 안에
@@ -332,6 +333,8 @@ window.setHkPricingTab = function(tabId, el) {
     const suppPane = document.getElementById('pricing-tab-hk_supp');
     if (suppPane) suppPane.innerHTML = renderHkSupplementPane();
   }
+  // 쿠폰 탭은 처음 열 때 저장된 쿠폰 기록(hk_settings 'coupon_list')을 불러온다.
+  if (tabId === 'hk_coupon' && typeof window.hkCouponOnOpen === 'function') window.hkCouponOnOpen();
   // 아이소핑크·열반사단열재 맨 위 경쟁사 가격 구역은 탭을 열 때마다 한국단열 판매가를 다시 읽어 와서 방금 고친 값이 바로 비교에 반영되게 한다.
   if (typeof window.hkCompareOnOpen === 'function') window.hkCompareOnOpen();
   // 카테고리 탭을 고르면 "카테고리 모드" — 기준단가(1·2단계)는 보이고
@@ -383,6 +386,8 @@ function renderHkCategoryPane(tabId) {
   if (tabId === 'hk_window' && typeof renderHkWindowPane === 'function') return renderHkWindowPane();
   // 추가상품은 단가표에서 가격이 계산되는 목록이라(저장값 없음) 전용 파일에서 렌더한다.
   if (tabId === 'hk_supp' && typeof renderHkSupplementPane === 'function') return renderHkSupplementPane();
+  // 쿠폰은 계산에 쓰이지 않는 읽기 전용 목록이라 전용 파일에서 렌더한다.
+  if (tabId === 'hk_coupon' && typeof renderHkCouponPane === 'function') return renderHkCouponPane();
 
   // 카테고리가 채워지면 여기에 전용 렌더 함수를 추가하면 됨 (renderHkIsopinkPane와 같은 패턴).
 

@@ -1629,6 +1629,71 @@
   font-size: 11px;
   color: #6366f1;
 }
+/* 쿠폰 탭(js/pricing-hankook-coupon.js) — 읽기 전용 목록 */
+.hk-coupon-pane { display: flex; flex-direction: column; gap: 14px; }
+.hk-coupon-banner { padding: 12px 16px; border: 1px solid #c7d2fe; border-radius: 10px; background: #eef2ff; color: #3730a3; font-size: 14px; }
+.hk-coupon-banner p { margin: 8px 0 0; color: #475569; font-size: 12.5px; line-height: 1.5; }
+.hk-coupon-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 14px; }
+.hk-coupon-summary b { font-weight: 800; }
+.hk-coupon-summary b.is-on { color: #15803d; }
+.hk-coupon-summary b.is-off { color: #94a3b8; }
+.hk-coupon-search { margin-left: auto; width: 220px; padding: 5px 10px; border: 1px solid #c7d2fe; border-radius: 8px; font-size: 12.5px; }
+.hk-coupon-list { display: flex; flex-direction: column; gap: 12px; }
+.is-c1 { --cc-bg: #e0f2fe; --cc-line: #7dd3fc; --cc-ink: #075985; }
+.is-c2 { --cc-bg: #dbeafe; --cc-line: #93c5fd; --cc-ink: #1e40af; }
+.is-c3 { --cc-bg: #e0e7ff; --cc-line: #a5b4fc; --cc-ink: #3730a3; }
+.is-c4 { --cc-bg: #ffedd5; --cc-line: #fdba74; --cc-ink: #9a3412; }
+.is-c5 { --cc-bg: #fee2e2; --cc-line: #fca5a5; --cc-ink: #991b1b; }
+.hk-coupon-block[hidden] { display: none; }
+.hk-coupon-block { padding: 12px 14px; border: 1px solid var(--cc-line, #cbd5e1); border-left-width: 6px; border-radius: 10px; background: #fff; }
+.hk-coupon-block.is-stopped { opacity: .55; filter: grayscale(.8); }
+.hk-coupon-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; }
+.hk-coupon-title { display: flex; align-items: center; gap: 10px; }
+.hk-coupon-no { padding: 2px 10px; border-radius: 999px; background: var(--cc-bg); color: var(--cc-ink); font-size: 15px; font-weight: 800; }
+.hk-coupon-name { font-size: 14px; font-weight: 700; color: #334155; }
+.hk-coupon-status { padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.hk-coupon-status.is-on { background: #dcfce7; color: #166534; }
+.hk-coupon-status.is-off { background: #e2e8f0; color: #475569; }
+.hk-coupon-facts { display: flex; gap: 22px; }
+.hk-coupon-facts span { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; }
+.hk-coupon-facts small { font-size: 11px; color: #64748b; }
+.hk-coupon-facts b { font-size: 15px; font-weight: 800; color: #1e293b; }
+.hk-coupon-actions { display: flex; gap: 6px; }
+.hk-coupon-btn { padding: 5px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.hk-coupon-btn:hover { background: #f1f5f9; }
+.hk-coupon-btn:disabled { opacity: .5; cursor: default; }
+.hk-coupon-btn.is-primary { background: #4338ca; border-color: #4338ca; color: #fff; }
+.hk-coupon-btn.is-primary:hover { background: #3730a3; }
+.hk-coupon-btn.is-stop { border-color: #fca5a5; color: #b91c1c; }
+.hk-coupon-btn.is-stop:hover { background: #fee2e2; }
+.hk-coupon-btn.is-danger { border-color: #e2e8f0; color: #64748b; }
+.hk-coupon-saved { font-size: 12px; color: #64748b; }
+.hk-coupon-saved.is-dirty { color: #b45309; font-weight: 800; }
+.hk-coupon-note-line { padding: 6px 10px; border-radius: 6px; background: #fff; color: #475569; }
+.hk-coupon-note-line.is-error { background: #fee2e2; color: #991b1b; }
+.hk-coupon-facts b.is-sm { font-size: 12.5px; font-weight: 700; }
+.hk-coupon-form { padding: 14px 16px; border: 2px solid #6366f1; border-radius: 10px; background: #fff; display: flex; flex-direction: column; gap: 12px; }
+.hk-coupon-form h4 { margin: 0; font-size: 15px; font-weight: 800; color: #3730a3; }
+.hk-coupon-form h4 small { margin-left: 8px; font-size: 12px; font-weight: 500; color: #64748b; }
+.hk-coupon-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 18px; }
+.hk-coupon-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 700; color: #334155; }
+.hk-coupon-form label small { font-weight: 500; color: #64748b; }
+.hk-coupon-form input, .hk-coupon-form select, .hk-coupon-form textarea { padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; font-weight: 500; font-family: inherit; }
+.hk-coupon-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 500; }
+.hk-coupon-form [hidden] { display: none; }
+.hk-coupon-form-actions { display: flex; gap: 8px; }
+.hk-coupon-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
+.hk-coupon-cat { padding: 2px 9px; border-radius: 6px; background: #f1f5f9; color: #475569; font-size: 12px; }
+.hk-coupon-cat b { margin-left: 2px; color: #1e293b; }
+.hk-coupon-block summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: #4338ca; padding: 4px 0; }
+.hk-coupon-table { width: 100%; margin-top: 6px; }
+.hk-coupon-table th, .hk-coupon-table td { padding: 5px 9px; text-align: left; font-size: 12.5px; }
+.hk-coupon-table tr[hidden] { display: none; }
+.hk-coupon-table .hk-coupon-num { text-align: right; white-space: nowrap; }
+.hk-coupon-table .hk-coupon-id { font-family: 'SF Mono','Consolas',monospace; color: #6366f1; white-space: nowrap; }
+.hk-coupon-table .hk-coupon-note { color: #334155; }
+.hk-coupon-table .hk-coupon-sub td { background: #f1f5f9; font-weight: 800; color: #334155; }
+.hk-coupon-table .hk-coupon-sub small { margin-left: 6px; font-weight: 500; color: #64748b; }
 /* 상품코드 아래 작은 줄 — 바코드·모델번호(HK_SUB_IDENTIFIERS). 코드 칸 폭(122px)에 17자리가 한 줄로 들어가게 작게 한다. */
 .hk-sub-table .hk-sub-ids { font-size: 9.5px; line-height: 1.35; color: #94a3b8; word-break: break-all; cursor: help; }
 .hk-sub-table .hk-sub-cost { background: #f8fafc; font-weight: 700; }

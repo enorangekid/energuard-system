@@ -549,7 +549,7 @@ async function _hkDbFetchState() {
   const [settings, products, channelProducts, channelItems] = await Promise.all([
     // 쿠팡 전체 옵션 목록(key 'coupang_catalog', js/pricing-hankook-coupang-excel.js)은 수백 KB라 단가를 불러올 때는 가져오지 않는다 — 최근 저장 시각에도 안 섞이게.
     // 경쟁사 가격 비교(key 'competitor_compare', js/pricing-hankook-compare.js)도 이 탭이 따로 저장·불러오므로 단가 상태와 저장 시각에서 뺀다.
-    _hkDbSelectAll('hk_settings', '*', ['key'], 1, query => query.neq('key', 'coupang_catalog').neq('key', 'competitor_compare')),
+    _hkDbSelectAll('hk_settings', '*', ['key'], 1, query => query.neq('key', 'coupang_catalog').neq('key', 'competitor_compare').neq('key', 'coupon_list')),
     _hkDbSelectAll('hk_products', '*', ['product_code']),
     _hkDbSelectAll('hk_channel_products', '*', ['channel_id', 'sort_order']),
     _hkDbSelectAll('hk_channel_items', '*', ['channel_id', 'product_id', 'sort_order'], 3), // 옵션 행이 가장 많은 표 — 3페이지를 한꺼번에
