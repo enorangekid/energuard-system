@@ -1629,6 +1629,8 @@
   font-size: 11px;
   color: #6366f1;
 }
+/* 상품코드 아래 작은 줄 — 바코드·모델번호(HK_SUB_IDENTIFIERS). 코드 칸 폭(122px)에 17자리가 한 줄로 들어가게 작게 한다. */
+.hk-sub-table .hk-sub-ids { font-size: 9.5px; line-height: 1.35; color: #94a3b8; word-break: break-all; cursor: help; }
 .hk-sub-table .hk-sub-cost { background: #f8fafc; font-weight: 700; }
 .hk-sub-table .hk-sub-cost-cell { padding-left: 8px; padding-right: 8px; }
 /* 공급원가 직접 수정과 조정액 입력을 한 줄에 둬서 행 높이를 아이소핑크·스티로폼 표와 맞춘다. */

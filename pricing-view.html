@@ -64,6 +64,15 @@
   }
   .view-topbar i { color:#a5b4fc; }
   .view-topbar span.sub { font-weight:400; color:#c7d2fe; font-size:12px; margin-left:4px; }
+  /* 가격 경쟁력 보고서로 가는 링크(2026-10-20) — 맨 위 막대 오른쪽 끝, 새 창으로 연다 */
+  .view-report-link {
+    margin-left:auto; display:inline-flex; align-items:center; gap:6px;
+    padding:6px 12px; border:1px solid rgba(165,180,252,.55); border-radius:6px;
+    color:#fff; background:rgba(255,255,255,.08); font-size:13px; font-weight:600; text-decoration:none;
+  }
+  .view-report-link:hover { background:rgba(255,255,255,.18); }
+  .view-report-link i { color:#a5b4fc; }
+  @media (max-width:700px) { .view-topbar { flex-wrap:wrap; } .view-topbar span.sub { display:none; } }
   .view-loader {
     position:fixed; inset:0; background:#f4f5f9; z-index:9999;
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
@@ -118,6 +127,9 @@
 <div class="view-topbar">
   <i class="fa-solid fa-eye"></i> 단가표 — 보기 전용
   <span class="sub">통합관리시스템과 실시간 연동 · 입력/편집 불가 · 엑셀 저장만 가능</span>
+  <a class="view-report-link" href="https://enorangekid.github.io/energuard-lab/reports/2026-product-price-strategy/" target="_blank" rel="noopener" title="2026 자체 생산 제품 가격 경쟁력 분석 보고서를 새 창으로 엽니다">
+    <i class="fa-solid fa-file-lines"></i> 가격 경쟁력 보고서
+  </a>
 </div>
 
 <div class="content-body">

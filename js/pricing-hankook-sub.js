@@ -209,6 +209,44 @@ function _hkSubMetrics(product, price = Number(product.price) || 0) {
   };
 }
 
+/* 상품 식별정보 — 바코드(GTIN)·모델번호(MPN)를 상품코드 아래에 작게 보여 준다(2026-10-19, 쿠팡 식별번호 요청 대비).
+   값은 사용자가 포장·제조사에서 확인해 준 것이고, note는 코리안넷(koreannet.or.kr) 조회 결과다(마우스를 올리면 보임).
+   바코드는 포장 단위마다 달라서 단품 코드와 박스(_B) 코드를 따로 적는다(월드 3종 박스는 확인됨). 깜짝할인(_S) 코드에는 붙이지 않았다. 이지본드-일회용(T_EB_D)은 번호가 아직 확정되지 않아 뺐다. */
+const HK_SUB_IDENTIFIERS = {
+  U_FB:      { gtin: '8809950820049', note: '코리안넷: 주식회사 유니산업 유니 패스트 본드' },
+  W_SF_G:    { gtin: '8809342962357', note: '코리안넷: 월드스프레이폼 — (주)함일셀레나' },
+  W_SFB_G:   { gtin: '8809342962302', note: '코리안넷: 월드스피드폼 — (주)함일셀레나' },
+  W_B2_G:    { gtin: '8809342960315', note: '코리안넷: 월드폼본드 — (주)함일셀레나' },
+  W_FC:      { gtin: '8809342960063', note: '코리안넷: 월드폼크리너 — (주)함일셀레나' },
+  W_GUN_251: { gtin: '8809342961114', note: '코리안넷: WORLD 251 GUN — (주)함일셀레나' },
+  W_SF_G_B:  { gtin: '8809342962623', note: '코리안넷: 월드스프레이폼 BOX — (주)함일셀레나' },
+  W_SFB_G_B: { gtin: '8809342962715', note: '코리안넷: 월드스피드폼 BOX — (주)함일셀레나' },
+  W_B2_G_B:  { gtin: '8809342962760', note: '코리안넷: 월드폼본드 BOX — (주)함일셀레나' },
+  T_TF_D:    { gtin: '8809293400359', note: '코리안넷 미등록' },
+  T_TF_G:    { gtin: '8809293400021', note: '코리안넷 미등록' },
+  T_EB_G:    { gtin: '8809293400052', note: '코리안넷 미등록' },
+  T_B1_G:    { gtin: '8809293400113', note: '코리안넷 미등록' },
+  T_B2_G:    { gtin: '8809293400120', note: '코리안넷 미등록' },
+  T_BIG65_G: { gtin: '8809293400298', note: '코리안넷 미등록 (BiG)' },
+  T_SF_G:    { gtin: '8809293400335', note: '코리안넷 미등록 (입력 4000335의 0 하나를 뺀 값 — 포장으로 재확인)' },
+  T_SA:      { gtin: '8809293400168', note: '코리안넷 미등록 (스프레이접착제)' },
+  T_SR:      { gtin: '8809293400175', note: '코리안넷 미등록 (스티커 제거제)' },
+  MR:        { gtin: '8809335250034', note: '코리안넷 미등록' },
+  HC_FREE:   { mpn: 'JFC-6000', note: '프리커터기 모델번호' },
+  HC_ELIM:   { gtin: '8809270286150', note: '코리안넷 미등록 (엘림 열선커터기)' },
+  SC_TR:     { mpn: 'W-690', note: '실리콘 실란트 모델명' },
+  HC_USB:    { mpn: 'S0033914391300', note: 'USB 열선커터기 — 포장 바코드 아래 숫자(GS1 GTIN 아님, 제조사 자체 코드)라 모델번호로 입력' },
+};
+function _hkSubIdsHtml(code) {
+  const ids = HK_SUB_IDENTIFIERS[code];
+  if (!ids) return '';
+  const lines = [];
+  if (ids.gtin) lines.push(`바코드 ${ids.gtin}`);
+  if (ids.mpn) lines.push(`모델 ${ids.mpn}`);
+  // hk-iso-code-alias — 엑셀 내보내기(cellText)가 이 클래스를 빼고 읽어서 코드 열에 안 섞인다.
+  return `<small class="hk-iso-code-alias hk-sub-ids"${ids.note ? ` title="${ids.note}"` : ''}>${lines.join('<br>')}</small>`;
+}
+
 /* 원가 없는 항목(실외기 커버·어싱매트) — 공급원가·마진 칸은 "—", 판매가는 연필로 직접 고친다. */
 function _hkSubNoCostRowHtml(product, rowIndex) {
   const difference = Number(product.price) - Number(product.previousPrice);
@@ -237,7 +275,7 @@ function _hkSubRowHtml(product, rowIndex) {
   const difference = Number(product.price) - Number(product.previousPrice);
   return `<tr data-row-index="${rowIndex}" data-product-code="${product.code}" data-cost="${product.cost}">
     <td class="hk-sub-name">${product.name}</td>
-    <td class="hk-iso-draft-code">${product.code}</td>
+    <td class="hk-iso-draft-code">${product.code}${_hkSubIdsHtml(product.code)}</td>
     <td class="hk-sub-cost hk-sub-cost-cell">
       <div class="hk-sub-cost-line">
         <div class="hk-iso-price-edit-wrap hk-sub-cost-direct-wrap">
