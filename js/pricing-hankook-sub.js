@@ -1378,7 +1378,7 @@ const HK_EARTH_MAT = [
 /* ═══════════════════════════════════════
    쿠팡 신규 상품 7개 추가 (2026-10-08) — 쿠팡 전체 목록(data/coupang_catalog.json)에는 있는데 단가표에 없던 상품(옵션 29개).
    사용자 지시: 쿠팡이 합치거나 나눈 기존 상품의 Product ID는 맞추지 않고(합치면 보기 불편), 아예 없던 상품만 추가한다.
-   - 기타단열재 상품(방습단열초배지·난방필름·캠핑단열재)은 일반 `쿠팡` 채널로 분류하고 일반 쿠팡 계산식을 쓴다(2026-10-08 사용자 지시).
+   - 기타단열재 상품(방습단열초배지·난방필름·캠핑단열재)은 일반 `쿠팡` 채널로 분류한다(2026-10-08 사용자 지시). **쿠폰은 없다**(2026-10-20 사용자 확인 — 쿠팡 가격검사에서 할인 0%): item.noCoupon으로 총판매가×1.05를 10원 올림한 가격이 곧 등록가·최종가다.
      **방수·절전커버는 한국단열 판매가에서 계산**한다(2026-10-08 사용자 지시): 쿠팡_부자재 계산식에 배송비 3,000원을 더하고 10원 단위로 반올림 — (한국단열 판매가 + 3,000) ×1.05 → 쿠팡 현재가 14개와 전부 일치(차액 0). 상품코드는 이름으로 짝지어 적었다.
    - 판매상태는 쿠팡 목록 그대로(판매중지 = stopped, seedStatus). 쿠팡_부자재에는 방수/절전커버(부자재)만 둔다. (열반사 롤 `9200174387`도 한 번 추가했다가 단가표의 `8232412643`과 같은 상품의 옛 판매중지 등록이라 중복으로 보고 사용자 지시로 뺐다.)
 ═══════════════════════════════════════ */
@@ -1436,7 +1436,7 @@ const HK_EARTH_MAT = [
       categoryId, productId, baseShipping: null, shippingBasis: '—', jejuShipping: null, returnExchange: '—',
       items: options.map(([optionId, productCode, label, price, stopped]) => ({
         productCode, optionId, productName: `${name} · ${label}`, prevPrice: price, prevShipping: null,
-        ...(categoryId === 'hk_etc' ? {} : { hkdShipping: 3000, roundUnit: 10 }), // 기타단열재는 일반 쿠팡 계산식. 커버(부자재)는 쿠팡_부자재 계산식에 배송비 3,000·10원 반올림을 얹는다(_hkCoupangSubPriceParts).
+        ...(categoryId === 'hk_etc' ? { noCoupon: true } : { hkdShipping: 3000, roundUnit: 10 }), // 기타단열재는 쿠폰이 없다(사용자 확인 2026-10-20) — 일반 쿠팡 계산식에서 쿠폰을 뺀 가격(총판매가×1.05, 10원 올림). 커버(부자재)는 쿠팡_부자재 계산식에 배송비 3,000·10원 반올림을 얹는다(_hkCoupangSubPriceParts).
         ...(stopped ? { status: 'stopped', seedStatus: 'stopped' } : {}),
       })),
     });

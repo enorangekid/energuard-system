@@ -2162,6 +2162,7 @@ function _hkEsmPriceParts(categoryId, productCode, config, item) {
    위너 상품(product.pricing === 'winner'): 판매가 = 총판매가×1.05를 1,000원 단위 올림(winnerRoundUnit), 쿠폰 할인 없음
      (couponOff null·쿠폰 적용 전 없음), 최종 = 판매가 = 등록 가격. item.manualPrice(수동 판매가)가 있으면 그 값이 등록 가격.
    반환: { hkdPrice, hkdShipping, total, preCoupon, listPrice, couponOff, finalPrice, registered, winner }
+   item.noCoupon이 있으면(쿠팡 기타단열재) 쿠폰 없이 등록가 = 최종가 = 총판매가×1.05(10원 올림)다.
    item.couponOff(10 또는 12)가 있으면 그 옵션은 그 할인율을 쓴다. item.couponCap이 있으면 할인액은 그 금액을 넘지 않는다. */
 function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
   // 관리코드가 없는 옵션은 계산할 게 없다. 쿠팡 창문형단열재(item.windowKey)는 코드를 만들어 붙였지만 한국단열 판매가에서 계산하는 옵션이 아니라(쿠팡가 탭의 반영 개당단가를 쓴다)
@@ -2186,6 +2187,16 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
       preCoupon: registered, listPrice,
       couponOff: null, couponFlat: Number(item.couponFlat),
       finalPrice: listPrice, registered, winner: false,
+    };
+  }
+  // 쿠폰이 없는 옵션(item.noCoupon — 쿠팡 기타단열재: 방습단열초배지·캠핑단열재·난방필름, 사용자 확인 2026-10-20 "기타 단열재는 다 쿠폰이 없다"):
+  // 쿠폰 적용 전 가격이 따로 없고 등록가 = 최종가 = 총판매가×1.05를 10원 단위로 올림. 쿠팡 현재가(11,030·147,000·8,300)와 정확히 일치한다.
+  if (item && item.noCoupon) {
+    const registered = Math.ceil(total * config.listPercent / 1000) * 10;
+    return {
+      hkdPrice, hkdShipping, total,
+      preCoupon: null, listPrice: registered, couponOff: null,
+      finalPrice: registered, registered, winner: false, noCoupon: true,
     };
   }
   if (product && product.pricing === 'winner') {
@@ -2896,6 +2907,7 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
       const windowPrice = item.windowKey && typeof window.hkWindowCoupangPriceByKey === 'function' ? window.hkWindowCoupangPriceByKey(item.windowKey) : null;
       const registered = windowPrice != null ? windowPrice : (parts ? parts.registered : (item.targetPrice != null ? Number(item.targetPrice) : null)); // 계산식에 아직 안 연결한 옵션(쿠팡 신규 추가)은 받은 현재 판매가(targetPrice)
       const isWinner = !!parts && parts.winner;
+      const isPlain = isWinner || (!!parts && !!parts.noCoupon); // 쿠폰이 없는 옵션(위너·쿠폰 없는 기타단열재) — 쿠폰 칸을 '쿠폰 없음'으로
       const isManual = isWinner && parts.manual != null;
       if (isManual) manualCount += 1;
       const inactive = !!item.status;
@@ -2925,9 +2937,9 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
         <td>${num(parts?.hkdShipping)}</td>
         <td>${num(parts?.total)}</td>
         <td>${num(parts?.listPrice)}</td>
-        <td${isWinner ? ' title="위너 상품은 쿠폰을 먹이지 않아 쿠폰 적용 전 판매가가 없습니다"' : ''}>${isWinner ? '—' : num(parts?.preCoupon)}</td>
-        <td class="hk-coupon-off is-off-${parts && parts.couponOff != null ? parts.couponOff : (parts && parts.couponFlat != null ? 'flat' : 'none')}"${isWinner ? ' title="위너 상품은 쿠폰을 먹이지 않고 판매가를 그대로 받습니다"' : (parts && parts.couponFlat != null ? ' title="퍼센트가 아니라 원 단위 정액 쿠폰입니다"' : '')}>${isWinner ? '쿠폰 없음' : (parts && parts.couponFlat != null ? num(parts.couponFlat) + '원' : (parts && parts.couponOff != null ? parts.couponOff + '%' : (blankMissing ? '' : '—')))}</td>
-        <td class="hk-price-final${isWinner ? ' is-plain' : ''}"${isWinner ? ' title="쿠폰이 없어서 등록 판매가와 같은 값입니다"' : ''}>${num(parts?.finalPrice)}</td>`}
+        <td${isPlain ? ' title="쿠폰이 없는 상품이라 쿠폰 적용 전 판매가가 없습니다"' : ''}>${isPlain ? '—' : num(parts?.preCoupon)}</td>
+        <td class="hk-coupon-off is-off-${parts && parts.couponOff != null ? parts.couponOff : (parts && parts.couponFlat != null ? 'flat' : 'none')}"${isPlain ? ' title="쿠폰이 없고 판매가를 그대로 받습니다"' : (parts && parts.couponFlat != null ? ' title="퍼센트가 아니라 원 단위 정액 쿠폰입니다"' : '')}>${isPlain ? '쿠폰 없음' : (parts && parts.couponFlat != null ? num(parts.couponFlat) + '원' : (parts && parts.couponOff != null ? parts.couponOff + '%' : (blankMissing ? '' : '—')))}</td>
+        <td class="hk-price-final${isPlain ? ' is-plain' : ''}"${isPlain ? ' title="쿠폰이 없어서 등록 판매가와 같은 값입니다"' : ''}>${num(parts?.finalPrice)}</td>`}
         ${manualCell}
         <td class="hk-iso-ship-final-price${priceChanged ? ' is-changed' : ''}"${isManual ? ' title="수동 판매가를 쓰고 있습니다"' : ''}>${num(registered)}${isManual ? '<span class="hk-manual-tag">수동</span>' : ''}</td>
         <td class="hk-iso-listing-prev-price">${num(item.prevPrice)}</td>
@@ -2949,7 +2961,7 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
       <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${products.length} · 옵션 ${optionCount}</span>${manualBadge}</div>
       <span class="pricing-result-hint">${slim
         ? '초록 칸 = <b>등록 판매가</b>(쿠팡에 입력하는 가격) = 쿠팡가 탭의 반영 개당단가(옵션명의 재질·두께 기준)'
-        : `초록 칸 = <b>등록 판매가</b>(쿠팡에 입력하는 가격) · 일반: 쿠폰 적용 전 판매가(총판매가×${config.preCouponPercent / 100}, ${config.roundUp.toLocaleString()}원 올림)에 쿠폰(${config.couponOffShipping}%/${config.couponOffFree}%) · 위너: 쿠폰 없음, 수동 판매가가 있으면 그 값, 없으면 총판매가×${config.listPercent / 100}(${config.winnerRoundUnit.toLocaleString()}원 올림)`}</span>
+        : `초록 칸 = <b>등록 판매가</b>(쿠팡에 입력하는 가격) · 일반: 쿠폰 적용 전 판매가(총판매가×${config.preCouponPercent / 100}, ${config.roundUp.toLocaleString()}원 올림)에 쿠폰(${config.couponOffShipping}%/${config.couponOffFree}%) · 위너: 쿠폰 없음, 수동 판매가가 있으면 그 값, 없으면 총판매가×${config.listPercent / 100}(${config.winnerRoundUnit.toLocaleString()}원 올림) · 쿠폰 없음(기타단열재): 총판매가×${config.listPercent / 100}(10원 올림)`}</span>
     </div>
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-iso-draft-table hk-iso-listing-table hk-esm-table hk-coupang-table">
