@@ -129,13 +129,13 @@ const HK_ISO_DRAFT_900X1800_BUNDLE_ROWS = [
 ];
 
 const HK_ISO_DRAFT_900X1800_SINGLE_ROWS = [
-  { name:'아이소핑크 10T',  unit:250, spec:'10*900*1800',  sheetCost:2500,  sheetPrice:4200,  saleSize:'900*1800-1', saleCost:2500,  price:4200,  margin:1700,  fee:252,  vat:420,  shipping:'', netMargin:1028, rate:24, refMargin:30 },
-  { name:'아이소핑크 20T',  unit:250, spec:'20*900*1800',  sheetCost:5000,  sheetPrice:8400,  saleSize:'900*1800-1', saleCost:5000,  price:8400,  margin:3400,  fee:504,  vat:840,  shipping:'', netMargin:2056, rate:24, refMargin:30 },
-  { name:'아이소핑크 30T',  unit:225, spec:'30*900*1800',  sheetCost:6750,  sheetPrice:12500, saleSize:'900*1800-1', saleCost:6750,  price:12500, margin:5750,  fee:750,  vat:1250, shipping:'', netMargin:3750, rate:30, refMargin:30 },
-  { name:'아이소핑크 40T',  unit:225, spec:'40*900*1800',  sheetCost:9000,  sheetPrice:17000, saleSize:'900*1800-1', saleCost:9000,  price:17000, margin:8000,  fee:1020, vat:1700, shipping:'', netMargin:5280, rate:31, refMargin:30 },
-  { name:'아이소핑크 50T',  unit:220, spec:'50*900*1800',  sheetCost:11000, sheetPrice:20000, saleSize:'900*1800-1', saleCost:11000, price:20000, margin:9000,  fee:1200, vat:2000, shipping:'', netMargin:5800, rate:29, refMargin:30 },
-  { name:'아이소핑크 70T',  unit:220, spec:'70*900*1800',  sheetCost:15400, sheetPrice:27000, saleSize:'900*1800-1', saleCost:15400, price:27000, margin:11600, fee:1620, vat:2700, shipping:'', netMargin:7280, rate:27, refMargin:25 },
-  { name:'아이소핑크 100T', unit:220, spec:'100*900*1800', sheetCost:22000, sheetPrice:36500, saleSize:'900*1800-1', saleCost:22000, price:36500, margin:14500, fee:2190, vat:3650, shipping:'', netMargin:8660, rate:24, refMargin:25 },
+  { name:'아이소핑크 10T', unit:250, spec:'10*900*1800', sheetCost:2500, sheetPrice:5000, saleSize:'900*1800-1', saleCost:2500, price:5000, margin:2500, fee:300, vat:500, shipping:'', netMargin:1700, rate:34, refMargin:30 },
+  { name:'아이소핑크 20T', unit:250, spec:'20*900*1800', sheetCost:5000, sheetPrice:9000, saleSize:'900*1800-1', saleCost:5000, price:9000, margin:4000, fee:540, vat:900, shipping:'', netMargin:2560, rate:28, refMargin:30 },
+  { name:'아이소핑크 30T', unit:225, spec:'30*900*1800', sheetCost:6750, sheetPrice:13600, saleSize:'900*1800-1', saleCost:6750, price:13600, margin:6850, fee:816, vat:1360, shipping:'', netMargin:4674, rate:34, refMargin:30 },
+  { name:'아이소핑크 40T', unit:225, spec:'40*900*1800', sheetCost:9000, sheetPrice:18000, saleSize:'900*1800-1', saleCost:9000, price:18000, margin:9000, fee:1080, vat:1800, shipping:'', netMargin:6120, rate:34, refMargin:30 },
+  { name:'아이소핑크 50T', unit:220, spec:'50*900*1800', sheetCost:11000, sheetPrice:23000, saleSize:'900*1800-1', saleCost:11000, price:23000, margin:12000, fee:1380, vat:2300, shipping:'', netMargin:8320, rate:36, refMargin:30 },
+  { name:'아이소핑크 70T', unit:220, spec:'70*900*1800', sheetCost:15400, sheetPrice:34000, saleSize:'900*1800-1', saleCost:15400, price:34000, margin:18600, fee:2040, vat:3400, shipping:'', netMargin:13160, rate:39, refMargin:25 },
+  { name:'아이소핑크 100T', unit:220, spec:'100*900*1800', sheetCost:22000, sheetPrice:43000, saleSize:'900*1800-1', saleCost:22000, price:43000, margin:21000, fee:2580, vat:4300, shipping:'', netMargin:14120, rate:33, refMargin:25 },
 ];
 
 const HK_ISO_DRAFT_900X1800_HIGH_T_ROWS = [
@@ -944,6 +944,8 @@ const HK_ISO_SHIPPING_BLOCKS = [
        플러스 금액(무료배송으로 보이게 하려고 배송비를 가격에 얹음).
      schema:'per1Coupon'으로 구분해서 별도 렌더러(_hkIsoShippingBlockHtmlPerUnit)
      로 그린다. */
+  /* 알림 쿠폰 칸은 2026-10-21 전부 0으로 바꿨다(사용자 지시 — 알림 쿠폰을 더 쓰지 않고, 칸이 헷갈려서). 이 칸은 값을 저장만 하고 가격 계산에는 안 쓰인다 —
+     실판매가 = 기준 판매가 + 배송비 플러스 금액이라, 플러스 금액(예전에 실제 택배비 + 쿠폰 1,000원을 올림해 직접 입력한 값)은 그대로 두었다. DB에 저장된 예전 값(1,000)은 불러올 때 무시한다. */
   {
     id: 'iso_900x1800_single_1',
     title: '아이소핑크 900x1800 단품',
@@ -955,13 +957,13 @@ const HK_ISO_SHIPPING_BLOCKS = [
     isFreeShipping: false,
     // HK_ISO_DRAFT_900X1800_SINGLE_ROWS와 같은 순서(10T~100T, 전부 -1)
     rows: [
-      { perUnitShipping: 7000,  actualShippingText: '5개마다', coupon: 1000, plusAmount: 10400 },
-      { perUnitShipping: 8000,  actualShippingText: '3개마다', coupon: 1000, plusAmount: 11700 },
-      { perUnitShipping: 8000,  actualShippingText: '2개마다', coupon: 1000, plusAmount: 11700 },
-      { perUnitShipping: 6500,  actualShippingText: '1개마다', coupon: 1000, plusAmount: 10000 },
-      { perUnitShipping: 7000,  actualShippingText: '1개마다', coupon: 1000, plusAmount: 10400 },
-      { perUnitShipping: 9000,  actualShippingText: '1개마다', coupon: 1000, plusAmount: 13000 },
-      { perUnitShipping: 12000, actualShippingText: '1개마다', coupon: 1000, plusAmount: 17000 },
+      { perUnitShipping: 7000,  actualShippingText: '10개마다', coupon: 0, plusAmount: 12000 },
+      { perUnitShipping: 8000,  actualShippingText: '4개마다', coupon: 0, plusAmount: 8500 },
+      { perUnitShipping: 8000,  actualShippingText: '3개마다', coupon: 0, plusAmount: 8500 },
+      { perUnitShipping: 6500,  actualShippingText: '4개마다', coupon: 0, plusAmount: 12000 },
+      { perUnitShipping: 7000,  actualShippingText: '3개마다', coupon: 0, plusAmount: 12000 },
+      { perUnitShipping: 9000,  actualShippingText: '4개마다', coupon: 0, plusAmount: 12000 },
+      { perUnitShipping: 12000, actualShippingText: '2개마다', coupon: 0, plusAmount: 12000 },
     ],
   },
   {
@@ -977,13 +979,13 @@ const HK_ISO_SHIPPING_BLOCKS = [
     // 상품코드가 원본 엑셀에 70T·100T만 "IIso_"(I가 두 번)로 돼있다 — 실제 등록된
     // 코드를 그대로 옮긴 것(오타로 보이지만 사용자 확인 전까지 원본 그대로 둠).
     rows: [
-      { actualShipping: 12200, coupon: 1000, plusAmount: 13500, codeOverride: null },
-      { actualShipping: 12200, coupon: 1000, plusAmount: 13500, codeOverride: null },
-      { actualShipping: 11000, coupon: 1000, plusAmount: 12000, codeOverride: null },
-      { actualShipping: 9900,  coupon: 1000, plusAmount: 11000, codeOverride: null },
-      { actualShipping: 12200, coupon: 1000, plusAmount: 13500, codeOverride: null },
-      { actualShipping: 9300,  coupon: 1000, plusAmount: 10500, codeOverride: 'IIso_900_1800_70_1' },
-      { actualShipping: 12200, coupon: 1000, plusAmount: 13500, codeOverride: 'IIso_900_1800_100_1' },
+      { actualShipping: 12200, coupon: 0, plusAmount: 13500, codeOverride: null },
+      { actualShipping: 12200, coupon: 0, plusAmount: 13500, codeOverride: null },
+      { actualShipping: 11000, coupon: 0, plusAmount: 12000, codeOverride: null },
+      { actualShipping: 9900,  coupon: 0, plusAmount: 11000, codeOverride: null },
+      { actualShipping: 12200, coupon: 0, plusAmount: 13500, codeOverride: null },
+      { actualShipping: 9300,  coupon: 0, plusAmount: 10500, codeOverride: 'IIso_900_1800_70_1' },
+      { actualShipping: 12200, coupon: 0, plusAmount: 13500, codeOverride: 'IIso_900_1800_100_1' },
     ],
   },
   {
@@ -997,11 +999,11 @@ const HK_ISO_SHIPPING_BLOCKS = [
     isFreeShipping: false,
     // HK_ISO_DRAFT_ADHESIVE_900X1800_SINGLE_ROWS와 같은 순서(10T~50T, 전부 -1)
     rows: [
-      { perUnitShipping: 7000, actualShippingText: '5개마다', coupon: 1000, plusAmount: 8000 },
-      { perUnitShipping: 8000, actualShippingText: '3개마다', coupon: 1000, plusAmount: 9000 },
-      { perUnitShipping: 8000, actualShippingText: '2개마다', coupon: 1000, plusAmount: 9000 },
-      { perUnitShipping: 6500, actualShippingText: '1개마다', coupon: 1000, plusAmount: 7500 },
-      { perUnitShipping: 7000, actualShippingText: '1개마다', coupon: 1000, plusAmount: 8000 },
+      { perUnitShipping: 7000, actualShippingText: '10개마다', coupon: 0, plusAmount: 12000 },
+      { perUnitShipping: 8000, actualShippingText: '4개마다', coupon: 0, plusAmount: 8500 },
+      { perUnitShipping: 8000, actualShippingText: '3개마다', coupon: 0, plusAmount: 8500 },
+      { perUnitShipping: 6500, actualShippingText: '4개마다', coupon: 0, plusAmount: 12000 },
+      { perUnitShipping: 7000, actualShippingText: '3개마다', coupon: 0, plusAmount: 12000 },
     ],
   },
   {
@@ -1015,11 +1017,11 @@ const HK_ISO_SHIPPING_BLOCKS = [
     isFreeShipping: true,
     // HK_ISO_DRAFT_ADHESIVE_900X1800_BUNDLE_ROWS와 같은 순서(10T-10,20T-5,30T-3,40T-2,50T-2)
     rows: [
-      { actualShipping: 12200, coupon: 1000, plusAmount: 13500 },
-      { actualShipping: 12200, coupon: 1000, plusAmount: 13500 },
-      { actualShipping: 11000, coupon: 1000, plusAmount: 12000 },
-      { actualShipping: 9900,  coupon: 1000, plusAmount: 11000 },
-      { actualShipping: 12200, coupon: 1000, plusAmount: 13500 },
+      { actualShipping: 12200, coupon: 0, plusAmount: 13500 },
+      { actualShipping: 12200, coupon: 0, plusAmount: 13500 },
+      { actualShipping: 11000, coupon: 0, plusAmount: 12000 },
+      { actualShipping: 9900,  coupon: 0, plusAmount: 11000 },
+      { actualShipping: 12200, coupon: 0, plusAmount: 13500 },
     ],
   },
   {
@@ -1034,10 +1036,10 @@ const HK_ISO_SHIPPING_BLOCKS = [
     // HK_ISO_DRAFT_900X1800_HIGH_T_ROWS와 같은 순서(70T-3,100T-3,250T-1,500T-1)
     // 이 상품번호에서는 "1장당배송비차액" 칸이 원본 엑셀에도 비어있다(빈 칸 그대로 둠).
     rows: [
-      { actualShipping: 22700, coupon: 1000, plusAmount: 24000 },
-      { actualShipping: 31500, coupon: 1000, plusAmount: 33000 },
-      { actualShipping: 26800, coupon: 1000, plusAmount: 28000 },
-      { actualShipping: 51300, coupon: 1000, plusAmount: 53000 },
+      { actualShipping: 22700, coupon: 0, plusAmount: 24000 },
+      { actualShipping: 31500, coupon: 0, plusAmount: 33000 },
+      { actualShipping: 26800, coupon: 0, plusAmount: 28000 },
+      { actualShipping: 51300, coupon: 0, plusAmount: 53000 },
     ],
   },
   {
@@ -1731,29 +1733,29 @@ const HK_CHANNEL_LISTINGS = {
     },
     // ── 2026-09-21 추가 2차: 900x1800 단품은 옵션 하나마다 상품ID가 따로(상품당 옵션 1개),
     //    배송비/배송비기준/제주/편도교환도 상품마다 다르다(엑셀 원본 그대로).
-    { categoryId: 'hk_isopink', productId: '8324406068',  baseShipping: 10400, shippingBasis: '5개마다', jejuShipping: 20000, returnExchange: '21000/42000',
+    { categoryId: 'hk_isopink', productId: '8324406068',  baseShipping: 12000, shippingBasis: '10개마다', jejuShipping: 20000, returnExchange: '21000/42000',
       items: [{ productCode: 'Iso_900_1800_10_1',   prevPrice: 3800,  prevShipping: 10400 }] },
-    { categoryId: 'hk_isopink', productId: '8456757485',  baseShipping: 11700, shippingBasis: '3개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '8456757485',  baseShipping: 8500, shippingBasis: '4개마다', jejuShipping: 20000, returnExchange: '14000/28000',
       items: [{ productCode: 'Iso_900_1800_20_1',   prevPrice: 7700,  prevShipping: 11700 }] },
-    { categoryId: 'hk_isopink', productId: '11097629335', baseShipping: 11700, shippingBasis: '2개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '11097629335', baseShipping: 8500, shippingBasis: '3개마다', jejuShipping: 20000, returnExchange: '14000/28000',
       items: [{ productCode: 'Iso_900_1800_30_1',   prevPrice: 11000, prevShipping: 11700 }] },
-    { categoryId: 'hk_isopink', productId: '8324375715',  baseShipping: 10000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
+    { categoryId: 'hk_isopink', productId: '8324375715',  baseShipping: 12000, shippingBasis: '4개마다', jejuShipping: 20000, returnExchange: '18000/36000',
       items: [{ productCode: 'Iso_900_1800_40_1',   prevPrice: 15800, prevShipping: 10000 }] },
-    { categoryId: 'hk_isopink', productId: '8131395351',  baseShipping: 10400, shippingBasis: '1개마다', jejuShipping: 30000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '8131395351',  baseShipping: 12000, shippingBasis: '3개마다', jejuShipping: 30000, returnExchange: '14000/28000',
       items: [{ productCode: 'Iso_900_1800_50_1',   prevPrice: 17300, prevShipping: 10400 }] },
-    { categoryId: 'hk_isopink', productId: '8324347562',  baseShipping: 13000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '8324347562',  baseShipping: 12000, shippingBasis: '4개마다', jejuShipping: 20000, returnExchange: '14000/28000',
       items: [{ productCode: 'Iso_900_1800_70_1',   prevPrice: 29000, prevShipping: 13000 }] },
-    { categoryId: 'hk_isopink', productId: '8324352040',  baseShipping: 17000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
+    { categoryId: 'hk_isopink', productId: '8324352040',  baseShipping: 12000, shippingBasis: '2개마다', jejuShipping: 20000, returnExchange: '18000/36000',
       items: [{ productCode: 'Iso_900_1800_100_1',  prevPrice: 35500, prevShipping: 17000 }] },
-    { categoryId: 'hk_isopink', productId: '10181453964', baseShipping: 10400, shippingBasis: '5개마다', jejuShipping: 20000, returnExchange: '21000/42000',
+    { categoryId: 'hk_isopink', productId: '10181453964', baseShipping: 12000, shippingBasis: '10개마다', jejuShipping: 20000, returnExchange: '21000/42000',
       items: [{ productCode: 'IsoA_900_1800_10_1',  prevPrice: 8500,  prevShipping: 10400 }] },
-    { categoryId: 'hk_isopink', productId: '10181564057', baseShipping: 11700, shippingBasis: '3개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '10181564057', baseShipping: 8500, shippingBasis: '4개마다', jejuShipping: 20000, returnExchange: '14000/28000',
       items: [{ productCode: 'IsoA_900_1800_20_1',  prevPrice: 14250, prevShipping: 11700 }] },
-    { categoryId: 'hk_isopink', productId: '10181571912', baseShipping: 11700, shippingBasis: '2개마다', jejuShipping: 20000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '10181571912', baseShipping: 8500, shippingBasis: '3개마다', jejuShipping: 20000, returnExchange: '14000/28000',
       items: [{ productCode: 'IsoA_900_1800_30_1',  prevPrice: 20200, prevShipping: 11700 }] },
-    { categoryId: 'hk_isopink', productId: '10181582241', baseShipping: 10000, shippingBasis: '1개마다', jejuShipping: 20000, returnExchange: '18000/36000',
+    { categoryId: 'hk_isopink', productId: '10181582241', baseShipping: 12000, shippingBasis: '4개마다', jejuShipping: 20000, returnExchange: '18000/36000',
       items: [{ productCode: 'IsoA_900_1800_40_1',  prevPrice: 23750, prevShipping: 10000 }] },
-    { categoryId: 'hk_isopink', productId: '10181586522', baseShipping: 10400, shippingBasis: '1개마다', jejuShipping: 30000, returnExchange: '14000/28000',
+    { categoryId: 'hk_isopink', productId: '10181586522', baseShipping: 12000, shippingBasis: '3개마다', jejuShipping: 30000, returnExchange: '14000/28000',
       items: [{ productCode: 'IsoA_900_1800_50_1',  prevPrice: 31300, prevShipping: 10400 }] },
     // 600 계열 고티: 상품 하나에 옵션 2개(600x430, 600x860) — 기준가는 첫 옵션(600x430)
     { categoryId: 'hk_isopink', productId: '10185646787', baseShipping: 0, shippingBasis: '-', jejuShipping: 30000, returnExchange: '20000/40000',
@@ -2045,6 +2047,57 @@ HK_CHANNEL_LISTINGS.coupang = HK_COUPANG_PRODUCTS.map(([productId, returnExchang
 Object.values(HK_CHANNEL_LISTINGS).forEach(list => list.forEach(product => {
   if (product.baseCode) product.seedBaseCode = product.baseCode;
 }));
+
+/* ═══════════════════════════════════════
+   아이소핑크 900x1800 단품 — 판매가 나라단열과 같게 + 배송비·조건 정리 (2026-10-21, 사용자 결정)
+   · 일반 단품 7개 판매가를 나라단열 1장 가격과 같게 올린다: 10T 5,000 · 20T 9,000 · 30T 13,600 · 40T 18,000 · 50T 23,000 · 70T 34,000 · 100T 43,000.
+   · 일반·접착식 단품 12개의 배송비·조건을 나라단열 조건(N개마다)에 맞추고 배송비만 낮게: 20T·30T 8,500원, 나머지 12,000원
+     (10T 10개마다 · 20T 4 · 30T 3 · 40T 4 · 50T 3 · 70T 4 · 100T 2개마다). 접착식 단품 판매가는 그대로.
+   DB에 저장된 값이 있으면 코드 기본값을 덮어쓰므로, **저장값이 예전 기본값 그대로일 때만** 새 값으로 바꾼다(그 뒤 사용자가 고친 값은 건드리지 않는다).
+   단가표를 불러올 때 한 번 적용되고(이력 복원에는 안 씀), [저장]하면 새 값이 DB에 남아 더는 바뀌지 않는다. */
+const HK_ISO_SINGLE_PRICE_MIGRATION = [
+  ['Iso_900_1800_10_1', 4200, 5000], ['Iso_900_1800_20_1', 8400, 9000], ['Iso_900_1800_30_1', 12500, 13600], ['Iso_900_1800_40_1', 17000, 18000],
+  ['Iso_900_1800_50_1', 20000, 23000], ['Iso_900_1800_70_1', 27000, 34000], ['Iso_900_1800_100_1', 36500, 43000],
+];
+const HK_ISO_SINGLE_SHIPPING_MIGRATION = [ // [상품ID, 예전 배송비, 예전 조건, 새 배송비, 새 조건]
+  ['8324406068', 10400, '5개마다', 12000, '10개마다'], ['8456757485', 11700, '3개마다', 8500, '4개마다'], ['11097629335', 11700, '2개마다', 8500, '3개마다'],
+  ['8324375715', 10000, '1개마다', 12000, '4개마다'], ['8131395351', 10400, '1개마다', 12000, '3개마다'], ['8324347562', 13000, '1개마다', 12000, '4개마다'], ['8324352040', 17000, '1개마다', 12000, '2개마다'],
+  ['10181453964', 10400, '5개마다', 12000, '10개마다'], ['10181564057', 11700, '3개마다', 8500, '4개마다'], ['10181571912', 11700, '2개마다', 8500, '3개마다'],
+  ['10181582241', 10000, '1개마다', 12000, '4개마다'], ['10181586522', 10400, '1개마다', 12000, '3개마다'],
+];
+const HK_ISO_SINGLE_BLOCK_MIGRATION = { // 배송 블록 행의 청구 규칙 글자와 배송비 플러스 금액(두께 순서) — 블록 id: { text: [예전 목록, 새 목록], plus: [예전 목록, 새 목록] }
+  iso_900x1800_single_1: {
+    text: [['5개마다', '3개마다', '2개마다', '1개마다', '1개마다', '1개마다', '1개마다'], ['10개마다', '4개마다', '3개마다', '4개마다', '3개마다', '4개마다', '2개마다']],
+    plus: [[10400, 11700, 11700, 10000, 10400, 13000, 17000], [12000, 8500, 8500, 12000, 12000, 12000, 12000]], // 일반 단품 플러스 금액 = 고객에게 받는 배송비
+  },
+  adhesive_900x1800_single_1: {
+    text: [['5개마다', '3개마다', '2개마다', '1개마다', '1개마다'], ['10개마다', '4개마다', '3개마다', '4개마다', '3개마다']],
+    plus: [[8000, 9000, 9000, 7500, 8000], [12000, 8500, 8500, 12000, 12000]], // 접착식 단품도 같은 배송비로 통일
+  },
+};
+window.hkApplyOneTimeMigrations = function() {
+  const index = typeof _hkDbProductIndex === 'function' ? _hkDbProductIndex() : [];
+  HK_ISO_SINGLE_PRICE_MIGRATION.forEach(([code, from, to]) => {
+    const entry = index.find(item => item.code === code);
+    if (!entry || Number(entry.row.price) !== from) return;
+    const row = entry.row;
+    row.price = to; row.sheetPrice = to;
+    row.margin = to - row.saleCost; row.fee = Math.round(to * 0.06); row.vat = Math.round(to * 0.1);
+    row.netMargin = row.margin - row.fee - row.vat; row.rate = Math.round(row.netMargin / to * 100);
+  });
+  HK_ISO_SINGLE_SHIPPING_MIGRATION.forEach(([productId, oldFee, oldBasis, newFee, newBasis]) => {
+    const product = (HK_CHANNEL_LISTINGS.hkd || []).find(item => String(item.productId) === productId);
+    if (product && product.baseShipping === oldFee && product.shippingBasis === oldBasis) { product.baseShipping = newFee; product.shippingBasis = newBasis; }
+  });
+  Object.entries(HK_ISO_SINGLE_BLOCK_MIGRATION).forEach(([blockId, change]) => {
+    const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.id === blockId);
+    if (!block) return;
+    block.rows.forEach((row, i) => {
+      if (row.actualShippingText === change.text[0][i]) row.actualShippingText = change.text[1][i];
+      if (Number(row.plusAmount) === change.plus[0][i]) row.plusAmount = change.plus[1][i];
+    });
+  });
+};
 
 /* "Iso_430_430_10_3" → "아이소핑크 430x430 10T_3장" — 상품코드 자체가
    품목·규격·두께·수량을 다 담고 있어서 상품명을 따로 안 적어도 만들어낼 수 있다. */

@@ -462,6 +462,7 @@ function _hkDbApplyState(state) {
     const target = entry.block ? entry.block.rows[entry.rowIndex] : null;
     if (target && saved.ship && typeof saved.ship === 'object') {
       const { codeOverride, ...values } = saved.ship;
+      if (entry.block && entry.block.schema === 'per1Coupon') delete values.coupon; // 알림 쿠폰 칸은 더 안 쓴다(2026-10-21) — 저장된 예전 1,000을 무시하고 코드의 0을 쓴다
       Object.assign(target, values);
     }
   });
@@ -799,6 +800,7 @@ window.hkDbLoad = async function() {
     } else {
       _hkDb.hasSavedData = true;
       _hkDbApplyState(state);
+      if (typeof window.hkApplyOneTimeMigrations === 'function') window.hkApplyOneTimeMigrations(); // 예전 기본값 그대로인 저장값만 새 값으로(이력 복원에는 안 씀)
       _hkDbRerender();
       _hkDb.loadedMonth = HK_ISO_DRAFT_BASE_MONTH;
     }
