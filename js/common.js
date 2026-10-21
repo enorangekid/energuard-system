@@ -709,13 +709,13 @@ function showToast(message, type = 'info', duration = 3500) {
 
 /* ── [공통] 퀵패널 토글 헬퍼 ──────────────────────────────────────
    모든 퀵패널(quickMemoPanel, aiChatPanel, calcPanel, estimatePanel,
-   archivePanel)은 이 함수를 통해 열고 닫습니다.
+   widgetPanel, archivePanel)은 이 함수를 통해 열고 닫습니다.
    - targetId  : 열거나 닫을 패널 ID
    - onOpen    : 패널을 열 때 실행할 콜백 (선택)
    새 패널을 추가할 때는 QUICK_PANELS 배열에 ID만 추가하면 됩니다.
 ──────────────────────────────────────────────────────────────── */
 const QUICK_PANELS = [
-    'quickMemoPanel', 'aiChatPanel', 'calcPanel', 'estimatePanel', 'archivePanel'
+    'quickMemoPanel', 'aiChatPanel', 'calcPanel', 'estimatePanel', 'widgetPanel', 'archivePanel'
 ];
 
 function openPanel(targetId, onOpen) {
