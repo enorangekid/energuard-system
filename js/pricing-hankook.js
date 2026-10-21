@@ -1240,11 +1240,52 @@ window.recalcHkIsoShippingRow = function(input) {
 
 /* 판매 시 N장당 배송비는 상품군 공통 정책이다. 한 번 수정하면 해당 표의
    모든 규격에 같은 기준배송비를 적용하고, 실제배송비 차액만 행별로 다시 계산한다. */
+/* 공통 배송 블록(sharedBaseShipping)의 "판매 시 5장당 배송비"는 그 블록의 상품번호를 쓰는 한국단열 스마트스토어 상품들의 배송비이기도 하다 —
+   몰별 표·경쟁사 비교의 한국단열 배송비와 다른 몰(쿠팡·ESM·11번가) 가격 계산(_hkHkdShippingByCode)이 이 상품 배송비(product.baseShipping)를 읽는다.
+   예전에는 배송 세부설정을 바꿔도 상품 배송비는 그대로(6,000)라 단가표가 반영되지 않았다(2026-10-21 사용자 확인: 6,000 → 5,500).
+   그래서 블록 값을 바꾸거나 DB에서 불러온 뒤 상품 배송비를 블록 값에 맞춘다. */
+function _hkIsoSyncSharedShippingToListings() {
+  HK_ISO_SHIPPING_BLOCKS.forEach(block => {
+    if (!block.sharedBaseShipping) return;
+    const baseShipping = Number(block.baseShipping5);
+    if (!Number.isFinite(baseShipping)) return;
+    const ids = new Set((block.productNumbers || []).map(String));
+    (HK_CHANNEL_LISTINGS.hkd || []).forEach(product => {
+      if (ids.has(String(product.productId))) product.baseShipping = baseShipping;
+    });
+    // 홈페이지(자사몰)도 같은 5장당 배송비를 쓴다(사용자 확인 2026-10-21 "홈페이지 아이소핑크도 5500"). 홈페이지 상품은 번호가 따로(187·113 …)라 코드로 찾는다 —
+    // 430×430·600×900 일반과 600×900 접착식 상품(5개마다 배송)만. 고티(600×860·600×430 250T·500T)는 이 블록 규칙이 아니라 그대로 둔다.
+    (HK_CHANNEL_LISTINGS.homepage || []).forEach(product => {
+      if (product.categoryId !== 'hk_isopink' || !product.items.length) return;
+      if (/5개마다/.test(String(product.shippingBasis || '')) && product.items.every(item => /^(Iso_(430_430|600_900)|IsoA_600_900)_/.test(String(item.productCode || '')))) product.baseShipping = baseShipping;
+    });
+  });
+  _hkIsoSyncHomepageGothicShipping();
+}
+window._hkIsoSyncSharedShippingToListings = _hkIsoSyncSharedShippingToListings;
+
+/* 홈페이지 고티(600×430·600×860 250T·500T)의 배송 정책은 한국단열의 같은 코드 상품(무료배송)을 따른다 — 판매가도 한국단열과 같은 값이라 배송비를 따로 받지 않는다.
+   DB에 저장된 예전 값(6,000원/5개마다)이 코드 기본값을 덮어써서, 불러온 뒤 다시 맞춘다. */
+function _hkIsoSyncHomepageGothicShipping() {
+  (HK_CHANNEL_LISTINGS.homepage || []).forEach(product => {
+    if (product.categoryId !== 'hk_isopink' || !product.items.length) return;
+    if (!product.items.every(item => /^Iso_600_(430|860)_(250|500)_1$/.test(String(item.productCode || '')))) return;
+    const hkdProduct = (HK_CHANNEL_LISTINGS.hkd || []).find(p => p.items.some(item => item.productCode === product.items[0].productCode));
+    if (!hkdProduct) return;
+    product.baseShipping = hkdProduct.baseShipping;
+    product.shippingBasis = hkdProduct.shippingBasis;
+    product.items.forEach(item => { item.prevShipping = hkdProduct.baseShipping; }); // 수정 전 배송비도 같은 값 — DB에 저장된 예전 6,000이 차이로 보이지 않게
+  });
+}
+window._hkIsoSyncHomepageGothicShipping = _hkIsoSyncHomepageGothicShipping;
+
 window.recalcHkIsoSharedBaseShipping = function(blockId, input) {
   const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.id === blockId);
   if (!block) return;
   const baseShipping = _hkIsoDraftParseNumber(input.value);
   block.baseShipping5 = baseShipping;
+  _hkIsoSyncSharedShippingToListings();
+  if (typeof window._hkRefreshChannelListing === 'function') window._hkRefreshChannelListing(); // 몰별 표의 배송비·다른 몰 목표가도 바로 다시 그림
   document.querySelectorAll(`#hkIsoShippingSection tr[data-shipping-block-id="${blockId}"]`).forEach(row => {
     if (row.dataset.hasBase !== '1') return;
     row.dataset.baseShipping = baseShipping;
@@ -1740,14 +1781,15 @@ const HK_CHANNEL_LISTINGS = {
       items: [{ productCode: 'Iso_600_900_70_1',  prevPrice: 14600, prevShipping: 6000 }] },
     { categoryId: 'hk_isopink', productId: '117', baseShipping: 6000, shippingBasis: '5개마다', jejuShipping: 10000, returnExchange: '8000/16000',
       items: [{ productCode: 'Iso_600_900_100_1', prevPrice: 20900, prevShipping: 6000 }] },
-    { categoryId: 'hk_isopink', productId: '216', baseShipping: 6000, shippingBasis: '5개마다', jejuShipping: 10000, returnExchange: '8000/16000',
-      items: [{ productCode: 'Iso_600_430_250_1', prevPrice: 40000, prevShipping: 6000 }] },
-    { categoryId: 'hk_isopink', productId: '215', baseShipping: 6000, shippingBasis: '5개마다', jejuShipping: 10000, returnExchange: '8000/16000',
-      items: [{ productCode: 'Iso_600_860_250_1', prevPrice: 70000, prevShipping: 6000 }] },
-    { categoryId: 'hk_isopink', productId: '228', baseShipping: 6000, shippingBasis: '5개마다', jejuShipping: 10000, returnExchange: '8000/16000',
-      items: [{ productCode: 'Iso_600_430_500_1', prevPrice: 75000, prevShipping: 6000 }] },
-    { categoryId: 'hk_isopink', productId: '229', baseShipping: 6000, shippingBasis: '5개마다', jejuShipping: 10000, returnExchange: '8000/16000',
-      items: [{ productCode: 'Iso_600_860_500_1', prevPrice: 135000, prevShipping: 6000 }] },
+    // 고티 250T·500T(600×430·600×860)는 한국단열·쿠팡과 같은 무료배송이다(사용자 확인 2026-10-21 — 예전에 600×900과 같이 6,000원/5개마다로 잘못 들어가 있었다. 수정 전 배송비 6,000도 잘못 들어간 값이라 0으로).
+    { categoryId: 'hk_isopink', productId: '216', baseShipping: 0, shippingBasis: '-', jejuShipping: 10000, returnExchange: '8000/16000',
+      items: [{ productCode: 'Iso_600_430_250_1', prevPrice: 40000, prevShipping: 0 }] },
+    { categoryId: 'hk_isopink', productId: '215', baseShipping: 0, shippingBasis: '-', jejuShipping: 10000, returnExchange: '8000/16000',
+      items: [{ productCode: 'Iso_600_860_250_1', prevPrice: 70000, prevShipping: 0 }] },
+    { categoryId: 'hk_isopink', productId: '228', baseShipping: 0, shippingBasis: '-', jejuShipping: 10000, returnExchange: '8000/16000',
+      items: [{ productCode: 'Iso_600_430_500_1', prevPrice: 75000, prevShipping: 0 }] },
+    { categoryId: 'hk_isopink', productId: '229', baseShipping: 0, shippingBasis: '-', jejuShipping: 10000, returnExchange: '8000/16000',
+      items: [{ productCode: 'Iso_600_860_500_1', prevPrice: 135000, prevShipping: 0 }] },
     // 접착식 600x900: 상품 하나(184)에 옵션 5개 — 기준가는 첫 옵션(10T 3장 12,600)
     { categoryId: 'hk_isopink', productId: '184', baseShipping: 6000, shippingBasis: '5개마다', jejuShipping: 10000, returnExchange: '8000/16000',
       items: [

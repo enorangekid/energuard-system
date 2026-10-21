@@ -485,6 +485,8 @@ function _hkDbApplyState(state) {
       });
     });
   });
+  // 상품 배송비는 위 채널 불러오기가 저장값(예전 6,000)으로 덮어쓰므로, 맨 끝에서 공통 배송 블록 값(판매 시 5장당 배송비)에 다시 맞춘다.
+  if (typeof window._hkIsoSyncSharedShippingToListings === 'function') window._hkIsoSyncSharedShippingToListings();
 }
 
 /* 상수를 바꾼 뒤 화면을 다시 그리고, 보고 있던 탭/아코디언 상태를 되살린다. */
