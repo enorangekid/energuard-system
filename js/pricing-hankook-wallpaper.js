@@ -872,17 +872,22 @@ const HK_WALLPAPER_11ST_COLORS = {
     CTWH: ['WP_DW_5_1', '코튼 화이트'], HBWH: ['WP_DW_5_1', '헤링본 화이트'], BSWH: ['WP_DW_5_1', '베이직 화이트'], SFWH: ['WP_DW_5_1', '소프트 화이트'],
     WHOX: ['WP_SK_5_1', '화이트 옥스포드'], WHCL: ['WP_SK_5_1', '화이트 클레이'], MDWH: ['WP_SK_5_1', '모던라인 화이트'],
   };
-  const addColors = (productId, categoryId, suffixes, seeds = {}) => {
+  const addColors = (productId, categoryId, suffixes, seeds = {}, extra = {}) => {
     const product = (HK_CHANNEL_LISTINGS.hkd || []).find(p => String(p.productId) === productId && p.categoryId === categoryId);
     if (!product) return;
+    if (extra.optionTitles) product.moeumOptionTitles = extra.optionTitles; // 2단 옵션 상품의 모음전 엑셀 옵션 항목 제목
     suffixes.forEach(suffix => {
       const [baseCode, color] = COLORS[suffix];
       const item = { categoryId: 'hk_wallpaper', productCode: `${baseCode}_${suffix}`, priceCode: baseCode, productName: `단열벽지 5T 1m x 1m ${color}`, prevPrice: 6300, prevShipping: product.baseShipping };
       if (seeds[suffix]) { item.status = seeds[suffix]; item.seedStatus = seeds[suffix]; }
+      if (extra.optionNamePrefix) item.optionNames = [extra.optionNamePrefix, item.productName]; // 2단 옵션: 1단 값 + 2단 값 — 스토어 페이지에 안 보이는 판매중지 옵션을 모음전 엑셀 끝에 넣을 때 쓴다
       product.items.push(item);
     });
   };
-  addColors('439904706', 'hk_isopink', ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'], { WHGR: 'soldout', MDWH: 'stopped' });
+  // 아이소핑크 메인 439904706은 2026-10-21 옵션을 사이즈(1단) → 옵션(2단) 구조로 바꾸면서 단열벽지 11색을 전부 판매중지로 숨겼다(사용자). 스토어에는 '단열벽지' 사이즈 아래 사용여부 N으로 남아 있어서
+  // 모음전 엑셀에도 같은 모양으로 끝에 넣는다(optionNames = ['단열벽지', 옵션명]). 이 상품은 옵션 항목 제목이 '사이즈' · '두께'다.
+  const WALLPAPER_SUFFIXES = ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'];
+  addColors('439904706', 'hk_isopink', WALLPAPER_SUFFIXES, Object.fromEntries(WALLPAPER_SUFFIXES.map(suffix => [suffix, 'stopped'])), { optionTitles: ['사이즈', '두께'], optionNamePrefix: '단열벽지' });
   addColors('437331834', 'hk_bead', ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'], { WHGR: 'soldout', MDWH: 'stopped' });
   // 열반사단열재 상품 505443624(hk_reflective)도 같은 11색(2026-10-02 사용자가 준 스토어 옵션 목록 — 화이트 그레이 품절, 모던라인 화이트 판매중지).
   addColors('505443624', 'hk_reflective', ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'], { WHGR: 'soldout', MDWH: 'stopped' });
