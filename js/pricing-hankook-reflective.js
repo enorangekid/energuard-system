@@ -86,10 +86,10 @@ function _hkReflectiveRollRows(group, rows) {
 
 const HK_REFLECTIVE_PRODUCTS = [
   ..._hkReflectiveRollRows('5T', [
-    { name:'5T 일반형 비접착', spec:'5T X 50M(롤)', code:'BL_5_50_SN_R', oldPrice:90000, increase25:104000, masterKey:'5_SN', length:50, price:104000, refMargin:45 },
-    { name:'5T 고급형 비접착', spec:'5T X 50M(롤)', code:'BL_5_50_DN_R', oldPrice:100000, increase25:115000, masterKey:'5_DN', length:50, price:115000, refMargin:40 },
-    { name:'5T 일반형 한쪽접착', spec:'5T X 50M(롤)', code:'BL_5_50_SA_R', oldPrice:145000, increase25:182000, masterKey:'5_SA', length:50, price:182000, refMargin:50 },
-    { name:'5T 고급형 한쪽접착', spec:'5T X 50M(롤)', code:'BL_5_50_DA_R', oldPrice:158000, increase25:198000, masterKey:'5_DA', length:50, price:198000, refMargin:50 },
+    { name:'5T 일반형 비접착', spec:'5T X 50M(롤)', code:'BL_5_50_SN_R', oldPrice:90000, increase25:104000, masterKey:'5_SN', length:50, price:111000, refMargin:45 },
+    { name:'5T 고급형 비접착', spec:'5T X 50M(롤)', code:'BL_5_50_DN_R', oldPrice:100000, increase25:115000, masterKey:'5_DN', length:50, price:122000, refMargin:40 },
+    { name:'5T 일반형 한쪽접착', spec:'5T X 50M(롤)', code:'BL_5_50_SA_R', oldPrice:145000, increase25:182000, masterKey:'5_SA', length:50, price:189000, refMargin:50 },
+    { name:'5T 고급형 한쪽접착', spec:'5T X 50M(롤)', code:'BL_5_50_DA_R', oldPrice:158000, increase25:198000, masterKey:'5_DA', length:50, price:205000, refMargin:50 },
     { name:'5T 일반형 비접착', spec:'5T X 1M', code:'BL_5_1_SN', oldPrice:2700, increase25:2900, masterKey:'5_SN', length:1, price:2900, refMargin:55 },
     { name:'5T 고급형 비접착', spec:'5T X 1M', code:'BL_5_1_DN', oldPrice:3000, increase25:3200, masterKey:'5_DN', length:1, price:3200, refMargin:55 },
     { name:'5T 일반형 한쪽접착', spec:'5T X 1M', code:'BL_5_1_SA', oldPrice:3500, increase25:4400, masterKey:'5_SA', length:1, price:4400, refMargin:55 },
@@ -116,10 +116,10 @@ const HK_REFLECTIVE_PRODUCTS = [
     { name:'5T 고급형 한쪽접착', spec:'5T X 25M', code:'BL_5_25_DA', oldPrice:98000, increase25:123000, masterKey:'5_DA', length:25, price:114000, refMargin:55 },
   ]),
   ..._hkReflectiveRollRows('6T', [
-    { name:'6T 일반형 비접착', spec:'6T X 25M(롤)', code:'BL_6_25_SN_R', oldPrice:78000, increase25:90000, masterKey:'6_SN', length:25, price:90000, refMargin:50 },
-    { name:'6T 고급형 비접착', spec:'6T X 25M(롤)', code:'BL_6_25_DN_R', oldPrice:85000, increase25:98000, masterKey:'6_DN', length:25, price:98000, refMargin:50 },
-    { name:'6T 일반형 한쪽접착', spec:'6T X 25M(롤)', code:'BL_6_25_SA_R', oldPrice:105000, increase25:132000, masterKey:'6_SA', length:25, price:132000, refMargin:50 },
-    { name:'6T 고급형 한쪽접착', spec:'6T X 25M(롤)', code:'BL_6_25_DA_R', oldPrice:115000, increase25:144000, masterKey:'6_DA', length:25, price:144000, refMargin:50 },
+    { name:'6T 일반형 비접착', spec:'6T X 25M(롤)', code:'BL_6_25_SN_R', oldPrice:78000, increase25:90000, masterKey:'6_SN', length:25, price:95000, refMargin:50 },
+    { name:'6T 고급형 비접착', spec:'6T X 25M(롤)', code:'BL_6_25_DN_R', oldPrice:85000, increase25:98000, masterKey:'6_DN', length:25, price:103000, refMargin:50 },
+    { name:'6T 일반형 한쪽접착', spec:'6T X 25M(롤)', code:'BL_6_25_SA_R', oldPrice:105000, increase25:132000, masterKey:'6_SA', length:25, price:137000, refMargin:50 },
+    { name:'6T 고급형 한쪽접착', spec:'6T X 25M(롤)', code:'BL_6_25_DA_R', oldPrice:115000, increase25:144000, masterKey:'6_DA', length:25, price:149000, refMargin:50 },
     { name:'6T 일반형 비접착', spec:'6T X 1M', code:'BL_6_1_SN', oldPrice:3900, increase25:4600, masterKey:'6_SN', length:1, price:4600, refMargin:55 },
     { name:'6T 고급형 비접착', spec:'6T X 1M', code:'BL_6_1_DN', oldPrice:4200, increase25:4900, masterKey:'6_DN', length:1, price:4900, refMargin:55 },
     { name:'6T 일반형 한쪽접착', spec:'6T X 1M', code:'BL_6_1_SA', oldPrice:5000, increase25:6300, masterKey:'6_SA', length:1, price:6300, refMargin:55 },
@@ -146,10 +146,10 @@ const HK_REFLECTIVE_PRODUCTS = [
     { name:'6T 고급형 한쪽접착', spec:'6T X 25M(롤)', code:'BL_6_25_DA', oldPrice:142000, increase25:178000, masterKey:'6_DA', length:25, price:165000, refMargin:55 },
   ]),
   ..._hkReflectiveRollRows('10T', [
-    { name:'10T 일반형 비접착', spec:'10T X 25M(롤)', code:'BL_10_25_SN_R', oldPrice:105000, increase25:121000, masterKey:'10_SN', length:25, price:121000, refMargin:50 },
-    { name:'10T 고급형 비접착', spec:'10T X 25M(롤)', code:'BL_10_25_DN_R', oldPrice:115000, increase25:133000, masterKey:'10_DN', length:25, price:133000, refMargin:45 },
-    { name:'10T 일반형 한쪽접착', spec:'10T X 25M(롤)', code:'BL_10_25_SA_R', oldPrice:130000, increase25:163000, masterKey:'10_SA', length:25, price:163000, refMargin:50 },
-    { name:'10T 고급형 한쪽접착', spec:'10T X 25M(롤)', code:'BL_10_25_DA_R', oldPrice:140000, increase25:175000, masterKey:'10_DA', length:25, price:175000, refMargin:50 },
+    { name:'10T 일반형 비접착', spec:'10T X 25M(롤)', code:'BL_10_25_SN_R', oldPrice:105000, increase25:121000, masterKey:'10_SN', length:25, price:128000, refMargin:50 },
+    { name:'10T 고급형 비접착', spec:'10T X 25M(롤)', code:'BL_10_25_DN_R', oldPrice:115000, increase25:133000, masterKey:'10_DN', length:25, price:140000, refMargin:45 },
+    { name:'10T 일반형 한쪽접착', spec:'10T X 25M(롤)', code:'BL_10_25_SA_R', oldPrice:130000, increase25:163000, masterKey:'10_SA', length:25, price:170000, refMargin:50 },
+    { name:'10T 고급형 한쪽접착', spec:'10T X 25M(롤)', code:'BL_10_25_DA_R', oldPrice:140000, increase25:175000, masterKey:'10_DA', length:25, price:182000, refMargin:50 },
     { name:'10T 일반형 비접착', spec:'10T X 1M', code:'BL_10_1_SN', oldPrice:5400, increase25:5800, masterKey:'10_SN', length:1, price:5800, refMargin:55 },
     { name:'10T 고급형 비접착', spec:'10T X 1M', code:'BL_10_1_DN', oldPrice:5800, increase25:6200, masterKey:'10_DN', length:1, price:6200, refMargin:50 },
     { name:'10T 일반형 한쪽접착', spec:'10T X 1M', code:'BL_10_1_SA', oldPrice:6400, increase25:7700, masterKey:'10_SA', length:1, price:7700, refMargin:55 },
@@ -177,8 +177,8 @@ const HK_REFLECTIVE_PRODUCTS = [
   ]),
   // 13T부터는 일반형이 없다(사용자 확인) — 고급형 비접착/한쪽접착만.
   ..._hkReflectiveRollRows('13T', [
-    { name:'13T 고급형 비접착', spec:'13T X 20M(롤)', code:'BL_13_20_DN_R', oldPrice:115000, increase25:133000, masterKey:'13_DN', length:20, price:133000, refMargin:45 },
-    { name:'13T 고급형 한쪽접착', spec:'13T X 20M(롤)', code:'BL_13_20_DA_R', oldPrice:140000, increase25:175000, masterKey:'13_DA', length:20, price:175000, refMargin:50 },
+    { name:'13T 고급형 비접착', spec:'13T X 20M(롤)', code:'BL_13_20_DN_R', oldPrice:115000, increase25:133000, masterKey:'13_DN', length:20, price:143000, refMargin:45 },
+    { name:'13T 고급형 한쪽접착', spec:'13T X 20M(롤)', code:'BL_13_20_DA_R', oldPrice:140000, increase25:175000, masterKey:'13_DA', length:20, price:185000, refMargin:50 },
     { name:'13T 고급형 비접착', spec:'13T X 1M', code:'BL_13_1_DN', oldPrice:7200, increase25:8300, masterKey:'13_DN', length:1, price:8300, refMargin:55 },
     { name:'13T 고급형 한쪽접착', spec:'13T X 1M', code:'BL_13_1_DA', oldPrice:8500, increase25:10000, masterKey:'13_DA', length:1, price:10000, refMargin:55 },
     { name:'13T 고급형 비접착', spec:'13T X 5M', code:'BL_13_5_DN', oldPrice:38000, increase25:44000, masterKey:'13_DN', length:5, price:45000, refMargin:60 },
@@ -192,8 +192,8 @@ const HK_REFLECTIVE_PRODUCTS = [
   ]),
   // 고티(20T~50T 묶음) — 20T·30T는 DN/DA, 40T·50T는 DN만(사용자 확인). 마스터 롤 길이가 두께마다 다르다(10/12/8/7M).
   ..._hkReflectiveRollRows('고티(20T~50T)', [
-    { name:'20T 고급형 비접착', spec:'20T X 롤전체', code:'BL_20_10_DN_R', oldPrice:100000, increase25:125000, masterKey:'20_DN', length:10, price:125000, refMargin:55 },
-    { name:'20T 고급형 한쪽접착', spec:'20T X 롤전체', code:'BL_20_10_DA_R', oldPrice:115000, increase25:144000, masterKey:'20_DA', length:10, price:144000, refMargin:55 },
+    { name:'20T 고급형 비접착', spec:'20T X 롤전체', code:'BL_20_10_DN_R', oldPrice:100000, increase25:125000, masterKey:'20_DN', length:10, price:133000, refMargin:55 },
+    { name:'20T 고급형 한쪽접착', spec:'20T X 롤전체', code:'BL_20_10_DA_R', oldPrice:115000, increase25:144000, masterKey:'20_DA', length:10, price:152000, refMargin:55 },
     { name:'30T 고급형 비접착', spec:'30T X 롤전체', code:'BL_30_12_DN_R', oldPrice:160000, increase25:200000, masterKey:'30_DN', length:12, price:200000, refMargin:55 },
     { name:'30T 고급형 한쪽접착', spec:'30T X 롤전체', code:'BL_30_12_DA_R', oldPrice:180000, increase25:225000, masterKey:'30_DA', length:12, price:225000, refMargin:55 },
     { name:'40T 고급형 비접착', spec:'40T X 롤전체', code:'BL_40_8_DN_R', oldPrice:160000, increase25:200000, masterKey:'40_DN', length:8, price:200000, refMargin:60 },
@@ -541,6 +541,30 @@ window.hkReflectivePriceByCode = function(code) {
 };
 
 /* ═══════════════════════════════════════
+   열반사 롤 단위(…_R) 배송비 — 롤 지름(두께×길이)에 따라 정한다 (2026-10-21, 사용자 결정).
+   폭은 1m로 같고 지름만 다르다: 13T 20m(260) ≈ 10T 25m ≈ 5T 50m(250) > 20T 10m(200) > 6T 25m(150).
+   13T는 우리 실제 택배비 22,000원. 한국단열·홈페이지·쿠팡·ESM·11번가 모두 같은 값을 쓴다.
+   예전에는 단독 상품과 그룹상품(50700400)이 같은 제품인데 배송비가 달랐다(6T 20,000/27,000 · 13T 32,000/27,000).
+   배송비를 낮춘 만큼(단독 기준 예전 배송비 − 새 배송비) 판매가에 더해서 단독 상품의 고객 총액은 그대로 둔다.
+═══════════════════════════════════════ */
+const HK_REFLECTIVE_ROLL_SHIPPING = { '5_50': 20000, '6_25': 15000, '10_25': 20000, '13_20': 22000, '20_10': 18000 };
+const HK_REFLECTIVE_ROLL_PRICE_PLUS = { '5_50': 7000, '6_25': 5000, '10_25': 7000, '13_20': 10000, '20_10': 8000 };
+function _hkReflectiveRollKey(code) {
+  const match = /^BL_(\d+)_(\d+)_[SD][NA]_R$/.exec(code || '');
+  return match ? `${match[1]}_${match[2]}` : null;
+}
+function _hkReflectiveRollShipping(code, fallback) {
+  const key = _hkReflectiveRollKey(code);
+  return key && HK_REFLECTIVE_ROLL_SHIPPING[key] != null ? HK_REFLECTIVE_ROLL_SHIPPING[key] : fallback;
+}
+// 코드에 적힌 새 기본 판매가 — DB에 저장된 예전 값(= 새 값 − 더한 금액)만 새 값으로 바꾸는 데 쓴다(hkReflectiveApplyRollMigration).
+const HK_REFLECTIVE_ROLL_NEW_PRICE = {};
+HK_REFLECTIVE_PRODUCTS.forEach(row => {
+  const key = _hkReflectiveRollKey(row.code);
+  if (key && HK_REFLECTIVE_ROLL_PRICE_PLUS[key]) HK_REFLECTIVE_ROLL_NEW_PRICE[row.code] = row.price;
+});
+
+/* ═══════════════════════════════════════
    한국단열 채널 — 열반사단열재 (2026-09-22, 사용자가 준 표 36행).
    엑셀의 "판매가·수정전판매가·차액"과 맨 뒤 "수정 전 판매가·차액·수정 전 배송비"는 전부 같은
    성격의 이전값 참고칸이다(사용자 확인 — "아이소핑크와 다른쪽에도 했었던 거랑 같은 헤더") —
@@ -565,7 +589,7 @@ window.hkReflectivePriceByCode = function(code) {
   });
 
   HK_CHANNEL_LISTINGS.hkd.push(
-    product('349222019', 27000, '1개마다', 30000, '40000/80000', [
+    product('349222019', 20000, '1개마다', 30000, '40000/80000', [
       ['빌트론 10T 1m x 25m 일반형 비접착', 'BL_10_25_SN_R'],
       ['빌트론 10T 1m x 25m 일반형 한쪽접착', 'BL_10_25_SA_R'],
       ['빌트론 10T 1m x 25m 고급형 비접착', 'BL_10_25_DN_R'],
@@ -703,15 +727,15 @@ window.hkReflectivePriceByCode = function(code) {
       ['빌트론 30T 1m x 2m 고급형 비접착_5장', 'BL_30_2_DN_5'],
       ['빌트론 30T 1m x 2m 고급형 한쪽접착_5장', 'BL_30_2_DA_5'],
     ]),
-    product('2599242583', 26000, '1개마다', 26000, '39000/78000', [
+    product('2599242583', 18000, '1개마다', 26000, '39000/78000', [
       ['빌트론 20T 1m x 10m 고급형 비접착', 'BL_20_10_DN_R'],
       ['빌트론 20T 1m x 10m 고급형 한쪽접착', 'BL_20_10_DA_R'],
     ]),
-    product('2599273590', 32000, '1개마다', 32000, '39000/78000', [
+    product('2599273590', 22000, '1개마다', 32000, '39000/78000', [
       ['빌트론 13T 1m x 20m 고급형 비접착', 'BL_13_20_DN_R'],
       ['빌트론 13T 1m x 20m 고급형 한쪽접착', 'BL_13_20_DA_R'],
     ]),
-    product('2599610352', 20000, '1개마다', 20000, '30000/60000', [
+    product('2599610352', 15000, '1개마다', 20000, '30000/60000', [
       ['빌트론 6T 1m x 25m 일반형 비접착', 'BL_6_25_SN_R'],
       ['빌트론 6T 1m x 25m 고급형 비접착', 'BL_6_25_DN_R'],
       ['빌트론 6T 1m x 25m 일반형 한쪽접착', 'BL_6_25_SA_R'],
@@ -728,7 +752,7 @@ window.hkReflectivePriceByCode = function(code) {
       ['13312341782', '10T', '25m', '고급형 비접착', 'BL_10_25_DN_R'], ['13312341783', '10T', '25m', '고급형 한쪽접착', 'BL_10_25_DA_R'],
       ['13312341784', '13T', '20m', '고급형 비접착', 'BL_13_20_DN_R'], ['13312341786', '13T', '20m', '고급형 한쪽접착', 'BL_13_20_DA_R'],
     ].map(([productId, thickness, length, kind, code]) => ({
-      ...product(productId, 27000, '1개마다', 27000, '40000/80000', [[`빌트론 ${thickness} 1m x ${length} ${kind}`, code]]),
+      ...product(productId, _hkReflectiveRollShipping(code, 27000), '1개마다', 27000, '40000/80000', [[`빌트론 ${thickness} 1m x ${length} ${kind}`, code]]),
       groupProduct: true, groupProductCode: '50700400', groupProductLabel: '빌트론 열반사단열재 롤',
     })),
     product('3402310018', 5000, '5개마다', 12000, '8500/17000', [
@@ -871,7 +895,7 @@ window.hkReflectivePriceByCode = function(code) {
       ['빌트론 6T 1m x 1m 일반형 한쪽접착', 'BL_6_1_SA'],
       ['빌트론 6T 1m x 1m 고급형 한쪽접착', 'BL_6_1_DA'],
     ]),
-    product('12605232942', 5000, '5개마다', 12000, '8500/17000', [
+    product('12605232942', 4300, '5개마다', 12000, '8500/17000', [
       ['빌트론 10T 1m x 1m 일반형 비접착', 'BL_10_1_SN'],
       ['빌트론 10T 1m x 1m 고급형 비접착', 'BL_10_1_DN'],
       ['빌트론 10T 1m x 1m 일반형 한쪽접착', 'BL_10_1_SA'],
@@ -897,12 +921,12 @@ window.hkReflectivePriceByCode = function(code) {
    수정 전 판매가·배송비는 기존 규칙대로 지금 1단계 값으로 맞춘다.
 ═══════════════════════════════════════ */
 (function addReflectiveHomepageProducts() {
-  const pair = (productId, baseShipping, nameA, codeA, nameB, codeB) => ({
+  const pair = (productId, baseShipping, nameA, codeA, nameB, codeB, jejuShipping = baseShipping) => ({
     categoryId: 'hk_reflective',
     productId,
     baseShipping,
     shippingBasis: '1개마다',
-    jejuShipping: baseShipping,
+    jejuShipping,
     returnExchange: '30000/60000',
     items: [
       { productCode: codeA, productName: nameA, prevPrice: _hkChannelTargetPrice('hk_reflective', codeA, 'homepage', null, null) ?? 0, prevShipping: baseShipping },
@@ -911,14 +935,14 @@ window.hkReflectivePriceByCode = function(code) {
   });
 
   HK_CHANNEL_LISTINGS.homepage.push(
-    pair('31', 27000, '[열반사단열재] 빌트론 5T 일반형 비접착 50m', 'BL_5_50_SN_R', '[열반사단열재] 빌트론 5T 일반형 한쪽접착 50m', 'BL_5_50_SA_R'),
-    pair('30', 27000, '[열반사단열재] 빌트론 5T 고급형 비접착 50m', 'BL_5_50_DN_R', '[열반사단열재] 빌트론 5T 고급형한쪽접착 50m', 'BL_5_50_DA_R'),
-    pair('29', 20000, '[열반사단열재] 빌트론 6T 일반형 비접착 25m', 'BL_6_25_SN_R', '[열반사단열재] 빌트론 6T 일반형 한쪽접착 25m', 'BL_6_25_SA_R'),
-    pair('28', 20000, '[열반사단열재] 빌트론 6T 고급형 비접착 25m', 'BL_6_25_DN_R', '[열반사단열재] 빌트론 6T 고급형 한쪽접착 25m', 'BL_6_25_DA_R'),
-    pair('27', 27000, '[열반사단열재] 빌트론 10T 일반형 비접착 25m', 'BL_10_25_SN_R', '[열반사단열재] 빌트론 10T 일반형 한쪽접착 25m', 'BL_10_25_SA_R'),
-    pair('26', 27000, '[열반사단열재] 빌트론 10T 고급형 비접착 25m', 'BL_10_25_DN_R', '[열반사단열재] 빌트론 10T 고급형 한쪽접착 25m', 'BL_10_25_DA_R'),
-    pair('17', 32000, '[열반사단열재] 빌트론 13T 고급형 비접착 20m', 'BL_13_20_DN_R', '[열반사단열재] 빌트론 13T 고급형 한쪽접착 20m', 'BL_13_20_DA_R'),
-    pair('16', 27000, '[열반사단열재] 빌트론 20T 고급형 비접착 10m', 'BL_20_10_DN_R', '[열반사단열재] 빌트론 20T 고급형 한쪽접착 10m', 'BL_20_10_DA_R'),
+    pair('31', 20000, '[열반사단열재] 빌트론 5T 일반형 비접착 50m', 'BL_5_50_SN_R', '[열반사단열재] 빌트론 5T 일반형 한쪽접착 50m', 'BL_5_50_SA_R', 27000),
+    pair('30', 20000, '[열반사단열재] 빌트론 5T 고급형 비접착 50m', 'BL_5_50_DN_R', '[열반사단열재] 빌트론 5T 고급형한쪽접착 50m', 'BL_5_50_DA_R', 27000),
+    pair('29', 15000, '[열반사단열재] 빌트론 6T 일반형 비접착 25m', 'BL_6_25_SN_R', '[열반사단열재] 빌트론 6T 일반형 한쪽접착 25m', 'BL_6_25_SA_R', 20000),
+    pair('28', 15000, '[열반사단열재] 빌트론 6T 고급형 비접착 25m', 'BL_6_25_DN_R', '[열반사단열재] 빌트론 6T 고급형 한쪽접착 25m', 'BL_6_25_DA_R', 20000),
+    pair('27', 20000, '[열반사단열재] 빌트론 10T 일반형 비접착 25m', 'BL_10_25_SN_R', '[열반사단열재] 빌트론 10T 일반형 한쪽접착 25m', 'BL_10_25_SA_R', 27000),
+    pair('26', 20000, '[열반사단열재] 빌트론 10T 고급형 비접착 25m', 'BL_10_25_DN_R', '[열반사단열재] 빌트론 10T 고급형 한쪽접착 25m', 'BL_10_25_DA_R', 27000),
+    pair('17', 22000, '[열반사단열재] 빌트론 13T 고급형 비접착 20m', 'BL_13_20_DN_R', '[열반사단열재] 빌트론 13T 고급형 한쪽접착 20m', 'BL_13_20_DA_R', 32000),
+    pair('16', 18000, '[열반사단열재] 빌트론 20T 고급형 비접착 10m', 'BL_20_10_DN_R', '[열반사단열재] 빌트론 20T 고급형 한쪽접착 10m', 'BL_20_10_DA_R', 27000),
   );
 })();
 
@@ -960,16 +984,16 @@ window.hkReflectivePriceByCode = function(code) {
   HK_CHANNEL_LISTINGS.coupang.push(
     // 1차 — 50m/25m/20m/10m 마스터롤(couponOff 12 강제) — 반품/교환비 미확인(임시 40,000)
     group('8232412643', 8000, '40000', [
-      ['91289839102', 'BL_5_50_SN_R', 27000], ['91289839107', 'BL_5_50_DN_R', 27000],
-      ['91289839097', 'BL_5_50_SA_R', 27000], ['91289839110', 'BL_5_50_DA_R', 27000, null, { couponCap: 30000 }],
+      ['91289839102', 'BL_5_50_SN_R', _hkReflectiveRollShipping('BL_5_50_SN_R', 27000)], ['91289839107', 'BL_5_50_DN_R', _hkReflectiveRollShipping('BL_5_50_DN_R', 27000)],
+      ['91289839097', 'BL_5_50_SA_R', _hkReflectiveRollShipping('BL_5_50_SA_R', 27000)], ['91289839110', 'BL_5_50_DA_R', _hkReflectiveRollShipping('BL_5_50_DA_R', 27000), null, { couponCap: 30000 }],
     ], { couponOff: 12 }),
     group('5465024346', 8000, '40000', [
-      ['91289798188', 'BL_6_25_SN_R', 27000], ['91289798162', 'BL_6_25_DN_R', 27000],
-      ['91289798163', 'BL_6_25_SA_R', 27000], ['91289798197', 'BL_6_25_DA_R', 27000],
-      ['91289798201', 'BL_10_25_SN_R', 27000], ['91289798192', 'BL_10_25_DN_R', 27000],
-      ['91289798173', 'BL_10_25_SA_R', 27000], ['91289798165', 'BL_10_25_DA_R', 27000],
-      ['91289798154', 'BL_13_20_DN_R', 27000], ['91289798168', 'BL_13_20_DA_R', 27000],
-      ['91289798150', 'BL_20_10_DN_R', 27000], ['91289798157', 'BL_20_10_DA_R', 27000],
+      ['91289798188', 'BL_6_25_SN_R', _hkReflectiveRollShipping('BL_6_25_SN_R', 27000)], ['91289798162', 'BL_6_25_DN_R', _hkReflectiveRollShipping('BL_6_25_DN_R', 27000)],
+      ['91289798163', 'BL_6_25_SA_R', _hkReflectiveRollShipping('BL_6_25_SA_R', 27000)], ['91289798197', 'BL_6_25_DA_R', _hkReflectiveRollShipping('BL_6_25_DA_R', 27000)],
+      ['91289798201', 'BL_10_25_SN_R', _hkReflectiveRollShipping('BL_10_25_SN_R', 27000)], ['91289798192', 'BL_10_25_DN_R', _hkReflectiveRollShipping('BL_10_25_DN_R', 27000)],
+      ['91289798173', 'BL_10_25_SA_R', _hkReflectiveRollShipping('BL_10_25_SA_R', 27000)], ['91289798165', 'BL_10_25_DA_R', _hkReflectiveRollShipping('BL_10_25_DA_R', 27000)],
+      ['91289798154', 'BL_13_20_DN_R', _hkReflectiveRollShipping('BL_13_20_DN_R', 27000)], ['91289798168', 'BL_13_20_DA_R', _hkReflectiveRollShipping('BL_13_20_DA_R', 27000)],
+      ['91289798150', 'BL_20_10_DN_R', _hkReflectiveRollShipping('BL_20_10_DN_R', 27000)], ['91289798157', 'BL_20_10_DA_R', _hkReflectiveRollShipping('BL_20_10_DA_R', 27000)],
     ], { couponOff: 12 }),
     // 2차 — 1M(5T~13T 배송비 4,300 / 20T~50T 배송비 11,000), 기본 쿠폰 분기(10%) 그대로
     group('178569244', 8000, '5000', [
@@ -1049,22 +1073,22 @@ window.hkReflectivePriceByCode = function(code) {
     ['열반사단열재 10m', '1396640146', '1980852854', 'BL_10_10_DA', 0],
     ['열반사단열재 10m', '1526599674', '4584696253', 'BL_13_10_DN', 0],
     ['열반사단열재 10m', '6010979707', '4586303844', 'BL_13_10_DA', 0],
-    ['열반사단열재 롤단위', '1395897806', '1979501275', 'BL_5_50_SN_R', 27000],
-    ['열반사단열재 롤단위', '1395899168', '4584672442', 'BL_5_50_DN_R', 27000],
-    ['열반사단열재 롤단위', '1395900267', '1979506807', 'BL_5_50_SA_R', 27000],
-    ['열반사단열재 롤단위', '1404342880', '1992215304', 'BL_5_50_DA_R', 27000],
-    ['열반사단열재 롤단위', '1395906593', '4584672808', 'BL_6_25_SN_R', 27000],
-    ['열반사단열재 롤단위', '1395908264', '4584673302', 'BL_6_25_DN_R', 27000],
-    ['열반사단열재 롤단위', '1395913193', '4584673492', 'BL_6_25_SA_R', 27000],
-    ['열반사단열재 롤단위', '1395914410', '4584673717', 'BL_6_25_DA_R', 27000],
-    ['열반사단열재 롤단위', '1395935349', '4584673937', 'BL_10_25_SN_R', 27000],
-    ['열반사단열재 롤단위', '1395953341', '4584674153', 'BL_10_25_DN_R', 27000],
-    ['열반사단열재 롤단위', '1396322961', '4584674418', 'BL_10_25_SA_R', 27000],
-    ['열반사단열재 롤단위', '1396324751', '1980299343', 'BL_10_25_DA_R', 27000],
-    ['열반사단열재 롤단위', '1396331912', '4584675063', 'BL_13_20_DN_R', 27000],
-    ['열반사단열재 롤단위', '1396335547', '1980314957', 'BL_13_20_DA_R', 27000],
-    ['열반사단열재 롤단위', '1396347416', '1980332238', 'BL_20_10_DN_R', 27000],
-    ['열반사단열재 롤단위', '1396349064', '1980335035', 'BL_20_10_DA_R', 27000],
+    ['열반사단열재 롤단위', '1395897806', '1979501275', 'BL_5_50_SN_R', _hkReflectiveRollShipping('BL_5_50_SN_R', 27000)],
+    ['열반사단열재 롤단위', '1395899168', '4584672442', 'BL_5_50_DN_R', _hkReflectiveRollShipping('BL_5_50_DN_R', 27000)],
+    ['열반사단열재 롤단위', '1395900267', '1979506807', 'BL_5_50_SA_R', _hkReflectiveRollShipping('BL_5_50_SA_R', 27000)],
+    ['열반사단열재 롤단위', '1404342880', '1992215304', 'BL_5_50_DA_R', _hkReflectiveRollShipping('BL_5_50_DA_R', 27000)],
+    ['열반사단열재 롤단위', '1395906593', '4584672808', 'BL_6_25_SN_R', _hkReflectiveRollShipping('BL_6_25_SN_R', 27000)],
+    ['열반사단열재 롤단위', '1395908264', '4584673302', 'BL_6_25_DN_R', _hkReflectiveRollShipping('BL_6_25_DN_R', 27000)],
+    ['열반사단열재 롤단위', '1395913193', '4584673492', 'BL_6_25_SA_R', _hkReflectiveRollShipping('BL_6_25_SA_R', 27000)],
+    ['열반사단열재 롤단위', '1395914410', '4584673717', 'BL_6_25_DA_R', _hkReflectiveRollShipping('BL_6_25_DA_R', 27000)],
+    ['열반사단열재 롤단위', '1395935349', '4584673937', 'BL_10_25_SN_R', _hkReflectiveRollShipping('BL_10_25_SN_R', 27000)],
+    ['열반사단열재 롤단위', '1395953341', '4584674153', 'BL_10_25_DN_R', _hkReflectiveRollShipping('BL_10_25_DN_R', 27000)],
+    ['열반사단열재 롤단위', '1396322961', '4584674418', 'BL_10_25_SA_R', _hkReflectiveRollShipping('BL_10_25_SA_R', 27000)],
+    ['열반사단열재 롤단위', '1396324751', '1980299343', 'BL_10_25_DA_R', _hkReflectiveRollShipping('BL_10_25_DA_R', 27000)],
+    ['열반사단열재 롤단위', '1396331912', '4584675063', 'BL_13_20_DN_R', _hkReflectiveRollShipping('BL_13_20_DN_R', 27000)],
+    ['열반사단열재 롤단위', '1396335547', '1980314957', 'BL_13_20_DA_R', _hkReflectiveRollShipping('BL_13_20_DA_R', 27000)],
+    ['열반사단열재 롤단위', '1396347416', '1980332238', 'BL_20_10_DN_R', _hkReflectiveRollShipping('BL_20_10_DN_R', 27000)],
+    ['열반사단열재 롤단위', '1396349064', '1980335035', 'BL_20_10_DA_R', _hkReflectiveRollShipping('BL_20_10_DA_R', 27000)],
   ];
   const config = HK_CHANNEL_CONFIG.esm;
   rows.forEach(([groupName, masterId, productId, productCode, hkdShipping]) => {
@@ -1119,10 +1143,34 @@ const HK_REFLECTIVE_11ST_GROUPS = [
   const config = HK_CHANNEL_CONFIG['11st'];
   HK_REFLECTIVE_11ST_GROUPS.forEach(group => {
     const items = group.codes.map(([code, name]) => {
-      const item = { productCode: code, productName: name, hkdShipping: group.shipping };
+      const item = { productCode: code, productName: name, hkdShipping: _hkReflectiveRollShipping(code, group.shipping) };
       item.prevPrice = _hkEsmPriceParts('hk_reflective', code, config, item)?.finalPrice ?? 0;
       return item;
     });
     HK_CHANNEL_LISTINGS['11st'].push({ categoryId: 'hk_reflective', productId: group.productId, items });
   });
 })();
+
+/* 롤 판매가·배송비 변경(2026-10-21) — DB에 저장된 값이 있으면 코드 기본값을 덮어쓰므로, **저장값이 예전 기본값 그대로일 때만** 새 값으로 바꾼다
+   (그 뒤 사용자가 고친 값은 건드리지 않는다). 단가표를 불러올 때 hkApplyOneTimeMigrations가 한 번 부르고, [저장]하면 새 값이 DB에 남는다. */
+window.hkReflectiveApplyRollMigration = function() {
+  HK_REFLECTIVE_PRODUCTS.forEach(row => {
+    const next = HK_REFLECTIVE_ROLL_NEW_PRICE[row.code];
+    const plus = HK_REFLECTIVE_ROLL_PRICE_PLUS[_hkReflectiveRollKey(row.code)];
+    if (next != null && plus && Number(row.price) === next - plus) row.price = next;
+  });
+  const hkd1m = (HK_CHANNEL_LISTINGS.hkd || []).find(item => String(item.productId) === '12605232942'); // 10T 1m 접착식 — 스토어 배송비가 4,300원이라 단가표를 맞춘다(2026-10-21)
+  if (hkd1m && hkd1m.baseShipping === 5000) hkd1m.baseShipping = 4300;
+  const oldShipping = { // 상품ID → 예전 배송비. 그룹상품(50700400)은 27,000.
+    hkd: { '349222019': 27000, '2599242583': 26000, '2599273590': 32000, '2599610352': 20000 },
+    homepage: { '31': 27000, '30': 27000, '29': 20000, '28': 20000, '27': 27000, '26': 27000, '17': 32000, '16': 27000 },
+  };
+  Object.entries(oldShipping).forEach(([channel, olds]) => {
+    (HK_CHANNEL_LISTINGS[channel] || []).forEach(product => {
+      const key = _hkReflectiveRollKey(product.items?.[0]?.productCode);
+      if (!key || HK_REFLECTIVE_ROLL_SHIPPING[key] == null) return;
+      const old = olds[String(product.productId)] ?? (product.groupProduct && product.groupProductCode === '50700400' ? 27000 : null);
+      if (old != null && product.baseShipping === old) product.baseShipping = HK_REFLECTIVE_ROLL_SHIPPING[key];
+    });
+  });
+};

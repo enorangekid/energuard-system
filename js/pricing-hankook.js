@@ -2107,6 +2107,7 @@ window.hkApplyOneTimeMigrations = function() {
       if (change.plus[1].some(list => Number(row.plusAmount) === list[i])) row.plusAmount = change.plus[0][i];
     });
   });
+  if (typeof window.hkReflectiveApplyRollMigration === 'function') window.hkReflectiveApplyRollMigration(); // 열반사 롤 판매가·배송비(2026-10-21)
 };
 
 /* "Iso_430_430_10_3" → "아이소핑크 430x430 10T_3장" — 상품코드 자체가
