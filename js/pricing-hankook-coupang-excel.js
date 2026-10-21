@@ -10,7 +10,7 @@
    ★ 짝짓기는 **옵션 ID로만** 한다. Product ID는 쿠팡에서 매핑을 바꾸면 달라질 수 있어 단가표와 안 맞는 경우가 있다(사용자 지적 2026-10-08) — 무시하고, 다를 때만 개수를 알려 준다.
    · 판매가격 = 단가표의 쿠팡 등록가(_hkChannelTargetPrice — 몰별 표의 "현재 판매가"와 같은 값). 지금 가격과 같으면 비워 둔다.
    · 판매상태 = 단가표에서 품절·판매중지면 "판매중지", 아니면 "판매중". 지금 상태와 같으면 비워 둔다(쿠팡은 판매중/판매중지 두 가지뿐이라 품절도 판매중지로 낸다).
-   · 할인율기준가·잔여수량 칸은 건드리지 않는다. 판매중지로 내는 옵션은 가격을 채우지 않는다.
+   · **할인율기준가 = 판매가격과 같은 금액**으로 같이 채운다(2026-10-21 사용자 지시 — 판매가격만 채우면 할인율기준가가 예전 값으로 남아 쿠팡 가격검증에서 등록가가 어긋났다). 잔여수량 칸은 건드리지 않는다. 판매중지로 내는 옵션은 가격을 채우지 않는다.
    · 안 채우고 알려 주는 경우: 승인완료가 아닌 옵션(쿠팡이 수정 불가), 1회 변경 한도(인하 50%·인상 100%)를 넘는 가격, 10원 단위가 아닌 가격, 계산 못 한 옵션. 단가표에 없는 옵션 ID는 목록으로만 알려 준다.
    단가표 값은 바꾸지 않고 파일만 만든다(읽기 전용).
 
@@ -195,11 +195,14 @@
   }
 
   /* ═══ ② 저장한 목록과 단가표를 비교해 바뀐 옵션만 쿠팡 양식에 담기 ═══ */
-  function rowXml(r, record, change) {
-    const cells = record.map((value, c) => `<c r="${String.fromCharCode(65 + c)}${r}" s="11" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`).join('');
+  // 글자 칸은 인라인 문자열(t="inlineStr")이 아니라 공유 문자열(t="s")로 쓴다 — 엑셀이 파일을 저장할 때 만드는 모양과 같게(쿠팡 업로드가 인라인 문자열을 못 읽을 가능성까지 없앤다).
+  function rowXml(r, record, change, sst) {
+    const text = (ref, value) => (String(value) === '' ? `<c r="${ref}" s="11"></c>` : `<c r="${ref}" s="11" t="s"><v>${sst(String(value))}</v></c>`);
+    const cells = record.map((value, c) => text(`${String.fromCharCode(65 + c)}${r}`, value)).join('');
     const price = change.price != null ? `<c r="P${r}" s="11"><v>${change.price}</v></c>` : `<c r="P${r}" s="11"></c>`;
-    const status = change.status ? `<c r="R${r}" s="11" t="inlineStr"><is><t>${escapeXml(change.status)}</t></is></c>` : `<c r="R${r}" s="11"></c>`;
-    return `<row r="${r}">\n${cells}${price}<c r="Q${r}" s="11"></c>${status}<c r="S${r}" s="11"></c><c r="T${r}" s="11"></c></row>`;
+    const base = change.price != null ? `<c r="Q${r}" s="11"><v>${change.price}</v></c>` : `<c r="Q${r}" s="11"></c>`; // 할인율기준가 = 판매가격
+    const status = change.status ? text(`R${r}`, change.status) : `<c r="R${r}" s="11"></c>`;
+    return `<row r="${r}">\n${cells}${price}${base}${status}<c r="S${r}" s="11"></c><c r="T${r}" s="11"></c></row>`;
   }
 
   async function templateWith(templateBuffer, changes) {
@@ -207,9 +210,26 @@
     const sheetPath = Object.keys(zip.files).filter(name => /^xl\/worksheets\/sheet\d+\.xml$/.test(name)).sort()[0];
     let xml = await zip.file(sheetPath).async('string');
     if (!xml.includes('</sheetData>')) throw new Error('양식 파일의 시트 구조가 다릅니다.');
-    const body = changes.map((change, i) => rowXml(4 + i, change.record, change)).join('');
+    // 공유 문자열 표(xl/sharedStrings.xml)에 새 글자를 덧붙인다 — 이미 있는 글자(판매중지 등)도 새로 한 줄 더 넣을 뿐이라 안전하다.
+    const sstPath = 'xl/sharedStrings.xml';
+    let sstXml = await zip.file(sstPath).async('string');
+    let sstCount = (sstXml.match(/<si[ >]/g) || []).length;
+    const added = new Map();
+    let refs = 0;
+    const sst = value => { refs += 1; if (!added.has(value)) added.set(value, sstCount + added.size); return added.get(value); };
+    const body = changes.map((change, i) => rowXml(4 + i, change.record, change, sst)).join('');
     xml = xml.replace('</sheetData>', `${body}</sheetData>`);
+    // 시트 크기 표시(dimension)를 데이터 줄까지 넓힌다 — 쿠팡 양식은 머리 3줄(A1:S3)까지만 적혀 있어서, 크기 표시만 읽는 곳(쿠팡 업로드)은 데이터 줄을 못 보고 "수정할 게 없다"고 한다.
+    // 엑셀로 열어 저장하면 이 크기가 고쳐져서 업로드가 되던 것과 같다.
+    xml = xml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:T${3 + changes.length}"/>`);
     zip.file(sheetPath, xml);
+    if (added.size) {
+      const items = [...added.keys()].map(value => `<si><t xml:space="preserve">${escapeXml(value)}</t></si>`).join('');
+      sstXml = sstXml.replace('</sst>', `${items}</sst>`);
+      const attr = (name, add) => { sstXml = sstXml.replace(new RegExp(`(<sst[^>]*\\s${name}=")(\\d+)(")`), (m, a, n, b) => `${a}${Number(n) + add}${b}`); };
+      attr('count', refs); attr('uniqueCount', added.size);
+      zip.file(sstPath, sstXml);
+    }
     return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   }
 

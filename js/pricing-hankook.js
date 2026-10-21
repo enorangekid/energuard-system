@@ -1250,6 +1250,10 @@ function _hkIsoSyncSharedShippingToListings() {
     const baseShipping = Number(block.baseShipping5);
     if (!Number.isFinite(baseShipping)) return;
     const ids = new Set((block.productNumbers || []).map(String));
+    // 같은 상품번호를 쓰는 다른 5장당 블록(접착식 600×900)의 상품도 같은 배송 정책이다 — 접착식 모음전 3736232926 (사용자 확인 2026-10-21 "여전히 6000원")
+    HK_ISO_SHIPPING_BLOCKS.forEach(other => {
+      if (other !== block && other.schema === 'per5' && (other.productNumbers || []).some(id => ids.has(String(id)))) other.productNumbers.forEach(id => ids.add(String(id)));
+    });
     (HK_CHANNEL_LISTINGS.hkd || []).forEach(product => {
       if (ids.has(String(product.productId))) product.baseShipping = baseShipping;
     });
@@ -2884,10 +2888,11 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
      등록 판매가: 쿠팡에 실제로 입력하는 가격 — 초록 강조는 이 칸 하나만. 일반은 쿠폰 적용 전 판매가,
                   위너는 수동 판매가(있으면) 아니면 판매가(×1.05)
      수정 전 판매가·차액은 등록 판매가 기준, 메모는 옵션마다 자유롭게 남긴다(위너 관련 메모 등). */
-/* 쿠팡 표의 Product ID 칸 — 이 상품의 옵션을 쿠팡 일괄변경 양식으로 내려받는 [쿠팡 양식] 버튼(js/pricing-hankook-coupang-excel.js). 관리자에게만 보인다. */
+/* 쿠팡 표의 Product ID 칸 버튼 — 위에서부터 [상품코드 복사](네이버 표와 같은 공용 버튼, 누구에게나 보임), 이 상품의 옵션을 쿠팡 일괄변경 양식으로 내려받는 [쿠팡 양식](js/pricing-hankook-coupang-excel.js, 관리자에게만). */
 function _hkCoupangExcelProductButtonHtml(channelId, product) {
-  if (window.currentUser?.role !== 'admin' || typeof window.hkCoupangExcelDownload !== 'function') return '';
-  return `<div class="pgl-btns pgl-btns-fit"><button type="button" class="pgl-btn pgl-btn-wide" onclick="hkCoupangExcelDownload('${channelId}',{productId:'${product.productId}'})" title="이 상품의 옵션을 쿠팡 일괄변경 양식으로 내려받습니다(단가표 값이 쿠팡 목록과 다른 옵션만 변경 칸이 채워집니다)">쿠팡 양식</button></div>`;
+  const excel = window.currentUser?.role !== 'admin' || typeof window.hkCoupangExcelDownload !== 'function' ? ''
+    : `<button type="button" class="pgl-btn pgl-btn-wide" onclick="hkCoupangExcelDownload('${channelId}',{productId:'${product.productId}'})" title="이 상품의 옵션을 쿠팡 일괄변경 양식으로 내려받습니다(단가표 값이 쿠팡 목록과 다른 옵션만 변경 칸이 채워집니다)">쿠팡 양식</button>`;
+  return `<div class="pgl-btns pgl-btns-fit">${_hkCopyProductCodeButtonHtml(product)}${excel}</div>`;
 }
 
 function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
