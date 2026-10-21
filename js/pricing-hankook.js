@@ -907,6 +907,7 @@ const HK_ISO_SHIPPING_BLOCKS = [
   },
   {
     id: 'adhesive_600x900_1',
+    followsBlock: 'iso_600x900_1', // 같은 상품 페이지라 5장당 배송비는 일반 600x900 블록 값을 따른다(행마다 따로 입력하지 않는다 — 10장 묶음은 5장당 값 × 2박스로 계산되어야 한다)
     title: '접착식 아이소핑크 600x900',
     // 첫 변형(3/1/1/1/1장) 행은 439103571 등 스마트스토어 상품번호들이 쓰고,
     // 묶음(10/5/3/2/2장) 행은 "쿠팡전용"(별도 상품, 상품번호 없이 채널명으로만
@@ -1142,7 +1143,7 @@ function _hkIsoShippingBlockHtml(block) {
     const perUnitDiff = hasBase ? shippingDiff / rowDivisor : null;
     const plusAmount = ship.plusAmount ?? 0;
     const finalPrice = basePrice + plusAmount;
-    const usesSharedBase = !!block.sharedBaseShipping && hasBase;
+    const usesSharedBase = (!!block.sharedBaseShipping || !!block.followsBlock) && hasBase;
     const baseShippingCell = hasBase
       ? (usesSharedBase
         ? `<span class="hk-iso-shared-base-value">${_hkIsoDraftNumber(baseShipping)}</span>`
@@ -1245,6 +1246,13 @@ window.recalcHkIsoShippingRow = function(input) {
    예전에는 배송 세부설정을 바꿔도 상품 배송비는 그대로(6,000)라 단가표가 반영되지 않았다(2026-10-21 사용자 확인: 6,000 → 5,500).
    그래서 블록 값을 바꾸거나 DB에서 불러온 뒤 상품 배송비를 블록 값에 맞춘다. */
 function _hkIsoSyncSharedShippingToListings() {
+  // 일반 블록 값을 따르는 블록(접착식)은 5장당 배송비를 그 값으로 맞추고, 행마다 따로 적어 둔 기준 배송비는 지운다 — 예전에 행마다 5,500을 적어서 10장 묶음(2박스 = 11,000원)이 5,500원으로 계산됐다.
+  HK_ISO_SHIPPING_BLOCKS.forEach(follower => {
+    const primary = follower.followsBlock && HK_ISO_SHIPPING_BLOCKS.find(b => b.id === follower.followsBlock);
+    if (!primary) return;
+    follower.baseShipping5 = primary.baseShipping5;
+    follower.rows.forEach(row => { if (typeof row.baseShipping === 'number') delete row.baseShipping; });
+  });
   HK_ISO_SHIPPING_BLOCKS.forEach(block => {
     if (!block.sharedBaseShipping) return;
     const baseShipping = Number(block.baseShipping5);
@@ -1289,6 +1297,16 @@ window.recalcHkIsoSharedBaseShipping = function(blockId, input) {
   const baseShipping = _hkIsoDraftParseNumber(input.value);
   block.baseShipping5 = baseShipping;
   _hkIsoSyncSharedShippingToListings();
+  HK_ISO_SHIPPING_BLOCKS.filter(follower => follower.followsBlock === blockId).forEach(follower => {
+    document.querySelectorAll(`#hkIsoShippingSection tr[data-shipping-block-id="${follower.id}"]`).forEach(row => {
+      if (row.dataset.hasBase !== '1') return;
+      row.dataset.baseShipping = baseShipping;
+      const value = row.querySelector('.hk-iso-shared-base-value');
+      if (value) value.textContent = _hkIsoDraftNumber(baseShipping);
+      const actualInput = row.querySelector('.hk-iso-ship-actual-input');
+      if (actualInput) window.recalcHkIsoShippingRow(actualInput);
+    });
+  });
   if (typeof window._hkRefreshChannelListing === 'function') window._hkRefreshChannelListing(); // 몰별 표의 배송비·다른 몰 목표가도 바로 다시 그림
   document.querySelectorAll(`#hkIsoShippingSection tr[data-shipping-block-id="${blockId}"]`).forEach(row => {
     if (row.dataset.hasBase !== '1') return;
@@ -1948,9 +1966,9 @@ const HK_COUPANG_PRODUCTS = [
   ['8115891747', '5000', [['Iso_600_900_10_3', '91273057157', 14900], ['Iso_600_900_20_1', '91273057163', 12000], ['Iso_600_900_30_1', '91273057151', 13900], ['Iso_600_900_40_1', '91273057134', 16500],
                           ['Iso_600_900_50_1', '91273057139', 18600], ['Iso_600_900_70_1', '91273057129', 23900], ['Iso_600_900_100_1', '91273057143', 31300]]],
   // 10T 10장 묶음은 엑셀 메모 기준 네이버 장당 4,200원×10장=42,000원이고,
-  // 5장당 배송비 6,000원을 두 번 부과해 배송비가 12,000원이다. 1단계 공용 묶음 행의 48,000원과
+  // 5장당 배송비를 두 번 부과해 배송비가 2박스분이다(6,000원 × 2 = 12,000원 → 2026-10-21 배송비 5,500원으로 11,000원). 1단계 공용 묶음 행의 48,000원과
   // 뜻이 다르므로 이 쿠팡 옵션만 한국단열 판매가·배송비를 함께 명시한다.
-  ['5202287414', '5000', [['IsoA_600_900_10_10', '94167230936', 62700, null, { hkdPrice: 42000, hkdShipping: 12000 }], ['IsoA_600_900_20_5', '94167383082', 48200], ['IsoA_600_900_30_3', '91272792504', 39000],
+  ['5202287414', '5000', [['IsoA_600_900_10_10', '94167230936', 62700, null, { hkdPrice: 42000, hkdShipping: 11000 }], ['IsoA_600_900_20_5', '94167383082', 48200], ['IsoA_600_900_30_3', '91272792504', 39000],
                           ['IsoA_600_900_40_2', '91272792494', 34200], ['IsoA_600_900_50_2', '91272792491', 40600]], { namePrefix: '쿠팡전용_' }],
   ['4868769393', '10000', [['Iso_600_860_250_1', '91273210993', 81200], ['Iso_600_860_500_1', '91273210984', 156600], ['Iso_600_430_250_1', '91273234966', 46400], ['Iso_600_430_500_1', '91273234957', 87000]]],
   ['5830333163', '20000', [['Iso_900_1800_10_10', '91463660435', 63800], ['Iso_900_1800_20_5', '91463708028', 63800], ['IsoA_900_1800_10_10', '91463921374', 120700]]],
@@ -2603,6 +2621,17 @@ window.hkCopyChannelKindCodes = async function(button, channelId, categoryId, ki
   if (typeof showToast === 'function') showToast(ok ? `${label} 상품코드 ${ids.length}개가 복사되었습니다.` : '클립보드 복사에 실패했습니다.', ok ? 'success' : 'error');
   _hkCopyFeedback(button, ok);
 };
+/* ESM 표 그룹 칸의 [상품코드 복사] — 그 그룹(같은 카테고리·같은 그룹명) 상품들의 G마켓 상품번호를 한 줄에 하나씩 복사한다. 등록 전(planned) 상품은 번호가 없어 뺀다. */
+window.hkCopyEsmGroupCodes = async function(button, channelId, categoryId) {
+  const group = button.dataset.group;
+  const ids = [...new Set((HK_CHANNEL_LISTINGS[channelId] || [])
+    .filter(product => product.categoryId === categoryId && (product.groupName || '—') === group && product.planned !== 'new' && product.productId)
+    .map(product => String(product.productId)))];
+  if (!ids.length) return;
+  const ok = await _hkCopyText(ids.join('\n'));
+  if (typeof showToast === 'function') showToast(ok ? `${group} 상품코드 ${ids.length}개가 복사되었습니다.` : '클립보드 복사에 실패했습니다.', ok ? 'success' : 'error');
+  _hkCopyFeedback(button, ok);
+};
 /* 상품ID 칸의 [상품코드 복사] — 그 상품의 상품코드(상품번호) 하나만 복사한다. */
 window.hkCopyProductCode = async function(button, productId) {
   const ok = await _hkCopyText(String(productId));
@@ -3218,7 +3247,9 @@ function _hkEsmCategoryTableHtml(channelId, categoryId, products) {
     if (startsGroup) {
       let span = 1;
       while (rows[r + span] && rows[r + span].product.groupName === product.groupName) span += 1;
-      groupCell = `<td class="hk-iso-listing-id" rowspan="${span}">${product.groupName || '—'}</td>`;
+      // 그룹 칸 아래 [상품코드 복사] — 그 그룹 상품들의 G마켓 상품번호를 줄바꿈으로 복사한다(ESM+ 상품관리에서 한꺼번에 검색할 때 붙여넣기).
+      const copyButton = `<div class="pgl-btns pgl-btns-fit"><button type="button" class="pgl-btn pgl-btn-wide" data-group="${_hkEscapeAttr(product.groupName || '—')}" onclick="hkCopyEsmGroupCodes(this,'${channelId}','${categoryId}')" title="이 그룹 상품들의 G마켓 상품번호를 줄바꿈으로 복사합니다 — ESM+ 상품관리에서 한꺼번에 검색할 때 붙여넣으세요">상품코드 복사</button></div>`;
+      groupCell = `<td class="hk-iso-listing-id" rowspan="${span}">${product.groupName || '—'}${copyButton}</td>`;
     }
     const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]
       .map(([value, label]) => `<option value="${value}"${(item.status || '') === value ? ' selected' : ''}>${label}</option>`).join('');
