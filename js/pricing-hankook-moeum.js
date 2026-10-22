@@ -62,6 +62,9 @@
     const listPrice = maxOffset * 2;
     return { rows: [['판매가', listPrice], ['즉시할인가', listPrice - basePrice], ['실제판매가', basePrice], []], listPrice, minPrice: basePrice };
   }
+  // 단열벽지는 사이즈·종류가 섞여 옵션가 차이가 커서(옵션추가금이 한없이 커진다) 맨 위 요약 3줄(판매가·즉시할인가·실제판매가)을 넣지 않고 옵션 내용만 낸다(2026-10-22, 사용자 지시 — 예외 카테고리).
+  const NO_SUMMARY_CATEGORIES = ['hk_wallpaper'];
+  const summaryRowsFor = (product, summary) => NO_SUMMARY_CATEGORIES.includes(product.categoryId) ? [] : summary.rows;
   // 재고는 기본 99999. 스토어 재고가 99만대인 상품은 상품에 moeumStock을 적어 그 값으로 낸다(난방필름 4705673971 = 999999 — 99999로 내면 재고가 줄어든다).
   const stockAndUse = (item, product) => { const status = item.status || ''; return [status ? 0 : (Number(product && product.moeumStock) || 99999), status === 'stopped' ? 'N' : 'Y']; };
   const stamp = () => { const now = new Date(); return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`; };
@@ -111,7 +114,7 @@
     const absent = product.items.filter((_, i) => !usedItems.has(i)).map(item => item.productCode);
     const summary = summaryRows(calc.prices, calc.basePrice);
     return {
-      rows: [...summary.rows, [...titles, '옵션가', '재고수량', '관리코드', '사용여부'], ...body],
+      rows: [...summaryRowsFor(product, summary), [...titles, '옵션가', '재고수량', '관리코드', '사용여부'], ...body],
       warnings: absent.length ? [`단가표에는 있지만 스토어에서 읽히지 않은 옵션 ${absent.length}개(${absent.slice(0, 5).join(', ')}${absent.length > 5 ? ' …' : ''}) — 파일에는 넣지 않았습니다.`] : [],
       notes: [
         ...(stoppedAdded.length ? [`판매중지 옵션 ${stoppedAdded.length}개(${stoppedAdded.slice(0, 5).join(', ')}${stoppedAdded.length > 5 ? ' …' : ''})는 스토어 페이지에 안 보여서 단가표 이름으로 파일 끝에 넣었습니다(재고 0·사용여부 N).`] : []),
@@ -127,7 +130,7 @@
     const summary = summaryRows(calc.prices, calc.basePrice);
     const body = product.items.map((item, i) => { const [stock, use] = stockAndUse(item, product); return [String(item.storeName).trim(), calc.prices[i] - calc.basePrice, stock, item.productCode, use]; });
     return {
-      rows: [...summary.rows, [product.moeumOptionTitle || DEFAULT_TITLE, '옵션가', '재고수량', '관리코드', '사용여부'], ...body],
+      rows: [...summaryRowsFor(product, summary), [product.moeumOptionTitle || DEFAULT_TITLE, '옵션가', '재고수량', '관리코드', '사용여부'], ...body],
       warnings: ['스토어에서 옵션명을 읽지 못해 단가표에 적어 둔 이름으로 만들었습니다 — 업로드 전에 스토어 옵션명과 같은지 확인하세요.'],
       source: 'static', axes: 1, titles: [product.moeumOptionTitle || DEFAULT_TITLE], listPrice: summary.listPrice, minPrice: summary.minPrice,
     };
