@@ -51,25 +51,25 @@ function _hkWallpaperRollCost(masterKey, length) {
 
 const HK_WALLPAPER_PRODUCTS = [
   { name:'단열벽지(고급형1)', spec:'5T X 1M', code:'WP_P1_5_1', masterKey:'P1', length:1, oldPrice:2800, increase25:3600, price:3400, refMargin:35 },
-  { name:'단열벽지(고급형1)', spec:'5T X 2.3M(판)', code:'WP_P1_5_23', masterKey:'P1', length:2.3, oldPrice:10900, increase25:14000, price:13500, refMargin:55 },
-  { name:'단열벽지(고급형1)', spec:'5T X 10M', code:'WP_P1_5_10', masterKey:'P1', length:10, oldPrice:38000, increase25:48700, price:45000, refMargin:50 },
-  { name:'단열벽지(고급형1)', spec:'5T X 20M(롤)', code:'WP_P1_5_20', masterKey:'P1', length:20, oldPrice:58500, increase25:74900, price:69000, refMargin:40 },
+  { name:'단열벽지(고급형1)', spec:'5T X 2.3M(판)', code:'WP_P1_5_23', masterKey:'P1', length:2.3, oldPrice:10900, increase25:14000, price:13900, refMargin:60 },
+  { name:'단열벽지(고급형1)', spec:'5T X 10M', code:'WP_P1_5_10', masterKey:'P1', length:10, oldPrice:38000, increase25:48700, price:37900, refMargin:40 },
+  { name:'단열벽지(고급형1)', spec:'5T X 20M(롤)', code:'WP_P1_5_20', masterKey:'P1', length:20, oldPrice:58500, increase25:74900, price:66900, refMargin:35 },
   { name:'단열벽지(고급형1)', spec:'5T X 2.3M X 10장(판상형)', code:'WP_P1_5_23_10', masterKey:'P1', length:23, oldPrice:75000, increase25:96000, price:91000, refMargin:45 },
-  { name:'단열벽지(고급형2)', spec:'5T X 1M', code:'WP_P2_5_1', masterKey:'P2', length:1, oldPrice:4800, increase25:6200, price:6000, refMargin:60 },
-  { name:'단열벽지(고급형2)', spec:'5T X 2.3M(판)', code:'WP_P2_5_23', masterKey:'P2', length:2.3, oldPrice:13000, increase25:16700, price:16500, refMargin:60 },
-  { name:'단열벽지(고급형2)', spec:'5T X 10M', code:'WP_P2_5_10', masterKey:'P2', length:10, oldPrice:40000, increase25:51200, price:49000, refMargin:50 },
-  { name:'단열벽지(고급형2)', spec:'5T X 20M(롤)', code:'WP_P2_5_20', masterKey:'P2', length:20, oldPrice:70000, increase25:89600, price:84000, refMargin:45 },
-  { name:'단열벽지(고급형2)', spec:'5T X 2.3M X 10장(판상형)', code:'WP_P2_5_23_10', masterKey:'P2', length:23, oldPrice:80000, increase25:102400, price:99000, refMargin:45 },
+  { name:'단열벽지(고급형2)', spec:'5T X 1M', code:'WP_P2_5_1', masterKey:'P2', length:1, oldPrice:4800, increase25:6200, price:5300, refMargin:55 },
+  { name:'단열벽지(고급형2)', spec:'5T X 2.3M(판)', code:'WP_P2_5_23', masterKey:'P2', length:2.3, oldPrice:13000, increase25:16700, price:15900, refMargin:60 },
+  { name:'단열벽지(고급형2)', spec:'5T X 10M', code:'WP_P2_5_10', masterKey:'P2', length:10, oldPrice:40000, increase25:51200, price:40900, refMargin:45 },
+  { name:'단열벽지(고급형2)', spec:'5T X 20M(롤)', code:'WP_P2_5_20', masterKey:'P2', length:20, oldPrice:70000, increase25:89600, price:70900, refMargin:40 },
+  { name:'단열벽지(고급형2)', spec:'5T X 2.3M X 10장(판상형)', code:'WP_P2_5_23_10', masterKey:'P2', length:23, oldPrice:80000, increase25:102400, price:96000, refMargin:45 },
   { name:'단열벽지(이중화이트)', spec:'5T X 1M', code:'WP_DW_5_1', masterKey:'DW', length:1, oldPrice:5200, increase25:6700, price:6300, refMargin:55 },
-  { name:'단열벽지(이중화이트)', spec:'5T X 2.3M(판)', code:'WP_DW_5_23', masterKey:'DW', length:2.3, oldPrice:15000, increase25:19200, price:19000, refMargin:65 },
-  { name:'단열벽지(이중화이트)', spec:'5T X 10M', code:'WP_DW_5_10', masterKey:'DW', length:10, oldPrice:45000, increase25:57600, price:54000, refMargin:50 },
-  { name:'단열벽지(이중화이트)', spec:'5T X 20M(롤)', code:'WP_DW_5_20', masterKey:'DW', length:20, oldPrice:75000, increase25:96000, price:90000, refMargin:45 },
+  { name:'단열벽지(이중화이트)', spec:'5T X 2.3M(판)', code:'WP_DW_5_23', masterKey:'DW', length:2.3, oldPrice:15000, increase25:19200, price:18900, refMargin:60 },
+  { name:'단열벽지(이중화이트)', spec:'5T X 10M', code:'WP_DW_5_10', masterKey:'DW', length:10, oldPrice:45000, increase25:57600, price:49900, refMargin:50 },
+  { name:'단열벽지(이중화이트)', spec:'5T X 20M(롤)', code:'WP_DW_5_20', masterKey:'DW', length:20, oldPrice:75000, increase25:96000, price:84900, refMargin:40 },
   { name:'단열벽지(이중화이트)', spec:'5T X 2.3M X 10장(판상형)', code:'WP_DW_5_23_10', masterKey:'DW', length:23, oldPrice:87000, increase25:111400, price:107000, refMargin:45 },
-  { name:'단열벽지(실크형)', spec:'5T X 1M', code:'WP_SK_5_1', masterKey:'SK', length:1, oldPrice:5200, increase25:6700, price:6300, refMargin:55 },
-  { name:'단열벽지(실크형)', spec:'5T X 2.3M(판)', code:'WP_SK_5_23', masterKey:'SK', length:2.3, oldPrice:15000, increase25:19200, price:19000, refMargin:65 },
-  { name:'단열벽지(실크형)', spec:'5T X 10M', code:'WP_SK_5_10', masterKey:'SK', length:10, oldPrice:45000, increase25:57600, price:54000, refMargin:55 },
-  { name:'단열벽지(실크형)', spec:'5T X 20M(롤)', code:'WP_SK_5_20', masterKey:'SK', length:20, oldPrice:75000, increase25:96000, price:90000, refMargin:45 },
-  { name:'단열벽지(실크형)', spec:'5T X 2.3M X 10장(판상형)', code:'WP_SK_5_23_10', masterKey:'SK', length:23, oldPrice:87000, increase25:111400, price:107000, refMargin:50 },
+  { name:'단열벽지(실크형)', spec:'5T X 1M', code:'WP_SK_5_1', masterKey:'SK', length:1, oldPrice:5200, increase25:6700, price:5800, refMargin:55 },
+  { name:'단열벽지(실크형)', spec:'5T X 2.3M(판)', code:'WP_SK_5_23', masterKey:'SK', length:2.3, oldPrice:15000, increase25:19200, price:17900, refMargin:60 },
+  { name:'단열벽지(실크형)', spec:'5T X 10M', code:'WP_SK_5_10', masterKey:'SK', length:10, oldPrice:45000, increase25:57600, price:44900, refMargin:45 },
+  { name:'단열벽지(실크형)', spec:'5T X 20M(롤)', code:'WP_SK_5_20', masterKey:'SK', length:20, oldPrice:75000, increase25:96000, price:75900, refMargin:40 },
+  { name:'단열벽지(실크형)', spec:'5T X 2.3M X 10장(판상형)', code:'WP_SK_5_23_10', masterKey:'SK', length:23, oldPrice:87000, increase25:111400, price:102000, refMargin:45 },
   // 9T 슈퍼형은 더 이상 안 판다(사용자 확인, 2026-09-23) — 빼둠.
 ].map(row => ({ group: HK_WALLPAPER_MASTER[row.masterKey].label, cost: 0, ...row }));
 
@@ -1026,3 +1026,32 @@ const HK_WALLPAPER_11ST_COLORS = {
     if (product.categoryId === 'hk_wallpaper' && HINTS[product.productId]) product.tabHint = HINTS[product.productId];
   });
 })();
+
+/* 단열벽지 2.3M·10M·20M 판매가 재설계(2026-10-21~22, 사용자 확정) — 은동이샵 실구매가(배송비 포함)를 실크로 보고 고급형1·2는 그보다 낮게,
+   실크는 조금 높게, 이중화이트는 현재가에서 크게 바꾸지 않고 시중가에 맞췄다. 1M은 2026-10-22 고급형1 3,400(유지, 낭만홈즈 실크 3,900보다 싼 최저가) · 고급형2 5,300 · 실크 5,800 · 이중화이트 6,300(유지)으로 정했고, 판상형(2.3M×10장)은 2026-10-22 고급형1 91,000(유지) · 고급형2 96,000 · 실크 102,000 · 이중화이트 107,000(유지)으로 정했다(실크=이중화이트 동일가 해소, 단품×10 대비 35~43% 할인).
+   DB에 저장된 값이 있으면 코드 기본값을 덮어쓰므로 **저장값이 예전 기본값 그대로일 때만** 새 값으로 바꾼다(그 뒤 사용자가 고친 값은 안 건드림).
+   단가표를 불러올 때 hkApplyOneTimeMigrations가 한 번 부르고, [저장]하면 새 값이 DB에 남는다. */
+const HK_WALLPAPER_PRICE_MIGRATION = [ // [상품코드, 예전 판매가, 새 판매가]
+  ['WP_P2_5_23_10', 99000, 96000],
+  ['WP_SK_5_23_10', 107000, 102000],
+  ['WP_P2_5_1', 6000, 5300],
+  ['WP_SK_5_1', 6300, 5800],
+  ['WP_P1_5_23', 13500, 13900],
+  ['WP_P2_5_23', 16500, 15900],
+  ['WP_SK_5_23', 19000, 17900],
+  ['WP_DW_5_23', 19000, 18900],
+  ['WP_P1_5_10', 45000, 37900],
+  ['WP_P2_5_10', 49000, 40900],
+  ['WP_SK_5_10', 54000, 44900],
+  ['WP_DW_5_10', 54000, 49900],
+  ['WP_P1_5_20', 69000, 66900],
+  ['WP_P2_5_20', 84000, 70900],
+  ['WP_SK_5_20', 90000, 75900],
+  ['WP_DW_5_20', 90000, 84900]
+];
+window.hkWallpaperApplyPriceMigration = function() {
+  HK_WALLPAPER_PRICE_MIGRATION.forEach(([code, from, to]) => {
+    const row = HK_WALLPAPER_PRODUCTS.find(item => item.code === code);
+    if (row && Number(row.price) === from) row.price = to;
+  });
+};
