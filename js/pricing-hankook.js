@@ -1270,8 +1270,17 @@ function _hkIsoSyncSharedShippingToListings() {
     // 홈페이지(자사몰)도 같은 5장당 배송비를 쓴다(사용자 확인 2026-10-21 "홈페이지 아이소핑크도 5500"). 홈페이지 상품은 번호가 따로(187·113 …)라 코드로 찾는다 —
     // 430×430·600×900 일반과 600×900 접착식 상품(5개마다 배송)만. 고티(600×860·600×430 250T·500T)는 이 블록 규칙이 아니라 그대로 둔다.
     (HK_CHANNEL_LISTINGS.homepage || []).forEach(product => {
-      if (product.categoryId !== 'hk_isopink' || !product.items.length) return;
-      if (/5개마다/.test(String(product.shippingBasis || '')) && product.items.every(item => /^(Iso_(430_430|600_900)|IsoA_600_900)_/.test(String(item.productCode || '')))) product.baseShipping = baseShipping;
+      // 스티로폼·네오폴 430×430·600×900(5개마다)도 같다(2026-10-22 사용자 결정 — 스티로폼 600×900 5,500; 한국단열 상품에 430×430 옵션이 같이 들어 있어 같이 맞춘다). 블록 → 그 블록 코드의 홈페이지 상품.
+      const isBead = String(block.id).startsWith('bead');
+      const category = isBead ? 'hk_bead' : 'hk_isopink';
+      const codePattern = isBead ? (String(block.id).startsWith('bead2_') ? /^Neo_(430_430|600_900)_/ : /^(St|StA)_(430_430|600_900)_/) : /^(Iso_(430_430|600_900)|IsoA_600_900)_/;
+      if (product.categoryId !== category || !product.items.length) return;
+      // 스티로폼·네오폴 100T '2개마다' 상품(121·129)은 5,500원 / 1개마다 — 2026-10-22 사용자(한국단열 446014684의 100T와 같게). 아이소핑크는 5개마다만.
+      const basisPattern = isBead ? /(5|2)개마다/ : /5개마다/;
+      if (basisPattern.test(String(product.shippingBasis || '')) && product.items.every(item => codePattern.test(String(item.productCode || '')))) {
+        product.baseShipping = baseShipping;
+        if (isBead && /2개마다/.test(String(product.shippingBasis))) product.shippingBasis = '1개마다';
+      }
     });
   });
   _hkIsoSyncHomepageGothicShipping();
@@ -2107,6 +2116,15 @@ window.hkApplyOneTimeMigrations = function() {
       if (change.plus[1].some(list => Number(row.plusAmount) === list[i])) row.plusAmount = change.plus[0][i];
     });
   });
+  // 스티로폼 600x900 5장당 배송비: DB에 저장된 예전 값(6,000)이면 5,500으로(2026-10-22) — 저장값이 코드 기본값을 덮어써서. 상품 배송비·홈페이지도 다시 맞춘다.
+  ['bead1_600x900_1', 'bead1_600x900_bundle_1', 'beadA_600x900_1'].forEach(id => {
+    const block = HK_ISO_SHIPPING_BLOCKS.find(item => item.id === id);
+    if (block && Number(block.baseShipping5) === 6000) block.baseShipping5 = 5500;
+  });
+  if (typeof window._hkIsoSyncSharedShippingToListings === 'function') window._hkIsoSyncSharedShippingToListings();
+  // 스티로폼 메인 437331834 반품·교환배송비: 저장된 예전 값(10,500/25,000)이면 8,500/17,000으로(2026-10-22 사용자가 스토어에서 먼저 바꿈)
+  const beadMain = (HK_CHANNEL_LISTINGS.hkd || []).find(item => String(item.productId) === '437331834');
+  if (beadMain && String(beadMain.returnExchange) === '10500/25000') beadMain.returnExchange = '8500/17000';
   if (typeof window.hkReflectiveApplyRollMigration === 'function') window.hkReflectiveApplyRollMigration(); // 열반사 롤 판매가·배송비(2026-10-21)
   if (typeof window.hkWallpaperApplyPriceMigration === 'function') window.hkWallpaperApplyPriceMigration(); // 단열벽지 2.3M·10M·20M 판매가(2026-10-22)
 };
@@ -2943,6 +2961,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${displayProductCount}${groupCountLabel} · 옵션 ${optionCount}</span></div>
       <span class="pricing-result-hint">상품코드 기준 현재 판매가와 수정 전 판매가 비교 · <span class="hk-base-legend">파란 칸</span> = 기준가 옵션(옵션 옆 동그라미를 눌러 변경)</span>
     </div>
+    ${_hkChannelNoteHtml(channelId, categoryId)}
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-iso-draft-table hk-iso-listing-table">
         <colgroup>
@@ -2982,6 +3001,19 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
      등록 판매가: 쿠팡에 실제로 입력하는 가격 — 초록 강조는 이 칸 하나만. 일반은 쿠폰 적용 전 판매가,
                   위너는 수동 판매가(있으면) 아니면 판매가(×1.05)
      수정 전 판매가·차액은 등록 판매가 기준, 메모는 옵션마다 자유롭게 남긴다(위너 관련 메모 등). */
+/* 몰별 표 머리 아래 메모 줄 — 값이 몰마다 일부러 다른 곳을 나중에 헷갈리지 않게 적어 둔다(2026-10-22 사용자 요청). 채널|카테고리 → 글. */
+const HK_CHANNEL_NOTES = {
+  'coupang|hk_bead': '스티로폼·네오폴의 "한국단열 배송비" 칸(6,500원, 일부 6,000원)은 **일부러 예전 값 그대로 둔 것**입니다. 한국단열 스마트스토어는 스티로폼·네오폴 모두 2026-10-22에 5,500원으로 내렸지만 이 몰은 옵션마다 배송비를 직접 적어 둔 값(6,500/6,000)으로 가격을 계산하고, 사용자가 따로 수정하지 않기로 했습니다. 한국단열과 달라도 오류가 아닙니다. 바꾸려면 옵션별 hkdShipping을 고치세요.',
+  'esm|hk_bead': '스티로폼·네오폴의 "한국단열 배송비" 칸(6,500원)은 **일부러 예전 값 그대로 둔 것**입니다. 한국단열 스마트스토어는 스티로폼·네오폴 모두 2026-10-22에 5,500원으로 내렸지만 이 몰은 옵션마다 6,500원을 직접 적어 둔 값으로 가격을 계산하고, 사용자가 따로 수정하지 않기로 했습니다. 한국단열과 달라도 오류가 아닙니다.',
+  '11st|hk_bead': '스티로폼·네오폴의 "한국단열 배송비" 칸(6,500원)은 **일부러 예전 값 그대로 둔 것**입니다. 한국단열 스마트스토어는 스티로폼·네오폴 모두 2026-10-22에 5,500원으로 내렸지만 이 몰은 옵션마다 6,500원을 직접 적어 둔 값으로 가격을 계산하고, 사용자가 따로 수정하지 않기로 했습니다. 한국단열과 달라도 오류가 아닙니다.',
+};
+function _hkChannelNoteHtml(channelId, categoryId) {
+  const note = HK_CHANNEL_NOTES[`${channelId}|${categoryId}`];
+  if (!note) return '';
+  const html = String(note).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  return `<div class="hk-channel-note" style="margin:10px 16px 0;padding:10px 14px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;color:#92400e;font-size:12.5px;line-height:1.55;">※ 메모 · ${html}</div>`;
+}
+
 /* 쿠팡 표의 Product ID 칸 버튼 — 위에서부터 [상품코드 복사](네이버 표와 같은 공용 버튼, 누구에게나 보임), 이 상품의 옵션을 쿠팡 일괄변경 양식으로 내려받는 [쿠팡 양식](js/pricing-hankook-coupang-excel.js, 관리자에게만). */
 function _hkCoupangExcelButtonHtml(channelId, product) {
   return window.currentUser?.role !== 'admin' || typeof window.hkCoupangExcelDownload !== 'function' ? ''
@@ -3123,6 +3155,7 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
         ? '초록 칸 = <b>등록 판매가</b>(쿠팡에 입력하는 가격) = 쿠팡가 탭의 반영 개당단가(옵션명의 재질·두께 기준)'
         : `초록 칸 = <b>등록 판매가</b>(쿠팡에 입력하는 가격) · 일반: 쿠폰 적용 전 판매가(총판매가×${config.preCouponPercent / 100}, ${config.roundUp.toLocaleString()}원 올림)에 쿠폰(${config.couponOffShipping}%/${config.couponOffFree}%) · 위너: 쿠폰 없음, 수동 판매가가 있으면 그 값, 없으면 총판매가×${config.listPercent / 100}(${config.winnerRoundUnit.toLocaleString()}원 올림) · 쿠폰 없음(기타단열재): 총판매가×${config.listPercent / 100}(10원 올림)`}</span>
     </div>
+    ${_hkChannelNoteHtml(channelId, categoryId)}
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-iso-draft-table hk-iso-listing-table hk-esm-table hk-coupang-table">
         <colgroup>
@@ -3320,6 +3353,7 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
       <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${products.length} · 옵션 ${optionCount}</span></div>
       <span class="pricing-result-hint">${channelLabel} 최종 판매가 = (한국단열 판매가 + 배송비) × ${multiplier}, ${config.roundUp.toLocaleString()}원 단위 올림 · <span class="hk-base-legend">파란 칸</span> = 기준가 옵션(옵션 옆 동그라미를 눌러 변경)</span>
     </div>
+    ${_hkChannelNoteHtml(channelId, categoryId)}
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-iso-draft-table hk-iso-listing-table hk-esm-table">
         <colgroup>
@@ -3407,6 +3441,7 @@ function _hkEsmCategoryTableHtml(channelId, categoryId, products) {
       <div class="pricing-result-title">${categoryLabel}<span class="pricing-spec-badge">상품 ${products.length} · 옵션 ${rows.length}</span>${planBadges}</div>
       <span class="pricing-result-hint">ESM 최종 판매가 = (한국단열 판매가 + 배송비) × ${multiplier}, ${config.roundUp.toLocaleString()}원 단위 올림</span>
     </div>
+    ${_hkChannelNoteHtml(channelId, categoryId)}
     <div class="pricing-table-scroll">
       <table class="pricing-table hk-iso-draft-table hk-iso-listing-table hk-esm-table">
         <colgroup>

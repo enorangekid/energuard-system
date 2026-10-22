@@ -897,7 +897,9 @@ const HK_WALLPAPER_11ST_COLORS = {
   // 모음전 엑셀에도 같은 모양으로 끝에 넣는다(optionNames = ['단열벽지', 옵션명]). 이 상품은 옵션 항목 제목이 '사이즈' · '두께'다.
   const WALLPAPER_SUFFIXES = ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'];
   addColors('439904706', 'hk_isopink', WALLPAPER_SUFFIXES, Object.fromEntries(WALLPAPER_SUFFIXES.map(suffix => [suffix, 'stopped'])), { optionTitles: ['사이즈', '두께'], optionNamePrefix: '단열벽지' });
-  addColors('437331834', 'hk_bead', ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'], { WHGR: 'stopped', MDWH: 'stopped' });
+  // 스티로폼 메인 437331834도 2026-10-22 단열벽지 11색을 전부 판매중지로 숨긴다(사용자 — 의미가 없어서, 아이소핑크 439904706 때와 같게). 스토어에서도 옵션을 중지(사용여부 N)한다.
+  // 옵션 구조도 아이소핑크처럼 사이즈(1단) → 두께(2단)로 바꾼다(2026-10-22 사용자). 모음전 엑셀 옵션 항목 제목은 '사이즈'·'두께', 판매중지 단열벽지는 '단열벽지' 사이즈 아래 끝에 넣는다.
+  addColors('437331834', 'hk_bead', WALLPAPER_SUFFIXES, Object.fromEntries(WALLPAPER_SUFFIXES.map(suffix => [suffix, 'stopped'])), { optionTitles: ['사이즈', '두께'], optionNamePrefix: '단열벽지' });
   // 열반사단열재 상품 505443624(hk_reflective)도 같은 11색(2026-10-02 사용자가 준 스토어 옵션 목록 — 화이트 그레이 품절, 모던라인 화이트 판매중지).
   addColors('505443624', 'hk_reflective', ['WHTE', 'WHGR', 'LXWH', 'GTWH', 'CTWH', 'HBWH', 'BSWH', 'SFWH', 'WHOX', 'WHCL', 'MDWH'], { WHGR: 'stopped', MDWH: 'stopped' });
 })();
