@@ -2983,10 +2983,12 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
                   위너는 수동 판매가(있으면) 아니면 판매가(×1.05)
      수정 전 판매가·차액은 등록 판매가 기준, 메모는 옵션마다 자유롭게 남긴다(위너 관련 메모 등). */
 /* 쿠팡 표의 Product ID 칸 버튼 — 위에서부터 [상품코드 복사](네이버 표와 같은 공용 버튼, 누구에게나 보임), 이 상품의 옵션을 쿠팡 일괄변경 양식으로 내려받는 [쿠팡 양식](js/pricing-hankook-coupang-excel.js, 관리자에게만). */
-function _hkCoupangExcelProductButtonHtml(channelId, product) {
-  const excel = window.currentUser?.role !== 'admin' || typeof window.hkCoupangExcelDownload !== 'function' ? ''
+function _hkCoupangExcelButtonHtml(channelId, product) {
+  return window.currentUser?.role !== 'admin' || typeof window.hkCoupangExcelDownload !== 'function' ? ''
     : `<button type="button" class="pgl-btn pgl-btn-wide" onclick="hkCoupangExcelDownload('${channelId}',{productId:'${product.productId}'})" title="이 상품의 옵션을 쿠팡 일괄변경 양식으로 내려받습니다(단가표 값이 쿠팡 목록과 다른 옵션만 변경 칸이 채워집니다)">쿠팡 양식</button>`;
-  return `<div class="pgl-btns pgl-btns-fit">${_hkCopyProductCodeButtonHtml(product)}${excel}</div>`;
+}
+function _hkCoupangExcelProductButtonHtml(channelId, product) {
+  return `<div class="pgl-btns pgl-btns-fit">${_hkCopyProductCodeButtonHtml(product)}${_hkCoupangExcelButtonHtml(channelId, product)}</div>`;
 }
 
 function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
@@ -3021,6 +3023,23 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
     product.items.forEach((item, i) => {
       optionCount += 1;
       const sectionKey = item.section ? `${channelId}|${item.sectionId || ''}|${item.section}` : '';
+      // 상품 하나가 구간 하나로만 이뤄진 상품(단열벽지 2.3m·10m·20m)은 구간 줄 위에 상품 줄을 둔다(한국단열 스마트스토어 단열벽지 표와 같은 구조, 2026-10-22):
+      // 상품번호 · 옵션 개수 · [상품코드 복사] · [쿠팡 양식]. 옵션 행이 접혀 있어도 보인다.
+      const soleSection = !!item.section && sectionStats[sectionKey].products.size === 1
+        && product.items.every(it => it.section === item.section && (it.sectionId || '') === (item.sectionId || ''));
+      if (i === 0 && soleSection) {
+        const productLink = _hkChannelProductLink(channelId, product);
+        rowsHtml += `<tr class="hk-group-summary-row hk-section-product-row">
+          <td colspan="${columnCount}">
+            <div class="hk-kind-head">
+              <span class="hk-group-toggle-icon"><i class="fa-solid fa-box"></i></span>
+              <strong>${productLink ? `<a href="${productLink}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId}</strong>
+              <span class="hk-group-count">옵션 ${product.items.length}개</span>
+              ${_hkCopyProductCodeButtonHtml(product)}${_hkCoupangExcelButtonHtml(channelId, product)}
+            </div>
+          </td>
+        </tr>`;
+      }
       if (sectionKey && sectionKey !== lastSectionKey) {
         const stat = sectionStats[sectionKey];
         const sectionExpanded = _hkExpandedChannelSections.has(sectionKey);
@@ -3189,6 +3208,18 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
     const price = _hkEsmPriceParts(categoryId, item.productCode, config, item)?.finalPrice;
     if (!item.status && price != null && item.prevPrice != null && price !== item.prevPrice) stat.changed += 1;
   }));
+  // 구간 위 묶음(item.sectionGroup — 단열벽지 종류) 요약
+  const groupStats = {};
+  products.forEach(product => product.items.forEach(item => {
+    if (!item.sectionGroup) return;
+    const key = `${channelId}|${product.productId}|${item.sectionGroup}`;
+    const stat = groupStats[key] || (groupStats[key] = { count: 0, soldout: 0, stopped: 0, changed: 0 });
+    stat.count += 1;
+    if (item.status === 'soldout') stat.soldout += 1;
+    if (item.status === 'stopped') stat.stopped += 1;
+    const price = _hkEsmPriceParts(categoryId, item.productCode, config, item)?.finalPrice;
+    if (!item.status && price != null && item.prevPrice != null && price !== item.prevPrice) stat.changed += 1;
+  }));
   products.forEach((product, groupIndex) => {
     const baseIndex = _hkChannelBaseIndex(product);
     const baseParts = _hkEsmPriceParts(categoryId, product.items[baseIndex]?.productCode, config, product.items[baseIndex]);
@@ -3197,12 +3228,39 @@ function _hkMarkupOptionsTableHtml(channelId, categoryId, products) {
     const basePrice = fixedBase ? Number(product.basePrice) : (baseParts ? baseParts.finalPrice : null);
     product.items.forEach((item, i) => {
       optionCount += 1;
+      // 구간으로 접히는 상품은 맨 위에 상품 줄(상품번호·[상품코드 복사]·[모음전 엑셀])을 둔다 — 옵션 행이 접혀 있으면 상품번호 칸의 버튼이 안 보여서(한국단열 단열벽지 표와 같은 구조, 2026-10-22).
+      if (i === 0 && item.section) {
+        const productLink = _hkChannelProductLink(channelId, product);
+        rowsHtml += `<tr class="hk-group-summary-row hk-section-product-row">
+          <td colspan="13">
+            <div class="hk-kind-head">
+              <span class="hk-group-toggle-icon"><i class="fa-solid fa-box"></i></span>
+              <strong>${productLink ? `<a href="${productLink}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId}</strong>
+              <span class="hk-group-count">옵션 ${product.items.length}개</span>
+              ${_hkCopyProductCodeButtonHtml(product)}${_hkMoeumExcelButtonHtml(channelId, product)}
+            </div>
+          </td>
+        </tr>`;
+      }
+      if (item.sectionGroup && (i === 0 || product.items[i - 1].sectionGroup !== item.sectionGroup)) {
+        const stat = groupStats[`${channelId}|${product.productId}|${item.sectionGroup}`];
+        rowsHtml += `<tr class="hk-group-summary-row hk-section-group-row is-expanded">
+          <td colspan="13">
+            <div class="hk-group-toggle">
+              <span class="hk-group-toggle-icon"><i class="fa-solid fa-folder"></i></span>
+              <strong>${item.sectionGroup}</strong>
+              <span class="hk-group-count">옵션 ${stat.count}개${stat.soldout ? ` · 품절 ${stat.soldout}개` : ''}${stat.stopped ? ` · 판매중지 ${stat.stopped}개` : ''}</span>
+              ${stat.changed ? `<span class="hk-section-changed">가격 변경 ${stat.changed}개</span>` : ''}
+            </div>
+          </td>
+        </tr>`;
+      }
       const sectionKey = item.section ? `${channelId}|${product.productId}|${item.section}` : '';
       if (sectionKey && (i === 0 || product.items[i - 1].section !== item.section)) {
         const stat = sectionStats[sectionKey];
         const sectionExpanded = _hkExpandedChannelSections.has(sectionKey);
         const link = _hkChannelProductLink(channelId, product);
-        rowsHtml += `<tr class="hk-group-summary-row hk-section-summary-row${sectionExpanded ? ' is-expanded' : ''}" data-section-key="${sectionKey}">
+        rowsHtml += `<tr class="hk-group-summary-row hk-section-summary-row${item.sectionGroup ? ' hk-section-in-group' : ''}${sectionExpanded ? ' is-expanded' : ''}" data-section-key="${sectionKey}">
           <td colspan="13">
             <button type="button" class="hk-group-toggle" aria-expanded="${sectionExpanded}" onclick="hkToggleChannelSection(this)">
               <span class="hk-group-toggle-icon"><i class="fa-solid fa-table-cells"></i></span>
@@ -3313,7 +3371,7 @@ function _hkEsmCategoryTableHtml(channelId, categoryId, products) {
       let span = 1;
       while (rows[r + span] && rows[r + span].product.groupName === product.groupName) span += 1;
       // 그룹 칸 아래 [상품코드 복사] — 그 그룹 상품들의 G마켓 상품번호를 줄바꿈으로 복사한다(ESM+ 상품관리에서 한꺼번에 검색할 때 붙여넣기).
-      const copyButton = `<div class="pgl-btns pgl-btns-fit"><button type="button" class="pgl-btn pgl-btn-wide" data-group="${_hkEscapeAttr(product.groupName || '—')}" onclick="hkCopyEsmGroupCodes(this,'${channelId}','${categoryId}')" title="이 그룹 상품들의 G마켓 상품번호를 줄바꿈으로 복사합니다 — ESM+ 상품관리에서 한꺼번에 검색할 때 붙여넣으세요">상품코드 복사</button></div>`;
+      const copyButton = `<div class="pgl-btns pgl-btns-fit"><button type="button" class="pgl-btn pgl-btn-wide" data-group="${_hkEscapeAttr(product.groupName || '—')}" onclick="hkCopyEsmGroupCodes(this,'${channelId}','${categoryId}')" title="이 그룹 상품들의 G마켓 상품번호를 줄바꿈으로 복사합니다 — ESM+ 상품관리에서 한꺼번에 검색할 때 붙여넣으세요">상품코드 복사</button>${categoryId === 'hk_wallpaper' && window.currentUser?.role === 'admin' && typeof window.hkEsmOptionFileReady === 'function' && window.hkEsmOptionFileReady(product.productId) ? `<button type="button" class="pgl-btn pgl-btn-wide" onclick="hkEsmOptionFileDownload('${product.productId}')" title="단가표 새 가격으로 만든 ESM+ 옵션 일괄 입력 엑셀을 내려받습니다 — ESM+에 그대로 올리세요(올리면 옵션 전체를 덮어씁니다)">ESM 옵션 엑셀</button>` : ''}</div>`;
       groupCell = `<td class="hk-iso-listing-id" rowspan="${span}">${product.groupName || '—'}${copyButton}</td>`;
     }
     const statusOptions = [['', '판매중'], ['soldout', '품절'], ['stopped', '판매중지']]

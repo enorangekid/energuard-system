@@ -376,24 +376,25 @@ window.hkWallpaperPriceByCode = function(code) {
    데이터 그대로). 제주배송비는 배송비와 같은 값(열반사단열재 홈페이지 채널과 같은 규칙).
 ═══════════════════════════════════════ */
 (function addWallpaperHomepageProducts() {
-  const single = (productId, baseShipping, name, code) => ({
+  // 홈페이지 단열벽지는 무료배송이다(2026-10-22 사용자 확인) — 배송비 0원, 제주배송비만 20,000원.
+  const single = (productId, baseShipping, name, code, jejuShipping = baseShipping) => ({
     categoryId: 'hk_wallpaper',
     productId,
     baseShipping,
-    shippingBasis: '1개마다',
-    jejuShipping: baseShipping,
+    shippingBasis: baseShipping ? '1개마다' : '-',
+    jejuShipping,
     items: [{ productCode: code, productName: name, prevPrice: _hkChannelTargetPrice('hk_wallpaper', code, 'homepage', null, null) ?? 0, prevShipping: baseShipping }],
   });
 
   HK_CHANNEL_LISTINGS.homepage.push(
-    single('97', 20000, '단열벽지 고급형1 10m', 'WP_P1_5_10'),
-    single('95', 20000, '단열벽지 고급형1 20m', 'WP_P1_5_20'),
-    single('98', 20000, '단열벽지 고급형2 10m', 'WP_P2_5_10'),
-    single('251', 20000, '단열벽지 고급형2 20m', 'WP_P2_5_20'),
-    single('250', 20000, '단열벽지 이중화이트 10m', 'WP_DW_5_10'),
-    single('96', 20000, '단열벽지 이중화이트 20m', 'WP_DW_5_20'),
-    single('252', 20000, '단열벽지 실크형 10m', 'WP_SK_5_10'),
-    single('253', 20000, '단열벽지 실크형 20m', 'WP_SK_5_20'),
+    single('97', 0, '단열벽지 고급형1 10m', 'WP_P1_5_10', 20000),
+    single('95', 0, '단열벽지 고급형1 20m', 'WP_P1_5_20', 20000),
+    single('98', 0, '단열벽지 고급형2 10m', 'WP_P2_5_10', 20000),
+    single('251', 0, '단열벽지 고급형2 20m', 'WP_P2_5_20', 20000),
+    single('250', 0, '단열벽지 이중화이트 10m', 'WP_DW_5_10', 20000),
+    single('96', 0, '단열벽지 이중화이트 20m', 'WP_DW_5_20', 20000),
+    single('252', 0, '단열벽지 실크형 10m', 'WP_SK_5_10', 20000),
+    single('253', 0, '단열벽지 실크형 20m', 'WP_SK_5_20', 20000),
   );
 })();
 
@@ -564,11 +565,15 @@ const HK_WALLPAPER_11ST_COLORS = {
   Object.entries(HK_WALLPAPER_11ST_COLORS).forEach(([productId, def]) => {
     const items = [];
     def.groups.forEach(([typeLabel, type, length, rows]) => {
+      // 종류(고급형1 …) → 사이즈(10m …) 두 겹으로 접는다(한국단열 단열벽지 표와 같은 구조, 2026-10-22). section은 상품 안에서 겹치지 않게 '종류 · 사이즈'.
+      const sizeMatch = typeLabel.match(/^(.*?)(?:\s+1x(\d+)m|\(1m x 1m\))$/);
+      const groupLabel = sizeMatch ? sizeMatch[1] : typeLabel;
+      const sectionLabel = sizeMatch ? `${groupLabel} · ${sizeMatch[2] ? sizeMatch[2] + 'm' : '1m'}` : typeLabel;
       const code = `WP_${type}_5_${length}`;
       rows.forEach(([optionId, color, flag]) => {
         const item = {
           productCode: code, optionId, productName: `${typeLabel} ${color}`, storeName: `${typeLabel} / ${color}`,
-          hkdShipping: def.shipping, keyByOption: true, section: typeLabel,
+          hkdShipping: def.shipping, keyByOption: true, sectionGroup: groupLabel, section: sectionLabel,
         };
         item.prevPrice = _hkEsmPriceParts('hk_wallpaper', code, config, item)?.finalPrice ?? 0;
         // 판매상태 — status는 DB를 불러올 때 지워지므로 seedStatus에도 적어 둔다(코드 기본값).
@@ -1054,6 +1059,12 @@ const HK_WALLPAPER_PRICE_MIGRATION = [ // [상품코드, 예전 판매가, 새 �
   ['WP_DW_5_20', 90000, 84900]
 ];
 window.hkWallpaperApplyPriceMigration = function() {
+  // 홈페이지 단열벽지 8개 상품의 배송비: 예전 20,000원(1개마다) 그대로 저장돼 있으면 무료배송(0원)으로(2026-10-22). 제주배송비는 그대로.
+  (HK_CHANNEL_LISTINGS.homepage || []).forEach(product => {
+    if (product.categoryId === 'hk_wallpaper' && ['97', '95', '98', '251', '250', '96', '252', '253'].includes(String(product.productId)) && product.baseShipping === 20000) {
+      product.baseShipping = 0; product.shippingBasis = '-';
+    }
+  });
   HK_WALLPAPER_PRICE_MIGRATION.forEach(([code, from, to]) => {
     const row = HK_WALLPAPER_PRODUCTS.find(item => item.code === code);
     if (row && Number(row.price) === from) row.price = to;
