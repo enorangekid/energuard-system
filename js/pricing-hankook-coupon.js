@@ -109,25 +109,20 @@ const HK_COUPON_ROWS = [
    묶음(id)마다 따로 판단한다 — 이미 저장한 뒤에 새 묶음을 더해도 새 묶음만 들어온다. */
 const HK_COUPON_NEW_SEEDS = [
   {
-    id: '2026-10-23-reflective-store-coupons', label: '열반사',
+    // 같은 조건(조건 없는 금액형)이면 카테고리와 상관없이 금액별로 한 쿠폰에 묶는다 — 쿠폰은 300·500·1,000원 3개(2026-10-23 사용자 결정).
+    //  · 열반사: 스토어 판매가를 쿠폰 금액만큼 올려 둔다(js/pricing-hankook-store-price.js).
+    //  · 스티로폼 900×1800 원장(5759250443 일반·5763066244 고티): 판매가는 올리지 않고 쿠폰만 — 판매 부진 상품 테스트.
+    //  · 아이소핑크 접착식 900×1800 원장 단품 5개(10181453964~10181586522): 스토어 판매가 +500과 같이.
+    //  · 아이소핑크 900×1800 원장 모음전 5695312387: 판매가 그대로 쿠폰만(일반 옵션은 나라단열과 맞춘 가격, 판매 부진 상품 테스트).
+    id: '2026-10-23-new-alert-coupons', label: '열반사·스티로폼·아이소핑크',
     issue: '2026.10.23 ~ 2027.10.23', issuePeriod: '1년', validity: '발급일로부터 30일',
     coupons: [
       { amount: 300, products: '505443624,10682944267,11243899862,12605232942,11356673932,3781080651,3402310018,10923727373,3780749543' },
-      { amount: 500, products: '10912518316,614497979,10683699346,10985931589,10985932386,10985933117,10471290026,12936160195,623737324,628487624' },
-      { amount: 1000, products: '349222019,2599242583,2599273590,2599610352,2599698654,10628616594,2599158337,2598880337,2448558544' },
-    ],
-  },
-  {
-    // 스티로폼 900×1800 원장 2개 상품 — 판매가는 올리지 않고 쿠폰만 건다(스티로폼·아이소핑크는 쿠폰 없이 보이는 가격을 최저가로 맞춰 둔 구조라 스토어 판매가를 올리지 않는다). 판매가 잘 안 되는 상품이라 눈에 띄는 쿠폰을 건다.
-    id: '2026-10-23-bead-900x1800-coupons', label: '스티로폼 900×1800',
-    issue: '2026.10.23 ~ 2027.10.23', issuePeriod: '1년', validity: '발급일로부터 30일',
-    coupons: [
-      { amount: 500, products: '5759250443' },
-      { amount: 1000, products: '5763066244' },
+      { amount: 500, products: '10912518316,614497979,10683699346,10985931589,10985932386,10985933117,10471290026,12936160195,623737324,628487624,5759250443,10181453964,10181564057,10181571912,10181582241,10181586522,5695312387' },
+      { amount: 1000, products: '349222019,2599242583,2599273590,2599610352,2599698654,10628616594,2599158337,2598880337,2448558544,5763066244' },
     ],
   },
 ];
-
 const HK_COUPON_LIST_DATE = '2026.04.17';
 
 // 네이버 판매자센터 '혜택 목록'(2026-10-20 화면)과 대조한 내용 — 5개 모두 적용중, 대상 알림받기, 발급 2026.04.23 ~ 2027.04.23, 쿠폰유효기간 발급일로부터 30일
@@ -433,6 +428,19 @@ function hkCouponSearch(value) {
   });
 }
 
+/* 상품별 배송비 — 단가표(한국단열 몰별 표)의 현재 값을 읽는다(2026-10-23 사용자 지시: 쿠폰 탭의 배송비가 예전 값이라 최근 상황으로). 단가표에 상품이 없으면 예전 자료(HK_COUPON_ROWS)의 값을 쓴다. */
+function _hkCouponShippingText(id, row) {
+  const listings = (typeof HK_CHANNEL_LISTINGS !== 'undefined' && HK_CHANNEL_LISTINGS.hkd) || [];
+  const product = listings.find(p => String(p.productId) === String(id));
+  if (product && product.baseShipping != null) {
+    const fee = Number(product.baseShipping);
+    if (!fee) return '무료';
+    const basis = product.shippingBasis && product.shippingBasis !== '-' ? ` · ${product.shippingBasis}` : '';
+    return `${_hkCouponWon(fee)}${basis}`;
+  }
+  return row ? (row[5] ? _hkCouponWon(row[5]) : '무료') : '';
+}
+
 function _hkCouponBlock(def, rows, admin) {
   const stopped = def.status === '중지';
   const all = def.scope === 'all';
@@ -449,7 +457,7 @@ function _hkCouponBlock(def, rows, admin) {
   const chips = all ? '<span class="hk-coupon-cat">내 스토어 상품 전체</span>' : groups.map(g => `<span class="hk-coupon-cat">${g.name} <b>${g.items.length}</b></span>`).join('');
   const lines = groups.map(g => `<tr class="hk-coupon-sub"><td colspan="3">${g.name} <small>${g.items.length}개</small></td></tr>` + g.items.map(({ id, row }) => {
     const note = row ? row[6] : '';
-    const shipping = row ? (row[5] ? _hkCouponWon(row[5]) : '무료') : '';
+    const shipping = _hkCouponShippingText(id, row);
     return `<tr data-text="${(id + ' ' + g.name + ' ' + note).toLowerCase()}">
       <td class="hk-coupon-id">${id}</td>
       <td class="hk-coupon-note">${note}</td>
@@ -480,7 +488,7 @@ function _hkCouponBlock(def, rows, admin) {
     ${all ? '' : `<details>
       <summary>상품 ${ids.length}개 보기</summary>
       <table class="pricing-table hk-coupon-table">
-        <thead><tr><th>상품번호</th><th>옵션 · 메모</th><th>배송비</th></tr></thead>
+        <thead><tr><th>상품번호</th><th>옵션 · 메모</th><th>배송비 <small>(단가표 현재값)</small></th></tr></thead>
         <tbody>${lines}</tbody>
       </table>
     </details>`}
@@ -514,7 +522,7 @@ function renderHkCouponPane() {
         <button type="button" class="hk-coupon-btn is-primary" onclick="hkCouponToggleForm()">+ 신규 쿠폰 등록</button>
         <button type="button" class="hk-coupon-btn" onclick="hkCouponSave()"${_hkCoupon.saving ? ' disabled' : ''}>쿠폰 저장</button>` : ''}
       </div>
-      <p>쿠폰은 상품 하나만 따로 빼지 못하고 <b>혜택 자체를 중지</b>해야 합니다(중지한 쿠폰은 되살릴 수 없고 새로 발행만 됩니다). 예전 쿠폰은 2026-10-22에 전부 중지했고, <b>2026-10-23에 조건 없는 금액형 알림쿠폰을 새로 발행하기로 했습니다</b> — 열반사 3종(300·500·1,000원, 스토어 판매가를 같은 금액만큼 올려 둠: 몰별 적용 &gt; 한국단열의 '스토어 판매가')과 스티로폼 900×1800 2개(500·1,000원, 판매가는 올리지 않고 쿠폰만). 최소 주문금액이 없어야 가격 줄에 빨간 최대할인가가 보입니다.</p>
+      <p>쿠폰은 상품 하나만 따로 빼지 못하고 <b>혜택 자체를 중지</b>해야 합니다(중지한 쿠폰은 되살릴 수 없고 새로 발행만 됩니다). 예전 쿠폰은 2026-10-22에 전부 중지했고, <b>2026-10-23에 조건 없는 금액형 알림쿠폰을 새로 발행하기로 했습니다</b> — <b>300·500·1,000원 3개</b>이고, 같은 조건이면 열반사·스티로폼·아이소핑크 구분 없이 금액별로 한 쿠폰에 묶었습니다. 열반사와 아이소핑크 접착식 단품은 스토어 판매가를 쿠폰 금액만큼 올려 두었고(몰별 적용 &gt; 한국단열의 '스토어 판매가'), 스티로폼·아이소핑크 900×1800 원장 모음전은 판매가를 올리지 않고 쿠폰만 겁니다. 최소 주문금액이 없어야 가격 줄에 빨간 최대할인가가 보입니다.</p>
       <p><b>이 탭은 기록용입니다</b> — 네이버에 실제로 발행·중지하는 기능은 아닙니다. 판매자센터에서 한 일을 여기도 맞춰 두세요. 기본 자료는 ${HK_COUPON_LIST_DATE} 상품 목록과 판매자센터 혜택 목록(2026-10-20)을 대조한 것입니다. 가격 계산에는 쓰이지 않습니다.</p>
       ${_hkCoupon.note && (admin || _hkCoupon.noteKind === 'error') ? `<p class="hk-coupon-note-line${_hkCoupon.noteKind === 'error' ? ' is-error' : ''}">${_hkCouponEsc(_hkCoupon.note)}</p>` : ''}
     </div>

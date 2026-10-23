@@ -18,7 +18,8 @@
 
 /* 처음 값(DB에 store_prices가 없을 때만) — 2026-10-23 사용자 지시: 열반사 1M 8개 상품(505443624·10682944267·11243899862·12605232942·11356673932·3781080651·3402310018·10923727373)을
    스토어 판매가 +300원(그 상품에 300원 쿠폰을 걸 것이라 상품 안의 옵션 전체 — 505443624 안의 단열벽지 색상 옵션 포함). 값은 그 시점 단가표 판매가 + 300이다.
-   3780749543(5T~20T)은 나중에 +300, 10912518316(20T~50T)은 +500, 롤 단독 상품 4개와 롤 그룹상품 50700400(14개 구성 상품)은 +1,000, 2M 낱장 6개 상품은 +500, 2M 5장 묶음 4개 상품은 +1,000, 5M 그룹상품 50561135(14개 구성 상품)·623737324·628487624는 +500으로 추가했다(열반사 54개 상품 전부 들어감). */
+   3780749543(5T~20T)은 나중에 +300, 10912518316(20T~50T)은 +500, 롤 단독 상품 4개와 롤 그룹상품 50700400(14개 구성 상품)은 +1,000, 2M 낱장 6개 상품은 +500, 2M 5장 묶음 4개 상품은 +1,000, 5M 그룹상품 50561135(14개 구성 상품)·623737324·628487624는 +500으로 추가했다(열반사 54개 상품 전부 들어감).
+   아이소핑크 접착식 900×1800 원장 단품 5개는 +500으로 추가했다. */
 const HK_STORE_PRICE_SEED = {
   // 505443624 (열반사 메인)
   '505443624|BL_5_1_SN': 3200, '505443624|BL_5_1_DN': 3500, '505443624|BL_5_1_SA': 4700, '505443624|BL_5_1_DA': 4900, '505443624|BL_6_1_SN': 4900, '505443624|BL_6_1_DN': 5200, '505443624|BL_6_1_SA': 6600, '505443624|BL_6_1_DA': 7000, '505443624|BL_10_1_SN': 6100, '505443624|BL_10_1_DN': 6500, '505443624|BL_10_1_SA': 8000, '505443624|BL_10_1_DA': 8400, '505443624|BL_13_1_DN': 8600, '505443624|BL_13_1_DA': 10300, '505443624|WP_DW_5_1': 6600, '505443624|WP_SK_5_1': 6100, // 같은 상품 안의 단열벽지 색상 옵션 11개(WP_DW 1색·WP_SK 10색)도 +300
@@ -91,8 +92,22 @@ const HK_STORE_PRICE_SEED = {
   '628487624|BL_10_25_DN': 173500, '628487624|BL_10_25_SA': 200500, '628487624|BL_10_25_DA': 215500,
 };
 
+/* 두 번째 묶음 — 아이소핑크 접착식 900×1800 원장 단품 5개(10T~50T, 옵션 각 1개), 2026-10-23 사용자 지시(+500, 500원 쿠폰과 같게).
+   접착식은 우리만 팔아 경쟁사 최저가를 맞춰 둔 구조가 아니라서 올릴 수 있다. 일반 원장 단품은 나라단열과 판매가를 맞춰 둔 구조라 올리지 않았다. */
+const HK_STORE_PRICE_SEED_ISO_ADHESIVE = {
+  '10181453964|IsoA_900_1800_10_1': 9500, '10181564057|IsoA_900_1800_20_1': 17000, '10181571912|IsoA_900_1800_30_1': 21000, '10181582241|IsoA_900_1800_40_1': 26000, '10181586522|IsoA_900_1800_50_1': 33000,
+};
+
+/* 묶음 id — DB에 저장된 store_prices의 __seeds에 없는 묶음은 불러올 때 'DB에 없는 키만' 더한다(이미 저장한 뒤에 새 묶음을 더해도 들어오고, 사용자가 지운 키는 다시 안 들어온다).
+   id 기록이 없는 예전 저장값은 첫 묶음(열반사)이 이미 들어 있는 것으로 본다. 코드가 DB를 대신 쓰지는 않는다 — 더해지면 [저장] 대기가 된다. */
+const HK_STORE_PRICE_SEED_GROUPS = [
+  { id: '2026-10-23-reflective', prices: HK_STORE_PRICE_SEED },
+  { id: '2026-10-23-iso-adhesive-900x1800', prices: HK_STORE_PRICE_SEED_ISO_ADHESIVE },
+];
+
 (function () {
-  const prices = { ...HK_STORE_PRICE_SEED }; // '상품번호|상품코드' → 스토어 판매가(원)
+  const prices = Object.assign({}, ...HK_STORE_PRICE_SEED_GROUPS.map(group => group.prices)); // '상품번호|상품코드' → 스토어 판매가(원)
+  let applied = HK_STORE_PRICE_SEED_GROUPS.map(group => group.id); // 이미 반영된 기본값 묶음 id(DB에 같이 저장)
   const isAdmin = () => !!(window.currentUser && window.currentUser.role === 'admin');
   const fmt = value => (Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '');
   const parse = value => { const n = Math.round(Number(String(value ?? '').replace(/[^\d]/g, ''))); return Number.isFinite(n) && n > 0 ? n : null; };
@@ -104,10 +119,23 @@ const HK_STORE_PRICE_SEED = {
     const key = keyOf(productId, code);
     return Object.prototype.hasOwnProperty.call(prices, key) ? prices[key] : null;
   };
-  window.hkStorePriceOverrides = () => ({ ...prices });
+  window.hkStorePriceOverrides = () => ({ ...prices, __seeds: applied.slice() });
   window.hkStorePriceApply = values => {
     Object.keys(prices).forEach(key => delete prices[key]);
-    Object.entries(values || {}).forEach(([key, value]) => { const n = parse(value); if (n != null) prices[key] = n; });
+    const saved = values || {};
+    applied = Array.isArray(saved.__seeds) ? saved.__seeds.slice() : [HK_STORE_PRICE_SEED_GROUPS[0].id];
+    Object.entries(saved).forEach(([key, value]) => { if (key === '__seeds') return; const n = parse(value); if (n != null) prices[key] = n; });
+    // DB에 아직 없는 새 기본값 묶음 — DB에 없는 키만 더하고, 더했으면 단가표 [저장]을 눌러야 남는다는 걸 알린다.
+    let added = 0;
+    HK_STORE_PRICE_SEED_GROUPS.forEach(group => {
+      if (applied.includes(group.id)) return;
+      Object.entries(group.prices).forEach(([key, value]) => { if (!Object.prototype.hasOwnProperty.call(prices, key)) { prices[key] = value; added += 1; } });
+      applied.push(group.id);
+    });
+    if (added) {
+      if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
+      if (typeof showToast === 'function') showToast(`스토어 판매가 ${added}개를 새로 추가했습니다 — 단가표 [저장]을 눌러야 DB에 남습니다.`, 'info');
+    }
   };
 
   /* 몰별 표(한국단열)의 '스토어 판매가' 칸 안쪽 — base는 그 옵션의 단가표 판매가. 단가표 값과 다르게 적으면 빨갛게 보인다. */
