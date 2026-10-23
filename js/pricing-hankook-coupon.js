@@ -96,6 +96,36 @@ const HK_COUPON_ROWS = [
   ['4609308307', '창문형단열재', '상품중복할인', 1000, 70000, 8000, '100원단위'],
   ['5012855593', '창문형단열재', '상품중복할인', 1000, 70000, 0, '스티로폼 구간 단위'],
   ['11984357778', '창문형단열재', '상품중복할인', 1000, 70000, 0, '아이소 구간 단위'],
+  // 2026-10-23 새 쿠폰에 처음 들어가는 열반사 2M 낱장 3개(예전 쿠폰 자료에는 없던 상품) — 상품번호·옵션 메모만 이 표에 둔다
+  ['10985931589', '열반사단열재', '상품중복할인', 500, 0, 14500, '30T 2M'],
+  ['10985932386', '열반사단열재', '상품중복할인', 500, 0, 14500, '40T 2M'],
+  ['10985933117', '열반사단열재', '상품중복할인', 500, 0, 14500, '50T 2M'],
+];
+
+/* 새로 발행하기로 한 쿠폰 — 2026-10-23 사용자 결정. 열반사는 스토어 판매가를 쿠폰 금액만큼 올리고(js/pricing-hankook-store-price.js) 조건 없는 금액형 알림쿠폰을 건다
+   (최소구매 조건이 붙으면 가격 줄에 빨간 최대할인가가 안 보인다). 상품번호는 쿠폰 금액별로 묶었다 — 그룹상품은 예전 쿠폰 기록처럼 대표 번호만 적었다
+   (롤 그룹 50700400 = 2599698654, 5M 그룹 50561135 = 12936160195 — 구성 상품 전체에 붙는지는 판매자센터에서 확인).
+   DB의 쿠폰 기록에 이 id가 없으면 목록 끝에 넣고 [쿠폰 저장] 대기로 둔다(코드가 DB를 대신 쓰지는 않는다). 저장하면 seeds에 id가 남아 다시 들어오지 않는다.
+   묶음(id)마다 따로 판단한다 — 이미 저장한 뒤에 새 묶음을 더해도 새 묶음만 들어온다. */
+const HK_COUPON_NEW_SEEDS = [
+  {
+    id: '2026-10-23-reflective-store-coupons', label: '열반사',
+    issue: '2026.10.23 ~ 2027.10.23', issuePeriod: '1년', validity: '발급일로부터 30일',
+    coupons: [
+      { amount: 300, products: '505443624,10682944267,11243899862,12605232942,11356673932,3781080651,3402310018,10923727373,3780749543' },
+      { amount: 500, products: '10912518316,614497979,10683699346,10985931589,10985932386,10985933117,10471290026,12936160195,623737324,628487624' },
+      { amount: 1000, products: '349222019,2599242583,2599273590,2599610352,2599698654,10628616594,2599158337,2598880337,2448558544' },
+    ],
+  },
+  {
+    // 스티로폼 900×1800 원장 2개 상품 — 판매가는 올리지 않고 쿠폰만 건다(스티로폼·아이소핑크는 쿠폰 없이 보이는 가격을 최저가로 맞춰 둔 구조라 스토어 판매가를 올리지 않는다). 판매가 잘 안 되는 상품이라 눈에 띄는 쿠폰을 건다.
+    id: '2026-10-23-bead-900x1800-coupons', label: '스티로폼 900×1800',
+    issue: '2026.10.23 ~ 2027.10.23', issuePeriod: '1년', validity: '발급일로부터 30일',
+    coupons: [
+      { amount: 500, products: '5759250443' },
+      { amount: 1000, products: '5763066244' },
+    ],
+  },
 ];
 
 const HK_COUPON_LIST_DATE = '2026.04.17';
@@ -105,7 +135,7 @@ const HK_COUPON_NAVER = { target: '알림받기', issue: '2026.04.23 ~ 2027.04.2
 const HK_COUPON_KEY = 'coupon_list';
 const HK_COUPON_PERIODS = ['1주일', '1개월', '3개월', '6개월', '1년'];
 
-const _hkCoupon = { coupons: null, loaded: false, loading: false, saving: false, dirty: false, savedAt: null, note: '', noteKind: '', formOpen: false };
+const _hkCoupon = { coupons: null, seeds: [], loaded: false, loading: false, saving: false, dirty: false, savedAt: null, note: '', noteKind: '', formOpen: false };
 
 const _hkCouponAdmin = () => !!(window.currentUser && window.currentUser.role === 'admin');
 const _hkCouponClient = () => (typeof supabaseClient !== 'undefined' ? supabaseClient : null);
@@ -153,6 +183,32 @@ function _hkCouponList() {
   return _hkCoupon.coupons;
 }
 
+/* 새 쿠폰 기본값(HK_COUPON_NEW_SEEDS)을 아직 안 넣었으면 목록 끝에 넣는다 — DB에서 기록을 불러온 뒤에만 부른다. 넣으면 [쿠폰 저장] 대기가 된다. */
+function _hkCouponApplyNewSeeds() {
+  const added = [];
+  HK_COUPON_NEW_SEEDS.forEach(seeds => {
+    if (_hkCoupon.seeds.includes(seeds.id)) return;
+    const coupons = _hkCouponList();
+    let no = coupons.reduce((max, c) => Math.max(max, Number(c.no) || 0), 0);
+    seeds.coupons.forEach(seed => {
+      no += 1;
+      coupons.push({
+        no, kind: '중복할인', amount: seed.amount, min: 0,
+        status: '적용중', stopped: '', target: HK_COUPON_NAVER.target,
+        issue: seeds.issue, issuePeriod: seeds.issuePeriod, validity: seeds.validity,
+        scope: 'selected', products: seed.products.split(','),
+      });
+    });
+    _hkCoupon.seeds.push(seeds.id);
+    added.push(`${seeds.label} ${seeds.coupons.map(s => _hkCouponWon(s.amount)).join(' · ')}`);
+  });
+  if (!added.length) return false;
+  _hkCoupon.dirty = true;
+  _hkCoupon.note = `새 쿠폰(조건 없는 알림쿠폰)을 목록 끝에 추가했습니다 — ${added.join(' / ')}. 판매자센터에도 같은 조건으로 발행하고, [쿠폰 저장]을 눌러야 DB에 남습니다.`;
+  _hkCoupon.noteKind = '';
+  return true;
+}
+
 function _hkCouponRerender() {
   const pane = document.getElementById('pricing-tab-hk_coupon');
   if (!pane) return;
@@ -173,6 +229,7 @@ window.hkCouponOnOpen = async function() {
     const saved = data && data[0];
     if (saved && saved.value && Array.isArray(saved.value.coupons)) {
       _hkCoupon.coupons = saved.value.coupons;
+      _hkCoupon.seeds = Array.isArray(saved.value.seeds) ? saved.value.seeds.slice() : [];
       _hkCoupon.savedAt = saved.updated_at ? new Date(saved.updated_at) : null;
       _hkCoupon.note = '';
     } else {
@@ -180,6 +237,7 @@ window.hkCouponOnOpen = async function() {
       _hkCoupon.note = '아직 저장한 쿠폰 기록이 없어 2026.04.17 자료를 보여 줍니다. 쿠폰을 등록·중지한 뒤 [쿠폰 저장]을 누르면 DB에 남습니다.';
     }
     _hkCoupon.noteKind = '';
+    _hkCouponApplyNewSeeds(); // 새로 발행하기로 한 쿠폰(2026-10-23) — 아직 기록에 없으면 추가
     _hkCoupon.loaded = true;
   } catch (error) {
     _hkCoupon.coupons = _hkCoupon.coupons || _hkCouponSeed();
@@ -197,7 +255,7 @@ window.hkCouponSave = async function() {
   _hkCoupon.saving = true;
   _hkCouponRerender();
   const now = new Date().toISOString();
-  const { error } = await client.from('hk_settings').upsert({ key: HK_COUPON_KEY, value: { version: 1, coupons: _hkCouponList() }, updated_at: now }, { onConflict: 'key' });
+  const { error } = await client.from('hk_settings').upsert({ key: HK_COUPON_KEY, value: { version: 1, coupons: _hkCouponList(), seeds: _hkCoupon.seeds }, updated_at: now }, { onConflict: 'key' });
   _hkCoupon.saving = false;
   if (error) {
     _hkCouponToast(`쿠폰 저장 실패: ${error.message || error}`, 'error');
@@ -456,7 +514,7 @@ function renderHkCouponPane() {
         <button type="button" class="hk-coupon-btn is-primary" onclick="hkCouponToggleForm()">+ 신규 쿠폰 등록</button>
         <button type="button" class="hk-coupon-btn" onclick="hkCouponSave()"${_hkCoupon.saving ? ' disabled' : ''}>쿠폰 저장</button>` : ''}
       </div>
-      <p>쿠폰은 상품 하나만 따로 빼지 못하고 <b>혜택 자체를 중지</b>해야 합니다. 쿠폰은 <b>제외 예정</b>(2026-10-20 결정)이라, 판매자센터 혜택 목록에서 아래 쿠폰을 하나씩 중지하면 됩니다.</p>
+      <p>쿠폰은 상품 하나만 따로 빼지 못하고 <b>혜택 자체를 중지</b>해야 합니다(중지한 쿠폰은 되살릴 수 없고 새로 발행만 됩니다). 예전 쿠폰은 2026-10-22에 전부 중지했고, <b>2026-10-23에 조건 없는 금액형 알림쿠폰을 새로 발행하기로 했습니다</b> — 열반사 3종(300·500·1,000원, 스토어 판매가를 같은 금액만큼 올려 둠: 몰별 적용 &gt; 한국단열의 '스토어 판매가')과 스티로폼 900×1800 2개(500·1,000원, 판매가는 올리지 않고 쿠폰만). 최소 주문금액이 없어야 가격 줄에 빨간 최대할인가가 보입니다.</p>
       <p><b>이 탭은 기록용입니다</b> — 네이버에 실제로 발행·중지하는 기능은 아닙니다. 판매자센터에서 한 일을 여기도 맞춰 두세요. 기본 자료는 ${HK_COUPON_LIST_DATE} 상품 목록과 판매자센터 혜택 목록(2026-10-20)을 대조한 것입니다. 가격 계산에는 쓰이지 않습니다.</p>
       ${_hkCoupon.note && (admin || _hkCoupon.noteKind === 'error') ? `<p class="hk-coupon-note-line${_hkCoupon.noteKind === 'error' ? ' is-error' : ''}">${_hkCouponEsc(_hkCoupon.note)}</p>` : ''}
     </div>
