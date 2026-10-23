@@ -122,8 +122,27 @@ const HK_COUPON_NEW_SEEDS = [
       { amount: 1000, products: '349222019,2599242583,2599273590,2599610352,2599698654,10628616594,2599158337,2598880337,2448558544,5763066244' },
     ],
   },
+  {
+    // 두 번째 새 쿠폰 묶음(2026-10-23 사용자 결정) — 첫 묶음 쿠폰을 만든 뒤에는 상품을 못 더해서 새로 만든다. 난방필름·캠핑단열재·단열벽지(아직 [쿠폰 저장] 전이라 목록을 고쳐도 된다).
+    //  · 300원: 난방필름 1M(4654882496, 스토어 판매가 +300=2,200과 같이), 캠핑단열재(10609463678, 판매가 그대로 쿠폰만 — 바닥에 까는 대량 구매 상품이라 주문당 한 번 빠지는 쿠폰이 안전), 단열벽지 1M 메인(669533622, 스토어 판매가 +300과 같이 — 열반사 상품 안의 벽지 옵션 +300과 같은 가격이 된다).
+    //  · 500원: 단열벽지 2.3M 대표 상품 — 모음전 647994348·11502054249, 옥스포드 11351466629, 클레이 11351478928, 실크 7934125826, 그룹상품 11355611905(대표 번호만, 33개 구성 상품 전체에 붙는지는 판매자센터에서 확인).
+    //    스토어 판매가는 옵션 사이즈와 관계없이 전부 +500(2026-10-23 사용자 지시).
+    //  · 1,000원: 난방필름 25M·50M(4705673971, 스토어 판매가 +1,000=67,000·97,000과 같이), 단열벽지 20M 롤 대표 3394369231(옵션 전부 +1,000).
+    //  발급 기간은 첫 묶음과 같게 가정했다(실제 발행일이 다르면 쿠폰 탭에서 삭제하고 신규 쿠폰 등록으로 다시 넣는다).
+    id: '2026-10-23-second-batch-coupons', label: '난방필름·캠핑단열재·단열벽지',
+    issue: '2026.10.23 ~ 2027.10.23', issuePeriod: '1년', validity: '발급일로부터 30일',
+    coupons: [
+      { amount: 300, products: '4654882496,10609463678,669533622' },
+      { amount: 500, products: '647994348,11502054249,11351466629,11351478928,7934125826,11355611905' },
+      { amount: 1000, products: '4705673971,3394369231' },
+    ],
+  },
 ];
-const HK_COUPON_LIST_DATE = '2026.04.17';
+
+/* 이미 발행한 쿠폰에 상품을 더하는 묶음 — **지금은 비어 있다.** 네이버 판매자센터 쿠폰은 만든 뒤에는 혜택 상품을 추가할 수 없어서(사용자 확인 2026-10-23), 상품을 더하려면 새 쿠폰을 만들어야 한다.
+   그래서 난방필름·캠핑단열재는 기존 쿠폰(6~8번, 실제로 발행한 상품 목록 그대로)에 더하지 않고 HK_COUPON_NEW_SEEDS의 두 번째 묶음(새 쿠폰)으로 기록한다.
+   (기록용 쿠폰 탭에서 기존 쿠폰의 상품을 바꾸는 일이 정말 필요해질 때만 이 묶음을 쓴다 — 같은 금액의 적용 중 새 쿠폰을 찾아 상품번호를 넣고, DB에 id가 없을 때만 한 번 들어간다.) */
+const HK_COUPON_PRODUCT_ADDITIONS = [];const HK_COUPON_LIST_DATE = '2026.04.17';
 
 // 네이버 판매자센터 '혜택 목록'(2026-10-20 화면)과 대조한 내용 — 5개 모두 적용중, 대상 알림받기, 발급 2026.04.23 ~ 2027.04.23, 쿠폰유효기간 발급일로부터 30일
 const HK_COUPON_NAVER = { target: '알림받기', issue: '2026.04.23 ~ 2027.04.23', validity: '발급일로부터 30일' };
@@ -204,6 +223,29 @@ function _hkCouponApplyNewSeeds() {
   return true;
 }
 
+/* HK_COUPON_PRODUCT_ADDITIONS — 같은 금액의 새 쿠폰(적용 중·2026.10.23 발급·최소 주문금액 없음)에 상품번호를 더한다. DB 기록을 불러온 뒤 새 쿠폰 기본값 다음에 부른다. */
+function _hkCouponApplyProductAdditions() {
+  const messages = [];
+  HK_COUPON_PRODUCT_ADDITIONS.forEach(group => {
+    if (_hkCoupon.seeds.includes(group.id)) return;
+    const done = group.items.map(item => {
+      const coupon = _hkCouponList().find(c => c.status !== '중지' && c.kind === '중복할인' && Number(c.min) === 0 && Number(c.amount) === item.amount && String(c.issue || '').startsWith('2026.10.23'));
+      if (!coupon) return false;
+      item.products.split(',').forEach(id => { if (!(coupon.products || []).includes(id)) (coupon.products = coupon.products || []).push(id); });
+      return true;
+    });
+    if (!done.every(Boolean)) return; // 맞는 쿠폰을 못 찾으면 넣지 않고 다음에 다시 시도한다
+    _hkCoupon.seeds.push(group.id);
+    messages.push(`${group.label} ${group.items.map(item => `${_hkCouponWon(item.amount)} 쿠폰에 ${item.products}`).join(', ')}`);
+  });
+  if (!messages.length) return false;
+  _hkCoupon.dirty = true;
+  const text = `기존 새 쿠폰에 상품을 더했습니다 — ${messages.join(' / ')}. 판매자센터 쿠폰에도 같은 상품을 추가하고, [쿠폰 저장]을 눌러야 DB에 남습니다.`;
+  _hkCoupon.note = _hkCoupon.note ? `${_hkCoupon.note} ${text}` : text;
+  _hkCoupon.noteKind = '';
+  return true;
+}
+
 function _hkCouponRerender() {
   const pane = document.getElementById('pricing-tab-hk_coupon');
   if (!pane) return;
@@ -233,6 +275,7 @@ window.hkCouponOnOpen = async function() {
     }
     _hkCoupon.noteKind = '';
     _hkCouponApplyNewSeeds(); // 새로 발행하기로 한 쿠폰(2026-10-23) — 아직 기록에 없으면 추가
+    _hkCouponApplyProductAdditions(); // 이미 발행한 새 쿠폰에 더하는 상품(난방필름 등) — 아직 안 넣었으면 추가
     _hkCoupon.loaded = true;
   } catch (error) {
     _hkCoupon.coupons = _hkCoupon.coupons || _hkCouponSeed();
