@@ -206,6 +206,8 @@ function hkDbCollectState() {
       windowRangeApplied: typeof window.hkWindowAppliedPrices === 'function' ? window.hkWindowAppliedPrices() : {},
       // 창문형단열재 쿠팡 개당단가 반영가 — 코드 기본값(현재 쿠팡 등록가)과 다르게 반영한 것만 { '재질_두께': 가격 }으로 저장한다.
       windowCoupangApplied: typeof window.hkWindowCoupangAppliedPrices === 'function' ? window.hkWindowCoupangAppliedPrices() : {},
+      // 한국단열 스마트스토어 스토어 판매가 — 실판매가와 다르게 적은 것만 { 상품코드: 원 }으로 저장한다(js/pricing-hankook-store-price.js).
+      storePrices: typeof window.hkStorePriceOverrides === 'function' ? window.hkStorePriceOverrides() : {},
     },
     products,
     channels: JSON.parse(JSON.stringify(HK_CHANNEL_LISTINGS)),
@@ -231,6 +233,7 @@ function _hkDbStateToRows(state) {
     { key: 'window_mvalues', value: s.windowMvalues || {}, updated_at: now },
     { key: 'window_range_applied', value: s.windowRangeApplied || {}, updated_at: now },
     { key: 'window_coupang_applied', value: s.windowCoupangApplied || {}, updated_at: now },
+    { key: 'store_prices', value: s.storePrices || {}, updated_at: now },
   ];
   const products = Object.entries(state.products).map(([code, p]) => ({
     product_code: code,
@@ -331,6 +334,7 @@ function _hkDbRowsToState(settingsRows, productRows, channelProductRows, channel
       windowMvalues: map.window_mvalues,
       windowRangeApplied: map.window_range_applied,
       windowCoupangApplied: map.window_coupang_applied,
+      storePrices: map.store_prices,
     },
     products,
     channels,
@@ -398,6 +402,10 @@ function _hkDbApplyState(state) {
   // 창문형단열재 쿠팡 개당단가 반영가 — 저장된 값이 있으면(빈 객체 포함) 코드 기본값(현재 쿠팡 등록가) 위에 덮어쓰고, 그 값이 "수정 전 판매가"(마지막 저장값)가 된다.
   if (s.windowCoupangApplied && typeof s.windowCoupangApplied === 'object' && typeof window.hkWindowApplyCoupangPrices === 'function') {
     window.hkWindowApplyCoupangPrices(s.windowCoupangApplied);
+  }
+  // 한국단열 스마트스토어 스토어 판매가 — 저장된 값이 있으면(빈 객체 포함) 덮어쓴다. 없으면 없음(= 스토어 판매가 = 실판매가).
+  if (s.storePrices && typeof s.storePrices === 'object' && typeof window.hkStorePriceApply === 'function') {
+    window.hkStorePriceApply(s.storePrices);
   }
   if (s.etcCosts && typeof HK_ETC_BOM !== 'undefined') {
     Object.keys(HK_ETC_BOM).forEach(lineKey => {

@@ -2567,3 +2567,13 @@
 .hk-esm-plan-stop td { background-color: #fff1f2; }
 .hk-esm-plan-new td { background-color: #f0fdf4; }
 .hk-esm-plan-badge { margin-left: 6px; }
+/* 한국단열 스마트스토어 몰 표의 '스토어 판매가' 칸 (2026-10-23, js/pricing-hankook-store-price.js) — 초록(현재 판매가)과 구분되게 분홍 계열 */
+.hk-iso-draft-table thead th.hk-iso-head-store { color: #fce7f3; background: #be185d; }
+.hk-iso-listing-table td.hk-store-price-cell { background: #fdf2f8; text-align: center; }
+.hk-store-price-input { width: 84px; height: 28px; padding: 0 8px; border: 1px solid #f9a8d4; border-radius: 6px; background: #fff; font-size: 13px; font-weight: 700; text-align: right; color: #9d174d; }
+.hk-store-price-input:read-only { background: transparent; border-color: transparent; cursor: pointer; }
+.hk-store-price-input:focus { outline: none; border-color: #db2777; box-shadow: 0 0 0 2px rgba(219, 39, 119, .15); }
+.hk-store-price-cell:hover .hk-iso-row-price-edit-btn, .hk-store-price-cell.editing .hk-iso-row-price-edit-btn { opacity: 1; background: #fce7f3; border-color: #f9a8d4; }
+.hk-store-price-input.is-set, .hk-store-price-text.is-set { color: #dc2626; font-weight: 800; }
+.hk-store-price-text { color: #9d174d; font-weight: 700; }
+.hk-iso-listing-table td.hk-store-price-cell.is-changed { background: #fee2e2; box-shadow: inset 0 0 0 2px #f87171; }

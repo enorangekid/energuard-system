@@ -2411,7 +2411,22 @@ function _hkCoupangSubPriceParts(productCode, item) {
   return { hkdPrice, hkdShipping: shipping, registered: Math.round((hkdPrice + shipping) * 105 / (100 * unit)) * unit };
 }
 
+/* 한국단열 스마트스토어(hkd)만 단가표 '스토어' 줄에 따로 적은 스토어 판매가를 쓴다(js/pricing-hankook-store-price.js) — 적지 않았으면 실판매가 그대로. 다른 채널은 실판매가 기준. */
 function _hkChannelTargetPrice(categoryId, productCode, channelId, product, item) {
+  const price = _hkChannelTargetPriceBase(categoryId, productCode, channelId, product, item);
+  if (price == null || channelId !== 'hkd' || typeof window.hkStorePriceOf !== 'function') return price;
+  const store = window.hkStorePriceOf(product && product.productId, (item && item.priceCode) || productCode);
+  return store != null ? store : price;
+}
+/* '수정 전 판매가 / 차액 / 반영 대기' 같은 변경 추적에 쓰는 현재 판매가 — 한국단열은 스토어 판매가가 아니라 단가표 판매가(원래 가격)다.
+   스토어 판매가는 사용자가 직접 정해 둔 값이라 '단가표를 고쳐서 생긴 변화'로 세지 않는다(사용자 지시 2026-10-23: 현재 판매가를 고친 게 아니면 차액이 나오면 안 된다).
+   저장할 때 수정 전 값을 맞추는 hkChannelAlignBaselines도 같은 값을 쓴다. 다른 채널은 _hkChannelTargetPrice 그대로. */
+function _hkChannelTrackedPrice(categoryId, productCode, channelId, product, item) {
+  return channelId === 'hkd'
+    ? _hkChannelTargetPriceBase(categoryId, productCode, channelId, product, item)
+    : _hkChannelTargetPrice(categoryId, productCode, channelId, product, item);
+}
+function _hkChannelTargetPriceBase(categoryId, productCode, channelId, product, item) {
   // 아직 공통 원가표 상품코드가 없는 채널 전용 옵션은 받은 현재 판매가를 직접 기준값으로 쓴다.
   if (item && item.targetPrice != null && Number.isFinite(Number(item.targetPrice))) return Number(item.targetPrice);
   // 쿠팡 창문형단열재 — 관리코드는 없지만 옵션명에서 재질·두께(windowKey)를 알아서, 쿠팡가 탭의 반영 개당단가가 등록 판매가다(js/pricing-hankook-window.js).
@@ -2627,7 +2642,7 @@ function _hkKindPlan(channelId, categoryId, products) {
       stat.products++;
       product.items.forEach(item => {
         stat.options++;
-        const price = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
+        const price = _hkChannelTrackedPrice(categoryId, item.productCode, channelId, product, item);
         if (!item.status && price != null && item.prevPrice != null && price !== item.prevPrice) stat.changed++;
       });
     });
@@ -2763,6 +2778,9 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
   if (layout === 'markupOptions') return _hkMarkupOptionsTableHtml(channelId, categoryId, products);
   if (layout === 'coupang') return _hkCoupangCategoryTableHtml(channelId, categoryId, products);
   const categoryLabel = HK_CATEGORIES.find(c => c.id === categoryId)?.label || categoryId;
+  // 한국단열 스마트스토어 표에만 '스토어 판매가' 칸이 하나 더 있다(js/pricing-hankook-store-price.js) — 그 칸 때문에 열이 16개다.
+  const storeCol = channelId === 'hkd';
+  const span = storeCol ? 16 : 15;
   const baseIndexByProduct = {};
   const baseByProduct = {};
   products.forEach(product => {
@@ -2779,7 +2797,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
     if (!item.section) return;
     const key = `${channelId}|${product.productId}|${item.section}`;
     const stat = sectionStats[key] || (sectionStats[key] = { count: 0, min: null, max: null, changed: 0 });
-    const price = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
+    const price = _hkChannelTrackedPrice(categoryId, item.productCode, channelId, product, item);
     stat.count++;
     if (price != null) {
       stat.min = stat.min == null ? price : Math.min(stat.min, price);
@@ -2794,7 +2812,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
     if (!item.sectionGroup) return;
     const key = `${channelId}|${product.productId}|${item.sectionGroup}`;
     const stat = sectionGroupStats[key] || (sectionGroupStats[key] = { count: 0, inactive: 0, min: null, max: null, changed: 0 });
-    const price = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
+    const price = _hkChannelTrackedPrice(categoryId, item.productCode, channelId, product, item);
     stat.count++;
     if (item.status) stat.inactive++;
     if (price != null) {
@@ -2823,7 +2841,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
     const kindOpen = kind ? kindPlan.open(kind) : true;
     if (kind && kind !== lastKind) {
       lastKind = kind;
-      rowsHtml += _hkKindHeaderRowHtml(channelId, categoryId, kindPlan, kind, 15);
+      rowsHtml += _hkKindHeaderRowHtml(channelId, categoryId, kindPlan, kind, span);
     }
     const groupProductCode = product.groupProductCode ? String(product.groupProductCode) : '';
     if (groupProductCode && !renderedGroupCodes.has(groupProductCode)) {
@@ -2831,7 +2849,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const memberCount = groupedProducts.get(groupProductCode) || 0;
       const groupExpanded = _hkExpandedChannelGroups.has(groupProductCode);
       rowsHtml += `<tr class="hk-group-summary-row${groupExpanded ? ' is-expanded' : ''}" data-group-code="${groupProductCode}"${kindKey ? ` data-kind-key="${kindKey}"` : ''}${kindOpen ? '' : ' hidden'}>
-        <td colspan="15">
+        <td colspan="${span}">
           <button type="button" class="hk-group-toggle" aria-expanded="${groupExpanded}" onclick="hkToggleChannelGroup(this)">
             <span class="hk-group-toggle-icon"><i class="fa-solid fa-layer-group"></i></span>
             <strong>${product.groupProductLabel || '그룹상품'}</strong>
@@ -2855,7 +2873,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       if (i === 0 && needsProductRow) {
         const link = _hkChannelProductLink(channelId, product);
         rowsHtml += `<tr class="hk-group-summary-row hk-section-product-row">
-          <td colspan="15">
+          <td colspan="${span}">
             <div class="hk-kind-head">
               <span class="hk-group-toggle-icon"><i class="fa-solid fa-box"></i></span>
               <strong>${link ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${product.productId}</a>` : product.productId}</strong>
@@ -2868,7 +2886,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       if (sectionGroupKey && (i === 0 || product.items[i - 1].sectionGroup !== item.sectionGroup)) {
         const stat = sectionGroupStats[sectionGroupKey];
         rowsHtml += `<tr class="hk-group-summary-row hk-section-group-row is-expanded" data-section-group-key="${sectionGroupKey}">
-          <td colspan="15">
+          <td colspan="${span}">
             <div class="hk-group-toggle">
               <span class="hk-group-toggle-icon"><i class="fa-solid fa-folder"></i></span>
               <strong>${item.sectionGroup}</strong>
@@ -2883,7 +2901,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
         const stat = sectionStats[sectionKey];
         const sectionExpanded = _hkExpandedChannelSections.has(sectionKey);
         rowsHtml += `<tr class="hk-group-summary-row hk-section-summary-row${item.sectionGroup ? ' hk-section-in-group' : ''}${sectionExpanded ? ' is-expanded' : ''}" data-section-key="${sectionKey}">
-          <td colspan="15">
+          <td colspan="${span}">
             <button type="button" class="hk-group-toggle" aria-expanded="${sectionExpanded}" onclick="hkToggleChannelSection(this)">
               <span class="hk-group-toggle-icon"><i class="fa-solid fa-table-cells"></i></span>
               <strong>${product.sectionLabel ? product.sectionLabel + ' · ' : ''}${item.section}</strong>
@@ -2897,13 +2915,14 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
         </tr>`;
       }
       if (sectionKey && !_hkExpandedChannelSections.has(sectionKey)) return;
-      const targetPrice = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item);
+      const targetPrice = _hkChannelTargetPrice(categoryId, item.productCode, channelId, product, item); // 스마트스토어에 올리는 값(스토어 판매가가 있으면 그 값) — 기준가·옵션추가금 계산용
+      const trackedPrice = _hkChannelTrackedPrice(categoryId, item.productCode, channelId, product, item); // 단가표 판매가 — '현재 판매가'·차액·변경 표시용
       const basePrice = baseByProduct[product.productId];
       const optionAdd = (targetPrice != null && basePrice != null) ? targetPrice - basePrice : null;
       const inactive = !!item.status;
       // 일부 실제 상품은 어느 옵션보다도 낮은 별도 기준가를 쓴다(2K·라이트폼 세트).
       const isBase = product.basePrice == null && i === baseIndexByProduct[product.productId];
-      const priceDiff = (targetPrice != null && item.prevPrice != null) ? targetPrice - item.prevPrice : null;
+      const priceDiff = (trackedPrice != null && item.prevPrice != null) ? trackedPrice - item.prevPrice : null;
       const shippingChanged = !inactive && item.prevShipping != null && product.baseShipping != null && item.prevShipping !== product.baseShipping;
       const priceChanged = !inactive && !!priceDiff;
       const productLink = _hkChannelProductLink(channelId, product);
@@ -2921,7 +2940,9 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       const groupStartClass = (i === 0 && groupIndex > 0) ? ' hk-iso-listing-group-start' : '';
       const statusClass = inactive ? ` is-inactive is-${item.status}` : '';
       // 옵션이 둘 이상인 상품은 라디오로 기준가 옵션을 고른다(하나뿐이면 그 옵션이 곧 기준).
-      const priceNumber = _hkIsoDraftNumber(targetPrice);
+      // 한국단열 스마트스토어 표는 '현재 판매가' 칸에 단가표 판매가(원래 가격)를 보이고, 스토어에 올리는 값은 바로 옆 '스토어 판매가' 칸에서 따로 본다.
+      const listedPrice = trackedPrice;
+      const priceNumber = _hkIsoDraftNumber(listedPrice);
       const priceContent = product.items.length > 1 && product.basePrice == null
         ? `<label class="hk-base-pick" title="${isBase ? '이 상품의 기준가가 되는 옵션입니다' : '눌러서 이 옵션을 기준가로 지정'}"><input type="radio" name="hkbase-${channelId}-${product.productId}"${isBase ? ' checked' : ''} onchange="hkChannelSetBase('${channelId}','${product.productId}',${i})"><span>${priceNumber}</span></label>`
         : priceNumber;
@@ -2936,6 +2957,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
         <td class="hk-iso-draft-name">${_hkChannelItemName(categoryId, product, item)}</td>
         <td class="hk-iso-draft-code">${item.displayCode ?? item.productCode}</td>
         ${productIdCell}
+        ${storeCol ? `<td class="hk-store-price-cell${priceChanged ? ' is-changed' : ''}">${typeof window.hkStoreCellHtml === 'function' ? window.hkStoreCellHtml(product.productId, item.priceCode || item.productCode, listedPrice) : '—'}</td>` : ''}
         <td class="hk-iso-ship-final-price${isBase ? ' is-base-option' : ''}${baseInactive ? ' is-base-inactive' : ''}${priceChanged ? ' is-changed' : ''}"${baseTitle}>${priceContent}</td>
         <td>${_hkIsoDraftNumber(basePrice)}</td>
         <td>${optionAdd == null ? '—' : _hkIsoDraftNumber(optionAdd)}</td>
@@ -2966,7 +2988,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
       <table class="pricing-table hk-iso-draft-table hk-iso-listing-table">
         <colgroup>
           <col style="width:300px"><col style="width:130px"><col style="width:100px">
-          <col style="width:120px"><col style="width:90px"><col style="width:100px">
+          ${storeCol ? '<col style="width:140px">' : ''}<col style="width:120px"><col style="width:90px"><col style="width:100px">
           <col style="width:110px"><col style="width:110px"><col style="width:80px"><col style="width:90px">
           <col style="width:90px"><col style="width:100px"><col style="width:100px">
           <col style="width:100px"><col style="width:100px">
@@ -2975,6 +2997,7 @@ function _hkChannelCategoryTableHtml(channelId, categoryId, products) {
           <th class="hk-iso-head-base">상품명</th>
           <th class="hk-iso-head-code">상품코드</th>
           <th class="hk-iso-head-base">상품ID</th>
+          ${storeCol ? '<th class="hk-iso-head-store">스토어 판매가</th>' : ''}
           <th class="hk-iso-head-rate">현재 판매가</th>
           <th class="hk-iso-head-base">기준가</th>
           <th class="hk-iso-head-base">옵션추가금</th>
@@ -3479,7 +3502,7 @@ function _hkChannelPendingItems(channelId, categoryId = 'all') {
     if (categoryId !== 'all' && product.categoryId !== categoryId) return;
     product.items.forEach(item => {
       if (item.status) return; // 품절·판매중지 옵션은 스토어 가격을 맞출 필요가 없다
-      const target = _hkChannelTargetPrice(product.categoryId, item.productCode, channelId, product, item);
+      const target = _hkChannelTrackedPrice(product.categoryId, item.productCode, channelId, product, item);
       const priceChanged = target != null && item.prevPrice != null && target !== item.prevPrice;
       const shippingChanged = item.prevShipping != null && product.baseShipping != null && item.prevShipping !== product.baseShipping;
       if (priceChanged || shippingChanged) pending.push({ product, item, target });
@@ -3529,7 +3552,7 @@ window.hkChannelAlignBaselines = function() {
   _hkRunLookupPass(() => Object.entries(HK_CHANNEL_LISTINGS).forEach(([channelId, products]) => (products || []).forEach(product => {
     product.items.forEach(item => {
       backup.push([item, item.prevPrice, item.prevShipping]);
-      const target = _hkChannelTargetPrice(product.categoryId, item.productCode, channelId, product, item);
+      const target = _hkChannelTrackedPrice(product.categoryId, item.productCode, channelId, product, item);
       if (target != null) item.prevPrice = target;
       if (product.baseShipping != null) item.prevShipping = product.baseShipping;
     });
