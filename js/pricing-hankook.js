@@ -2286,6 +2286,8 @@ function _hkChannelHkdPrice(categoryId, productCode) {
 }
 
 function _hkEsmPriceParts(categoryId, productCode, config, item) {
+  // 고정가 옵션(11번가 창문형단열재 — 100원 상품 × 결제수량)은 한국단열 판매가에서 계산하지 않고 이 값이 그대로 판매가다.
+  if (item && item.fixedPrice != null) return { hkdPrice: null, hkdShipping: null, total: null, esmPrice: null, finalPrice: Number(item.fixedPrice) };
   // 채널 전용 묶음처럼 공용 단가표 행과 판매가 구성이 다른 옵션은 item.hkdPrice로 기준 상품가를 명시한다.
   const hkdPrice = item && item.hkdPrice != null ? Number(item.hkdPrice) : _hkChannelHkdPrice(categoryId, productCode);
   // item.hkdShipping이 있으면(엑셀의 한국단열 배송비가 배송 설정 조회값과 다른 옵션 — 스티로폼 430/600은 전부 6,500) 그 값을 쓴다.

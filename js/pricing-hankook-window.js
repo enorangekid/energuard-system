@@ -655,6 +655,22 @@ const HK_WINDOW_RANGE_ITEM_INDEX = new Map(); // 관리코드 → 한국단열 �
     });
   });
 })();
+
+/* ═══════════════════════════════════════
+   11번가 채널 — 창문형단열재 (2026-10-29, 사용자 "가볍게 추가만")
+   11번가 상품 2510552874는 스마트스토어처럼 구간 상품이 아니라 100원짜리 옵션 16개(백색스티로폼·아이소핑크 × 40~110mm)이고,
+   고객이 지마켓·11번가용 견적 계산기(mk mvalue)로 가격을 낸 뒤 결제수량으로 산다. 그래서 한국단열 판매가에서 계산하지 않고 옵션마다 fixedPrice 100을 고정으로 둔다.
+   옵션 이름은 스토어 옵션명 그대로("백색스티로폼_40mm"). 관리코드는 쿠팡 창문형단열재 규칙({StW|IsoW}_{두께})에서 디자인 약어를 뺀 값.
+═══════════════════════════════════════ */
+(function addWindow11stChannelProduct() {
+  if (typeof HK_CHANNEL_LISTINGS === 'undefined' || !HK_CHANNEL_LISTINGS['11st']) return;
+  const items = [];
+  [['StW', '백색스티로폼'], ['IsoW', '아이소핑크']].forEach(([prefix, label]) => HK_WINDOW_THICKNESS.forEach(thickness => {
+    items.push({ productCode: `${prefix}_${thickness}`, productName: `${label}_${thickness}mm`, fixedPrice: 100, prevPrice: 100, hkdShipping: 0 });
+  }));
+  HK_CHANNEL_LISTINGS['11st'].push({ categoryId: 'hk_window', productId: '2510552874', basePrice: 100, items });
+})();
+
 /* ═══════════════════════════════════════
    쿠팡가 — 개당단가 × 사이즈표 주문수량 (2026-09-30, 엑셀 "쿠팡 가격 로직"·"사이즈표"·"단가 시뮬레이터")
 
