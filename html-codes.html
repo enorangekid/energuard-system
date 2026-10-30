@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>상세 HTML 코드 모음</title>
+
+<!-- ===============================================================
+     html-codes.html — 상세페이지 HTML 코드 모음 (2026-10-30)
+     D:\★한국단열\02.HTML 원본을 data/detail-html/files/ 에 복사해 두고(목록: manifest.json), 이 페이지에서
+       · 코드 복사 · 코드 편집 · 미리보기 · 변형 저장(예: 이름 끝에 _세경)
+       · 상품 코드(쿠팡 Product ID 등) ↔ HTML 매핑(mapping.json이 기본값, 바꾼 건 이 브라우저에 저장)
+     을 한다. 원본 파일(data/detail-html/files/)은 바뀌지 않는다. 수정한 코드·변형 파일·매핑은 Supabase hk_settings(key 'detail_html')에
+     서버 저장되고(단가표와 같은 DB·같은 공개 키, 로그인 없음) 이 브라우저에도 사본이 남는다 — 내려받기·[백업 내보내기]로 파일로도 받을 수 있다.
+     =============================================================== -->
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<link rel="stylesheet" href="css/html-codes.css">
+</head>
+<body>
+
+<header class="hc-top">
+  <h1>상세 HTML 코드 모음</h1>
+  <span class="hc-top-sub" id="hcCount"></span>
+  <span class="hc-save is-loading" id="hcSave" role="status" aria-live="polite"></span>
+  <div class="hc-top-actions">
+    <button type="button" class="hc-btn hc-btn-ghost" id="hcSaveNow" title="서버에 바로 저장(충돌 중이면 이 브라우저 내용으로 덮어쓰기)">지금 저장</button>
+    <button type="button" class="hc-btn hc-btn-ghost" id="hcReloadRemote" title="서버에 저장된 내용으로 다시 불러오기">서버에서 불러오기</button>
+    <button type="button" class="hc-btn hc-btn-ghost" id="hcOpenMap">매핑표</button>
+    <button type="button" class="hc-btn hc-btn-ghost" id="hcExport" title="수정한 코드·변형·매핑을 파일 하나로 내려받기">백업 내보내기</button>
+    <button type="button" class="hc-btn hc-btn-ghost" id="hcImport" title="내보낸 백업 파일을 불러와 이 브라우저 상태를 바꿈">백업 가져오기</button>
+    <input type="file" id="hcImportFile" accept="application/json,.json" hidden>
+  </div>
+</header>
+
+<div class="hc-body">
+  <aside class="hc-side">
+    <input type="search" id="hcSearch" class="hc-input" placeholder="파일명 · 상품코드 검색">
+    <div class="hc-chips" id="hcChips"></div>
+    <nav class="hc-tree" id="hcTree" aria-label="HTML 파일 목록"></nav>
+  </aside>
+
+  <main class="hc-main" id="hcMain">
+    <div class="hc-empty" id="hcEmpty">왼쪽에서 파일을 고르세요.</div>
+    <section id="hcEditor" hidden></section>
+    <section id="hcMapView" hidden></section>
+  </main>
+</div>
+
+<div class="hc-toast" id="hcToast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/html-codes.js"></script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "updated": "2026-10-30",
+  "note": "상품 코드 ↔ 상세 HTML 매칭 초안(2026-10-30 쿠팡 하단 배송 이미지 통일 작업 기준). 채널: coupang(쿠팡 Product ID) · 11st · smartstore · esm · etc. 상태: todo · done · hold. 추정·혼합 상품은 note에 적어 둠.",
+  "files": {
+    "아이소핑크/아이소핑크430.html": [
+      { "channel": "coupang", "code": "6410758339", "status": "done", "note": "" }
+    ],
+    "아이소핑크/아이소핑크600.html": [
+      { "channel": "coupang", "code": "8115891747", "status": "done", "note": "" }
+    ],
+    "아이소핑크/아이소핑크600_접착식.html": [
+      { "channel": "coupang", "code": "5202287414", "status": "done", "note": "쿠팡전용 접착식 600x900" }
+    ],
+    "아이소핑크/아이소핑크600_고티.html": [
+      { "channel": "coupang", "code": "4868769393", "status": "done", "note": "250T·500T 두꺼운 판" }
+    ],
+    "아이소핑크/아이소핑크1800.html": [
+      { "channel": "coupang", "code": "5830333163", "status": "done", "note": "일반 10·20T + 접착식 10T 한 상품 — 어느 HTML을 썼는지 확인 필요" },
+      { "channel": "coupang", "code": "8450863543", "status": "done", "note": "30T" },
+      { "channel": "coupang", "code": "8698533041", "status": "done", "note": "40T" },
+      { "channel": "coupang", "code": "8817063904", "status": "done", "note": "50T" },
+      { "channel": "coupang", "code": "8450892441", "status": "done", "note": "70T" },
+      { "channel": "coupang", "code": "8456728137", "status": "done", "note": "100T" }
+    ],
+    "아이소핑크/아이소핑크1800_접착식.html": [
+      { "channel": "coupang", "code": "8698561781", "status": "done", "note": "접착식 20T" },
+      { "channel": "coupang", "code": "8698533025", "status": "done", "note": "접착식 30T" },
+      { "channel": "coupang", "code": "8698420299", "status": "done", "note": "접착식 40T" },
+      { "channel": "coupang", "code": "8817063902", "status": "done", "note": "접착식 50T" }
+    ],
+    "아이소핑크/아이소핑크1800_고티.html": [
+      { "channel": "coupang", "code": "8194369597", "status": "done", "note": "70T·100T·250T·500T — 고티로 추정" }
+    ],
+    "스티로폼/스티로폼430.html": [
+      { "channel": "coupang", "code": "8121108535", "status": "done", "note": "" }
+    ],
+    "스티로폼/스티로폼600.html": [
+      { "channel": "coupang", "code": "174891106", "status": "done", "note": "10~100T·200~600T 한 상품 — 600_고티와 같은 상품" }
+    ],
+    "스티로폼/스티로폼600_고티.html": [
+      { "channel": "coupang", "code": "174891106", "status": "done", "note": "10~100T·200~600T 한 상품 — 600과 같은 상품" }
+    ],
+    "스티로폼/스티로폼600_접착식.html": [
+      { "channel": "coupang", "code": "5164342505", "status": "done", "note": "접착식 600x900 20·30·50T" }
+    ],
+    "스티로폼/네오폴430.html": [
+      { "channel": "coupang", "code": "8074861817", "status": "done", "note": "" }
+    ],
+    "스티로폼/네오폴600.html": [
+      { "channel": "coupang", "code": "8074870644", "status": "done", "note": "" }
+    ],
+    "스티로폼/네오폴600_고티.html": [
+      { "channel": "coupang", "code": "4868994758", "status": "done", "note": "네오폴 600x900 200~600T" }
+    ],
+    "스티로폼/스티로폼1800.html": [
+      { "channel": "coupang", "code": "8323148124", "status": "done", "note": "900x1800 20T" },
+      { "channel": "coupang", "code": "9578897160", "status": "done", "note": "900x1800 40T" }
+    ],
+    "스티로폼/스티로폼1800_접착식.html": [
+      { "channel": "coupang", "code": "5994531539", "status": "done", "note": "30·50·100T 스티로폼/네오폴/접착식 한 상품 — 네오폴1800과 공유" }
+    ],
+    "스티로폼/네오폴1800.html": [
+      { "channel": "coupang", "code": "5994531539", "status": "done", "note": "30·50·100T 스티로폼/네오폴/접착식 한 상품 — 스티로폼1800_접착식과 공유" }
+    ],
+    "스티로폼/스티로폼1800_고티.html": [
+      { "channel": "coupang", "code": "5999901388", "status": "done", "note": "900x1800 스티로폼·네오폴 200~600T 한 상품 — 네오폴1800_고티와 공유" }
+    ],
+    "스티로폼/네오폴1800_고티.html": [
+      { "channel": "coupang", "code": "5999901388", "status": "done", "note": "900x1800 스티로폼·네오폴 200~600T 한 상품 — 스티로폼1800_고티와 공유" }
+    ],
+    "열반사단열재/열반사단열재_롤.html": [
+      { "channel": "coupang", "code": "8232412643", "status": "done", "note": "롤 50·25·20·10m 마스터" },
+      { "channel": "coupang", "code": "5465024346", "status": "done", "note": "롤 25·20·10m" }
+    ],
+    "열반사단열재/열반사단열재_1미터_쿠팡.html": [
+      { "channel": "coupang", "code": "178569244", "status": "done", "note": "1M" }
+    ],
+    "열반사단열재/열반사단열재_2미터(판상).html": [
+      { "channel": "coupang", "code": "8255306549", "status": "done", "note": "2M 판상" }
+    ],
+    "열반사단열재/열반사단열재_10미터.html": [
+      { "channel": "coupang", "code": "5654567470", "status": "done", "note": "10미터 코드를 받은 뒤 완료 처리 — 상품 매칭은 추정" }
+    ]
+  },
+  "unassigned": [
+    { "channel": "coupang", "code": "9474591055", "status": "done", "note": "아이소핑크 위너 — 매칭 HTML 없음" },
+    { "channel": "coupang", "code": "8202426484", "status": "done", "note": "아이소핑크 위너 600x900 — 매칭 HTML 없음" },
+    { "channel": "coupang", "code": "8080424483", "status": "done", "note": "아이소핑크 위너 900x1800 — 매칭 HTML 없음" },
+    { "channel": "coupang", "code": "8397602717", "status": "hold", "note": "열반사 — 쿠팡 오류로 수정 불가(2026-10-30), 어느 HTML인지 미정" },
+    { "channel": "coupang", "code": "5472028429", "status": "hold", "note": "열반사 — 쿠팡 오류로 수정 불가(2026-10-30), 어느 HTML인지 미정" }
+  ]
+}
