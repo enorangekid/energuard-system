@@ -131,33 +131,18 @@ window.onload = async function() {
     }
 };
 
-// 포천시 가산면 기준 날씨 API 호출 함수
+// 포천시 가산면 날씨 — 받아오기·표시·시간별/주간 패널은 js/weather.js(HKWeather)가 맡는다(2026-11-04).
+// 예전엔 여기서 Open-Meteo current_weather(모델 하나)를 직접 불러 표시했다. 지금은 예보 모델 5개의 중앙값을 쓰고, 칩을 누르면 패널이 뜬다.
 async function loadWeather() {
-    try {
-        const lat = 37.8289; const lon = 127.1994;
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
-        const data = await res.json();
-        
-        if(data && data.current_weather) {
-            const temp = data.current_weather.temperature;
-            const code = data.current_weather.weathercode;
-            
-            let icon = '<i class="fa-solid fa-sun" style="color:#f59e0b;"></i>';
-            let desc = '맑음';
-            if (code === 1 || code === 2) { icon = '<i class="fa-solid fa-cloud-sun" style="color:#94a3b8;"></i>'; desc = '구름조금'; }
-            if (code === 3) { icon = '<i class="fa-solid fa-cloud" style="color:#94a3b8;"></i>'; desc = '흐림'; }
-            if ([45,48].includes(code)) { icon = '<i class="fa-solid fa-smog" style="color:#94a3b8;"></i>'; desc = '안개'; }
-            if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code)) { icon = '<i class="fa-solid fa-cloud-rain" style="color:#3b82f6;"></i>'; desc = '비'; }
-            if ([71,73,75,77,85,86].includes(code)) { icon = '<i class="fa-solid fa-snowflake" style="color:#0ea5e9;"></i>'; desc = '눈'; }
-            if ([95,96,99].includes(code)) { icon = '<i class="fa-solid fa-cloud-bolt" style="color:#64748b;"></i>'; desc = '뇌우'; }
-
-            const weatherEl = document.getElementById('weather-info');
-            if (weatherEl) weatherEl.innerHTML = `${icon} <span style="font-weight:700; color:#1e293b;">${escapeAdminHtml(temp)}°C</span> <span style="font-size:12px; color:#9ca3af;">(${escapeAdminHtml(desc)})</span>`;
-        }
-    } catch (e) {
+    if (!window.HKWeather) {
         const weatherEl = document.getElementById('weather-info');
         if (weatherEl) weatherEl.innerHTML = '<i class="fa-solid fa-circle-exclamation" style="color:#ef4444;"></i> 날씨 오류';
+        return;
     }
+    HKWeather.bindChip('weather-info'); // 여러 번 불려도 같은 칩이면 다시 연결하지 않는다
+    await HKWeather.update();
+    // 날짜별 날씨 기록(서버 저장)에서 빠진 날짜를 채운다 — 매출과 같이 보려고. 하루 한 번이면 충분해서 이미 채워져 있으면 바로 끝난다.
+    HKWeather.syncDaily().then(result => { if (result && result.added) console.info(`[날씨 기록] ${result.added}일 저장 (총 ${result.total}일)`); else if (result && !result.ok) console.warn('[날씨 기록] 저장하지 못했습니다:', result.reason, result.message || ''); });
 }
 
 // 비밀번호 보이기/숨기기 토글

@@ -1,0 +1,51 @@
+/* css/weather.css — 상단 날씨 칩의 시간별·주간 예보 패널 (2026-11-04, js/weather.js) */
+.hkw-panel {
+  position: fixed; z-index: 9000; width: min(480px, calc(100vw - 16px)); max-height: calc(100vh - 72px); overflow: auto;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 14px 36px rgba(15, 23, 42, .2);
+  padding: 14px 16px 12px; font-size: 13px; color: #1e293b; line-height: 1.4;
+}
+.hkw-panel * { box-sizing: border-box; }
+.hkw-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.hkw-head > div:first-child { flex: 1; min-width: 0; }
+.hkw-head b { font-size: 14px; }
+.hkw-sub { display: block; font-size: 11px; color: #9ca3af; margin-top: 1px; }
+.hkw-refresh, .hkw-close { border: 0; background: #f1f5f9; color: #64748b; width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.hkw-refresh:hover, .hkw-close:hover { background: #e2e8f0; color: #1e293b; }
+
+.hkw-now { display: flex; gap: 14px; align-items: center; padding: 10px 12px; background: #f8fafc; border-radius: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.hkw-big { display: flex; align-items: center; gap: 8px; font-size: 26px; white-space: nowrap; }
+.hkw-big b { font-size: 30px; letter-spacing: -1px; }
+.hkw-big span { font-size: 13px; color: #64748b; }
+.hkw-stats { flex: 1; min-width: 200px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 10px; }
+.hkw-stat { display: flex; flex-direction: column; font-size: 11px; color: #9ca3af; }
+.hkw-stat b { font-size: 13px; color: #1e293b; font-weight: 600; }
+
+.hkw-title { font-weight: 700; font-size: 12px; margin: 10px 0 6px; color: #334155; }
+.hkw-title small { font-weight: 400; color: #9ca3af; }
+
+.hkw-hours { display: flex; gap: 2px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+.hkw-hour { flex: none; width: 52px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; border-radius: 8px; font-size: 12px; }
+.hkw-hour:first-of-type, .hkw-hour:hover { background: #f1f5f9; }
+.hkw-hl { font-size: 11px; color: #64748b; }
+.hkw-hour i { font-size: 16px; }
+.hkw-hour b { font-size: 13px; }
+.hkw-hp, .hkw-hh { font-size: 10.5px; color: #cbd5e1; }
+.hkw-hp.is-wet { color: #2563eb; font-weight: 600; }
+.hkw-hh { color: #94a3b8; }
+.hkw-datemark { flex: none; align-self: stretch; display: flex; align-items: center; padding: 0 4px; font-size: 10.5px; font-weight: 700; color: #475569; border-left: 1px solid #e2e8f0; writing-mode: vertical-rl; }
+
+.hkw-days { display: flex; flex-direction: column; }
+.hkw-day { display: grid; grid-template-columns: 58px 20px 56px 52px 38px 28px 1fr 28px; align-items: center; gap: 6px; padding: 5px 2px; border-top: 1px solid #f1f5f9; }
+.hkw-day:first-child { border-top: 0; }
+.hkw-dl { font-weight: 600; }
+.hkw-dt { color: #64748b; font-size: 12px; }
+.hkw-dp { font-size: 11.5px; color: #cbd5e1; text-align: right; }
+.hkw-dp.is-wet { color: #2563eb; font-weight: 600; }
+.hkw-dh { font-size: 11.5px; color: #94a3b8; text-align: right; }
+.hkw-lo { color: #3b82f6; text-align: right; font-weight: 600; }
+.hkw-hi { color: #ef4444; font-weight: 600; }
+.hkw-bar { position: relative; height: 6px; border-radius: 3px; background: #e2e8f0; }
+.hkw-bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #60a5fa, #f87171); }
+
+.hkw-note { margin-top: 10px; padding-top: 8px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #9ca3af; }
+#weather-info[role="button"]:hover { opacity: .8; }
