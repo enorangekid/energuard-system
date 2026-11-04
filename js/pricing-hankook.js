@@ -1977,7 +1977,16 @@ const HK_COUPANG_PRODUCTS = [
   ['6410758339', '5000', [['Iso_430_430_10_3', '91272690373', 9800], ['Iso_430_430_20_3', '91272690376', 14300], ['Iso_430_430_30_2', '91272690380', 13500], ['Iso_430_430_40_2', '91272690392', 15900],
                           ['Iso_430_430_50_2', '91272690383', 17800], ['Iso_430_430_70_1', '91272690387', 14700], ['Iso_430_430_100_1', '91272690389', 17700]]],
   ['8115891747', '5000', [['Iso_600_900_10_3', '91273057157', 14900], ['Iso_600_900_20_1', '91273057163', 12000], ['Iso_600_900_30_1', '91273057151', 13900], ['Iso_600_900_40_1', '91273057134', 16500],
-                          ['Iso_600_900_50_1', '91273057139', 18600], ['Iso_600_900_70_1', '91273057129', 23900], ['Iso_600_900_100_1', '91273057143', 31300]]],
+                          ['Iso_600_900_50_1', '91273057139', 18600], ['Iso_600_900_70_1', '91273057129', 23900], ['Iso_600_900_100_1', '91273057143', 31300],
+                          // 2026-11-04 사용자 지시 — 위너 600x900 묶음 옵션(10-10·20-5·30-3·40-2·50-2)을 중지하고 이 상품에 새 옵션으로 넣는다(100T 1장은 이미 있음).
+                          // 아직 쿠팡에 등록 전이라 옵션 ID가 비어 있다 — 등록해서 옵션 ID를 받으면 아래 ''를 그 번호로 채운다.
+                          // 가격은 계산식이 아니라 **고정 등록가(fixedRegistered, 쿠폰 적용 전)**다(사용자 지시 — 한국단열·아이소핑크 단가·배송비가 바뀌어도 안 따라간다). 수동 가격이라 바꾸려면 여기 값을 직접 고친다.
+                          // 쿠폰은 10%가 아니라 **정액 25,000원**(couponFlat) — 스티로폼 174891106처럼(사용자 결정, 판매량이 많이 늘어서). 최종가 = 등록가 − 25,000.
+                          // 최종가는 이 옵션들이 위너(8202426484·9474591055)로 팔던 가격(32,030·31,080·28,250·25,940·28,670)을 100원 올림한 값(32,100·31,100·28,300·26,000·28,700)이고, 등록가 = 최종가 + 25,000.
+                          // 수정 전 판매가도 같은 값(반영 대기 안 뜸). 10T 10장은 배송비를 1번만 받는 구성이다(사용자 결정).
+                          ['Iso_600_900_10_10', '', 57100, null, { fixedRegistered: 57100, couponFlat: 25000 }], ['Iso_600_900_20_5', '', 56100, null, { fixedRegistered: 56100, couponFlat: 25000 }],
+                          ['Iso_600_900_30_3', '', 53300, null, { fixedRegistered: 53300, couponFlat: 25000 }], ['Iso_600_900_40_2', '', 51000, null, { fixedRegistered: 51000, couponFlat: 25000 }],
+                          ['Iso_600_900_50_2', '', 53700, null, { fixedRegistered: 53700, couponFlat: 25000 }]]],
   // 10T 10장 묶음은 엑셀 메모 기준 네이버 장당 4,200원×10장=42,000원이고,
   // 5장당 배송비를 두 번 부과해 배송비가 2박스분이다(6,000원 × 2 = 12,000원 → 2026-10-21 배송비 5,500원으로 11,000원). 1단계 공용 묶음 행의 48,000원과
   // 뜻이 다르므로 이 쿠팡 옵션만 한국단열 판매가·배송비를 함께 명시한다.
@@ -2323,8 +2332,11 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
   const hkdPrice = item && item.hkdPrice != null ? Number(item.hkdPrice) : _hkChannelHkdPrice(categoryId, productCode);
   // item.hkdShipping이 있으면(쿠팡 표의 배송비가 배송 설정과 다른 옵션) 그 값을 우선한다.
   const hkdShipping = item && item.hkdShipping != null ? Number(item.hkdShipping) : _hkHkdShippingByCode(productCode);
-  if (hkdPrice == null || hkdShipping == null) return null;
-  const total = hkdPrice + hkdShipping;
+  // item.fixedRegistered(고정 등록가, 쿠폰 적용 전) — 일반(쿠폰형) 옵션의 등록 판매가를 계산식에서 떼어 이 값으로 못 박는다(2026-11-04 사용자 지시,
+  // 위너의 수동 판매가처럼). 아이소핑크·한국단열 단가나 배송비가 바뀌어도 움직이지 않는다. 쿠폰 할인율(item.couponOff)과 최종가는 이 값에서 계산한다.
+  const fixed = item && item.fixedRegistered != null && Number.isFinite(Number(item.fixedRegistered)) ? Number(item.fixedRegistered) : null;
+  if ((hkdPrice == null || hkdShipping == null) && fixed == null) return null;
+  const total = (hkdPrice ?? 0) + (hkdShipping ?? 0);
   const unit = config.roundUp * 100;
   const listPrice = Math.ceil(total * config.listPercent / unit) * config.roundUp; // 참고 판매가(×1.05, 100원 올림) — 카테고리 공통
   // 정액 쿠폰 상품(스티로폼 쿠팡 일부 — 사용자 확인 2026-09-22): "쿠폰 10%"가 아니라 "25,000원 쿠폰"처럼
@@ -2332,12 +2344,14 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
   // 그대로 빠져서 최종가 = 참고 판매가가 된다. item.couponFlat(원)에 쿠폰 금액을 적어두면 이 경로를 탄다 —
   // 원본 엑셀은 이 상품들도 퍼센트 쿠폰과 같은 식(×1.16→×0.9)으로 계산해 뒀는데, 그건 틀린 값이었다.
   if (item && item.couponFlat != null) {
-    const registered = listPrice + Number(item.couponFlat);
+    // 고정 등록가(item.fixedRegistered)가 있으면 계산식 대신 그 값이 등록가이고, 쿠폰을 쓴 최종가 = 등록가 − 쿠폰 금액이다.
+    const registered = fixed != null ? fixed : listPrice + Number(item.couponFlat);
     return {
       hkdPrice, hkdShipping, total,
       preCoupon: registered, listPrice,
       couponOff: null, couponFlat: Number(item.couponFlat),
-      finalPrice: listPrice, registered, winner: false,
+      finalPrice: registered - Number(item.couponFlat), registered, winner: false,
+      fixed: fixed != null,
     };
   }
   // 쿠폰이 없는 옵션(item.noCoupon — 쿠팡 기타단열재: 방습단열초배지·캠핑단열재·난방필름, 사용자 확인 2026-10-20 "기타 단열재는 다 쿠폰이 없다"):
@@ -2369,7 +2383,7 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
   // (사용자 확인 2026-09-22, 엑셀 61행 전부와 정확히 일치), 열반사단열재·단열벽지는 100원 단위 반올림
   // (사용자 확인 2026-09-23, 표 전부와 정확히 일치 — 올림이 아니라 반올림이라 아이소핑크와 다름).
   // 정수 연산만 써서 소수 오차를 피한다.
-  const preCoupon = categoryId === 'hk_bead'
+  const preCoupon = fixed != null ? fixed : categoryId === 'hk_bead'
     ? Math.round(total * config.preCouponPercent / 1000) * 10
     : categoryId === 'hk_reflective' || categoryId === 'hk_wallpaper'
       ? Math.round(total * config.preCouponPercent / unit) * config.roundUp
@@ -2399,6 +2413,7 @@ function _hkCoupangPriceParts(categoryId, productCode, config, item, product) {
     finalPrice,
     registered: preCoupon,
     winner: false,
+    fixed: fixed != null,
   };
 }
 
@@ -2485,7 +2500,8 @@ function _hkChannelProductLink(channelId, product) {
   if (channelId === 'esm') return `https://item.gmarket.co.kr/Item?goodscode=${product.productId}`;
   if (channelId === '11st') return `https://www.11st.co.kr/products/${product.productId}`;
   // 쿠팡: Product ID(노출상품ID)로 상품 페이지, 옵션은 뒤에 ?vendorItemId=옵션ID를 붙인다(_hkCoupangOptionLink).
-  if (channelId === 'coupang' || channelId === 'coupang_sub') return `https://www.coupang.com/vp/products/${product.productId}`;
+  // 등록 전 상품은 번호 대신 임시 이름('신규_5M')을 쓴다 — 숫자가 아니면 링크를 만들지 않는다.
+  if (channelId === 'coupang' || channelId === 'coupang_sub') return /^\d+$/.test(String(product.productId)) ? `https://www.coupang.com/vp/products/${product.productId}` : '';
   return '';
 }
 
@@ -3160,7 +3176,7 @@ function _hkCoupangCategoryTableHtml(channelId, categoryId, products) {
         <td class="hk-coupon-off is-off-${parts && parts.couponOff != null ? parts.couponOff : (parts && parts.couponFlat != null ? 'flat' : 'none')}"${isPlain ? ' title="쿠폰이 없고 판매가를 그대로 받습니다"' : (parts && parts.couponFlat != null ? ' title="퍼센트가 아니라 원 단위 정액 쿠폰입니다"' : '')}>${isPlain ? '쿠폰 없음' : (parts && parts.couponFlat != null ? num(parts.couponFlat) + '원' : (parts && parts.couponOff != null ? parts.couponOff + '%' : (blankMissing ? '' : '—')))}</td>
         <td class="hk-price-final${isPlain ? ' is-plain' : ''}"${isPlain ? ' title="쿠폰이 없어서 등록 판매가와 같은 값입니다"' : ''}>${num(parts?.finalPrice)}</td>`}
         ${manualCell}
-        <td class="hk-iso-ship-final-price${priceChanged ? ' is-changed' : ''}"${isManual ? ' title="수동 판매가를 쓰고 있습니다"' : ''}>${num(registered)}${isManual ? '<span class="hk-manual-tag">수동</span>' : ''}</td>
+        <td class="hk-iso-ship-final-price${priceChanged ? ' is-changed' : ''}"${isManual ? ' title="수동 판매가를 쓰고 있습니다"' : (parts && parts.fixed ? ' title="고정 등록가입니다 — 한국단열·아이소핑크 단가가 바뀌어도 이 값은 그대로입니다"' : '')}>${num(registered)}${isManual ? '<span class="hk-manual-tag">수동</span>' : (parts && parts.fixed ? '<span class="hk-manual-tag">고정</span>' : '')}</td>
         <td class="hk-iso-listing-prev-price">${num(item.prevPrice)}</td>
         <td class="hk-iso-listing-diff${priceChanged ? ' is-changed' : ''}">${priceDiff == null ? (blankMissing ? '' : '—') : (priceDiff > 0 ? '+' : '') + num(priceDiff)}</td>
         ${item.stockFixed != null
