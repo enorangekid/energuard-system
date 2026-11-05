@@ -81,6 +81,9 @@
     ],
     "열반사단열재/열반사단열재_10미터.html": [
       { "channel": "coupang", "code": "5654567470", "status": "done", "note": "10미터 코드를 받은 뒤 완료 처리 — 상품 매칭은 추정" }
+    ],
+    "열반사단열재/열반사단열재_5미터.html": [
+      { "channel": "coupang", "code": "9806191720", "status": "todo", "note": "2026-11-05 신규 등록한 열반사 5M 상품 — 상세 코드 붙여 넣으면 done" }
     ]
   },
   "unassigned": [
