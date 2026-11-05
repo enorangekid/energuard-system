@@ -1701,6 +1701,9 @@ const HK_CHANNEL_LISTINGS = {
         { productCode: 'Iso_600_860_250_1', prevPrice: 65000,  prevShipping: 0 },
         { productCode: 'Iso_600_430_500_1', prevPrice: 72000,  prevShipping: 0 },
         { productCode: 'Iso_600_860_500_1', prevPrice: 126000, prevShipping: 0 },
+        // 2026-11-05 사용자 지시 — 이형 사이즈 550x450 400T 옵션 추가. 아이소핑크 단가와 연동하지 않는 **고정 판매가 60,000원**이라
+        // 공통 단가표에 없는 코드로 두고 targetPrice(채널 전용 옵션의 직접 판매가)로 못 박았다. 무료배송 상품이라 배송비 0.
+        { productCode: 'Iso_550_450_400_1', productName: '아이소핑크 550x450 400T (이형)', targetPrice: 60000, prevPrice: 60000, prevShipping: 0 },
       ],
     },
     {
