@@ -1027,20 +1027,3 @@ const HK_BEAD_11ST_GROUPS = [
     ]),
   );
 })();
-
-/* 2026-11-05 사용자 지시 — 스티로폼(1종 3호, `St_`) 900x1800 30T·40T·50T만 네이버(한국단열 스마트스토어)와 쿠팡에서 잠깐 품절로 둔다. 네오폴(`Neo_`)·접착식(`StA_`)은 품절이 아니다(사용자 정정).
-   품절 상태는 코드 기본 상태(seedStatus — DB를 불러와도 유지)로 적었다. 다시 팔게 되면 이 블록을 지우거나 단가표에서 판매중으로 바꿔 저장한다.
-   네이버: 상품 5759250443(스티로폼 900x1800) 3개 / 쿠팡: 5994531539(30·50T 2개) + 9578897160(40T 2개). ESM·11번가·홈페이지는 대상이 아니다. */
-(function markBead900x1800SoldOut() {
-  const soldout = { status: 'soldout', seedStatus: 'soldout' };
-  const codes = new Set([
-    'St_900_1800_30_5', 'St_900_1800_40_3', 'St_900_1800_40_5', 'St_900_1800_50_3',
-  ]);
-  const targets = { hkd: ['5759250443'], coupang: ['5994531539', '9578897160'] };
-  Object.entries(targets).forEach(([channel, productIds]) => {
-    (HK_CHANNEL_LISTINGS[channel] || []).forEach(listing => {
-      if (!productIds.includes(String(listing.productId))) return;
-      (listing.items || []).forEach(item => { if (codes.has(item.productCode)) Object.assign(item, soldout); });
-    });
-  });
-})();
