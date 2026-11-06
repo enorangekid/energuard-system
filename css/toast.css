@@ -29,6 +29,9 @@
 .toast.hiding {
     opacity: 0;
     transform: translateY(8px);
+    /* 사라지는 중이거나 (transitionend가 안 와서) 남아 있는 투명 토스트가 우하단의 저장·위로가기
+       버튼 위를 덮어 클릭을 막던 문제 방지(2026-11-06). */
+    pointer-events: none;
 }
 .toast-success { background: #f0fdf4; color: #166534; border-left: 4px solid #22c55e; }
 .toast-error   { background: #fef2f2; color: #991b1b; border-left: 4px solid #ef4444; }

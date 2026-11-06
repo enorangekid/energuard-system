@@ -683,8 +683,13 @@ function showToast(message, type = 'info', duration = 3500) {
 
     // duration 후 fade-out → 제거
     const remove = () => {
+        if (toast.classList.contains('hiding')) return;
         toast.classList.add('hiding');
-        toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+        const done = () => toast.remove();
+        toast.addEventListener('transitionend', done, { once: true });
+        // transitionend가 안 오는 경우(백그라운드 탭·애니메이션 중단 등)에도 투명 토스트가 남아
+        // 우하단 버튼을 막지 않도록 시간이 지나면 강제로 제거한다(2026-11-06).
+        setTimeout(done, 600);
     };
     const timer = setTimeout(remove, duration);
 
