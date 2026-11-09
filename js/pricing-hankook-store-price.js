@@ -179,7 +179,31 @@ const HK_STORE_PRICE_SEED_GROUPS = [
       if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
       if (typeof showToast === 'function') showToast(`스토어 판매가 ${added}개를 새로 추가했습니다 — 단가표 [저장]을 눌러야 DB에 남습니다.`, 'info');
     }
+    migrateReflectiveReprice();
   };
+
+  /* 열반사 판매가 +20% 인상(2026-11-09, 사용자 결정) 후 스토어 판매가 맞추기 — 스토어 판매가는 단가표 판매가를 따라가지 않는 별도 값이라(옛 단가표 + 쿠폰 금액 300/500/1,000)
+     새 스토어 판매가 = 새 단가표 판매가 + (옛 스토어 판매가 − 옛 단가표 판매가)로 쿠폰 금액을 그대로 유지한다. 옛 단가표와의 차이가 1~2,000원인 값만 바꾸고(그 밖의 값은 사용자가 따로 정한 것으로 보고 건드리지 않는다),
+     한 번 반영하면 묶음 id를 __seeds에 남겨(단가표 [저장]) 다시 하지 않는다. 옛·새 단가표 값은 pricing-hankook-reflective.js의 변환 표를 쓴다. */
+  const REPRICE_ID = '2026-11-09-reflective-reprice20';
+  function migrateReflectiveReprice() {
+    if (applied.includes(REPRICE_ID)) return;
+    const pairs = {};
+    [typeof HK_REFLECTIVE_1M_PRICE_MIGRATION !== 'undefined' ? HK_REFLECTIVE_1M_PRICE_MIGRATION : [],
+      typeof HK_REFLECTIVE_REPRICE20_MIGRATION !== 'undefined' ? HK_REFLECTIVE_REPRICE20_MIGRATION : []]
+      .forEach(list => list.forEach(([code, from, to]) => { pairs[code] = [from, to]; }));
+    if (!Object.keys(pairs).length) return; // 열반사 변환 표를 아직 못 불러왔으면 다음에(묶음 id도 남기지 않는다)
+    let changed = 0;
+    Object.keys(prices).forEach(key => {
+      const pair = pairs[key.split('|')[1]];
+      if (!pair) return;
+      const delta = prices[key] - pair[0];
+      if (delta >= 1 && delta <= 2000) { prices[key] = pair[1] + delta; changed += 1; }
+    });
+    applied.push(REPRICE_ID);
+    if (typeof window.hkDbMarkDirty === 'function') window.hkDbMarkDirty();
+    if (changed && typeof showToast === 'function') showToast(`열반사 스토어 판매가 ${changed}개를 새 단가표에 맞게 올렸습니다 — 단가표 [저장]을 눌러야 DB에 남습니다.`, 'info');
+  }
 
   /* 몰별 표(한국단열)의 '스토어 판매가' 칸 안쪽 — base는 그 옵션의 단가표 판매가. 단가표 값과 다르게 적으면 빨갛게 보인다. */
   window.hkStoreCellHtml = (productId, code, base) => {
