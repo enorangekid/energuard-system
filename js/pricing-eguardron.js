@@ -6,6 +6,8 @@
    - 새 가격 = 현재 ×1.2(빌트론 2026-11 재인상과 같은 방식): 롤(10M 이상)·1+1은 천 원 단위 내림, 1M·2M 판형은 100원 단위 반올림.
    - 상품번호는 스마트스토어 상품번호다(사용자가 스토어 상품 목록 화면으로 확인해 준 번호와 엑셀 맨 위 줄 번호가 같다, 2026-11-09). 상품명 표기도 스토어와 같다.
      그 목록 화면의 가격은 예전 값이라 쓰지 않는다(사용자 지시). 다른 몰 번호·몰별 가격 계산은 아직 없다.
+   화면은 한국단열 열반사단열재 단가표(js/pricing-hankook-reflective.js)와 같은 카드·아코디언·표 클래스를 쓴다. 상품번호 칸의 [상품코드 복사] 버튼(한국단열 표와 같은 hkCopyProductCode)으로 네이버 상품번호를 복사한다.
+   대표가(= 비접착 옵션 가격, 옵션가 0)와 옵션가(= 옵션 가격 − 대표가)도 이전·새 값을 같이 보여 준다.
    읽기 전용 표다 — 값을 바꾸려면 아래 EGR_PRODUCTS를 고친다.
 ═══════════════════════════════════════ */
 const EGR_PRODUCTS = [
@@ -277,32 +279,99 @@ const EGR_PRODUCTS = [
 
 (function renderEguardronTab() {
   const num = n => Number(n).toLocaleString('ko-KR');
-  const pct = (a, b) => (b > 0 ? (((a / b) - 1) * 100).toFixed(1) + '%' : '—');
   const kind = code => (/_DA(_2)?$/.test(code) ? '한쪽접착' : '비접착');
+  const thick = block => (block.name.match(/(\d+T)/) || [])[1] || '';
+  const isSheet = item => /^[12]m$/.test(String(item.length).toLowerCase());
   // 스마트스토어 상품명과 같은 표기 — 롤은 "폭1m x 길이40m", 1M·2M 낱장은 "가로1m x 세로2m", 1+1은 앞에 "1+1 "
-  const spec = (block, item) => {
-    const t = (block.name.match(/(\d+T)/) || [])[1] || '';
-    const plus = block.name.includes('1+1') ? '1+1 ' : '';
-    const len = String(item.length).toLowerCase();
-    const size = /^[12]m$/.test(len) ? `가로1m x 세로${len}` : `폭1m x 길이${len}`;
-    return `${plus}에너가드론 열반사단열재 ${t} ${size} 고급형 ${kind(item.code)}`;
-  };
-  const rows = EGR_PRODUCTS.map(block => block.items.map((item, i) => `<tr>
-      ${i === 0 ? `<td rowspan="${block.items.length}" class="egr-product">${block.name}<br><small>${block.productNo}</small></td>` : ''}
+  const sizeLabel = item => { const len = String(item.length).toLowerCase(); return isSheet(item) ? `가로1m x 세로${len}` : `폭1m x 길이${len}`; };
+  const productTitle = (block, item) => `${block.name.includes('1+1') ? '1+1 ' : ''}에너가드론 ${thick(block)} ${sizeLabel(item)}`;
+  const specText = (block, item) => `${thick(block)} X ${String(item.length).toUpperCase()}${isSheet(item) ? '' : '(롤)'}`;
+
+  // 스마트스토어 옵션 구조 — 대표가 = 첫 옵션(비접착) 가격(옵션가 0), 옵션가 = 그 옵션 가격 − 대표가.
+  const baseOf = block => block.items[0];
+  const optionPrice = (item, block, field) => item[field] - baseOf(block)[field];
+
+  const readonlyPrice = value => `<div class="hk-iso-price-edit-wrap"><input type="text" class="pricing-input-field hk-iso-final-price-input" value="${num(value)}" readonly aria-label="가격"></div>`;
+  const signed = n => (n > 0 ? '+' : '') + num(n);
+
+  // 행 — 한국단열 열반사단열재 표(_hkReflectiveRowHtml)와 같은 칸 클래스. 이전 판매가 = 현재(26.05.08 인상가, 앱 가격 DB와 같은 값), 실판매가 = 새 가격.
+  const rowHtml = (block, item, index) => {
+    const base = baseOf(block);
+    const diff = item.next - item.current;
+    const prevOpt = optionPrice(item, block, 'current');
+    const nextOpt = optionPrice(item, block, 'next');
+    const productCells = index === 0 ? `
+      <td rowspan="${block.items.length}" class="hk-sub-name egr-product-cell">
+        <div class="egr-product-no">${block.productNo}</div>
+        <div class="pgl-btns pgl-btns-fit"><button type="button" class="pgl-btn pgl-btn-wide" onclick="hkCopyProductCode(this,'${block.productNo}')" title="이 상품의 상품코드(${block.productNo})를 복사합니다">상품코드 복사</button></div>
+      </td>
+      <td rowspan="${block.items.length}" class="hk-iso-draft-price hk-sub-price-cell egr-base-cell">
+        ${readonlyPrice(base.next)}<small class="egr-base-prev">이전 ${num(base.current)}</small>
+      </td>` : '';
+    return `<tr class="hk-reflective-roll-row" data-product-code="${item.code}">${productCells}
+      <td class="hk-sub-name">고급형 ${kind(item.code)}</td>
+      <td class="hk-reflective-spec" title="${specText(block, item)}">${specText(block, item)}</td>
       <td class="hk-iso-draft-code">${item.code}</td>
-      <td>${spec(block, item)}</td>
-      <td style="text-align:right">${num(item.ship)}<small style="color:#94a3b8"> / ${item.shipBasis}</small></td>
-      <td style="text-align:right;color:#94a3b8">${num(item.before)}</td>
-      <td style="text-align:right">${num(item.current)}</td>
-      <td style="text-align:right;font-weight:700">${num(item.next)}</td>
-      <td style="text-align:right">${pct(item.next, item.current)}</td>
-    </tr>`).join('')).join('');
-  const html = `<div class="pricing-result-card">
-    <div class="pricing-card-header"><h3 style="margin:0">에너가드론 단가표</h3>
-      <small style="color:#64748b">에너가드컴퍼니 열반사 · 현재 = 26.05.08 인상가 · 새 가격 = 현재 ×1.2 (롤 천 원 내림, 1M·2M 판형 100원 단위)</small></div>
-    <div class="pricing-table-scroll"><table class="pricing-table" id="egrTable">
-      <thead><tr><th>스마트스토어 상품번호</th><th>상품코드</th><th>상품명</th><th>배송비</th><th>인상 전</th><th>현재(인상가)</th><th>새 가격</th><th>인상률</th></tr></thead>
-      <tbody>${rows}</tbody></table></div></div>`;
+      <td class="hk-sub-previous">${num(item.ship)}<small>${item.shipBasis}</small></td>
+      <td class="hk-sub-old-price" title="인상 전 판매가 — 참고용">${num(item.before)}</td>
+      <td class="hk-sub-previous">${num(item.current)}<small class="${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}">${diff ? signed(diff) : '동일'}</small></td>
+      <td class="hk-iso-draft-price hk-sub-price-cell">${readonlyPrice(item.next)}</td>
+      <td class="hk-sub-previous">${num(prevOpt)}</td>
+      <td class="hk-iso-draft-price hk-sub-price-cell">${readonlyPrice(nextOpt)}<small class="${nextOpt - prevOpt > 0 ? 'up' : ''}">${nextOpt - prevOpt ? signed(nextOpt - prevOpt) : '동일'}</small></td>
+    </tr>`;
+  };
+  const tableHtml = block => `<div class="pricing-table-scroll">
+    <table class="pricing-table hk-sub-table hk-reflective-table">
+      <colgroup><col style="width:150px"><col style="width:112px"><col class="hk-reflective-col-name"><col class="hk-reflective-col-spec"><col class="hk-reflective-col-code"><col class="hk-sub-col-shipping"><col class="hk-sub-col-previous"><col class="hk-sub-col-previous"><col class="hk-sub-col-price"><col class="hk-sub-col-previous"><col class="hk-sub-col-price"></colgroup>
+      <thead><tr>
+        <th class="hk-sub-head-code">상품번호</th><th class="hk-sub-head-sale-price">대표가<br><small>옵션가 0 기준</small></th>
+        <th class="hk-sub-head-base">품명</th><th class="hk-sub-head-base">규격</th><th class="hk-sub-head-code">상품코드</th><th class="hk-sub-head-base">배송비</th>
+        <th class="hk-sub-head-base">예전가</th><th class="hk-sub-head-base">이전 판매가<br><small>26.05.08 인상가</small></th><th class="hk-sub-head-sale-price">실판매가</th>
+        <th class="hk-sub-head-base">이전 옵션가</th><th class="hk-sub-head-sale-price">옵션가</th>
+      </tr></thead>
+      <tbody>${block.items.map((item, index) => rowHtml(block, item, index)).join('')}</tbody>
+    </table>
+  </div>`;
+  const accordionHtml = (block, index) => {
+    const id = `egr_${index}`;
+    return `<div class="hk-iso-accordion open" id="hkIsoAcc-${id}">
+      <div class="hk-iso-accordion-head">
+        <span class="hk-iso-accordion-title">${productTitle(block, block.items[0])}<span class="hk-iso-accordion-sub">${block.productNo}</span></span>
+        <span class="hk-iso-accordion-count">옵션 ${block.items.length}개</span>
+        <button type="button" class="hk-iso-accordion-toggle" onclick="toggleHkIsoAccordion('${id}')" title="펼치기 / 접기" aria-label="펼치기 또는 접기"><i class="fa-solid fa-chevron-down hk-iso-accordion-chevron"></i></button>
+      </div>
+      <div class="hk-iso-accordion-body">${tableHtml(block)}</div>
+    </div>`;
+  };
+  const optionCount = EGR_PRODUCTS.reduce((sum, block) => sum + block.items.length, 0);
+
+  // 스토어 가격검사(관리자 화면의 한국단열 몰별 검사와 같은 창, channelId 'egc') — 에너가드컴퍼니 스토어(smartstore.naver.com/energuardcompany)의
+  // 에너가드론 상품을 하나씩 열어 옵션 관리코드(EG_…)로 짝지어 "새 판매가"(실판매가)와 같은지 본다. 스토어 쪽은 즉시할인가(대표가+옵션가)로 비교한다.
+  // 검사 대상은 pricing-check-test.js의 gatherHkdItems('egc')가 이 함수를 불러 가져간다.
+  window.hkEguardronCheckItems = () => EGR_PRODUCTS.map(block => ({
+    productId: block.productNo,
+    productUrl: `https://smartstore.naver.com/energuardcompany/products/${block.productNo}`,
+    options: block.items.map(item => ({ code: item.code, name: `고급형 ${kind(item.code)}`, expected: item.next, status: null }))
+  }));
+  window.hkEguardronOpenCheck = () => {
+    if (typeof window.openHkStorePriceCheck !== 'function') { if (typeof showToast === 'function') showToast('스토어 가격검사는 관리자 화면에서만 쓸 수 있습니다.', 'error'); return; }
+    if (window.currentUser?.role !== 'admin') { if (typeof showToast === 'function') showToast('스토어 가격검사는 관리자만 쓸 수 있습니다.', 'error'); return; }
+    window.openHkStorePriceCheck('egc');
+  };
+  const checkButton = typeof window.openHkStorePriceCheck === 'function'
+    ? '<button type="button" class="pim-btn-confirm" onclick="hkEguardronOpenCheck()" title="에너가드컴퍼니 스토어의 에너가드론 상품을 하나씩 열어 새 판매가와 같은지 확인합니다(읽기 전용)"><i class="fa-solid fa-magnifying-glass-dollar"></i> 스토어 가격검사</button>' : '';
+  const html = `<div class="card pricing-result-card hk-sub-card">
+    <div class="pricing-result-header">
+      <div class="pricing-result-title">에너가드론 열반사단열재 기준 판매가<span class="pricing-spec-badge">${EGR_PRODUCTS.length}개 상품 · ${optionCount}개 옵션</span></div>
+      ${checkButton}<span class="pricing-result-hint">실판매가 = 이전 판매가 ×1.2 (롤·1+1 천 원 내림, 1M·2M 100원 단위) · 대표가 = 비접착 가격, 옵션가 = 옵션 가격 − 대표가</span>
+    </div>
+    <div class="hk-iso-accordion-list">${EGR_PRODUCTS.map(accordionHtml).join('')}</div>
+  </div>`;
+
+  // .hk-sub-table 은 마진 열까지 있는 한국단열 표라 min-width 1730px — 이 표는 열 수에 맞게 줄이고, 상품번호·대표가 칸은 가운데 정렬로 맞춘다.
+  const style = document.createElement('style');
+  style.textContent = '#pricing-tab-eguardron .hk-sub-table { min-width: 1180px; } #pricing-tab-eguardron .egr-product-cell { vertical-align: middle; text-align: center; } #pricing-tab-eguardron .egr-product-no { font-weight: 700; margin-bottom: 6px; } #pricing-tab-eguardron .egr-base-cell { vertical-align: middle; } #pricing-tab-eguardron .egr-base-prev { display: block; color: #94a3b8; font-size: 11px; margin-top: 4px; }';
+  document.head.appendChild(style);
   const draw = () => { const pane = document.getElementById('pricing-tab-eguardron'); if (pane) pane.innerHTML = html; };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', draw); else draw();
 })();

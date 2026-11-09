@@ -319,10 +319,12 @@
   // 스토어 쪽은 즉시할인만 적용된 "상품 가격"으로 비교한다 — 한국단열은 판매가를 높게 적고 즉시할인을 거는
   // 상품이 많아서 할인 전 판매가로 비교하면 할인액만큼 전부 틀어지고, 알림쿠폰까지 뺀 최대할인가로 비교하면
   // 쿠폰이 걸린 상품(5697937041)이 전부 -2,000으로 틀어진다.
-  const HKD_MIN_EXTENSION='0.32.2'; // 0.32.2: 모음전 엑셀 — 옵션 항목 제목을 페이지 inline 데이터에서도 찾고, 못 찾으면 단서(optionHints)를 돌려줌 / 0.32.0: 한국단열 모음전 옵션 엑셀 — 확장이 스마트스토어 상품 페이지에서 옵션명·옵션 항목 제목·관리코드를 읽어 줌(moeum 요청) / 0.31.20: ESM 봇 확인 화면은 바로 실패하지 않고 약 20초까지 기다려 다시 읽고, 상품 사이 대기를 3~5.5초(무작위)로 늘림 / 0.31.19: 11번가 성인 인증 상품이 login.11st.co.kr 외 인증·member 주소로 넘어가도 '성인인증 필요'로 표시(이동한 주소 포함), 그 밖의 주소 이동은 멈추지 않는 일반 실패 / 0.31.18: 쿠팡 성인 인증은 login.coupang.com/login/adult.pang 주소로 구분(그냥 로그인 주소면 로그인 풀림으로 즉시 중지) / 0.31.16: 쿠팡 성인 인증 상품은 실패가 아니라 '성인인증 필요'로 표시 / 0.31.15: 쿠팡 접근 차단 메시지에 차단으로 본 문구와 페이지 첫 글을 함께 표시 / 0.31.14: 쿠팡 단열벽지 일반 3상품은 이름 탐색을 없애고 유형별 대표 옵션 ID(고급형1·2·이중화이트·실크)로 검사 + 접근 제한 화면 감지 / 0.31.12: 단열벽지 일반 3상품은 판매 중인 대표 유형 4개를 자동 확인
+  const HKD_MIN_EXTENSION='0.32.7'; // 0.32.7: 한국단열 몰별 검사가 에너가드컴퍼니 스토어(smartstore.naver.com/energuardcompany) 상품 주소도 허용 — 에너가드론 검사용 / 0.32.2: 모음전 엑셀 — 옵션 항목 제목을 페이지 inline 데이터에서도 찾고, 못 찾으면 단서(optionHints)를 돌려줌 / 0.32.0: 한국단열 모음전 옵션 엑셀 — 확장이 스마트스토어 상품 페이지에서 옵션명·옵션 항목 제목·관리코드를 읽어 줌(moeum 요청) / 0.31.20: ESM 봇 확인 화면은 바로 실패하지 않고 약 20초까지 기다려 다시 읽고, 상품 사이 대기를 3~5.5초(무작위)로 늘림 / 0.31.19: 11번가 성인 인증 상품이 login.11st.co.kr 외 인증·member 주소로 넘어가도 '성인인증 필요'로 표시(이동한 주소 포함), 그 밖의 주소 이동은 멈추지 않는 일반 실패 / 0.31.18: 쿠팡 성인 인증은 login.coupang.com/login/adult.pang 주소로 구분(그냥 로그인 주소면 로그인 풀림으로 즉시 중지) / 0.31.16: 쿠팡 성인 인증 상품은 실패가 아니라 '성인인증 필요'로 표시 / 0.31.15: 쿠팡 접근 차단 메시지에 차단으로 본 문구와 페이지 첫 글을 함께 표시 / 0.31.14: 쿠팡 단열벽지 일반 3상품은 이름 탐색을 없애고 유형별 대표 옵션 ID(고급형1·2·이중화이트·실크)로 검사 + 접근 제한 화면 감지 / 0.31.12: 단열벽지 일반 3상품은 판매 중인 대표 유형 4개를 자동 확인
   // 그룹상품(groupProduct)도 구성 상품마다 스토어 페이지를 하나씩 전부 검사한다(사용자 결정 2026-09-29 — 느려도 전체 검증).
   // 한때 같은 관리코드는 대표 1개만 보는 샘플링을 뒀다가 뺐다.
   function gatherHkdItems(channelId,categoryId){
+    // 에너가드론('egc', 에너가드컴퍼니 스토어) — 몰별 적용 표(HK_CHANNEL_LISTINGS)에 없는 별도 목록이라 js/pricing-eguardron.js가 검사 대상을 만들어 준다.
+    if(channelId==='egc'){gatherHkdItems.skipped=0;return typeof window.hkEguardronCheckItems==='function'?window.hkEguardronCheckItems():[];}
     const byId=new Map();
     for(const product of HK_CHANNEL_LISTINGS[channelId]||[]){
       if(categoryId!=='all' && product.categoryId!==categoryId)continue;
@@ -450,13 +452,14 @@
     // 채널마다 검사창이 따로다(한국단열 hkd · 한국단열라이프 hkd_life — 같은 스마트스토어 구조, 스토어만 다름).
     const existing=document.getElementById('hkStorePriceCheckDialog-'+channelId);
     if(existing){existing.showModal();return;}
-    const channelLabel=(typeof HK_CHANNELS!=='undefined'&&HK_CHANNELS.find(c=>c.id===channelId)?.label)||channelId;
+    const channelLabel=channelId==='egc'?'에너가드론':(typeof HK_CHANNELS!=='undefined'&&HK_CHANNELS.find(c=>c.id===channelId)?.label)||channelId;
+    const isEguardron=channelId==='egc'; // 에너가드컴퍼니 스토어의 에너가드론 — 옵션 검사만(추가상품 목록은 한국단열 것이라 없음)
     const isHomepage=channelId==='homepage';
     const isEsm=channelId==='esm';
     const isSt11=channelId==='11st';
     const isCoupang=channelId==='coupang'||channelId==='coupang_sub';
     const expectedKind=isCoupang?'coupang':isEsm?'esm':isSt11?'11st':'hkd'; // 확장에 남는 마지막 검사의 종류
-    const storeSlug=channelId==='hkd_life'?'hkdylife':'hkdy';
+    const storeSlug=channelId==='hkd_life'?'hkdylife':channelId==='egc'?'energuardcompany':'hkdy';
     const storeDescription=isCoupang?'쿠팡(www.coupang.com) 상품 상세':isEsm?'G마켓·옥션 상품 상세':isSt11?'11번가(www.11st.co.kr) 상품 상세':isHomepage?'부니몰(boonimall.kr)':`${channelLabel} 네이버스토어(smartstore.naver.com/${storeSlug})`;
     const counts={};
     for(const product of HK_CHANNEL_LISTINGS[channelId]||[])counts[product.categoryId]=(counts[product.categoryId]||0)+1;
@@ -482,7 +485,7 @@
         </div>
         <div class="pctd-actions">
           <button type="button" class="pim-btn-confirm" data-run><i class="fa-solid fa-play"></i> 검사 시작</button>
-          ${isHomepage||isEsm||isCoupang?'':`<button type="button" class="pim-btn-confirm" data-run-supp title="각 상품 페이지의 추가상품을 '추가상품' 탭의 목록(단가표 판매가 + 추가비용)과 대조합니다. 옵션 검사와 따로 돌립니다."><i class="fa-solid fa-list-check"></i> 추가상품 검사</button>`}
+          ${isHomepage||isEsm||isCoupang||isEguardron?'':`<button type="button" class="pim-btn-confirm" data-run-supp title="각 상품 페이지의 추가상품을 '추가상품' 탭의 목록(단가표 판매가 + 추가비용)과 대조합니다. 옵션 검사와 따로 돌립니다."><i class="fa-solid fa-list-check"></i> 추가상품 검사</button>`}
           <button type="button" class="pim-btn-cancel" data-pause><i class="fa-solid fa-pause"></i> 일시정지</button>
           <button type="button" class="pim-btn-cancel" data-resume><i class="fa-solid fa-forward"></i> 이어서 검사</button>
           <label class="pctd-checkbox"><input type="checkbox" data-only checked> 확인 필요한 항목만</label>
