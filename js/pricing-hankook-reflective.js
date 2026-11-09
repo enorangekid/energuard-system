@@ -912,6 +912,14 @@ HK_REFLECTIVE_PRODUCTS.forEach(row => {
       ['빌트론 6T 1m x 1m 고급형 한쪽접착', 'BL_6_1_DA'],
     ]),
   );
+
+  /* 모음전 옵션 엑셀(js/pricing-hankook-moeum.js) — 2단 옵션 상품은 열마다 옵션 항목 이름(스토어 옵션 항목 이름)을 상품에 적어 둬야 만들어진다.
+     623737324(10M)는 '제품 선택'(두께·길이) × '종류 선택'(일반/고급·비접착/한쪽접착) 2단이라 이게 없어서 "2단 옵션 상품이라 열마다 옵션 항목 이름이 필요합니다" 오류가 났다(2026-11-09 수정). */
+  const MOEUM_TITLES = { '623737324': ['제품 선택', '종류 선택'] };
+  (HK_CHANNEL_LISTINGS.hkd || []).forEach(product => {
+    const titles = MOEUM_TITLES[String(product.productId)];
+    if (titles) product.moeumOptionTitles = titles;
+  });
 })();
 
 /* ═══════════════════════════════════════
