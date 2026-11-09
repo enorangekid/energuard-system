@@ -214,28 +214,28 @@ const HK_REFLECTIVE_PRODUCTS = [
   // 판상형(20T~50T, 20T만 원래 있고 30T 이상은 고급형만) — 원가는 위 BOM 카드로 계산(cost는 아래 hkReflectiveRefreshDerived()가 채운다).
   ...[
     { group:'판상형 - 유료배송(2M당)', bundle:1, rows:[
-      { name:'20T 고급형 비접착', spec:'20T X 2M', code:'BL_20_2_DN', oldPrice:22000, increase25:28000, thickness:20, adhesive:false, price:33000, refMargin:85 },
-      { name:'20T 고급형 한쪽접착', spec:'20T X 2M', code:'BL_20_2_DA', oldPrice:25000, increase25:32000, thickness:20, adhesive:true, price:38000, refMargin:85 },
-      { name:'30T 고급형 비접착', spec:'30T X 2M', code:'BL_30_2_DN', oldPrice:32000, increase25:38000, thickness:30, adhesive:false, price:46000, refMargin:85 },
-      { name:'30T 고급형 한쪽접착', spec:'30T X 2M', code:'BL_30_2_DA', oldPrice:36000, increase25:42000, thickness:30, adhesive:true, price:51000, refMargin:85 },
-      { name:'40T 고급형 비접착', spec:'40T X 2M', code:'BL_40_2_DN', oldPrice:42000, increase25:56000, thickness:40, adhesive:false, price:70000, refMargin:85 },
+      { name:'20T 고급형 비접착', spec:'20T X 2M', code:'BL_20_2_DN', oldPrice:22000, increase25:28000, thickness:20, adhesive:false, price:33600, refMargin:85 },
+      { name:'20T 고급형 한쪽접착', spec:'20T X 2M', code:'BL_20_2_DA', oldPrice:25000, increase25:32000, thickness:20, adhesive:true, price:38400, refMargin:85 },
+      { name:'30T 고급형 비접착', spec:'30T X 2M', code:'BL_30_2_DN', oldPrice:32000, increase25:38000, thickness:30, adhesive:false, price:46800, refMargin:85 },
+      { name:'30T 고급형 한쪽접착', spec:'30T X 2M', code:'BL_30_2_DA', oldPrice:36000, increase25:42000, thickness:30, adhesive:true, price:51600, refMargin:85 },
+      { name:'40T 고급형 비접착', spec:'40T X 2M', code:'BL_40_2_DN', oldPrice:42000, increase25:56000, thickness:40, adhesive:false, price:70200, refMargin:85 },
       { name:'50T 고급형 비접착', spec:'50T X 2M', code:'BL_50_2_DN', oldPrice:50000, increase25:64000, thickness:50, adhesive:false, price:81000, refMargin:85 },
     ]},
     { group:'판상형 - 무료배송(2M/3M묶음)', bundle:1, rows:[
-      { name:'20T 고급형 비접착', spec:'20T X 2M(무료배송)', code:'BL_20_2_DN_F', oldPrice:22000, increase25:28000, thickness:20, adhesive:false, price:37000, refMargin:85 },
+      { name:'20T 고급형 비접착', spec:'20T X 2M(무료배송)', code:'BL_20_2_DN_F', oldPrice:22000, increase25:28000, thickness:20, adhesive:false, price:37200, refMargin:85 },
       { name:'20T 고급형 한쪽접착', spec:'20T X 3M(무료배송)', code:'BL_20_2_DA_F', oldPrice:25000, increase25:32000, thickness:20, adhesive:true, price:42000, refMargin:85 },
-      { name:'30T 고급형 비접착', spec:'30T X 2M(무료배송)', code:'BL_30_2_DN_F', oldPrice:32000, increase25:38000, thickness:30, adhesive:false, price:49000, refMargin:85 },
-      { name:'30T 고급형 한쪽접착', spec:'30T X 2M(무료배송)', code:'BL_30_2_DA_F', oldPrice:36000, increase25:42000, thickness:30, adhesive:true, price:55000, refMargin:85 },
-      { name:'40T 고급형 비접착', spec:'40T X 2M(무료배송)', code:'BL_40_2_DN_F', oldPrice:42000, increase25:56000, thickness:40, adhesive:false, price:73000, refMargin:85 },
-      { name:'50T 고급형 비접착', spec:'50T X 2M(무료배송)', code:'BL_50_2_DN_F', oldPrice:50000, increase25:64000, thickness:50, adhesive:false, price:84000, refMargin:85 },
+      { name:'30T 고급형 비접착', spec:'30T X 2M(무료배송)', code:'BL_30_2_DN_F', oldPrice:32000, increase25:38000, thickness:30, adhesive:false, price:49200, refMargin:85 },
+      { name:'30T 고급형 한쪽접착', spec:'30T X 2M(무료배송)', code:'BL_30_2_DA_F', oldPrice:36000, increase25:42000, thickness:30, adhesive:true, price:55200, refMargin:85 },
+      { name:'40T 고급형 비접착', spec:'40T X 2M(무료배송)', code:'BL_40_2_DN_F', oldPrice:42000, increase25:56000, thickness:40, adhesive:false, price:73800, refMargin:85 },
+      { name:'50T 고급형 비접착', spec:'50T X 2M(무료배송)', code:'BL_50_2_DN_F', oldPrice:50000, increase25:64000, thickness:50, adhesive:false, price:84600, refMargin:85 },
     ]},
     { group:'판상형 - 5개묶음 10% 할인', bundle:5, rows:[
       { name:'20T 고급형 비접착', spec:'20T X 2M X 5개', code:'BL_20_2_DN_5', oldPrice:22000, increase25:28000, thickness:20, adhesive:false, price:168000, refMargin:80 },
-      { name:'20T 고급형 한쪽접착', spec:'20T X 2M X 5개', code:'BL_20_2_DA_5', oldPrice:25000, increase25:32000, thickness:20, adhesive:true, price:189000, refMargin:80 },
-      { name:'30T 고급형 비접착', spec:'30T X 2M X 5개', code:'BL_30_2_DN_5', oldPrice:32000, increase25:38000, thickness:30, adhesive:false, price:226000, refMargin:80 },
-      { name:'30T 고급형 한쪽접착', spec:'30T X 2M X 5개', code:'BL_30_2_DA_5', oldPrice:36000, increase25:42000, thickness:30, adhesive:true, price:248000, refMargin:80 },
-      { name:'40T 고급형 비접착', spec:'40T X 2M X 5개', code:'BL_40_2_DN_5', oldPrice:42000, increase25:56000, thickness:40, adhesive:false, price:331000, refMargin:80 },
-      { name:'50T 고급형 비접착', spec:'50T X 2M X 5개', code:'BL_50_2_DN_5', oldPrice:50000, increase25:64000, thickness:50, adhesive:false, price:380000, refMargin:80 },
+      { name:'20T 고급형 한쪽접착', spec:'20T X 2M X 5개', code:'BL_20_2_DA_5', oldPrice:25000, increase25:32000, thickness:20, adhesive:true, price:189600, refMargin:80 },
+      { name:'30T 고급형 비접착', spec:'30T X 2M X 5개', code:'BL_30_2_DN_5', oldPrice:32000, increase25:38000, thickness:30, adhesive:false, price:226800, refMargin:80 },
+      { name:'30T 고급형 한쪽접착', spec:'30T X 2M X 5개', code:'BL_30_2_DA_5', oldPrice:36000, increase25:42000, thickness:30, adhesive:true, price:248400, refMargin:80 },
+      { name:'40T 고급형 비접착', spec:'40T X 2M X 5개', code:'BL_40_2_DN_5', oldPrice:42000, increase25:56000, thickness:40, adhesive:false, price:331200, refMargin:80 },
+      { name:'50T 고급형 비접착', spec:'50T X 2M X 5개', code:'BL_50_2_DN_5', oldPrice:50000, increase25:64000, thickness:50, adhesive:false, price:380400, refMargin:80 },
     ]},
   ].flatMap(({ group, bundle, rows }) => rows.map(row => ({ group, kind:'board', bundle, cost:0, ...row }))),
 ];
@@ -995,14 +995,14 @@ HK_REFLECTIVE_PRODUCTS.forEach(row => {
     // 1차 — 50m/25m/20m/10m 마스터롤(couponOff 12 강제) — 반품/교환비 미확인(임시 40,000)
     group('8232412643', 8000, '40000', [
       ['91289839102', 'BL_5_50_SN_R', _hkReflectiveRollShipping('BL_5_50_SN_R', 27000)], ['91289839107', 'BL_5_50_DN_R', _hkReflectiveRollShipping('BL_5_50_DN_R', 27000)],
-      ['91289839097', 'BL_5_50_SA_R', _hkReflectiveRollShipping('BL_5_50_SA_R', 27000)], ['91289839110', 'BL_5_50_DA_R', _hkReflectiveRollShipping('BL_5_50_DA_R', 27000), null, { couponCap: 30000 }],
+      ['91289839097', 'BL_5_50_SA_R', _hkReflectiveRollShipping('BL_5_50_SA_R', 27000), null, { couponCap: 30000 }], ['91289839110', 'BL_5_50_DA_R', _hkReflectiveRollShipping('BL_5_50_DA_R', 27000), null, { couponCap: 30000 }],
     ], { couponOff: 12 }),
     group('5465024346', 8000, '40000', [
       ['91289798188', 'BL_6_25_SN_R', _hkReflectiveRollShipping('BL_6_25_SN_R', 27000)], ['91289798162', 'BL_6_25_DN_R', _hkReflectiveRollShipping('BL_6_25_DN_R', 27000)],
       ['91289798163', 'BL_6_25_SA_R', _hkReflectiveRollShipping('BL_6_25_SA_R', 27000)], ['91289798197', 'BL_6_25_DA_R', _hkReflectiveRollShipping('BL_6_25_DA_R', 27000)],
       ['91289798201', 'BL_10_25_SN_R', _hkReflectiveRollShipping('BL_10_25_SN_R', 27000)], ['91289798192', 'BL_10_25_DN_R', _hkReflectiveRollShipping('BL_10_25_DN_R', 27000)],
-      ['91289798173', 'BL_10_25_SA_R', _hkReflectiveRollShipping('BL_10_25_SA_R', 27000)], ['91289798165', 'BL_10_25_DA_R', _hkReflectiveRollShipping('BL_10_25_DA_R', 27000)],
-      ['91289798154', 'BL_13_20_DN_R', _hkReflectiveRollShipping('BL_13_20_DN_R', 27000)], ['91289798168', 'BL_13_20_DA_R', _hkReflectiveRollShipping('BL_13_20_DA_R', 27000)],
+      ['91289798173', 'BL_10_25_SA_R', _hkReflectiveRollShipping('BL_10_25_SA_R', 27000), null, { couponCap: 30000 }], ['91289798165', 'BL_10_25_DA_R', _hkReflectiveRollShipping('BL_10_25_DA_R', 27000), null, { couponCap: 30000 }],
+      ['91289798154', 'BL_13_20_DN_R', _hkReflectiveRollShipping('BL_13_20_DN_R', 27000)], ['91289798168', 'BL_13_20_DA_R', _hkReflectiveRollShipping('BL_13_20_DA_R', 27000), null, { couponCap: 30000 }],
       ['91289798150', 'BL_20_10_DN_R', _hkReflectiveRollShipping('BL_20_10_DN_R', 27000)], ['91289798157', 'BL_20_10_DA_R', _hkReflectiveRollShipping('BL_20_10_DA_R', 27000)],
     ], { couponOff: 12 }),
     // 2차 — 1M(5T~13T 배송비 4,300 / 20T~50T 배송비 11,000), 기본 쿠폰 분기(10%) 그대로
@@ -1198,7 +1198,7 @@ const HK_REFLECTIVE_1M_PRICE_MIGRATION = [ // [상품코드, 예전 판매가, �
   ['BL_50_1_DN', 32000, 38400]
 ];
 
-const HK_REFLECTIVE_REPRICE20_MIGRATION = [ // [상품코드, 예전 판매가, 새 판매가] — 2026-11-09 1M 외 전부 +20% 인상(사용자 결정, 100원 단위 반올림, 롤(5M 이상)은 천 원 단위 내림, 2M 판형·무료배송·5개 묶음은 천 원 단위 내림(0.5M은 100원 단위 그대로), 5M~25M 롤은 1M×개수(배송비 포함)보다 싸게 간격 유지(2026-11-09). 무료배송·5개 묶음 이상한 값은 나중에 확인)
+const HK_REFLECTIVE_REPRICE20_MIGRATION = [ // [상품코드, 예전 판매가, 새 판매가] — 2026-11-09 1M 외 전부 +20% 인상(사용자 결정, 100원 단위 반올림, 롤(5M 이상)은 천 원 단위 내림, 5M~25M 롤은 1M×개수(배송비 포함)보다 싸게 간격 유지(2026-11-09). 무료배송·5개 묶음 이상한 값은 나중에 확인)
   ['BL_5_50_SN_R', 111000, 133000],
   ['BL_5_50_DN_R', 122000, 146000],
   ['BL_5_50_SA_R', 189000, 226000],
@@ -1293,24 +1293,24 @@ const HK_REFLECTIVE_REPRICE20_MIGRATION = [ // [상품코드, 예전 판매가, 
   ['BL_30_05_DA', 15700, 18800],
   ['BL_40_05_DN', 19400, 23300],
   ['BL_50_05_DN', 23800, 28600],
-  ['BL_20_2_DN', 28000, 33000],
-  ['BL_20_2_DA', 32000, 38000],
-  ['BL_30_2_DN', 39000, 46000],
-  ['BL_30_2_DA', 43000, 51000],
-  ['BL_40_2_DN', 58500, 70000],
+  ['BL_20_2_DN', 28000, 33600],
+  ['BL_20_2_DA', 32000, 38400],
+  ['BL_30_2_DN', 39000, 46800],
+  ['BL_30_2_DA', 43000, 51600],
+  ['BL_40_2_DN', 58500, 70200],
   ['BL_50_2_DN', 67500, 81000],
-  ['BL_20_2_DN_F', 31000, 37000],
+  ['BL_20_2_DN_F', 31000, 37200],
   ['BL_20_2_DA_F', 35000, 42000],
-  ['BL_30_2_DN_F', 41000, 49000],
-  ['BL_30_2_DA_F', 46000, 55000],
-  ['BL_40_2_DN_F', 61500, 73000],
-  ['BL_50_2_DN_F', 70500, 84000],
+  ['BL_30_2_DN_F', 41000, 49200],
+  ['BL_30_2_DA_F', 46000, 55200],
+  ['BL_40_2_DN_F', 61500, 73800],
+  ['BL_50_2_DN_F', 70500, 84600],
   ['BL_20_2_DN_5', 140000, 168000],
-  ['BL_20_2_DA_5', 158000, 189000],
-  ['BL_30_2_DN_5', 189000, 226000],
-  ['BL_30_2_DA_5', 207000, 248000],
-  ['BL_40_2_DN_5', 276000, 331000],
-  ['BL_50_2_DN_5', 317000, 380000]
+  ['BL_20_2_DA_5', 158000, 189600],
+  ['BL_30_2_DN_5', 189000, 226800],
+  ['BL_30_2_DA_5', 207000, 248400],
+  ['BL_40_2_DN_5', 276000, 331200],
+  ['BL_50_2_DN_5', 317000, 380400]
 ];
 
 /* 롤 판매가·배송비 변경(2026-10-21) — DB에 저장된 값이 있으면 코드 기본값을 덮어쓰므로, **저장값이 예전 기본값 그대로일 때만** 새 값으로 바꾼다
