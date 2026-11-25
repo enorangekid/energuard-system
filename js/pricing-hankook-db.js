@@ -436,7 +436,8 @@ function _hkDbApplyState(state) {
         product.items.forEach(item => {
           const key = _hkDbItemKey(item);
           const status = saved.status?.[key];
-          if (status === 'none') delete item.status;
+          if ((window.HK_CLOSED_CHANNELS || []).includes(channelId)) { /* 판매 종료 채널 — 저장된 예전 상태를 무시하고 코드 기본값(판매중지) 유지 */ }
+          else if (status === 'none') delete item.status;
           else if (status && HK_CHANNEL_STATUS[status]) item.status = status;
           const manual = saved.manualPrice?.[key];
           if (manual != null && Number.isFinite(Number(manual))) item.manualPrice = Number(manual);

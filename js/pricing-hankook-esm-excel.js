@@ -63,7 +63,9 @@
       const priced = esmPriceOf(type, size);
       if (!priced) throw new Error(`단가표 가격을 찾지 못했습니다 — ${type} ${size}`);
       const key = [type, size, design].join('|');
-      return { type, size, design, price: priced.price, status: statuses.has(key) ? statuses.get(key) : '' };
+      // ESM은 판매 종료 채널(2026-11-25, js/pricing-hankook-channel-closed.js)이라 전부 판매중지(노출 N)로 만든다.
+      const closed = (window.HK_CLOSED_CHANNELS || []).includes('esm');
+      return { type, size, design, price: priced.price, status: closed ? 'stopped' : statuses.has(key) ? statuses.get(key) : '' };
     });
     const base = lines.reduce((min, line) => (line.price < min.price ? line : min), lines[0]);
     const unknownStatus = lines.filter(line => !statuses.has([line.type, line.size, line.design].join('|'))).length;
