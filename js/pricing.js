@@ -3580,6 +3580,7 @@ const APP_PRICE_SUBTABS = [
   { id: 'pu',         label: '경질우레탄' },
   { id: 'pf',         label: 'PF보드' },
   { id: 'fr',         label: '미네랄울 불연' },
+  { id: 'drainboard', label: '경질배수판' },
   { id: 'reflective', label: '열반사단열재' },
   { id: 'wallpaper',  label: '접착식 단열벽지' },
   { id: 'pufoam',     label: '이액형 PU폼' },
@@ -3824,6 +3825,17 @@ function buildAutoPriceTable(tabId) {
         </tr>`;
       });
     }
+  }
+
+  /* 경질배수판(2026-11-17) — 값은 js/pricing-drainboard.js가 단가표를 그릴 때 window.DRAINBOARD_PRICES로 내놓는다 */
+  else if (tabId === 'drainboard') {
+    (window.DRAINBOARD_PRICES || []).forEach(p => {
+      rows += `<tr>
+        <td style="text-align:left;font-weight:600;">경질배수판</td>
+        <td style="text-align:center;">2종 2호 사양</td><td style="text-align:center;">1000×2000</td><td class="td-thick">${p.thickness}T</td>
+        <td class="td-highlight">${fmt(p.price)}</td><td style="text-align:center;">장</td>
+      </tr>`;
+    });
   }
 
   return `
