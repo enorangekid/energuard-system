@@ -488,7 +488,7 @@ function _hkDbApplyState(state) {
       (saved.items || []).forEach((savedItem, index) => {
         const item = product.items[index];
         // 순번이 같아도 코드가 다르면(구조가 바뀜) 기본값을 그대로 둔다.
-        if (!item || item.productCode !== savedItem.productCode) return;
+        if (!item || (item.productCode !== savedItem.productCode && item.legacyCode !== savedItem.productCode)) return;
         if (savedItem.prevPrice !== undefined) item.prevPrice = savedItem.prevPrice;
         if (savedItem.prevShipping !== undefined) item.prevShipping = savedItem.prevShipping;
         if (savedItem.stock !== undefined && savedItem.stock !== null) item.stock = savedItem.stock;

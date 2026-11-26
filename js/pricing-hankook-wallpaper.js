@@ -875,11 +875,11 @@ const HK_WALLPAPER_11ST_COLORS = {
    스토어 값은 둘 다 6,300원(9/29 가격검사) — 실판매가 6,300과 같다. */
 (function addWallpaperOptionsToMixedProducts() {
   // 색상마다 항목을 따로 둔다(2026-10-02, 색상별 품절·단종을 단가표에서 관리하고 모음전 엑셀을 관리코드로 짝짓기 위해).
-  // 관리코드 = 원래 코드 + 색상 약어(스토어 색상 옵션의 관리코드도 이렇게 바꿔야 한다), 가격은 priceCode(원래 코드)의 가격표를 쓴다.
-  // 이름은 스토어 옵션명 그대로. 상태는 스토어에서 확인한 값(화이트 그레이 품절, 모던라인 화이트 판매중지)을 seedStatus로 둔다.
-  const COLORS = {
-    WHTE: ['WP_DW_5_1', '화이트'], WHGR: ['WP_DW_5_1', '화이트 그레이'], LXWH: ['WP_DW_5_1', '럭스 화이트'], GTWH: ['WP_DW_5_1', '젠틀 화이트'],
-    CTWH: ['WP_DW_5_1', '코튼 화이트'], HBWH: ['WP_DW_5_1', '헤링본 화이트'], BSWH: ['WP_DW_5_1', '베이직 화이트'], SFWH: ['WP_DW_5_1', '소프트 화이트'],
+  // 관리코드 = 원래 코드 + 디자인 번호(이중화이트) 또는 색상 약어(번호 없는 실크) — 단열벽지 상품(WP_DW_5_23_01 …)과 같은 규칙(스토어 색상 옵션의 관리코드도 이렇게 바꿔야 한다), 가격은 priceCode(원래 코드)의 가격표를 쓴다.
+  // 이중화이트는 2026-11-26에 약어(WP_DW_5_1_WHTE …)에서 번호(WP_DW_5_1_01 …)로 바꿨다. 이름은 스토어 옵션명 그대로. 상태는 스토어에서 확인한 값(화이트 그레이 품절, 모던라인 화이트 판매중지)을 seedStatus로 둔다.
+  const COLORS = { // 약어: [원래 코드, 색상, (이중화이트) 디자인 번호]
+    WHTE: ['WP_DW_5_1', '화이트', '01'], WHGR: ['WP_DW_5_1', '화이트 그레이', '02'], LXWH: ['WP_DW_5_1', '럭스 화이트', '11'], GTWH: ['WP_DW_5_1', '젠틀 화이트', '14'],
+    CTWH: ['WP_DW_5_1', '코튼 화이트', '20'], HBWH: ['WP_DW_5_1', '헤링본 화이트', '25'], BSWH: ['WP_DW_5_1', '베이직 화이트', '29'], SFWH: ['WP_DW_5_1', '소프트 화이트', '33'],
     WHOX: ['WP_SK_5_1', '화이트 옥스포드'], WHCL: ['WP_SK_5_1', '화이트 클레이'], MDWH: ['WP_SK_5_1', '모던라인 화이트'],
   };
   const addColors = (productId, categoryId, suffixes, seeds = {}, extra = {}) => {
@@ -887,8 +887,9 @@ const HK_WALLPAPER_11ST_COLORS = {
     if (!product) return;
     if (extra.optionTitles) product.moeumOptionTitles = extra.optionTitles; // 2단 옵션 상품의 모음전 엑셀 옵션 항목 제목
     suffixes.forEach(suffix => {
-      const [baseCode, color] = COLORS[suffix];
-      const item = { categoryId: 'hk_wallpaper', productCode: `${baseCode}_${suffix}`, priceCode: baseCode, productName: `단열벽지 5T 1m x 1m ${color}`, prevPrice: 6300, prevShipping: product.baseShipping };
+      const [baseCode, color, designNumber] = COLORS[suffix];
+      const item = { categoryId: 'hk_wallpaper', productCode: `${baseCode}_${designNumber || suffix}`,priceCode: baseCode, productName: `단열벽지 5T 1m x 1m ${color}`, prevPrice: 6300, prevShipping: product.baseShipping };
+      if (designNumber) item.legacyCode = `${baseCode}_${suffix}`; // DB에 예전 약어 코드로 저장된 수정 전 값도 이어서 읽는다(pricing-hankook-db.js)
       if (seeds[suffix]) { item.status = seeds[suffix]; item.seedStatus = seeds[suffix]; }
       if (extra.optionNamePrefix) item.optionNames = [extra.optionNamePrefix, item.productName]; // 2단 옵션: 1단 값 + 2단 값 — 스토어 페이지에 안 보이는 판매중지 옵션을 모음전 엑셀 끝에 넣을 때 쓴다
       product.items.push(item);
