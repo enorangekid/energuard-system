@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>한국단열 홈페이지 메인 시안 — 확인 요청</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  :root{--ink:#1d2228;--ink2:#555e69;--line:#e3e6ea;--bg:#f4f5f7;--red:#d42a2f;--navy:#1f2f45}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Pretendard,system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  header{background:var(--navy);color:#fff;padding:36px 0 30px}
+  header .tag{font-size:13px;color:#b9c5d4}
+  header h1{font-size:28px;letter-spacing:-.02em;margin-top:6px}
+  header p{color:#d3dbe6;margin-top:8px;font-size:15px}
+  main{padding:28px 0 60px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:18px}
+  .card h2{font-size:19px;margin-bottom:12px;letter-spacing:-.01em}
+  .card h2 small{font-size:13px;font-weight:500;color:var(--ink2);margin-left:6px}
+  ul.dots{list-style:none}
+  ul.dots li{padding:6px 0 6px 16px;position:relative;font-size:15px}
+  ul.dots li::before{content:"";position:absolute;left:0;top:15px;width:6px;height:6px;border-radius:50%;background:var(--red)}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px}
+  .stat{background:var(--bg);border-radius:10px;padding:14px 16px}
+  .stat b{display:block;font-size:22px}
+  .stat span{font-size:13px;color:var(--ink2)}
+  @media(max-width:700px){.stats{grid-template-columns:1fr}}
+
+  .viewer-bar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+  .seg{display:inline-flex;background:var(--bg);border-radius:8px;padding:3px}
+  .seg button{border:0;background:transparent;font:inherit;font-size:14px;font-weight:600;padding:7px 14px;border-radius:6px;color:var(--ink2);cursor:pointer}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .viewer-bar a{font-size:14px;color:var(--ink2)}
+  .frame-box{background:#d9dde2;border-radius:10px;padding:14px;display:flex;justify-content:center;overflow:hidden}
+  .frame-box iframe{border:0;background:#fff;width:100%;height:760px;border-radius:6px;transition:width .25s}
+  .frame-box.mobile iframe{width:390px;height:760px}
+
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:13px;color:var(--ink2);font-weight:600;background:var(--bg)}
+  td:first-child{font-weight:600;white-space:nowrap}
+
+  ol.ask{list-style:none;counter-reset:q}
+  ol.ask li{counter-increment:q;padding:14px 0 14px 40px;position:relative;border-top:1px solid var(--line)}
+  ol.ask li:first-child{border-top:0}
+  ol.ask li::before{content:counter(q);position:absolute;left:0;top:13px;width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center}
+  ol.ask b{display:block;font-size:15px}
+  ol.ask span{font-size:14px;color:var(--ink2)}
+  .opts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .opts i{font-style:normal;font-size:13px;border:1px solid var(--line);border-radius:99px;padding:3px 10px;background:#fff}
+  .scope{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .scope div{border:1px solid var(--line);border-radius:10px;padding:16px}
+  .scope b{display:block;font-size:15px;margin-bottom:4px}
+  .scope span{font-size:13.5px;color:var(--ink2)}
+  @media(max-width:700px){.scope{grid-template-columns:1fr}}
+  footer{text-align:center;font-size:13px;color:var(--ink2);padding-bottom:40px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="tag">한국단열 홈페이지(boonimall.kr) 리뉴얼 · 2026-11-26</div>
+    <h1>메인페이지 디자인 시안 — 확인 부탁드립니다</h1>
+    <p>아래 시안은 실제 홈페이지에 적용되지 않은 화면입니다. 방향과 범위를 정해 주시면 그대로 진행하겠습니다.</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="card">
+    <h2>왜 홈페이지를 손보려 하나요</h2>
+    <ul class="dots">
+      <li>11번가·지마켓 판매를 정리하면서, 그만큼 자사 홈페이지를 판매 채널로 다시 살리려 합니다.</li>
+      <li>그동안 쿠팡·스마트스토어에 집중하면서 홈페이지 관리가 거의 안 됐습니다.</li>
+      <li>상품 정리(빠진 상품·판매중지 상품·가격 표시 오류)와 디자인 개선을 함께 진행하려 합니다.</li>
+    </ul>
+    <div class="stats" style="margin-top:14px">
+      <div class="stat"><b>하루 5건 미만</b><span>현재 홈페이지 주문 수준</span></div>
+      <div class="stat"><b>195개 중 129개</b><span>정상 판매·노출 중인 상품</span></div>
+      <div class="stat"><b>무료 기성 스킨</b><span>식품몰용 디자인을 그대로 사용 중</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="viewer-bar">
+      <h2 style="margin:0">메인페이지 시안</h2>
+      <div class="seg" role="tablist">
+        <button class="on" data-mode="pc">PC 화면</button>
+        <button data-mode="mobile">모바일 화면</button>
+      </div>
+      <a href="https://boonimall.kr/" target="_blank" rel="noopener">현재 홈페이지 보기 ↗</a>
+    </div>
+    <div class="frame-box" id="box"><iframe src="main-mockup.html" title="메인페이지 시안"></iframe></div>
+    <p style="font-size:13px;color:var(--ink2);margin-top:8px">시안 안의 가격·사진은 현재 홈페이지 상품 기준입니다. 버튼은 눌러도 이동하지 않습니다. <a href="main-mockup.html" target="_blank">새 창으로 크게 보기 ↗</a></p>
+  </div>
+
+  <div class="card">
+    <h2>현재와 무엇이 달라지나요</h2>
+    <table>
+      <tr><th style="width:140px">부분</th><th>현재 홈페이지</th><th>시안</th></tr>
+      <tr><td>첫 화면</td><td>회사 소개 문구·앱 출시 배너, 스킨 기본 샘플 배너가 남아 있음</td><td>"공장에서 바로" 핵심 문구 + 많이 찾는 규격·가격 + 견적 문의 버튼</td></tr>
+      <tr><td>메뉴</td><td>빌트론·압출법·비드법 등 3단으로 섞여 있음</td><td>아이소핑크·스티로폼·열반사 등 8개로 단순화</td></tr>
+      <tr><td>출고 안내</td><td>"오후 11시 이전 주문 당일출고"로 잘못 적힘</td><td>맨 위에 "평일 오전 11시 이전 결제 시 당일 출고"</td></tr>
+      <tr><td>상품 찾기</td><td>추천상품 8개, 신상품에 품절 상품 노출</td><td>카테고리 사진 타일 + "어디에 쓰세요?"(바닥·벽·창문·천장) 추천</td></tr>
+      <tr><td>업체 손님</td><td>"licensee join" 영문 배너</td><td>현장·대량 견적 안내와 전화 버튼</td></tr>
+      <tr><td>모바일</td><td>PC 화면 축소</td><td>하단 고정 "전화 견적" 버튼</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>확인 부탁드릴 것</h2>
+    <ol class="ask">
+      <li><b>디자인 방향</b><span>이 느낌으로 진행해도 될까요?</span>
+        <div class="opts"><i>이대로 진행</i><i>일부 수정 후 진행</i><i>다른 방향 시안 요청</i></div></li>
+      <li><b>상담 시간 표기</b><span>현재 홈페이지는 평일 08:30~18:00·토요일 오전 운영, 시안은 평일 09:00~18:00(배송 안내 이미지 기준)입니다. 어느 쪽이 맞나요?</span></li>
+      <li><b>시안 문구 중 실제로 가능한 것</b><span>가능한 것만 남기겠습니다.</span>
+        <div class="opts"><i>KS 성적서 요청 시 제공</i><i>세금계산서 발행</i><i>규격 맞춤 재단</i><i>화물·용차 직배송</i><i>사업자 회원 혜택</i><i>포천 방문수령</i></div></li>
+      <li><b>작업 범위</b><span>아래 중 어디까지 진행할까요?</span></li>
+    </ol>
+    <div class="scope" style="margin-top:8px">
+      <div><b>① 정리만</b><span>판매중지·품절 상품 숨김, 가격 표시 오류·오타·테스트 상품 정리, 출고 시간 문구 수정</span></div>
+      <div><b>② 상품 보강까지</b><span>①에 더해 스마트스토어에 있는데 홈페이지에 없는 상품 등록(아이소핑크 낱장, 열반사 소분, 벽지 1m·2.3m, 부자재 등)</span></div>
+      <div><b>③ 디자인 개편까지</b><span>①②에 더해 이 시안을 실제 스킨에 적용. 복사본 스킨에서 작업 후 확인받고 교체 — 작업 중 손님 화면은 그대로</span></div>
+    </div>
+  </div>
+
+</main>
+<footer>한국단열 · 내부 검토용 페이지</footer>
+
+<script>
+  const box=document.getElementById('box');
+  document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x===b));
+    box.classList.toggle('mobile',b.dataset.mode==='mobile');
+  }));
+</script>
+</body>
+</html>
