@@ -530,7 +530,9 @@ async function saveEstimateToArchive() {
                 margin: [8, 8, 8, 8],
                 filename: originalName,
                 image: { type: 'jpeg', quality: 0.97 },
-                html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false },
+                // scrollX/scrollY: 0 — 견적서 뒤의 화면이 스크롤돼 있으면 html2canvas가 그만큼 밀어서 캡처해
+                // 저장한 PDF가 아래로 잘리거나 백지가 됐다(2026-11-26, 스크롤 300·600px에서 재현 후 수정).
+                html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false, scrollX: 0, scrollY: 0 },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             })
             .from(source)
