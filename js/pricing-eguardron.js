@@ -13,6 +13,7 @@
    화면은 한국단열 열반사단열재 단가표(js/pricing-hankook-reflective.js)와 같은 카드·아코디언·표 클래스를 쓴다. 상품번호 칸의 [상품코드 복사] 버튼(한국단열 표와 같은 hkCopyProductCode)으로 네이버 상품번호를 복사한다.
    대표가(= 비접착 옵션 가격, 옵션가 0)와 옵션가(= 옵션 가격 − 대표가)도 이전·새 값을 같이 보여 준다.
    읽기 전용 표다 — 값을 바꾸려면 아래 EGR_PRODUCTS를 고친다.
+   앱 가격 탭의 열반사 6칸(app_product_prices 601~606)은 2026-11-26부터 여기의 next를 자동으로 따른다(js/pricing.js APP_REFLECTIVE_EGR_CODES).
 ═══════════════════════════════════════ */
 const EGR_PRODUCTS = [
  {

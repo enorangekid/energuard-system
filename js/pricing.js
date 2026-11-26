@@ -1650,6 +1650,13 @@ async function syncAppProductPrices(source) {
     });
   }
 
+  /* 6. 열반사·단열벽지·PU폼 — 에너가드론·한국단열 단가표 값(원가 이력과 무관), 앱 DB의 id로 갱신 */
+  await _appHkReady();
+  _appLinkedIds().forEach(id => {
+    const price = _appLinkedPrice(id);
+    if (price) updates.push({ id, price });
+  });
+
   if (updates.length === 0) return;
 
   /* 기존 행만 UPDATE (INSERT 없음 — product_name NOT NULL 제약 때문) */
@@ -1659,10 +1666,11 @@ async function syncAppProductPrices(source) {
     const { error } = await supabaseClient
       .from('app_product_prices')
       .update({ price: u.price })
-      .eq('product_code', u.product_code);
+      .eq(u.id ? 'id' : 'product_code', u.id || u.product_code);
     if (error) failCount++;
     else successCount++;
   }));
+  if (window._appManualPrices) updates.forEach(u => { if (u.id) window._appManualPrices[u.id] = u.price; });
 
   if (failCount > 0) {
     console.error(`앱 가격 동기화 일부 실패: 성공 ${successCount}건, 실패 ${failCount}건`);
@@ -3573,6 +3581,45 @@ const APP_MANUAL_PRODUCTS = {
   }
 };
 
+/* 열반사·단열벽지·PU폼 앱 가격 — 단가표를 자동으로 따른다(2026-11-26, 예전엔 직접 입력이었다). 앱 DB id → 단가표 상품코드.
+   · 열반사: 에너가드론 단가표(js/pricing-eguardron.js의 새 가격 next)
+   · 단열벽지·PU폼: 한국단열 단가표의 저장된 판매가. 벽지 "고급형"은 고급형1·2 중 저렴한 고급형1(사용자 결정).
+   DB 반영은 다른 자동 상품처럼 이력의 "실제 적용" 또는 앱 가격 화면의 [앱에 저장]을 눌러야 된다. */
+const APP_REFLECTIVE_EGR_CODES = {
+  601: 'EG_5_40_DN', 602: 'EG_5_40_DA',
+  603: 'EG_10_20_DN', 604: 'EG_10_20_DA',
+  605: 'EG_20_10_DN', 606: 'EG_20_10_DA',
+};
+const APP_HK_WALLPAPER_CODES = { 607: 'WP_P1_5_20', 608: 'WP_SK_5_20' };
+const APP_HK_SUB_CODES = { 701: 'T_2K_H', 702: 'TW_LF_H', 703: 'T_2K_S', 704: 'TW_LF_S' };
+
+/* 한국단열 단가표를 불러오고, 앱에 써도 되는 상태인지 돌려준다. 못 불러왔거나(코드 기본값) 저장 안 한 수정이 있으면 쓰지 않는다. */
+function _appHkUsable() {
+  return typeof _hkDb !== 'undefined' && _hkDb.loaded && _hkDb.hasSavedData && !_hkDb.dirty;
+}
+async function _appHkReady() {
+  if (typeof _hkDb === 'undefined' || typeof window.hkDbLoad !== 'function') return false;
+  if (!_hkDb.loaded && !_hkDb.loading) await window.hkDbLoad();
+  for (let i = 0; _hkDb.loading && i < 150; i++) await new Promise(resolve => setTimeout(resolve, 200));
+  return _appHkUsable();
+}
+
+function _appLinkedPrice(id) {
+  if (APP_REFLECTIVE_EGR_CODES[id]) {
+    if (typeof EGR_PRODUCTS === 'undefined') return null;
+    const item = EGR_PRODUCTS.flatMap(block => block.items).find(i => i.code === APP_REFLECTIVE_EGR_CODES[id]);
+    return item?.next || null;
+  }
+  if (!_appHkUsable()) return null;
+  if (APP_HK_WALLPAPER_CODES[id]) return window.hkWallpaperPriceByCode?.(APP_HK_WALLPAPER_CODES[id]) || null;
+  if (APP_HK_SUB_CODES[id]) return window.hkSubPriceByCode?.(APP_HK_SUB_CODES[id]) || null;
+  return null;
+}
+
+function _appLinkedIds() {
+  return [APP_REFLECTIVE_EGR_CODES, APP_HK_WALLPAPER_CODES, APP_HK_SUB_CODES].flatMap(map => Object.keys(map).map(Number));
+}
+
 /* 앱 가격 탭 서브탭 목록 */
 const APP_PRICE_SUBTABS = [
   { id: 'isopink',    label: '아이소핑크' },
@@ -3596,7 +3643,9 @@ async function initAppPriceTab() {
     <i class="fa-solid fa-spinner fa-spin"></i> 가격 데이터 불러오는 중...
   </div>`;
 
-  // 직접 입력 상품 현재 가격 로드
+  await _appHkReady(); // 단열벽지·PU폼이 따라가는 한국단열 단가표
+
+  // 앱에 지금 들어 있는 가격("앱 반영 전" 표시용)
   let manualPrices = {};
   if (typeof supabaseClient !== 'undefined') {
     const allIds = [
@@ -3699,7 +3748,7 @@ function renderAppPriceSubTab(tabId) {
   if (!content) return;
 
   if (tabId === 'reflective' || tabId === 'wallpaper' || tabId === 'pufoam') {
-    content.innerHTML = buildManualPriceTable(tabId);
+    content.innerHTML = buildLinkedPriceTable(tabId);
     return;
   }
   content.innerHTML = buildAutoPriceTable(tabId);
@@ -3850,28 +3899,36 @@ function buildAutoPriceTable(tabId) {
     </table>`;
 }
 
-/* 직접 입력 가격 테이블 */
-function buildManualPriceTable(tabId) {
+/* 열반사·단열벽지·PU폼 가격 테이블 — 단가표 자동 연동(읽기전용). 앱 DB 값이 다르면 "앱 반영 전"으로 알려준다. */
+function buildLinkedPriceTable(tabId) {
   const product = APP_MANUAL_PRODUCTS[tabId];
-  const manualPrices = window._appManualPrices || {};
+  const savedPrices = window._appManualPrices || {};
+  const source = tabId === 'reflective' ? '에너가드론 단가표 연동' : '한국단열 단가표 연동';
+  const badge = `<span class="pricing-spec-badge" style="vertical-align:middle;font-size:10px;">${source}</span>`;
+  const warn = tabId !== 'reflective' && !_appHkUsable()
+    ? `<div style="padding:12px 16px;color:#dc2626;font-size:12px;font-weight:600;">${
+        typeof _hkDb !== 'undefined' && _hkDb.dirty
+          ? '한국단열 단가표에 저장 안 한 수정이 있습니다. 단가표를 저장한 뒤 다시 열어 주세요.'
+          : '한국단열 단가표의 저장값을 불러오지 못했습니다. 새로고침 후 다시 열어 주세요.'}</div>` : '';
+  const priceCell = item => {
+    const price = _appLinkedPrice(item.id);
+    const saved = savedPrices[item.id];
+    const pending = price && saved != null && Number(saved) !== price
+      ? `<div style="font-size:11px;font-weight:500;color:#dc2626;margin-top:3px;">앱 반영 전 (앱: ${Number(saved).toLocaleString()}원)</div>` : '';
+    return `<td class="td-highlight">${price ? price.toLocaleString() + '원' : '—'}${pending}</td>`;
+  };
 
   if (tabId === 'pufoam') {
-    const rows = product.items.map(item => `
-      <tr>
+    const rows = product.items.map(item => `<tr>
         <td style="text-align:center;font-weight:600;">${item.sub1}</td>
         <td style="text-align:center;">${item.name}</td>
-        <td class="td-highlight" style="padding:6px 12px;">
-          <input type="text" inputmode="numeric" class="app-price-input"
-            id="app-manual-${item.id}"
-            value="${manualPrices[item.id] ?? ''}"
-            placeholder="0">
-        </td>
+        ${priceCell(item)}
         <td style="text-align:center;">${item.unit}</td>
       </tr>`).join('');
-    return `
+    return `${warn}
       <table class="pricing-table">
         <thead><tr>
-          <th>종류 <span class="pricing-spec-badge" style="vertical-align:middle;font-size:10px;">직접 입력</span></th>
+          <th>종류 ${badge}</th>
           <th>브랜드</th>
           <th class="pricing-col-highlight">앱 판매가</th>
           <th>단위</th>
@@ -3880,27 +3937,18 @@ function buildManualPriceTable(tabId) {
       </table>`;
   }
 
-  const thicknessHeader = product.thicknessHeader || '두께';
-
-  let rows = product.items.map(item => `
-    <tr>
+  const rows = product.items.map(item => `<tr>
       <td style="text-align:left;font-weight:600;">${item.name}</td>
       <td style="text-align:center;">${item.spec}</td>
-      <td class="td-thick">${item.thicknessDisplay ?? (item.thickness != null ? item.thickness + 'T' : '-')}</td>
-      <td class="td-highlight" style="padding:6px 12px;">
-        <input type="text" inputmode="numeric" class="app-price-input"
-          id="app-manual-${item.id}"
-          value="${manualPrices[item.id] ?? ''}"
-          placeholder="0">
-      </td>
+      <td class="td-thick">${item.thickness}T</td>
+      ${priceCell(item)}
       <td style="text-align:center;">${item.unit}</td>
     </tr>`).join('');
-
-  return `
+  return `${warn}
     <table class="pricing-table">
       <thead><tr>
-        <th style="text-align:left;">종류 <span class="pricing-spec-badge" style="vertical-align:middle;font-size:10px;">직접 입력</span></th>
-        <th>규격</th><th>${thicknessHeader}</th>
+        <th style="text-align:left;">종류 ${badge}</th>
+        <th>규격</th><th>두께</th>
         <th class="pricing-col-highlight">앱 판매가</th>
         <th>단위</th>
       </tr></thead>
@@ -3908,39 +3956,36 @@ function buildManualPriceTable(tabId) {
     </table>`;
 }
 
-/* 직접 입력 상품 저장 */
+/* [앱에 저장] — 연동 상품 전부를 단가표 값으로 앱 DB에 쓴다 */
 window.saveAppManualPrices = async function() {
   if (typeof supabaseClient === 'undefined') return;
-
-  const allItems = [
-    ...APP_MANUAL_PRODUCTS.reflective.items,
-    ...APP_MANUAL_PRODUCTS.wallpaper.items,
-    ...APP_MANUAL_PRODUCTS.pufoam.items,
-  ];
 
   const statusEl = document.getElementById('appPriceSaveStatus');
   if (statusEl) statusEl.textContent = '저장 중...';
 
+  const hkReady = await _appHkReady();
   let successCount = 0, failCount = 0;
 
-  await Promise.all(allItems.map(async item => {
-    const el = document.getElementById(`app-manual-${item.id}`);
-    if (!el) return;
-    const val = parseInt(el.value.replace(/,/g, ''));
+  await Promise.all(_appLinkedIds().map(async id => {
+    const val = _appLinkedPrice(id);
     if (!val || val <= 0) return;
 
     const { error } = await supabaseClient
       .from('app_product_prices')
       .update({ price: val })
-      .eq('id', item.id);
+      .eq('id', id);
 
     if (error) failCount++;
     else {
       successCount++;
-      if (window._appManualPrices) window._appManualPrices[item.id] = val;
+      if (window._appManualPrices) window._appManualPrices[id] = val;
     }
   }));
 
+  renderAppPriceSubTab(_appPriceSubTab); // "앱 반영 전" 표시 갱신
+  if (!hkReady && typeof showToast === 'function') {
+    showToast('단열벽지·PU폼은 저장하지 않았습니다 — 한국단열 단가표를 저장하거나 다시 불러온 뒤 눌러 주세요.', 'warning');
+  }
   const now = new Date().toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   if (statusEl) {
     statusEl.textContent = failCount > 0
